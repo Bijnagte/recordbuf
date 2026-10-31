@@ -1,5 +1,6 @@
 package bijnagte.recordbuf.plugin.model;
 
+import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 
@@ -15,6 +16,7 @@ import org.jspecify.annotations.Nullable;
  * @param deprecated      {@code option deprecated = true}
  * @param comment         leading doc comment, if captured
  */
+@RecordBuilder
 public record Message(
         String name,
         String fullName,

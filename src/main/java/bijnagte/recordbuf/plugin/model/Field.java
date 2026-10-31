@@ -1,5 +1,6 @@
 package bijnagte.recordbuf.plugin.model;
 
+import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 
@@ -22,6 +23,7 @@ import org.jspecify.annotations.Nullable;
  * @param defaultValue   textual default (only meaningful for proto2 optionals
  *                       and for map/scalar defaults)
  */
+@RecordBuilder
 public record Field(
         String name,
         String javaName,

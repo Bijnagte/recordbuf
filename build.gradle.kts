@@ -30,6 +30,14 @@ dependencies {
     // record/codec types (independent modules) pull JSpecify transitively.
     compileOnly(libs.jspecify)
 
+    // Record-builder generates <Record>With interfaces for the plugin's OWN
+    // model records (Field/Message/Enum/ProtoFile/EnumConstant), NOT for
+    // generated user-facing output (that stays dependency-free). core carries
+    // the @RecordBuilder/@RecordBuilder.* annotations onto the compile classpath;
+    // processor is the annotation processor itself.
+    compileOnly(libs.record.builder.core)
+    annotationProcessor(libs.record.builder.processor)
+
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
 }

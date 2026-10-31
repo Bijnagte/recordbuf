@@ -1,5 +1,6 @@
 package bijnagte.recordbuf.plugin.model;
 
+import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 
@@ -9,6 +10,7 @@ import org.jspecify.annotations.Nullable;
  * <p>{@code javaPackage} may be empty — callers decide how to fall back (typically
  * to the proto package, then to the file stem).
  */
+@RecordBuilder
 public record ProtoFile(
         String fileName,
         String protoPackage,
