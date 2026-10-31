@@ -1,6 +1,17 @@
 plugins {
     java
     application
+    // NOTE: net.ltgt.errorprone is NOT applied yet. Error Prone + NullAway were
+    // the step-4 cross-project goal, but (1) NullAway's jar (com.uber:nullaway)
+    // is not resolvable from this environment's Maven mirror, and (2) enabling
+    // Error Prone's full default checker set on its own spams ~71 warnings, most
+    // of them in the generated com.google.protobuf.compiler.PluginProtos shim, a
+    // file we treat as out-of-scope glue. Both are a clean, self-contained
+    // future task. When done, apply `id("net.ltgt.errorprone")` (auto-forks
+    // javac + add-exports on JDK 16+), add the `errorprone` configuration below,
+    // and (on JDK 22+) pass -XepOpt:NullAway:JSpecifyMode=true +
+    // -XepOpt:NullAway:OnlyNullMarked=true to compileJava/compileTestJava so the
+    // generated shim stays out of NullAway's scope.
 }
 
 group = "bijnagte.recordbuf"
@@ -38,6 +49,13 @@ dependencies {
     compileOnly(libs.record.builder.core)
     annotationProcessor(libs.record.builder.processor)
 
+    // Error Prone / NullAway wiring is DEFERRED -- see the note on the plugin
+    // block above. The catalog still declares the coordinates (com.google.errorprone
+    // for both error-prone-core and error-prone-check; com.uber for nullaway) so
+    // re-enabling is a one-line `errorprone(...)` addition. To turn on when the
+    // jars are reachable, add the `id("net.ltgt.errorprone")` plugin and, per task:
+    //     options.compilerArgs += "-XepOpt:NullAway:JSpecifyMode=true"
+    //     options.compilerArgs += "-XepOpt:NullAway:OnlyNullMarked=true"
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
 }
