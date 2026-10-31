@@ -1,0 +1,14 @@
+# Build output
+/build/
+/.gradle/
+out/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+.DS_Store
+
+# Scratch directory for manual `protoc --java_out=./generated` runs
+/generated/

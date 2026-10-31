@@ -249,7 +249,7 @@ public final class ModelLoader {
             }
             default -> {
                 kind = FieldKind.SCALAR;
-                typeUrl = null;
+                typeUrl = scalarTypeName(f.getType());
             }
         }
 
@@ -285,6 +285,15 @@ public final class ModelLoader {
     }
 
     // --- scalar / type helpers ---
+
+    /** Returns the lowercased proto type name for a scalar, e.g. "int32". */
+    static String scalarTypeName(FieldDescriptorProto.Type t) {
+        // The enum constants are TYPE_DOUBLE, TYPE_INT32, etc. — strip the
+        // prefix to get the wire-level name.
+        String n = t.name();
+        if (n.startsWith("TYPE_")) n = n.substring(5);
+        return n.toLowerCase(java.util.Locale.ROOT);
+    }
 
     static boolean isScalar(Type t) {
         return switch (t) {

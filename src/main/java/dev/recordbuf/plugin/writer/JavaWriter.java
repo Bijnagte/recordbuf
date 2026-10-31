@@ -44,15 +44,22 @@ public final class JavaWriter {
         return this;
     }
 
+    /** Current indent level (0 = top of file). Callers may need it for
+     * manual indentation in fixed-structure code. */
+    public int indent() { return indent; }
+
+    /** Set the indent level. */
+    public JavaWriter indent(int n) { this.indent = n; return this; }
+
     /** Add a raw line of code (no indentation management beyond the current level). */
-    public JavaWriter line(String text) {
-        for (int i = 0; i < indent; i++) sb.append("    ");
-        sb.append(text).append('\n');
+    public JavaWriter line() {
+        sb.append('\n');
         return this;
     }
 
-    public JavaWriter line() {
-        sb.append('\n');
+    public JavaWriter line(String text) {
+        for (int i = 0; i < indent; i++) sb.append("    ");
+        sb.append(text).append('\n');
         return this;
     }
 
@@ -67,10 +74,9 @@ public final class JavaWriter {
         line(close);
     }
 
-    /** No-body block: just "x { }" on one line. */
-    public JavaWriter emptyBlock(String open, String close) {
+    /** Emit a single-line block: {@code open + " " + close}. */
+    public void inlineBlock(String open, String close) {
         line(open + " " + close);
-        return this;
     }
 
     @Override
