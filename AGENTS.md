@@ -16,6 +16,13 @@ that turns `.proto` files into Java records + protobuf codecs.
   `src/main/java/com/google/protobuf/compiler` holds the protoc plugin-protocol
   classes — treat it as generated/protocol glue; don't hand-rename.
 
+## Documented solutions
+
+`docs/solutions/` — durable, searchable notes from the compound-engineering
+workflow (`ce-compound`), organized by category with YAML frontmatter
+(`module`, `tags`, `problem_type`). Relevant when implementing or debugging in a
+documented area. `docs/README.md` describes the layout.
+
 ## Build & toolchain overrides (read these)
 
 - **Build tool:** Gradle, **Kotlin DSL** (`build.gradle.kts`). Always use the
@@ -111,3 +118,17 @@ that turns `.proto` files into Java records + protobuf codecs.
 `java-design-review` from `~/.pi/agent/skills/` are in scope here. They carry
 the cross-project defaults; the overrides above win when they conflict
 (principally the **deferred** NullAway + Spotless/SLF4J tooling).
+
+<!-- BEGIN COMPOUND PI TOOL MAP -->
+## Compound Engineering (Pi compatibility)
+
+This block is added by the pi-compound-engineering package.
+
+Pi extensions used by skills shipped by this package:
+- Required for full functionality: `pi-subagents` (by nicobailon) provides the `subagent` tool used by ce-compound, ce-code-review, ce-plan, ce-compound-refresh, and other parallel-agent skills.
+- Recommended: `pi-ask-user` (by edlsh) provides the `ask_user` tool; skills fall back to numbered options in chat when it is missing.
+
+Install with:
+  pi install npm:pi-subagents
+  pi install npm:pi-ask-user
+<!-- END COMPOUND PI TOOL MAP -->
