@@ -27,11 +27,37 @@ that turns `.proto` files into Java records + protobuf codecs.
   that goes into *user's* classpaths should stay close to a wider baseline
   (e.g. 17+) unless asked — discuss before changing the target. Don't bump the
   target further without being asked.
-- **Nullability / record builders:** the user defaults (NullAway + JSPECIFY,
-  `io.soabase.record-builder` via a version catalog) are **not yet wired into
-  this project's `build.gradle.kts`.** Don't assume they're active. Wire them
-  in deliberately if the user asks; otherwise follow the existing (un-annotated)
-  style of the surrounding code.
+- **Nullability (JSpecify): WIRED for the plugin's own model layer.** Each
+  of the `bijnagte.recordbuf.plugin.*` subpackages has a `package-info.java`
+  carrying `@NullMarked`, and `Optional<String>` comment / name fields have
+  been rewritten to `@Nullable String` (see
+  `model.Field#comment`, `model.Message#comment`, `model.Enum.EnumConstant#name`,
+  `model.ProtoFile#message`/`enum`/`package`). **NullAway itself is DEFERRED**
+  (see the `plugins{}` note in `build.gradle.kts`): `com.uber:nullaway` has
+  no resolvable versions in this environment's current Maven mirror, and
+  enabling Error Prone's full default checker set on its own fires ~71
+  warnings that are mostly in the generated `com.google.protobuf.compiler`
+  shim we treat as out-of-scope protocol glue. Re-enabling NullAway is
+  a one-line `errorprone(libs.nullaway)` plus the `JSpecifyMode=true` +
+  `OnlyNullMarked=true` `-XepOpt`s (documented in `build.gradle.kts`); on
+  JDK 22+ both flags are needed so the checker *honors* the JSpecify
+  annotations instead of re-inventing its own nullability model, and
+  `OnlyNullMarked` keeps the generated shim out of its scope. Don't assume
+  the checker is running until that step lands.
+- **Record builders: WIRED for the plugin's own model records.**
+  `Field`, `Message`, `Enum`, `Enum.EnumConstant`, and `ProtoFile` all carry
+  `@RecordBuilder` (`io.soabase.recordbuilder.core.RecordBuilder`); the
+  generated `*With` interfaces and static `*Builder` factories live on the
+  build classpath and are used throughout the codebase. Generated *user*
+  code produced by the plugin itself does NOT get `@RecordBuilder` — the
+  plugin output stays dependency-free (per the original `record`-output
+  requirement).
+- **Error Prone / NullAway: DEFERRED.** See `build.gradle.kts` for the
+  exact recipe. The version catalog still declares
+  `error-prone=2.51.0` (group `com.google.errorprone`, NOT
+  `com.github.errorprone` — the latter group has no resolvable version in
+  this environment), `nullaway=0.14.3` (group `com.uber`), and
+  `gradle-errorprone=5.1.1` (`net.ltgt.errorprone`).
 - **Formatting / logging:** the cross-project requirements — Spotless +
   Google Java Format and SLF4J-only logging — are **not yet wired into
   recordbuf.** Don't assume `spotlessCheck` or a logging framework are present;
@@ -39,7 +65,8 @@ that turns `.proto` files into Java records + protobuf codecs.
   (unformatted-by-tool, no-framework) code.
 - **Protobuf runtime:** generated codecs use
   `com.google.protobuf.{CodedInputStream,CodedOutputStream}` — keep
-  `com.google.protobuf:protobuf-java` (`4.29.3`) on the consumer classpath.
+  `com.google.protobuf:protobuf-java` (`4.36.2`, pinned in the catalog) on
+  the consumer classpath.
 
 ## How to run / verify
 
@@ -59,9 +86,12 @@ that turns `.proto` files into Java records + protobuf codecs.
 
 ## Conventions specific to this project
 
-- Match existing code: it is currently **un-annotated** (no NullAway/JSPECIFY)
-  and does **not** use record-builders. Add those only if asked and propagate
-  them consistently.
+- **Match existing code:** the plugin's model records ARE JSpecify-annotated
+  (`@NullMarked` on the package + `@Nullable` for the `comment`/`name` /
+  `message`/`enum` fields) and carry `@RecordBuilder`. Don't strip them. Add
+  new annotations only when a new model record is added, not per-declaration.
+  The un-annotated `types`/`writer`/top-level `Main`/`CodeGenerator` classes
+  follow the older, un-annotated style until they are touched.
 - Generated code under `src/main/java` (from `.proto`) — prefer editing the
   generator / source model over hand-patching generated outputs; if you must,
   say so.
@@ -80,4 +110,4 @@ that turns `.proto` files into Java records + protobuf codecs.
 `java-code-style`, `java-unit-testing`, `java-gradle-build`, and
 `java-design-review` from `~/.pi/agent/skills/` are in scope here. They carry
 the cross-project defaults; the overrides above win when they conflict
-(principally the **not-yet-wired** nullability / record-builder tooling).
+(principally the **deferred** NullAway + Spotless/SLF4J tooling).
