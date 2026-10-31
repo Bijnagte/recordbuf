@@ -1,17 +1,22 @@
 plugins {
     java
     application
+    // io.soabase.record-builder annotation processor (version via catalog) will
+    // be wired in via `alias(libs.plugins.recordBuilder)` once a Java 25–
+    // compatible version is pinned — see gradle/libs.versions.toml. Deferred to
+    // a follow-up commit pending web access.
 }
 
 group = "bijnagte.recordbuf"
 version = "0.0.1"
 
 java {
-    // Records + text blocks need 17+; we target the active LTS (25) because the
-    // user's toolchain (Temurin 25, per AGENTS.md / user-level defaults) is the
-    // baseline. No consumer has to run on 21+; we don't artificially down-level.
-    sourceCompatibility = JavaVersion.VERSION_25
-    targetCompatibility = JavaVersion.VERSION_25
+    // Pin the JDK via toolchain (per the user's java-gradle-build guidance),
+    // not sourceCompatibility/targetCompatibility. The active JDK is Temurin 25;
+    // toolchain lets Gradle reuse it without a separate install.
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
 }
 
 repositories {
@@ -19,12 +24,13 @@ repositories {
 }
 
 dependencies {
-    // Used by the plugin at generation time to parse FileDescriptorProto
-    // messages and build Descriptors. NOT a runtime dep of generated code,
-    // but generated codecs DO use com.google.protobuf.CodedInputStream /
-    // CodedOutputStream, so users need protobuf-java on their classpath.
     implementation("com.google.protobuf:protobuf-java:4.29.3")
     implementation("com.google.protobuf:protobuf-java-util:4.29.3")
+
+    // Annotation source for @NullMarked / @Nullable / @MonotonicNonNull.
+    // compileOnly: the *generated* user code will need these annotations on
+    // its classpath too; keep the dep out of the plugin's runtime classpath.
+    compileOnly("org.jspecify:jspecify:1.0.0")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -42,10 +48,6 @@ tasks.test {
         events("passed", "skipped", "failed")
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
     }
-}
-
-tasks.withType(JavaCompile::class.java).configureEach {
-    options.release = 25
 }
 
 // The plugin is consumed by `protoc` via:

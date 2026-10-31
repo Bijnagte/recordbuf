@@ -32,6 +32,11 @@ that turns `.proto` files into Java records + protobuf codecs.
   this project's `build.gradle.kts`.** Don't assume they're active. Wire them
   in deliberately if the user asks; otherwise follow the existing (un-annotated)
   style of the surrounding code.
+- **Formatting / logging:** the cross-project requirements — Spotless +
+  Google Java Format and SLF4J-only logging — are **not yet wired into
+  recordbuf.** Don't assume `spotlessCheck` or a logging framework are present;
+  add them deliberately if the user asks. Until then match the surrounding
+  (unformatted-by-tool, no-framework) code.
 - **Protobuf runtime:** generated codecs use
   `com.google.protobuf.{CodedInputStream,CodedOutputStream}` — keep
   `com.google.protobuf:protobuf-java` (`4.29.3`) on the consumer classpath.

@@ -1,0 +1,28 @@
+[versions]
+# Central version pins. Bump here, not in build.gradle.kts.
+record-builder = "1.30.0"
+jspecify       = "1.0.0"
+error-prone    = "2.38.0"
+nullaway       = "0.12.2"
+protobuf       = "4.29.3"
+junit-jupiter  = "5.11.3"
+
+[libraries]
+record-builder = { group = "io.soabase", name = "record-builder", version.ref = "record-builder" }
+jspecify       = { group = "org.jspecify", name = "jspecify", version.ref = "jspecify" }
+error-prone-core  = { group = "com.github.errorprone", name = "error_prone_core", version.ref = "error-prone" }
+error-prone-check = { group = "com.github.errorprone", name = "error_prone_check_api", version.ref = "error-prone" }
+nullaway = { group = "com.uber", name = "nullaway", version.ref = "nullaway" }
+# Protobuf runtime -- used to parse FileDescriptorProto in the plugin and
+# consumed by GENERATED code (CodedInputStream/CodedOutputStream at user
+# classpath). Pulled here so we can bump in one place.
+protobuf          = { group = "com.google.protobuf", name = "protobuf-java", version.ref = "protobuf" }
+protobuf-util     = { group = "com.google.protobuf", name = "protobuf-java-util", version.ref = "protobuf" }
+junit-jupiter     = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-jupiter" }
+
+[bundles]
+test = ["junit-jupiter", "junit-platform-launcher"]
+
+[plugins]
+record-builder = { id = "io.soabase.record-builder", version.ref = "record-builder" }
