@@ -1,9 +1,9 @@
-package dev.recordbuf.plugin.writer;
+package bijnagte.recordbuf.plugin.writer;
 
-import dev.recordbuf.plugin.model.Field;
-import dev.recordbuf.plugin.model.Message;
-import dev.recordbuf.plugin.types.TypeResolver;
-import dev.recordbuf.plugin.types.TypeResolver.WireScalar;
+import bijnagte.recordbuf.plugin.model.Field;
+import bijnagte.recordbuf.plugin.model.Message;
+import bijnagte.recordbuf.plugin.types.TypeResolver;
+import bijnagte.recordbuf.plugin.types.TypeResolver.WireScalar;
 
 /**
  * Emits the static {@code Codec} nested class for a {@link Message}. The

@@ -3,7 +3,7 @@ plugins {
     application
 }
 
-group = "dev.recordbuf"
+group = "bijnagte.recordbuf"
 version = "0.0.1"
 
 java {
@@ -31,7 +31,7 @@ dependencies {
 
 application {
     // Entry point of the protoc plugin.
-    mainClass = "dev.recordbuf.plugin.Main"
+    mainClass = "bijnagte.recordbuf.plugin.Main"
     applicationName = "protoc-gen-recordbuf"
 }
 
@@ -54,11 +54,11 @@ tasks.withType(JavaCompile::class.java).configureEach {
 //
 // After `./gradlew installDist` that script lives at build/scripts/protoc-gen-recordbuf
 // and is a self-contained launcher (it puts the project classpath on `$CLASSPATH`
-// and execs `java -cp ... dev.recordbuf.plugin.Main`).
+// and execs `java -cp ... bijnagte.recordbuf.plugin.Main`).
 tasks.named<Jar>("jar") {
     manifest {
         attributes(
-            "Main-Class" to "dev.recordbuf.plugin.Main",
+            "Main-Class" to "bijnagte.recordbuf.plugin.Main",
             "Implementation-Title" to "recordbuf",
             "Implementation-Version" to project.version,
         )

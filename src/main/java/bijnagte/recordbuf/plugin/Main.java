@@ -1,4 +1,4 @@
-package dev.recordbuf.plugin;
+package bijnagte.recordbuf.plugin;
 
 import java.io.IOException;
 

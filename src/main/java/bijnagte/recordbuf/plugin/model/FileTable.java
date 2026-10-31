@@ -1,4 +1,4 @@
-package dev.recordbuf.plugin.model;
+package bijnagte.recordbuf.plugin.model;
 
 import java.util.HashMap;
 import java.util.Map;

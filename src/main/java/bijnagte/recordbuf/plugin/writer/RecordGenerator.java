@@ -1,12 +1,12 @@
-package dev.recordbuf.plugin.writer;
+package bijnagte.recordbuf.plugin.writer;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import dev.recordbuf.plugin.model.Field;
-import dev.recordbuf.plugin.model.Message;
-import dev.recordbuf.plugin.types.TypeResolver;
-import dev.recordbuf.plugin.types.TypeResolver.WireScalar;
+import bijnagte.recordbuf.plugin.model.Field;
+import bijnagte.recordbuf.plugin.model.Message;
+import bijnagte.recordbuf.plugin.types.TypeResolver;
+import bijnagte.recordbuf.plugin.types.TypeResolver.WireScalar;
 
 /**
  * Emits record declarations. For each {@link Message}, we produce a Java

@@ -1,4 +1,4 @@
-package dev.recordbuf.plugin.writer;
+package bijnagte.recordbuf.plugin.writer;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;

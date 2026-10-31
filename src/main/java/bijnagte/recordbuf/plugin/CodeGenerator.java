@@ -1,4 +1,4 @@
-package dev.recordbuf.plugin;
+package bijnagte.recordbuf.plugin;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -8,14 +8,14 @@ import com.google.protobuf.compiler.PluginProtos.CodeGeneratorRequest;
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse;
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse.Feature;
 
-import dev.recordbuf.plugin.model.FileTable;
-import dev.recordbuf.plugin.model.ModelLoader;
-import dev.recordbuf.plugin.model.ProtoFile;
-import dev.recordbuf.plugin.types.TypeResolver;
-import dev.recordbuf.plugin.writer.CodecGenerator;
-import dev.recordbuf.plugin.writer.EnumGenerator;
-import dev.recordbuf.plugin.writer.JavaWriter;
-import dev.recordbuf.plugin.writer.RecordGenerator;
+import bijnagte.recordbuf.plugin.model.FileTable;
+import bijnagte.recordbuf.plugin.model.ModelLoader;
+import bijnagte.recordbuf.plugin.model.ProtoFile;
+import bijnagte.recordbuf.plugin.types.TypeResolver;
+import bijnagte.recordbuf.plugin.writer.CodecGenerator;
+import bijnagte.recordbuf.plugin.writer.EnumGenerator;
+import bijnagte.recordbuf.plugin.writer.JavaWriter;
+import bijnagte.recordbuf.plugin.writer.RecordGenerator;
 
 /**
  * Drives code generation for a single {@link CodeGeneratorRequest}.
@@ -88,7 +88,7 @@ public final class CodeGenerator {
                 .build();
     }
 
-    private void emitMessage(JavaWriter w, dev.recordbuf.plugin.model.Message m, String javaPkg) {
+    private void emitMessage(JavaWriter w, bijnagte.recordbuf.plugin.model.Message m, String javaPkg) {
         TypeResolver types = new TypeResolver(table, javaPkg);
         RecordGenerator rec = new RecordGenerator(types);
         CodecGenerator codec = new CodecGenerator(types);
@@ -96,7 +96,7 @@ public final class CodeGenerator {
     }
 
     private void recordAndCodec(JavaWriter w, RecordGenerator rec, CodecGenerator codec,
-                                dev.recordbuf.plugin.model.Message m, String javaPkg) {
+                                bijnagte.recordbuf.plugin.model.Message m, String javaPkg) {
         w.line("public record " + m.name() + "(");
         for (int i = 0; i < m.fields().size(); i++) {
             var f = m.fields().get(i);
@@ -126,7 +126,7 @@ public final class CodeGenerator {
 
     /** Emit a compact constructor that wraps nulls in Optional.empty() and
      *  unmodifiable copies for List/Map. */
-    private void addCompactConstructor(JavaWriter w, dev.recordbuf.plugin.model.Message m) {
+    private void addCompactConstructor(JavaWriter w, bijnagte.recordbuf.plugin.model.Message m) {
         boolean needsCompact = m.fields().stream().anyMatch(f ->
                 f.isOptionalWrapped() || f.isRepeated() || f.isMap());
         if (!needsCompact) return;
@@ -146,8 +146,8 @@ public final class CodeGenerator {
         w.line("}");
     }
 
-    private String resolveJavaType(dev.recordbuf.plugin.model.Message m,
-                                   dev.recordbuf.plugin.model.Field f,
+    private String resolveJavaType(bijnagte.recordbuf.plugin.model.Message m,
+                                   bijnagte.recordbuf.plugin.model.Field f,
                                    String javaPkg) {
         TypeResolver types = new TypeResolver(table, javaPkg);
         return types.resolve(f);

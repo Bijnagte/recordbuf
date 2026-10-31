@@ -1,4 +1,4 @@
-package dev.recordbuf.plugin.types;
+package bijnagte.recordbuf.plugin.types;
 
 import java.util.Locale;
 import java.util.Map;

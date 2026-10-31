@@ -1,4 +1,4 @@
-package dev.recordbuf.plugin.model;
+package bijnagte.recordbuf.plugin.model;
 
 /** Field tag kind. */
 public enum FieldKind {

@@ -1,4 +1,4 @@
-package dev.recordbuf.plugin.model;
+package bijnagte.recordbuf.plugin.model;
 
 /** Label of a protobuf field. */
 public enum FieldLabel {

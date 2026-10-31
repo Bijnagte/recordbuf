@@ -1,6 +1,6 @@
-package dev.recordbuf.plugin.writer;
+package bijnagte.recordbuf.plugin.writer;
 
-import dev.recordbuf.plugin.model.Enum;
+import bijnagte.recordbuf.plugin.model.Enum;
 
 /**
  * Emits a Java enum from a {@link Enum} model. We keep the proto-style enum

@@ -1,7 +1,7 @@
-package dev.recordbuf.plugin.types;
+package bijnagte.recordbuf.plugin.types;
 
-import dev.recordbuf.plugin.model.Field;
-import dev.recordbuf.plugin.model.FileTable;
+import bijnagte.recordbuf.plugin.model.Field;
+import bijnagte.recordbuf.plugin.model.FileTable;
 
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
 
