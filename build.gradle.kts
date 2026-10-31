@@ -7,10 +7,11 @@ group = "bijnagte.recordbuf"
 version = "0.0.1"
 
 java {
-    // Records + text blocks need 17+; we target 21 (LTS) as a baseline so the
-    // produced classes run on 21+ JREs even when built on a newer JDK.
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    // Records + text blocks need 17+; we target the active LTS (25) because the
+    // user's toolchain (Temurin 25, per AGENTS.md / user-level defaults) is the
+    // baseline. No consumer has to run on 21+; we don't artificially down-level.
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
 }
 
 repositories {
@@ -44,7 +45,7 @@ tasks.test {
 }
 
 tasks.withType(JavaCompile::class.java).configureEach {
-    options.release = 21
+    options.release = 25
 }
 
 // The plugin is consumed by `protoc` via:
