@@ -1,7 +1,7 @@
 package bijnagte.recordbuf.plugin.model;
 
 import java.util.List;
-import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Immutable view of a protobuf message.
@@ -22,7 +22,7 @@ public record Message(
         List<Message> nestedMessages,
         List<Enum> nestedEnums,
         boolean deprecated,
-        Optional<String> comment
+        @Nullable String comment
 ) {
     public boolean hasNested() {
         return !nestedMessages.isEmpty() || !nestedEnums.isEmpty();

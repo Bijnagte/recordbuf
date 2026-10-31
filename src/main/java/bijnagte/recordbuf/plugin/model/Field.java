@@ -1,7 +1,7 @@
 package bijnagte.recordbuf.plugin.model;
 
 import java.util.List;
-import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Immutable view of a single protobuf field. We deliberately keep this
@@ -33,7 +33,7 @@ public record Field(
         String mapValue,
         boolean proto3Optional,
         Object defaultValue,
-        Optional<String> comment
+        @Nullable String comment
 ) {
     public boolean isMap() { return kind == FieldKind.MAP; }
     public boolean isMessage() { return kind == FieldKind.MESSAGE; }

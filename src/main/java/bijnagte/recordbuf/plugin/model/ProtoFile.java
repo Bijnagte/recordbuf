@@ -1,7 +1,7 @@
 package bijnagte.recordbuf.plugin.model;
 
 import java.util.List;
-import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Top-level view over a {@code .proto} file.
@@ -16,7 +16,7 @@ public record ProtoFile(
         List<Message> messages,
         List<Enum> enums,
         boolean javaMultipleFiles,
-        Optional<String> comment
+        @Nullable String comment
 ) {
     public boolean hasJavaPackage() { return javaPackage != null && !javaPackage.isBlank(); }
 }

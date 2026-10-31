@@ -1,7 +1,7 @@
 package bijnagte.recordbuf.plugin.model;
 
 import java.util.List;
-import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Immutable view of a protobuf enum.
@@ -11,8 +11,8 @@ public record Enum(
         String fullName,
         List<EnumConstant> constants,
         boolean deprecated,
-        Optional<String> comment
+        @Nullable String comment
 ) {
     /** One entry in an enum. */
-    public record EnumConstant(String name, int number, boolean deprecated, Optional<String> comment) {}
+    public record EnumConstant(String name, int number, boolean deprecated, @Nullable String comment) {}
 }

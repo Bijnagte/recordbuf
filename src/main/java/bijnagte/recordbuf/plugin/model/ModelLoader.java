@@ -2,7 +2,6 @@ package bijnagte.recordbuf.plugin.model;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.EnumDescriptorProto;
@@ -45,7 +44,7 @@ public final class ModelLoader {
                 List.copyOf(topMsgs),
                 List.copyOf(topEnums),
                 /*javaMultipleFiles=*/ false,
-                /*comment=*/ Optional.empty()
+                /*comment=*/ null
         );
     }
 
@@ -87,7 +86,7 @@ public final class ModelLoader {
                 /*nestedMessages=*/ List.copyOf(nestedMsgs),
                 /*nestedEnums=*/ List.copyOf(nestedEnums),
                 /*deprecated=*/ m.getOptions().getDeprecated(),
-                /*comment=*/ Optional.empty()
+                /*comment=*/ null
         );
     }
 
@@ -156,7 +155,7 @@ public final class ModelLoader {
                 valJavaType,
                 /*proto3Optional=*/ false,
                 /*defaultValue=*/ null,
-                Optional.empty()
+                null
         );
     }
 
@@ -215,7 +214,7 @@ public final class ModelLoader {
                     JavaNames.snakeUpper(v.getName()),
                     v.getNumber(),
                     v.getOptions().getDeprecated(),
-                    Optional.empty()
+                    null
             ));
         }
         String javaFqn = join(javaPkgOf, JavaNames.cap(e.getName()));
@@ -224,7 +223,7 @@ public final class ModelLoader {
                 /*fullName=*/ javaFqn,
                 List.copyOf(cs),
                 e.getOptions().getDeprecated(),
-                Optional.empty()
+                null
         );
     }
 
@@ -271,7 +270,7 @@ public final class ModelLoader {
                 optionalWrap, // treat proto3 `optional` and proto2 OPTIONAL the same:
                               // in the model we expose Optional<T> for both.
                 defaultVal,
-                Optional.empty()
+                null
         );
     }
 
