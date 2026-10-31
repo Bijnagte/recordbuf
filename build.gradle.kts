@@ -1,10 +1,6 @@
 plugins {
     java
     application
-    // io.soabase.record-builder annotation processor (version via catalog) will
-    // be wired in via `alias(libs.plugins.recordBuilder)` once a Java 25–
-    // compatible version is pinned — see gradle/libs.versions.toml. Deferred to
-    // a follow-up commit pending web access.
 }
 
 group = "bijnagte.recordbuf"
@@ -24,20 +20,21 @@ repositories {
 }
 
 dependencies {
-    implementation("com.google.protobuf:protobuf-java:4.29.3")
-    implementation("com.google.protobuf:protobuf-java-util:4.29.3")
+    // Protobuf runtime -- used by the plugin (FileDescriptorProto) and on the
+    // GENERATED code's classpath (CodedInputStream/CodedOutputStream). Bumped
+    // to 4.36.2 to match the protoc 36.2 that generated PluginProtos.java.
+    implementation(libs.protobuf)
+    implementation(libs.protobuf.util)
 
-    // Annotation source for @NullMarked / @Nullable / @MonotonicNonNull.
-    // compileOnly: the *generated* user code will need these annotations on
-    // its classpath too; keep the dep out of the plugin's runtime classpath.
-    compileOnly("org.jspecify:jspecify:1.0.0")
+    // JSpecify nullability annotations.  compileOnly because the generated
+    // record/codec types (independent modules) pull JSpecify transitively.
+    compileOnly(libs.jspecify)
 
-    testImplementation("org.junit.jupiter:junit-jupiter:5.11.3")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }
 
 application {
-    // Entry point of the protoc plugin.
     mainClass = "bijnagte.recordbuf.plugin.Main"
     applicationName = "protoc-gen-recordbuf"
 }

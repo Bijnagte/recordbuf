@@ -41,11 +41,8 @@ public final class CodeGenerator {
         }
 
         CodeGeneratorResponse.Builder resp = CodeGeneratorResponse.newBuilder();
-        resp.setSupportedFeatures(Feature.PROTO3_OPTIONAL_VALUE);
-        // Also indicate we know about the new "OPEN" proto feature so protoc
-        // can pass optional info to us.
-        resp.addSupportedFeatures(Feature.FEATURE_PROTO3_OPTIONAL);
-        for (var f : outFiles) resp.addFile(f);
+        resp.setSupportedFeatures(Feature.FEATURE_PROTO3_OPTIONAL_VALUE);
+        for (CodeGeneratorResponse.File f : outFiles) resp.addFile(f);
         return resp.build();
     }
 
@@ -154,8 +151,7 @@ public final class CodeGenerator {
     }
 
     private FileDescriptorProto findByPath(String path) {
-        for (var f : table.files()) if (f.getName().equals(path)) return f;
-        return null;
+        return table.byName(path);
     }
 
     private String javaPackage(FileDescriptorProto fdp) {
