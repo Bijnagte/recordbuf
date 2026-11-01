@@ -16,9 +16,20 @@
 // generator/build/scripts/protoc-gen-recordbuf and is a self-contained launcher.
 
 // KTD3: one `bijnagte.recordbuf:0.0.1` version of truth for every subproject,
-// inherited from the root. (The build-time plugin<->runtime version guardrail is
-// intentionally deferred at 0.0.1 — see KTD7 in the multi-module plan.)
+// inherited from the root. By construction the generator and the runtime its
+// generated code calls into are the same version, so no mismatch is possible
+// within this co-release.
 subprojects {
     group = "bijnagte.recordbuf"
     version = "0.0.1"
 }
+
+// KTD7 (accepted at 0.0.1): no build-time plugin<->runtime version guardrail.
+// Generated code references the runtime by fully-qualified name; the generator
+// never links the runtime at build time, so a mismatch is only detectable at
+// consumer link time. Within one co-versioned release the skip is safe; the two
+// cheap future guardrails are recorded and DEFERRED for when an independent
+// runtime release becomes possible:
+//   (a) a co-release assertion that all module versions are equal (thin), or
+//   (b) a generator-emitted runtime version stamp the fixtures assert at compile
+//       time (stronger). Adding either is a small, self-contained follow-up.
