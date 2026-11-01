@@ -1,0 +1,24 @@
+// Per-family interop fixture for the nested-message field family. The recordbuf
+// record is generated from this file (--recordbuf_out); the protobuf-java
+// reference is generated from message-ref.proto (--java_out) into a sibling
+// `*.ref` package so the two coexist.
+syntax = "proto3";
+
+package bijnagte.recordbuf.comgen.message;
+option java_package = "bijnagte.recordbuf.comgen.message";
+
+// A second top-level message the Sample references. Each top-level message gets
+// its own generated source file (one public type per file).
+message Item {
+    int32 id = 1;
+    string name = 2;
+}
+
+// The record's public type name. Two shapes of a message field are exercised so
+// the length-delimited tag + nested encode/decode (writeMessage/readMessage) is
+// covered end to end: a singular message (present iff set; omitted when null) and
+// a repeated message (zero-or-more nested messages, each length-delimited).
+message Sample {
+    Item single = 1;
+    repeated Item items = 2;
+}

@@ -122,16 +122,15 @@ public final class CodecGenerator {
     }
 
     private void emitMessage(JavaWriter w, Field f, int num, String getter, boolean nullable) {
-        // A singular message is always present-able (@Nullable), so the null
-        // check guards both the explicit-optional and the default-null case.
+        // A singular message is always present-able (@Nullable): skip it on the
+        // wire when null (proto3 absent). Otherwise encode the child bytes via
+        // its own Codec and frame them as one length-delimited byte array
+        // (tag + length + raw bytes).
         String nestedCodec = codecFor(f.typeUrl());
-        String bytes = nestedTypeVar(f);
         w.line("if (" + getter + " != null) {");
         int ind = w.indent() + 1;
         w.indent(ind);
-        w.line("byte[] " + bytes + " = " + nestedCodec + ".encode(" + getter + ");");
-        w.line("out.writeMessageTag(" + num + ", " + bytes + ".length);");
-        w.line("out.writeRawBytes(" + bytes + ");");
+        w.line("out.writeByteArray(" + num + ", " + nestedCodec + ".encode(" + getter + "));");
         w.indent(ind - 1);
         w.line("}");
     }
@@ -144,15 +143,9 @@ public final class CodecGenerator {
         w.line("for (var _e : " + getter + ") out.writeEnum(" + num + ", _e.getNumber());");
     }
     private void emitRepeatedMessage(JavaWriter w, Field f, int num, String getter) {
+        // Each element gets its own length-delimited byte array.
         String codecRef = codecFor(f.typeUrl());
-        w.line("for (var _m : " + getter + ") {");
-        int ind = w.indent() + 1;
-        w.indent(ind);
-        w.line("byte[] _m_b = " + codecRef + ".encode(_m);");
-        w.line("out.writeMessageTag(" + num + ", _m_b.length);");
-        w.line("out.writeRawBytes(_m_b);");
-        w.indent(ind - 1);
-        w.line("}");
+        w.line("for (var _m : " + getter + ") out.writeByteArray(" + num + ", " + codecRef + ".encode(_m));");
     }
 
     // --- decode ---
@@ -215,8 +208,10 @@ public final class CodecGenerator {
                 w.line(f.javaName() + " = " + enumName + ".forNumber((int) in.readEnum());");
             }
             case MESSAGE -> {
+                // The tag was already consumed by readTag(); read the remaining
+                // length-delimited byte array and hand it to the child Codec.
                 String codecRef = codecFor(f.typeUrl());
-                w.line(f.javaName() + " = " + codecRef + ".decode(in.readMessage(" + num + "));");
+                w.line(f.javaName() + " = " + codecRef + ".decode(in.readByteArray());");
             }
             default -> { }
         }
@@ -234,7 +229,7 @@ public final class CodecGenerator {
             }
             case MESSAGE -> {
                 String codecRef = codecFor(f.typeUrl());
-                w.line(f.javaName() + ".add(" + codecRef + ".decode(in.readMessage(" + num + ")));");
+                w.line(f.javaName() + ".add(" + codecRef + ".decode(in.readByteArray()));");
             }
             default -> { }
         }
@@ -247,6 +242,10 @@ public final class CodecGenerator {
         // A present-able field is declared with its boxed/reference type and
         // starts null; every other field keeps a default value.
         if (f.isNullable()) return types.resolve(f) + " " + f.javaName() + " = null;";
+        // A repeated field starts as an explicit List<Element> (diamond inference
+        // on `var` would leave it as List<Object>); the nested type is the
+        // element type from resolve()'s List<Element> head.
+        if (f.isRepeated()) return types.resolve(f) + " " + f.javaName() + " = new java.util.ArrayList<>();";
         return "var " + f.javaName() + " = " + initialValue(f) + ";";
     }
 
@@ -316,9 +315,6 @@ public final class CodecGenerator {
 
     private static String codecFor(String protoFqn) {
         return lastSeg(protoFqn) + ".Codec";
-    }
-    private static String nestedTypeVar(Field f) {
-        return f.javaName() + "_bytes";
     }
     private static String lastSeg(String fqn) {
         if (fqn == null) return null;
