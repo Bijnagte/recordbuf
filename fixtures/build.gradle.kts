@@ -53,27 +53,30 @@ val recordDir = File(project.buildDir, "generated/record") // recordbuf record +
 @Suppress("DEPRECATION")
 val refDir = File(project.buildDir, "generated/ref")        // protobuf-java reference
 
-// U3 uses the still-root launcher produced by :installDist (its distribution bin,
-// which carries a sibling lib/ of jars + plugin classes). U4 re-points this at
-// :recordbuf-generator:installDist. Resolved at EXECUTION time (after the install
-// exists) by globbing build/install/<app>/bin, so the co-version never hard-codes
+// Generation invokes the generator module's installDist launcher -- its
+// distribution bin, which carries a sibling lib/ of jars + plugin classes.
+// Resolved at EXECUTION time (after the install exists) by globbing the
+// generator module's build/install/<app>/bin, so the co-version never hard-codes
 // the artifact name.
-val generatorLauncherTask = rootProject.tasks.named("installDist")
+val generatorProjectDir = project(":recordbuf-generator").projectDir
 
-fun resolveRootLauncher(): File = File(rootDir, "build/install")
+fun resolveGeneratorLauncher(): File = File(generatorProjectDir, "build/install")
     .listFiles().orEmpty().map { File(it, "bin/protoc-gen-recordbuf") }
     .firstOrNull { it.isFile }
-        ?: throw GradleException("genFixtures: distribution launcher not found under build/install; run :installDist first")
+        ?: throw GradleException("genFixtures: generator launcher not found under generator/build/install; run :recordbuf-generator:installDist first")
 
 val genFixtures = tasks.register("genFixtures") {
     group = "verification"
     description = "Generate the recordbuf records + protobuf-java refs into the fixtures main source set"
-    dependsOn(generatorLauncherTask)
+    // Deferred string-path dependency; forces the generator project to configure
+    // so its application-plugin tasks exist without the generator's config running
+    // ahead of fixtures during the initial configuration pass.
+    dependsOn(":recordbuf-generator:installDist")
     doLast {
         recordDir.deleteRecursively(); recordDir.mkdirs()
         refDir.deleteRecursively(); refDir.mkdirs()
 
-        val launcher = resolveRootLauncher()
+        val launcher = resolveGeneratorLauncher()
 
         val protos: List<File> =
             (protoDir.listFiles()?.toList() ?: emptyList<File>()).sortedBy { it.name }
