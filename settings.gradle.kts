@@ -7,3 +7,6 @@ project(":recordbuf-runtime").projectDir = File(rootDir, "runtime")
 
 include(":recordbuf-options")
 project(":recordbuf-options").projectDir = File(rootDir, "options")
+
+include(":recordbuf-fixtures")
+project(":recordbuf-fixtures").projectDir = File(rootDir, "fixtures")
