@@ -1,0 +1,29 @@
+// Per-family interop fixture for the packed-repeated-numeric family. The
+// recordbuf record is generated from this file (--recordbuf_out); the
+// protobuf-java reference is generated from packed-ref.proto (--java_out) into
+// a sibling `*.ref` java_package so the two coexist.
+syntax = "proto3";
+
+package bijnagte.recordbuf.comgen.packed;
+option java_package = "bijnagte.recordbuf.comgen.packed";
+
+// Exactly one top-level message per family proto: the record's public type
+// name must match its source filename (Java requires one public type/file).
+//
+// One packed `repeated` field of EACH numeric scalar family. proto3 packs
+// repeated scalars by default: a single length-delimited group (tag + varint
+// length + a tight sequence of the values) instead of one tag per element. One
+// field per packed encoding so the length-delimited framing plus each value
+// width (varint vs zigzag vs fixed-width vs IEEE float/double) is exercised.
+message Sample {
+    repeated int32  a = 1;
+    repeated int64  b = 2;
+    repeated fixed32 c = 3;
+    repeated fixed64 d = 4;
+    repeated float  e = 5;
+    repeated double f = 6;
+    repeated sint32 g = 7;
+    repeated sint64 h = 8;
+    repeated uint32 i = 9;
+    repeated uint64 j = 10;
+}

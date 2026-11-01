@@ -69,7 +69,11 @@ public final class TypeResolver {
     /** For repeated fields, just the element type — used when generating loops. */
     public String resolveElement(Field f) {
         return switch (f.kind()) {
-            case SCALAR          -> scalarJava(f.typeUrl());
+            // A List<...> cannot hold a primitive (List<int> is not valid Java),
+            // so a repeated scalar's element type is its boxed wrapper; primitive
+            // scalars become Integer/Long/Float/Double/Boolean while byte[] and
+            // reference types already pass through boxed() unchanged.
+            case SCALAR          -> boxed(scalarJava(f.typeUrl()));
             case MESSAGE, ENUM   -> resolveType(f.typeUrl());
             case MAP             -> throw new IllegalStateException("map fields are not repeated in proto3");
             default              -> "java.lang.Object";

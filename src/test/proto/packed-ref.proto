@@ -1,0 +1,22 @@
+// Reference counterpart of packed.proto for the packed-repeated-numeric family
+// interop test. Same message shape + field numbers; a DIFFERENT java_package so
+// the protobuf-java reference type lives in a sibling package and does not
+// collide with the recordbuf record of the same name. The wire bytes are
+// field-number-driven and so are identical regardless of Java package.
+syntax = "proto3";
+package bijnagte.recordbuf.comgen.packed.ref;
+option java_package = "bijnagte.recordbuf.comgen.packed.ref";
+option java_multiple_files = true;
+
+message Sample {
+    repeated int32  a = 1;
+    repeated int64  b = 2;
+    repeated fixed32 c = 3;
+    repeated fixed64 d = 4;
+    repeated float  e = 5;
+    repeated double f = 6;
+    repeated sint32 g = 7;
+    repeated sint64 h = 8;
+    repeated uint32 i = 9;
+    repeated uint64 j = 10;
+}

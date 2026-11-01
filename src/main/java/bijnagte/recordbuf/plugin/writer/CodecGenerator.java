@@ -137,7 +137,23 @@ public final class CodecGenerator {
 
     private void emitRepeatedScalar(JavaWriter w, Field f, int num, String getter) {
         WireScalar wire = types.wireScalar(f);
-        w.line("for (var _x : " + getter + ") out." + encodeCall(wire) + "(" + num + ", _x);");
+        String op = packedNoTag(wire);
+        // proto3 packs repeated scalars as ONE length-delimited group: tag(num, LENGTH_DELIMITED)
+        // + a varint length + a tight sequence of the no-tag values, not one tag per element. The
+        // length prefix is data-dependent for the varint/zigzag families, so we first buffer the
+        // tight value sequence into a fresh CodedOutputStream, then frame its exact bytes.
+        w.line("if (!" + getter + ".isEmpty()) {");
+        int ind = w.indent() + 1;
+        w.indent(ind);
+        w.line("java.io.ByteArrayOutputStream _body = new java.io.ByteArrayOutputStream();");
+        w.line("com.google.protobuf.CodedOutputStream _o = com.google.protobuf.CodedOutputStream.newInstance(_body);");
+        w.line("for (var _x : " + getter + ") _o." + op + "(_x);");
+        w.line("_o.flush();");
+        // Frame the buffered sequence as one length-delimited group. writeByteArray writes
+        // tag + varint length + raw bytes -- the exact framing protobuf-java's packed encode/use.
+        w.line("out.writeByteArray(" + num + ", _body.toByteArray());");
+        w.indent(ind - 1);
+        w.line("}");
     }
     private void emitRepeatedEnum(JavaWriter w, Field f, int num, String getter) {
         w.line("for (var _e : " + getter + ") out.writeEnum(" + num + ", _e.getNumber());");
@@ -220,8 +236,13 @@ public final class CodecGenerator {
     private void emitRepeatedDecode(JavaWriter w, Message m, Field f, int num) {
         switch (f.kind()) {
             case SCALAR -> {
+                // Packed: the length-delimited tag is already consumed; read its varint length,
+                // push a limit, and pull no-tag values until the sub-buffer is drained. An empty
+                // group (length 0) drains nothing, leaving the list empty.
                 String read = decodeCall(types.wireScalar(f));
-                w.line(f.javaName() + ".add(" + read + ");");
+                w.line("int _lim = in.pushLimit(in.readRawVarint32());");
+                w.line("while (in.getBytesUntilLimit() > 0) " + f.javaName() + ".add(" + read + ");");
+                w.line("in.popLimit(_lim);");
             }
             case ENUM -> {
                 String enumName = lastSeg(f.typeUrl());
@@ -262,6 +283,23 @@ public final class CodecGenerator {
             case BOOL                    -> "writeBool";
             case STRING                  -> "writeString";
             case BYTES                   -> "writeByteArray"; // byte[] -> 2-arg byte-array op
+        };
+    }
+
+    /** The no-tag primitive writer used to pack a tight value sequence, mirroring
+     * {@link #encodeCall} but with the tag handled by the outer framing step. */
+    private String packedNoTag(WireScalar wire) {
+        return switch (wire) {
+            case INT32, UINT32              -> "writeInt32NoTag";
+            case SINT_32                    -> "writeSInt32NoTag";
+            case FIXED32                    -> "writeFixed32NoTag";
+            case INT64, UINT64              -> "writeInt64NoTag";
+            case SINT_64                    -> "writeSInt64NoTag";
+            case FIXED64                    -> "writeFixed64NoTag";
+            case FLOAT                      -> "writeFloatNoTag";
+            case DOUBLE                  -> "writeDoubleNoTag";
+            case BOOL                    -> "writeBoolNoTag";
+            default                         -> throw new IllegalStateException(wire + " is not a packed numeric type");
         };
     }
 
