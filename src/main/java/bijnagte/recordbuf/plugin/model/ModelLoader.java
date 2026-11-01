@@ -79,15 +79,17 @@ public final class ModelLoader {
         }
 
         String javaScope = join(javaPkgOf, JavaNames.cap(m.getName()));
-        return new Message(
-                m.getName(),
-                /*fullName=*/ javaScope,
-                /*fields=*/ List.copyOf(fields),
-                /*nestedMessages=*/ List.copyOf(nestedMsgs),
-                /*nestedEnums=*/ List.copyOf(nestedEnums),
-                /*deprecated=*/ m.getOptions().getDeprecated(),
-                /*comment=*/ null
-        );
+        return MessageBuilder.builder()
+                .name(m.getName())
+                .fullName(javaScope)
+                .fields(List.copyOf(fields))
+                .nestedMessages(List.copyOf(nestedMsgs))
+                .nestedEnums(List.copyOf(nestedEnums))
+                .deprecated(m.getOptions().getDeprecated())
+                .comment(null)
+                // Option parsing lands in U2; empty (de-duplicated, ordered) for now.
+                .interfaces(List.of())
+                .build();
     }
 
     private static String protoScopeForNested(DescriptorProto m, String protoScope) {
@@ -220,13 +222,15 @@ public final class ModelLoader {
             ));
         }
         String javaFqn = join(javaPkgOf, JavaNames.cap(e.getName()));
-        return new Enum(
-                e.getName(),
-                /*fullName=*/ javaFqn,
-                List.copyOf(cs),
-                e.getOptions().getDeprecated(),
-                null
-        );
+        return EnumBuilder.builder()
+                .name(e.getName())
+                .fullName(javaFqn)
+                .constants(List.copyOf(cs))
+                .deprecated(e.getOptions().getDeprecated())
+                .comment(null)
+                // Option parsing lands in U2; empty (de-duplicated, ordered) for now.
+                .interfaces(List.of())
+                .build();
     }
 
     // --- fields ---
