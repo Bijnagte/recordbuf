@@ -1,0 +1,21 @@
+// Per-family interop fixture for the bytes field family. The recordbuf record
+// is generated from this file (--recordbuf_out); the protobuf-java reference is
+// generated from bytes-ref.proto (--java_out) into a sibling `*.ref` package so
+// the two coexist.
+syntax = "proto3";
+
+package bijnagte.recordbuf.comgen.bytes;
+option java_package = "bijnagte.recordbuf.comgen.bytes";
+
+// Exactly one top-level message per family proto: the record's public type
+// name must match its source filename.
+//
+// One field at each bytes value shape so the length-delimited raw-byte
+// encoding is exercised end to end: an empty array (proto3 default, omitted on
+// the wire) and a non-empty array with mixed-sign bytes that forces real
+// length-delimited framing and raw byte content (a value with 0x7f and 0x80
+// proves sign-extension is off the wire, not a signed primitive).
+message Sample {
+    bytes a = 1;
+    bytes b = 2;
+}

@@ -108,6 +108,8 @@ public final class CodeGenerator {
         w.indent(w.indent() + 1);
         // Compact constructor: null-safe for Optional/List/Map fields.
         addCompactConstructor(w, m);
+        // Content equality for records carrying a byte[] component.
+        addEqualsHashCode(w, m);
         // Nested messages and enums.
         for (var nested : m.nestedMessages()) {
             w.line();
@@ -141,6 +143,59 @@ public final class CodeGenerator {
         }
         w.indent(w.indent() - 1);
         w.line("}");
+    }
+
+    /**
+     * Emit {@code equals}/{@code hashCode} overrides for a record that carries a
+     * {@code byte[]} component. The JDK's implicit record {@code equals} compares
+     * components by reference, so a {@code byte[]} component would compare by
+     * array identity — decoding yields a fresh array, so round-trip/decode
+     * comparison would fail. {@code byte[]} components are therefore compared
+     * by content via {@link java.util.Arrays}, while every other component keeps
+     * its identity/via-{@code Objects} semantics.
+     */
+    private void addEqualsHashCode(JavaWriter w, bijnagte.recordbuf.plugin.model.Message m) {
+        if (m.fields().stream().noneMatch(f -> isByteArrayComponent(f))) return;
+
+        w.line();
+        w.line("@Override");
+        w.line("public boolean equals(Object o) {");
+        w.indent(w.indent() + 1);
+        w.line("if (this == o) return true;");
+        w.line("if (!(o instanceof " + m.name() + " that)) return false;");
+        w.line("return " + equalsExpression(m) + ";");
+        w.indent(w.indent() - 1);
+        w.line("}");
+
+        w.line();
+        w.line("@Override");
+        w.line("public int hashCode() {");
+        w.indent(w.indent() + 1);
+        w.line("return java.util.Arrays.deepHashCode(new java.lang.Object[]{" + components(m, "this.") + "});");
+        w.indent(w.indent() - 1);
+        w.line("}");
+    }
+
+    /** A record component whose Java type is {@code byte[]} (a non-repeated bytes scalar). */
+    private static boolean isByteArrayComponent(bijnagte.recordbuf.plugin.model.Field f) {
+        return "bytes".equals(f.typeUrl()) && !f.isRepeated();
+    }
+
+    /** One {@code cmp(this.c, that.c)} per field, {@code &&}-joined. */
+    private static String equalsExpression(bijnagte.recordbuf.plugin.model.Message m) {
+        List<String> parts = new ArrayList<>();
+        for (var f : m.fields()) {
+            String cmp = isByteArrayComponent(f) ? "java.util.Arrays.equals" : "java.util.Objects.equals";
+            parts.add(cmp + "(this." + f.javaName() + ", that." + f.javaName() + ")");
+        }
+        return String.join(" && ", parts);
+    }
+
+    /** Comma-joined {@code prefix + name} for every field, used by deepHashCode. */
+    private static String components(bijnagte.recordbuf.plugin.model.Message m, String prefix) {
+        List<String> names = new ArrayList<>();
+        for (var f : m.fields()) names.add(prefix + f.javaName());
+        return String.join(", ", names);
     }
 
     private String resolveJavaType(bijnagte.recordbuf.plugin.model.Message m,
