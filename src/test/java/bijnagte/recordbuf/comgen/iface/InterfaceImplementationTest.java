@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 /**
  * End-to-end proof that a generated type implementing a declared user interface compiles and
  * actually behaves as that interface. These classes are produced from {@code iface_marker.proto}
- * by the recordbuf plugin (via the {@code genInterop} record step) and compiled against the
+ * by the recordbuf plugin (via the {@code genInterface} Gradle task) and compiled against the
  * hand-written {@link Marker} / {@link Named} interfaces on the test classpath.
  */
 class InterfaceImplementationTest {
