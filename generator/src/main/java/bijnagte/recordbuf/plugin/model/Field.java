@@ -39,7 +39,6 @@ public record Field(
 ) {
     public boolean isMap() { return kind == FieldKind.MAP; }
     public boolean isMessage() { return kind == FieldKind.MESSAGE; }
-    public boolean isEnum() { return kind == FieldKind.ENUM; }
     public boolean isScalar() { return kind == FieldKind.SCALAR; }
     public boolean isRepeated() { return label == FieldLabel.REPEATED; }
 

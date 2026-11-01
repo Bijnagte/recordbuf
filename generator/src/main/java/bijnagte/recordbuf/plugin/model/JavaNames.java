@@ -40,15 +40,4 @@ public final class JavaNames {
         return s == null ? null : s.toUpperCase(Locale.ROOT).replace('-', '_');
     }
 
-    /**
-     * Java class name for a proto type, capitalizing the first char of each
-     * segment of the dotted path.
-     */
-    public static String typeName(String protoFqn) {
-        int dot = protoFqn.lastIndexOf('.');
-        String shortName = dot < 0 ? protoFqn : protoFqn.substring(dot + 1);
-        // Proto message names are conventionally PascalCase already, but be
-        // robust to snake_case.
-        return cap(shortName);
-    }
 }

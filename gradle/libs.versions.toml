@@ -26,7 +26,6 @@ nullaway            = { group = "com.uber", name = "nullaway", version.ref = "nu
 # consumed by GENERATED code (CodedInputStream/CodedOutputStream at user
 # classpath). Pulled here so we can bump in one place.
 protobuf            = { group = "com.google.protobuf", name = "protobuf-java", version.ref = "protobuf" }
-protobuf-util       = { group = "com.google.protobuf", name = "protobuf-java-util", version.ref = "protobuf" }
 junit-jupiter       = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform" }
 

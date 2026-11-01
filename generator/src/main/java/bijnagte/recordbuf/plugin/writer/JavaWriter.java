@@ -3,18 +3,17 @@ package bijnagte.recordbuf.plugin.writer;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Consumer;
 
 /**
  * Minimal indented Java source writer.
  *
- * <p>Tracks current indentation and a per-file set of fully-qualified import
- * names. Callers add code via {@link #line(String) line(...)} and structural
- * blocks via {@link #block(Block, String...) block(...)}. Imports that are
- * actually used are emitted automatically on {@link #toString()}.
+ * <p>Tracks current indentation and a list of leading comment header lines.
+ * Callers add code via {@link #line(String) line(...)} and structural blocks
+ * via {@link #block(String, String, Consumer) block(...)}. The header comment
+ * is emitted automatically before the body on {@link #toString()}; generated
+ * types are named fully-qualified, so this writer does not track imports.
  *
  * <p>This is intentionally simple — it is not a parser-aware Java code
  * generator. We avoid line continuations, generics spanning lines, and
@@ -23,24 +22,15 @@ import java.util.function.Consumer;
 public final class JavaWriter {
     private final StringBuilder sb;
     private int indent = 0;
-    private final Set<String> imports = new LinkedHashSet<>();
     private final List<String> headerLines = new ArrayList<>();
 
     public JavaWriter() {
         this.sb = new StringBuilder(1024);
     }
 
-    /** Add a multi-line comment block emitted before the package/import section. */
+    /** Add a multi-line comment header line, emitted before the body. */
     public JavaWriter header(String line) {
         headerLines.add(line);
-        return this;
-    }
-
-    /** Mark a fully-qualified type as imported. Simple type names are emitted as single-line imports. */
-    public JavaWriter importType(String fqName) {
-        if (fqName != null && !fqName.isBlank() && !fqName.startsWith("java.lang.")) {
-            imports.add(fqName);
-        }
         return this;
     }
 
@@ -74,11 +64,6 @@ public final class JavaWriter {
         line(close);
     }
 
-    /** Emit a single-line block: {@code open + " " + close}. */
-    public void inlineBlock(String open, String close) {
-        line(open + " " + close);
-    }
-
     @Override
     public String toString() {
         StringWriter out = new StringWriter();
@@ -91,23 +76,9 @@ public final class JavaWriter {
             pw.println(" */\n");
         }
 
-        // 2. Package (caller is responsible for emitting the `package ...;` line
-        //    itself; we leave it for them so the structure stays flexible).
-
-        // 3. Imports
-        if (!imports.isEmpty()) {
-            List<String> sorted = new ArrayList<>(imports);
-            sorted.sort(null);
-            boolean first = true;
-            for (String imp : sorted) {
-                if (!first) pw.println();
-                first = false;
-                pw.println("import " + imp + ";");
-            }
-            pw.println();
-        }
-
-        // 4. Body
+        // 2. Body (the caller emits the `package ...;` line and every
+        //    declaration; we leave that to them so the structure stays
+        //    flexible).
         pw.print(sb.toString());
         pw.flush();
         return out.toString();

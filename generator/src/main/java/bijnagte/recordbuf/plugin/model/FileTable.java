@@ -37,14 +37,6 @@ public final class FileTable {
         return protoFqnToJavaFqn.get(protoFqn);
     }
 
-    /** Java package for a proto FQN — used when generating import lines. */
-    public String javaPackage(String protoFqn) {
-        String fqn = javaFqn(protoFqn);
-        if (fqn == null) return null;
-        int dot = fqn.lastIndexOf('.');
-        return dot < 0 ? "" : fqn.substring(0, dot);
-    }
-
     public FileDescriptorProto byName(String fileName) {
         return byFileName.get(fileName);
     }
@@ -105,10 +97,5 @@ public final class FileTable {
         if (prefix == null || prefix.isBlank()) return suffix;
         if (suffix == null || suffix.isBlank()) return prefix;
         return prefix + "." + suffix;
-    }
-
-    /** Visible for testing. */
-    public Map<String, String> snapshot() {
-        return Map.copyOf(protoFqnToJavaFqn);
     }
 }

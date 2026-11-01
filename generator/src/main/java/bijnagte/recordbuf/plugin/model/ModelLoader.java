@@ -202,10 +202,6 @@ public final class ModelLoader {
         return join(protoScope, entry.getName());
     }
 
-    private static String stripDot(String s) {
-        return s == null ? "" : (s.startsWith(".") ? s.substring(1) : s);
-    }
-
     /** Resolve a proto type name into a fully-qualified proto FQN. */
     private String resolveType(String raw, String protoScope) {
         if (raw == null || raw.isBlank()) return raw;

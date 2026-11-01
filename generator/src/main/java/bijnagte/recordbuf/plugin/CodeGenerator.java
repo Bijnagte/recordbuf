@@ -89,12 +89,11 @@ public final class CodeGenerator {
 
     private void emitMessage(JavaWriter w, bijnagte.recordbuf.plugin.model.Message m, String javaPkg) {
         TypeResolver types = new TypeResolver(table, javaPkg);
-        RecordGenerator rec = new RecordGenerator(types);
         CodecGenerator codec = new CodecGenerator(types);
-        recordAndCodec(w, rec, codec, m, javaPkg);
+        recordAndCodec(w, codec, m, javaPkg);
     }
 
-    private void recordAndCodec(JavaWriter w, RecordGenerator rec, CodecGenerator codec,
+    private void recordAndCodec(JavaWriter w, CodecGenerator codec,
                                 bijnagte.recordbuf.plugin.model.Message m, String javaPkg) {
         w.line("public record " + m.name() + "(");
         for (int i = 0; i < m.fields().size(); i++) {
@@ -113,7 +112,7 @@ public final class CodeGenerator {
         // Nested messages and enums.
         for (var nested : m.nestedMessages()) {
             w.line();
-            recordAndCodec(w, rec, codec, nested, javaPkg);
+            recordAndCodec(w, codec, nested, javaPkg);
         }
         for (var nested : m.nestedEnums()) {
             w.line();
