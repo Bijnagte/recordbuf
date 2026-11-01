@@ -1,0 +1,19 @@
+// Regression guard for the encode-order fix: a proto whose field NUMBERS are
+// declared in NON-ASCII / non-ascending order. protobuf-java emits fields in
+// ascending field-number order on the wire; a naive codec that emits in
+// declaration order would diverge. Byte-equality against the protobuf-java
+// reference proves the generated encode loop sorts by field number.
+//
+// This is a regression fixture for the CodecGenerator change that sorts the
+// encode loop by Field.number(); it is NOT a new "family" -- it reuses the
+// int-family wire path.
+syntax = "proto3";
+
+package bijnagte.recordbuf.comgen.order;
+option java_package = "bijnagte.recordbuf.comgen.order";
+
+message Sample {
+    int32 c = 3;
+    int32 a = 1;
+    int32 b = 2;
+}

@@ -70,7 +70,7 @@ public final class CodecGenerator {
     private void emitEncode(JavaWriter w, Message m) {
         w.line("java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();");
         w.line("com.google.protobuf.CodedOutputStream out = com.google.protobuf.CodedOutputStream.newInstance(baos);");
-        for (Field f : m.fields()) {
+        for (Field f : m.fields().stream().sorted(java.util.Comparator.comparingInt(Field::number)).toList()) {
             emitEncodeField(w, m, f);
         }
         w.line("out.flush();");
