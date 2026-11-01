@@ -1,6 +1,7 @@
-# Build output
-/build/
-/.gradle/
+# Build output (root + nested subproject build dirs)
+.gradle/
+build/
+
 out/
 
 # IDE

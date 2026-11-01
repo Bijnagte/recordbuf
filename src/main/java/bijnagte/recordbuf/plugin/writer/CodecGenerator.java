@@ -23,6 +23,12 @@ import bijnagte.recordbuf.plugin.types.TypeResolver.WireScalar;
  */
 public final class CodecGenerator {
 
+    // The runtime package a generated codec calls into, emitted as fully-qualified
+    // text (no import) -- matching how the plugin already names
+    // com.google.protobuf.CodedOutputStream. The per-message dispatch stays
+    // generated; only the mechanical framing lives in bijnagte.recordbuf.runtime.
+    private static final String RT = "bijnagte.recordbuf.runtime";
+
     private final TypeResolver types;
 
     public CodecGenerator(TypeResolver types) {
@@ -68,13 +74,12 @@ public final class CodecGenerator {
     // --- encode ---
 
     private void emitEncode(JavaWriter w, Message m) {
-        w.line("java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();");
-        w.line("com.google.protobuf.CodedOutputStream out = com.google.protobuf.CodedOutputStream.newInstance(baos);");
+        w.line("var enc = " + RT + ".Encoder.start();");
+        w.line("var out = enc.out();");
         for (Field f : m.fields().stream().sorted(java.util.Comparator.comparingInt(Field::number)).toList()) {
             emitEncodeField(w, m, f);
         }
-        w.line("out.flush();");
-        w.line("return baos.toByteArray();");
+        w.line("return enc.finish();");
     }
 
     private void emitEncodeField(JavaWriter w, Message m, Field f) {
@@ -118,7 +123,7 @@ public final class CodecGenerator {
             case BYTES  ->
                 w.line("if (" + getter + ".length != 0) out." + call + "(" + num + ", " + getter + ");");
             default ->
-                w.line("if (" + getter + " != " + defaultValueFor(wire) + ") out." + call + "(" + num + ", " + getter + ");");
+                w.line("if (" + getter + " != " + RT + ".CodecDefaults." + defaultMethod(wire) + "()) out." + call + "(" + num + ", " + getter + ");");
         }
     }
 
@@ -210,12 +215,11 @@ public final class CodecGenerator {
         w.line("public static byte[] encode(" + name + " v) throws java.io.IOException {");
         int enc = w.indent() + 1;
         w.indent(enc);
-        w.line("java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();");
-        w.line("com.google.protobuf.CodedOutputStream out = com.google.protobuf.CodedOutputStream.newInstance(baos);");
+        w.line("var enc = " + RT + ".Encoder.start();");
+        w.line("var out = enc.out();");
         emitEntryScalar(w, keyWire, 1, "v.key()");
         emitEntryScalar(w, valWire, 2, "v.value()");
-        w.line("out.flush();");
-        w.line("return baos.toByteArray();");
+        w.line("return enc.finish();");
         w.indent(enc - 1);
         w.line("}");
         w.line();
@@ -224,22 +228,22 @@ public final class CodecGenerator {
         w.line("public static " + name + " decode(byte[] inBytes) throws java.io.IOException {");
         int dec = w.indent() + 1;
         w.indent(dec);
-        w.line("var key = " + entryDefault(keyWire) + ";");
-        w.line("var value = " + entryDefault(valWire) + ";");
+        w.line("var key = " + RT + ".CodecDefaults." + defaultMethod(keyWire) + "();");
+        w.line("var value = " + RT + ".CodecDefaults." + defaultMethod(valWire) + "();");
         w.line();
-        w.line("com.google.protobuf.CodedInputStream in = com.google.protobuf.CodedInputStream.newInstance(inBytes);");
+        w.line("var in = " + RT + ".Decoder.start(inBytes).in();");
         w.line("while (!in.isAtEnd()) {");
         int outer = w.indent() + 1;
         w.indent(outer);
-        w.line("int tag = in.readTag();");
+        w.line("int tag = " + RT + ".Wire.readTag(in);");
         w.line("if (tag == 0) break;");
-        w.line("int fieldNum = com.google.protobuf.WireFormat.getTagFieldNumber(tag);");
+        w.line("int fieldNum = " + RT + ".Wire.tagFieldNumber(tag);");
         w.line("switch (fieldNum) {");
         int inner = outer + 1;
         w.indent(inner);
         w.line("case 1 -> { key = " + decodeCall(keyWire) + "; }");
         w.line("case 2 -> { value = " + decodeCall(valWire) + "; }");
-        w.line("default -> in.skipField(tag);");
+        w.line("default -> " + RT + ".Wire.skip(in, tag);");
         w.indent(outer);
         w.line("}");
         w.line("}");
@@ -260,15 +264,6 @@ public final class CodecGenerator {
         w.line("out." + encodeCall(wire) + "(" + num + ", " + getter + ");");
     }
 
-    /** Default value literal for a decoded entry key/value, per wire scalar. */
-    private String entryDefault(WireScalar wire) {
-        return switch (wire) {
-            case STRING -> "\"\"";
-            case BYTES  -> "new byte[0]";
-            default     -> defaultValueFor(wire);
-        };
-    }
-
     private void emitRepeatedScalar(JavaWriter w, Field f, int num, String getter) {
         WireScalar wire = types.wireScalar(f);
         String op = packedNoTag(wire);
@@ -279,13 +274,14 @@ public final class CodecGenerator {
         w.line("if (!" + getter + ".isEmpty()) {");
         int ind = w.indent() + 1;
         w.indent(ind);
-        w.line("java.io.ByteArrayOutputStream _body = new java.io.ByteArrayOutputStream();");
-        w.line("com.google.protobuf.CodedOutputStream _o = com.google.protobuf.CodedOutputStream.newInstance(_body);");
+        // proto3 packs a repeated scalar as ONE length-delimited group framed through
+        // the runtime's Encoder: buffer the tight no-tag value sequence, then frame it.
+        w.line("var body = " + RT + ".Encoder.start();");
+        w.line("var _o = body.out();");
         w.line("for (var _x : " + getter + ") _o." + op + "(_x);");
-        w.line("_o.flush();");
         // Frame the buffered sequence as one length-delimited group. writeByteArray writes
         // tag + varint length + raw bytes -- the exact framing protobuf-java's packed encode/use.
-        w.line("out.writeByteArray(" + num + ", _body.toByteArray());");
+        w.line("out.writeByteArray(" + num + ", body.finish());");
         w.indent(ind - 1);
         w.line("}");
     }
@@ -305,20 +301,20 @@ public final class CodecGenerator {
             w.line(initDecl(f));
         }
         w.line();
-        w.line("com.google.protobuf.CodedInputStream in = com.google.protobuf.CodedInputStream.newInstance(inBytes);");
+        w.line("var in = " + RT + ".Decoder.start(inBytes).in();");
         w.line("while (!in.isAtEnd()) {");
         int outer = w.indent() + 1;
         w.indent(outer);
-        w.line("int tag = in.readTag();");
+        w.line("int tag = " + RT + ".Wire.readTag(in);");
         w.line("if (tag == 0) break;");
-        w.line("int fieldNum = com.google.protobuf.WireFormat.getTagFieldNumber(tag);");
+        w.line("int fieldNum = " + RT + ".Wire.tagFieldNumber(tag);");
         w.line("switch (fieldNum) {");
         int inner = outer + 1;
         w.indent(inner);
         for (Field f : m.fields()) {
             emitDecodeCase(w, m, f);
         }
-        w.line("default -> in.skipField(tag);");
+        w.line("default -> " + RT + ".Wire.skip(in, tag);");
         w.indent(outer);
         w.line("}");
         w.line("}");
@@ -405,7 +401,7 @@ public final class CodecGenerator {
         // put entries into it; the record's compact constructor then copies it to
         // an immutable Map.copyOf(...).
         if (f.isMap()) return types.resolve(f) + " " + f.javaName() + " = new java.util.HashMap<>();";
-        return "var " + f.javaName() + " = " + initialValue(f) + ";";
+        return "var " + f.javaName() + " = " + RT + ".CodecDefaults." + defaultMethod(f) + "();";
     }
 
     private String encodeCall(WireScalar wire) {
@@ -457,34 +453,22 @@ public final class CodecGenerator {
         };
     }
 
-    private String defaultValueFor(WireScalar wire) {
-        return switch (wire) {
-            case INT32, UINT32, SINT_32, FIXED32              -> "0";
-            case INT64, UINT64, SINT_64, FIXED64              -> "0L";
-            case FLOAT                                                 -> "0.0f";
-            case DOUBLE                                                -> "0.0";
-            case BOOL                                                  -> "false";
-            case STRING, BYTES                                         -> null; // handled specially
-        };
+    /** The {@code CodecDefaults} method returning a decoded field's default local
+     *  value for a field of the given type. */
+    private String defaultMethod(Field f) {
+        return defaultMethod(types.wireScalar(f));
     }
 
-    private String initialValue(Field f) {
-        if (f.isRepeated()) return "new java.util.ArrayList<>()";
-        return switch (f.kind()) {
-            case SCALAR -> {
-                WireScalar wire = types.wireScalar(f);
-                yield switch (wire) {
-                    case INT32, UINT32, SINT_32, FIXED32     -> "0";
-                    case INT64, UINT64, SINT_64, FIXED64     -> "0L";
-                    case FLOAT                                 -> "0.0f";
-                    case DOUBLE                                        -> "0.0";
-                    case BOOL                                          -> "false";
-                    case STRING                                        -> "\"\"";
-                    case BYTES                                         -> "new byte[0]";
-                };
-            }
-            case ENUM, MESSAGE -> "null";
-            default            -> "null";
+    /** The {@link #RT CodecDefaults} method name for a wire scalar's default value. */
+    private static String defaultMethod(WireScalar wire) {
+        return switch (wire) {
+            case INT32, UINT32, SINT_32, FIXED32 -> "int32";
+            case INT64, UINT64, SINT_64, FIXED64  -> "int64";
+            case FLOAT                              -> "float_";
+            case DOUBLE                             -> "double_";
+            case BOOL                               -> "bool";
+            case STRING                             -> "string";
+            case BYTES                              -> "bytes";
         };
     }
 

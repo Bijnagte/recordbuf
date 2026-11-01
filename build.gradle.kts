@@ -56,13 +56,16 @@ dependencies {
     // jars are reachable, add the `id("net.ltgt.errorprone")` plugin and, per task:
     //     options.compilerArgs += "-XepOpt:NullAway:JSpecifyMode=true"
     //     options.compilerArgs += "-XepOpt:NullAway:OnlyNullMarked=true"
+    // JUnit Jupiter + plain assertions only. JSpecify is generated-code infra, not a
+    // test library (compiled into the generated test source set as a type-use note).
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
-    // The generated record/codec live in the TEST source set (see genInterop):
-    // they reference @org.jspecify.annotations.Nullable and protobuf-java, both of
-    // which must be on the test COMPILE classpath. (protobuf-java already flows
-    // in via the main 'implementation' dep; jspecify is compileOnly in main and
-    // does NOT propagate to the test config, so add it explicitly.)
+    // The generated record/codec (in the TEST source set via genInterop) now calls into
+    // the runtime module (bijnagte.recordbuf.runtime.Encoder/Decoder/Wire/CodecDefaults), so
+    // the runtime must be on the test COMPILE classpath. protobuf-java already flows in via
+    // the main 'implementation' dep and transitively via the runtime; jspecify is compileOnly
+    // in main and does NOT propagate to the test config, so add it explicitly.
+    testImplementation(project(":recordbuf-runtime"))
     testImplementation(libs.jspecify)
 }
 
