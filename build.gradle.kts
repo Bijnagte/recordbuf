@@ -132,12 +132,15 @@ val genRefDir = File(project.buildDir, "$interopBase/ref")        // protobuf-ja
 @Suppress("DEPRECATION")
 val binDir = File(project.buildDir, "$interopBase/bin")            // plugin wrapper
 val genProtoDir = File(project.projectDir, "src/test/proto")
-val mainProtoDir = File(project.projectDir, "src/main/proto") // host recordbuf_options.proto
+// recordbuf_options.proto now lives in the options module (KTD5); genInterface resolves it
+// via a protoc include path, not a Gradle dependency -- so point -I at the options module's
+// proto dir rather than the old src/main/proto host.
+val mainProtoDir = project(":recordbuf-options").projectDir.resolve("src/main/proto")
 
 // The iface_marker family has its OWN generator task (genInterface) rather than riding the
-// all-proto glob, because it imports recordbuf_options.proto from src/main/proto — an include
-// path genInterop doesn't carry. genInterface generates the record/enum that implement user
-// interfaces via the java_interface / java_enum_interface options.
+// all-proto glob, because it imports recordbuf_options.proto from the options module — an
+// include path genInterop doesn't carry. genInterface generates the record/enum that implement
+// user interfaces via the java_interface / java_enum_interface options.
 val ifaceBase = "generated/iface"
 @Suppress("DEPRECATION")
 val genIfaceDir = File(project.buildDir, "$ifaceBase/java")       // generated iface record/enum src
