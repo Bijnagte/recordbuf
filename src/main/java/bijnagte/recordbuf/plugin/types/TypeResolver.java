@@ -43,12 +43,23 @@ public final class TypeResolver {
             case SCALAR -> scalarJava(f.typeUrl());
             case MESSAGE, ENUM -> resolveType(f.typeUrl());
             case MAP -> {
-                String k = f.mapKey()  == null ? "java.lang.Object" : f.mapKey();
-                String v = f.mapValue() == null ? "java.lang.Object" : f.mapValue();
+                // Map<K,V> cannot hold primitives, so both bounds are the BOXED
+                // java type of the map key/value (Map<String, Integer>), not the
+                // primitive (Map<String, int>). mapKey()/mapValue() hold the proto
+                // type name; mapComponentType boxes it.
+                String k = mapComponentType(f.mapKey());
+                String v = mapComponentType(f.mapValue());
                 yield "java.util.Map<" + k + ", " + v + ">";
             }
             default -> "java.lang.Object";
         };
+    }
+
+    /** The boxed Java component type of a map key/value, from its proto type name
+     *  (e.g. "int32" -> "java.lang.Integer", "string"/"bool" -> the boxed ref). */
+    public String mapComponentType(String protoType) {
+        if (protoType == null) return "java.lang.Object";
+        return boxed(scalarJava(protoType));
     }
 
     /**
@@ -139,7 +150,13 @@ public final class TypeResolver {
     }
 
     public WireScalar wireScalar(Field f) {
-        return switch (f.typeUrl()) {
+        return wireScalarForType(f.typeUrl());
+    }
+
+    /** Wire-level primitive type for a bare proto scalar type name (used for both
+     *  fields and map key/value members, which store the proto type name). */
+    public WireScalar wireScalarForType(String protoType) {
+        return switch (protoType) {
             case "int32"    -> WireScalar.INT32;
             case "uint32"   -> WireScalar.UINT32;
             case "sint32"   -> WireScalar.SINT_32;
@@ -155,7 +172,7 @@ public final class TypeResolver {
             case "bool"     -> WireScalar.BOOL;
             case "string"   -> WireScalar.STRING;
             case "bytes"    -> WireScalar.BYTES;
-            default -> throw new IllegalStateException("unknown scalar type " + f.typeUrl());
+            default -> throw new IllegalStateException("unknown scalar type " + protoType);
         };
     }
 }

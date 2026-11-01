@@ -1,0 +1,24 @@
+// Per-family interop fixture for the proto3 map<K,V> field family. The recordbuf
+// record is generated from this file (--recordbuf_out); the protobuf-java
+// reference is generated from map-ref.proto (--java_out) into a sibling `*.ref`
+// java_package so the two coexist. A proto3 `map<K,V>` is syntactic sugar for a
+// `repeated Entry` message (key=1, value=2), so on the wire each entry is a
+// length-delimited nested message -- the same framing as a repeated/nested
+// message. The generated record component is a java.util.Map<K,V> whose entry
+// round-trips via an entry-level Codec.
+syntax = "proto3";
+
+package bijnagte.recordbuf.comgen.map;
+option java_package = "bijnagte.recordbuf.comgen.map";
+
+// Exactly one top-level message per family proto: the record's public type name
+// must match its source filename (Java requires one public type/file).
+//
+// Three distinct map key/value type families so the entry framing plus each
+// field width (length-delimited string key, varint int key/value, bool value)
+// is exercised. `map<string,int32>` is the mandatory member.
+message Sample {
+    map<string, int32>  a = 1;
+    map<int32, string>  b = 2;
+    map<string, bool>   c = 3;
+}

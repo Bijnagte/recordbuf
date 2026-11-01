@@ -141,8 +141,14 @@ public final class ModelLoader {
         // entry.field(0) = key, entry.field(1) = value
         FieldDescriptorProto keyP = entry.getField(0);
         FieldDescriptorProto valP = entry.getField(1);
-        String keyJavaType = scalarOrTypeJava(keyP, typeScope(entry, protoScope));
-        String valJavaType = scalarOrTypeJava(valP, typeScope(entry, protoScope));
+        // Store the PROTO TYPE NAME (e.g. "int32"/"string"/"bool") for the scalar
+        // key/value, not the Java type. The codec needs the proto name to pick the
+        // right wire scalar (int32 vs uint32 vs sint32 are all "int" in Java but
+        // differ on the wire); TypeResolver boxes that name to the record component
+        // type (e.g. Map<String, Integer>). A message/enum value (out of scope for
+        // this family) is resolved to its proto FQN for later resolution.
+        String keyProtoType = mapMemberProtoType(keyP, typeScope(entry, protoScope));
+        String valProtoType = mapMemberProtoType(valP, typeScope(entry, protoScope));
         // For maps, we keep the synthetic field's name but mark as MAP.
         return new Field(
                 synthetic.name(),
@@ -151,12 +157,20 @@ public final class ModelLoader {
                 FieldLabel.OPTIONAL,
                 FieldKind.MAP,
                 /*typeUrl=*/ synthetic.typeUrl(),
-                keyJavaType,
-                valJavaType,
+                keyProtoType,
+                valProtoType,
                 /*proto3Optional=*/ false,
                 /*defaultValue=*/ null,
                 null
         );
+    }
+
+    /** The proto type name of a map entry's key/value field: the bare scalar name
+     *  (e.g. "int32", "string") for scalars, or the resolved proto FQN for a
+     *  message/enum value. */
+    private String mapMemberProtoType(FieldDescriptorProto f, String protoScope) {
+        if (isScalar(f.getType())) return scalarTypeName(f.getType());
+        return resolveType(f.getTypeName(), protoScope);
     }
 
     private static String typeScope(DescriptorProto entry, String protoScope) {
@@ -191,18 +205,6 @@ public final class ModelLoader {
         }
         // Last resort: relative to package root.
         return protoScope.isEmpty() ? raw : protoScope + "." + raw;
-    }
-
-    private String scalarOrTypeJava(FieldDescriptorProto f, String protoScope) {
-        if (isScalar(f.getType())) return scalarJava(f.getType());
-        // Message or Enum — resolve the Java FQN.
-        String protoFqn = resolveType(f.getTypeName(), protoScope);
-        String javaFqn = table.javaFqn(protoFqn);
-        if (javaFqn == null) {
-            // Unknown (probably an undefined dependency); use the bare name.
-            return JavaNames.cap(shortName(f.getTypeName()));
-        }
-        return javaFqn;
     }
 
     // --- enums ---
@@ -302,20 +304,6 @@ public final class ModelLoader {
                  TYPE_UINT64, TYPE_SINT32, TYPE_SINT64, TYPE_FIXED32, TYPE_FIXED64,
                  TYPE_SFIXED32, TYPE_SFIXED64, TYPE_BOOL, TYPE_STRING, TYPE_BYTES -> true;
             default -> false;
-        };
-    }
-
-    static String scalarJava(Type t) {
-        return switch (t) {
-            case TYPE_DOUBLE   -> "double";
-            case TYPE_FLOAT    -> "float";
-            case TYPE_INT32, TYPE_SINT32, TYPE_SFIXED32, TYPE_FIXED32 -> "int";
-            case TYPE_INT64, TYPE_SINT64, TYPE_SFIXED64, TYPE_FIXED64 -> "long";
-            case TYPE_UINT32, TYPE_UINT64 -> "int"; // v1: use int; revisit in v2
-            case TYPE_BOOL    -> "boolean";
-            case TYPE_STRING  -> "java.lang.String";
-            case TYPE_BYTES   -> "byte[]";
-            default           -> "java.lang.Object";
         };
     }
 

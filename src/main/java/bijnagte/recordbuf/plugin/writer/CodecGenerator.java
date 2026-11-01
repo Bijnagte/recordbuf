@@ -1,6 +1,7 @@
 package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.plugin.model.Field;
+import bijnagte.recordbuf.plugin.model.JavaNames;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.types.TypeResolver;
 import bijnagte.recordbuf.plugin.types.TypeResolver.WireScalar;
@@ -30,6 +31,14 @@ public final class CodecGenerator {
 
     /** Emit {@code public static final class Codec { ... }} at current indent. */
     public void writeCodec(JavaWriter w, Message m) {
+        // A proto3 map<K,V> is a repeated 2-field entry message (key=1, value=2).
+        // The record component is a java.util.Map<K,V>; each entry round-trips via
+        // its own nested record + Codec, framed as a length-delimited group exactly
+        // like a repeated nested message. Emit one entry record per map field.
+        for (Field f : m.fields()) {
+            if (f.isMap()) emitMapEntry(w, f);
+        }
+
         w.line();
         w.line("public static final class Codec {");
         int prev = w.indent();
@@ -82,7 +91,7 @@ public final class CodecGenerator {
             return;
         }
         if (f.isMap()) {
-            w.line("// TODO(v1): map encoding for " + f.javaName());
+            emitMapField(w, m, f);
             return;
         }
         boolean nullable = f.isNullable();
@@ -133,6 +142,131 @@ public final class CodecGenerator {
         w.line("out.writeByteArray(" + num + ", " + nestedCodec + ".encode(" + getter + "));");
         w.indent(ind - 1);
         w.line("}");
+    }
+
+    // --- map fields ---
+
+    /** The nested record name for a proto3 map field's entry: <Cap(field)>Entry
+     *  (a sibling of the record's own Codec), mirroring protobuf-java's entry type. */
+    private static String entryName(Field f) {
+        return JavaNames.cap(f.javaName()) + "Entry";
+    }
+
+    /** Encode: one length-delimited entry per map put, framed like a repeated
+     *  nested message -- writeByteArray(tag, entryBytes). */
+    private void emitMapField(JavaWriter w, Message m, Field f) {
+        String getter = "v." + f.javaName() + "()";
+        String entry = entryName(f);
+        w.line("for (var _e : " + getter + ".entrySet()) {");
+        int ind = w.indent() + 1;
+        w.indent(ind);
+        w.line("out.writeByteArray(" + f.number() + ", " + entry + ".Codec.encode(new " + entry + "(_e.getKey(), _e.getValue())));");
+        w.indent(ind - 1);
+        w.line("}");
+    }
+
+    /** Decode: each occurrence of the map's tag is one length-delimited entry;
+     *  decode it via the entry Codec and fold key/value into the map. Repeated tags
+     *  accumulate across the decode loop. */
+    private void emitMapDecode(JavaWriter w, Message m, Field f, int num) {
+        String entry = entryName(f);
+        String tmp = "_" + f.javaName();
+        w.line("var " + tmp + " = " + entry + ".Codec.decode(in.readByteArray());");
+        w.line(f.javaName() + ".put(" + tmp + ".key(), " + tmp + ".value());");
+    }
+
+    /**
+     * Emit the nested entry record + its Codec for one map field. The entry is a
+     * 2-field message (key=1, value=2). Both key and value are written
+     * unconditionally -- a map entry is a nested message whose members are always
+     * present (see {@link #emitEntryScalar}), unlike a proto3 singular scalar which
+     * omits its default. The record is nested in the parent record next to its Codec.
+     */
+    private void emitMapEntry(JavaWriter w, Field f) {
+        String name = entryName(f);
+        String keyType = types.mapComponentType(f.mapKey());
+        String valueType = types.mapComponentType(f.mapValue());
+        WireScalar keyWire = types.wireScalarForType(f.mapKey());
+        WireScalar valWire = types.wireScalarForType(f.mapValue());
+
+        w.line();
+        w.line("public record " + name + "(" + keyType + " key, " + valueType + " value) {");
+        w.indent(w.indent() + 1);
+        emitEntryCodec(w, name, keyWire, valWire);
+        w.indent(w.indent() - 1);
+        w.line("}");
+    }
+
+    /** The Codec for a map entry record: the 2-field entry message (key=1, value=2). */
+    private void emitEntryCodec(JavaWriter w, String name, WireScalar keyWire, WireScalar valWire) {
+        w.line();
+        w.line("public static final class Codec {");
+        int prev = w.indent();
+        w.indent(prev + 1);
+        w.line("private Codec() {}");
+        w.line();
+
+        // --- encode ---
+        w.line("public static byte[] encode(" + name + " v) throws java.io.IOException {");
+        int enc = w.indent() + 1;
+        w.indent(enc);
+        w.line("java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();");
+        w.line("com.google.protobuf.CodedOutputStream out = com.google.protobuf.CodedOutputStream.newInstance(baos);");
+        emitEntryScalar(w, keyWire, 1, "v.key()");
+        emitEntryScalar(w, valWire, 2, "v.value()");
+        w.line("out.flush();");
+        w.line("return baos.toByteArray();");
+        w.indent(enc - 1);
+        w.line("}");
+        w.line();
+
+        // --- decode ---
+        w.line("public static " + name + " decode(byte[] inBytes) throws java.io.IOException {");
+        int dec = w.indent() + 1;
+        w.indent(dec);
+        w.line("var key = " + entryDefault(keyWire) + ";");
+        w.line("var value = " + entryDefault(valWire) + ";");
+        w.line();
+        w.line("com.google.protobuf.CodedInputStream in = com.google.protobuf.CodedInputStream.newInstance(inBytes);");
+        w.line("while (!in.isAtEnd()) {");
+        int outer = w.indent() + 1;
+        w.indent(outer);
+        w.line("int tag = in.readTag();");
+        w.line("if (tag == 0) break;");
+        w.line("int fieldNum = com.google.protobuf.WireFormat.getTagFieldNumber(tag);");
+        w.line("switch (fieldNum) {");
+        int inner = outer + 1;
+        w.indent(inner);
+        w.line("case 1 -> { key = " + decodeCall(keyWire) + "; }");
+        w.line("case 2 -> { value = " + decodeCall(valWire) + "; }");
+        w.line("default -> in.skipField(tag);");
+        w.indent(outer);
+        w.line("}");
+        w.line("}");
+        w.line();
+        w.line("return new " + name + "(key, value);");
+        w.indent(dec - 1);
+        w.line("}");
+        w.line();
+        w.indent(prev);
+        w.line("}");
+    }
+
+    /** Encode one entry key/value field. A proto3 map entry is a nested message
+     *  whose key and value are always present, so both are written UNCONDITIONALLY
+     *  (default values like 0/false/empty are NOT skipped -- matching protobuf-java's
+     *  map-entry writeTo, which differs from proto3 singular-scalar default-skipping). */
+    private void emitEntryScalar(JavaWriter w, WireScalar wire, int num, String getter) {
+        w.line("out." + encodeCall(wire) + "(" + num + ", " + getter + ");");
+    }
+
+    /** Default value literal for a decoded entry key/value, per wire scalar. */
+    private String entryDefault(WireScalar wire) {
+        return switch (wire) {
+            case STRING -> "\"\"";
+            case BYTES  -> "new byte[0]";
+            default     -> defaultValueFor(wire);
+        };
     }
 
     private void emitRepeatedScalar(JavaWriter w, Field f, int num, String getter) {
@@ -204,7 +338,7 @@ public final class CodecGenerator {
         int ind = w.indent() + 1;
         w.indent(ind);
         if (f.isMap()) {
-            w.line("// TODO(v1): map decode for " + f.javaName());
+            emitMapDecode(w, m, f, num);
         } else if (f.isRepeated()) {
             emitRepeatedDecode(w, m, f, num);
         } else {
@@ -267,6 +401,10 @@ public final class CodecGenerator {
         // on `var` would leave it as List<Object>); the nested type is the
         // element type from resolve()'s List<Element> head.
         if (f.isRepeated()) return types.resolve(f) + " " + f.javaName() + " = new java.util.ArrayList<>();";
+        // A map field decodes into a MUTABLE, typed map so the decode loop can
+        // put entries into it; the record's compact constructor then copies it to
+        // an immutable Map.copyOf(...).
+        if (f.isMap()) return types.resolve(f) + " " + f.javaName() + " = new java.util.HashMap<>();";
         return "var " + f.javaName() + " = " + initialValue(f) + ";";
     }
 
@@ -332,7 +470,6 @@ public final class CodecGenerator {
 
     private String initialValue(Field f) {
         if (f.isRepeated()) return "new java.util.ArrayList<>()";
-        if (f.isMap())      return "java.util.Map.of()";
         return switch (f.kind()) {
             case SCALAR -> {
                 WireScalar wire = types.wireScalar(f);
