@@ -253,10 +253,13 @@ public final class ModelLoader {
         }
 
         Object defaultVal = extractDefault(f);
+        // `proto3Optional` carries ONLY the `optional` keyword flag; presence is
+        // decided by Field.isNullable() (which also treats singular messages as
+        // present and repeated/map as always-defaulted). We must NOT fold the
+        // label in here: in proto3 every singular field is LABEL_OPTIONAL, so
+        // `proto3Optional || label == OPTIONAL` would wrongly mark plain scalars
+        // as present-able (the root cause of the bogus Optional<int>).
         boolean proto3Opt = f.getProto3Optional();
-        // In proto2, label is explicitly OPTIONAL/REQUIRED; in proto3 (no
-        // `optional` keyword) it's a singular field with a default.
-        boolean optionalWrap = proto3Opt || label == FieldLabel.OPTIONAL;
 
         return new Field(
                 f.getName(),
@@ -267,8 +270,7 @@ public final class ModelLoader {
                 typeUrl,
                 mapKey,
                 mapValue,
-                optionalWrap, // treat proto3 `optional` and proto2 OPTIONAL the same:
-                              // in the model we expose Optional<T> for both.
+                /*proto3Optional=*/ proto3Opt,
                 defaultVal,
                 null
         );

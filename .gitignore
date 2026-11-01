@@ -12,3 +12,4 @@ out/
 
 # Scratch directory for manual `protoc --java_out=./generated` runs
 /generated/
+/scratch/

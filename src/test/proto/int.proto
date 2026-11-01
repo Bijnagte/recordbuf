@@ -1,0 +1,16 @@
+// Per-family interop fixture for the int32 family. The recordbuf record is
+// generated from this file (--recordbuf_out); the protobuf-java reference is
+// generated from int-ref.proto (--java_out) into a sibling `*.ref`
+// java_package so the two coexist.
+syntax = "proto3";
+
+package bijnagte.recordbuf.comgen.i32;
+option java_package = "bijnagte.recordbuf.comgen.i32";
+
+// Exactly one top-level message per family proto: the record's public type
+// name must match its source filename (Java requires one public type/file),
+// so a self-contained message keeps the file layout trivial. Nested messages
+// would live in the same generated file.
+message Sample {
+    int32 a = 1;
+}

@@ -13,8 +13,12 @@ import bijnagte.recordbuf.plugin.types.TypeResolver.WireScalar;
  *
  * <p>Wire encoding is hand-rolled so the codec is independent of protobuf's
  * reflection layer — it doesn't need a {@code MessageLite} impl per record.
- * For nested messages we encode the child bytes first, then
- * {@code writeMessageTag + writeRawBytes} to splice them in.
+ * For nested messages we encode the child bytes first, then splice them in
+ * with {@code writeMessageTag + writeRawBytes}.
+ *
+ * <p>Nullability uses {@code @org.jspecify.annotations.Nullable} (see
+ * {@code Field.isNullable()}): a present-able field is {@code null} when
+ * absent and is skipped on the wire; it is never wrapped in {@code Optional}.
  */
 public final class CodecGenerator {
 
@@ -34,7 +38,7 @@ public final class CodecGenerator {
         w.line();
 
         // --- encode ---
-        w.line("public static byte[] encode(" + m.name() + " v) {");
+        w.line("public static byte[] encode(" + m.name() + " v) throws java.io.IOException {");
         w.indent(w.indent() + 1);
         emitEncode(w, m);
         w.indent(prev + 1);
@@ -42,7 +46,7 @@ public final class CodecGenerator {
         w.line();
 
         // --- decode ---
-        w.line("public static " + m.name() + " decode(byte[] in) {");
+        w.line("public static " + m.name() + " decode(byte[] inBytes) throws java.io.IOException {");
         w.indent(w.indent() + 1);
         emitDecode(w, m);
         w.indent(prev + 1);
@@ -65,14 +69,14 @@ public final class CodecGenerator {
     }
 
     private void emitEncodeField(JavaWriter w, Message m, Field f) {
-        String acc = "v." + f.javaName() + "()";
+        String getter = "v." + f.javaName() + "()";
         int num = f.number();
 
         if (f.isRepeated()) {
             switch (f.kind()) {
-                case SCALAR  -> emitRepeatedScalar(w, f, num, acc);
-                case ENUM    -> emitRepeatedEnum(w, f, num, acc);
-                case MESSAGE -> emitRepeatedMessage(w, f, num, acc);
+                case SCALAR  -> emitRepeatedScalar(w, f, num, getter);
+                case ENUM    -> emitRepeatedEnum(w, f, num, getter);
+                case MESSAGE -> emitRepeatedMessage(w, f, num, getter);
                 default      -> w.line("// unsupported repeated kind: " + f.kind());
             }
             return;
@@ -81,79 +85,73 @@ public final class CodecGenerator {
             w.line("// TODO(v1): map encoding for " + f.javaName());
             return;
         }
-        boolean optional = f.isOptionalWrapped();
+        boolean nullable = f.isNullable();
         switch (f.kind()) {
-            case SCALAR  -> emitScalar(w, f, num, acc, optional);
-            case ENUM    -> emitEnum(w, f, num, acc, optional);
-            case MESSAGE -> emitMessage(w, f, num, acc, optional);
+            case SCALAR  -> emitScalar(w, f, num, getter, nullable);
+            case ENUM    -> emitEnum(w, f, num, getter, nullable);
+            case MESSAGE -> emitMessage(w, f, num, getter, nullable);
             default      -> { }
         }
     }
 
-    private void emitScalar(JavaWriter w, Field f, int num, String getter, boolean optional) {
+    private void emitScalar(JavaWriter w, Field f, int num, String getter, boolean nullable) {
         WireScalar wire = types.wireScalar(f);
-        String call = encodeCall(wire) + "(" + getter + ")";
-        if (optional) {
-            w.line("if (" + getter + ".isPresent()) out." + call + ";");
+        String call = encodeCall(wire);
+        if (nullable) {
+            // Present-able scalars are boxed; skip the field entirely when null
+            // (absent on the wire). Autounboxing feeds the primitive write op.
+            w.line("if (" + getter + " != null) out." + call + "(" + num + ", " + getter + ");");
             return;
         }
         switch (wire) {
             case STRING ->
-                w.line("if (!" + getter + ".isEmpty()) out." + encodeCall(wire) + "(" + getter + ");");
+                w.line("if (!" + getter + ".isEmpty()) out." + call + "(" + num + ", " + getter + ");");
             case BYTES  ->
-                w.line("if (" + getter + ".length != 0) out." + encodeCall(wire) + "(" + getter + ");");
+                w.line("if (" + getter + ".length != 0) out." + call + "(" + num + ", " + getter + ");");
             default ->
-                w.line("if (" + getter + " != " + defaultValueFor(wire) + ") out." + encodeCall(wire) + "(" + getter + ");");
+                w.line("if (" + getter + " != " + defaultValueFor(wire) + ") out." + call + "(" + num + ", " + getter + ");");
         }
     }
 
-    private void emitEnum(JavaWriter w, Field f, int num, String getter, boolean optional) {
-        if (optional) {
-            w.line("if (" + getter + ".isPresent()) out.writeEnum(" + num + ", " + getter + ".get().getNumber());");
+    private void emitEnum(JavaWriter w, Field f, int num, String getter, boolean nullable) {
+        if (nullable) {
+            w.line("if (" + getter + " != null) out.writeEnum(" + num + ", " + getter + ".getNumber());");
             return;
         }
         w.line("if (" + getter + " != null && " + getter + ".getNumber() != 0) out.writeEnum(" + num + ", " + getter + ".getNumber());");
     }
 
-    private void emitMessage(JavaWriter w, Field f, int num, String getter, boolean optional) {
+    private void emitMessage(JavaWriter w, Field f, int num, String getter, boolean nullable) {
+        // A singular message is always present-able (@Nullable), so the null
+        // check guards both the explicit-optional and the default-null case.
         String nestedCodec = codecFor(f.typeUrl());
-        String localName = nestedTypeVar(f);
-        if (optional) {
-            w.line("if (" + getter + ".isPresent()) {");
-            w.indent(w.indent() + 1);
-            w.line(localName + "_b = " + nestedCodec + ".encode(" + getter + ".get());");
-            w.line("out.writeMessageTag(" + num + ", " + localName + "_b.length);");
-            w.line("out.writeRawBytes(" + localName + "_b);");
-            w.indent(w.indent() - 1);
-            w.line("}");
-            return;
-        }
+        String bytes = nestedTypeVar(f);
         w.line("if (" + getter + " != null) {");
-        w.indent(w.indent() + 1);
-        w.line(localName + "_b = " + nestedCodec + ".encode(" + getter + ");");
-        w.line("out.writeMessageTag(" + num + ", " + localName + "_b.length);");
-        w.line("out.writeRawBytes(" + localName + "_b);");
-        w.indent(w.indent() - 1);
+        int ind = w.indent() + 1;
+        w.indent(ind);
+        w.line("byte[] " + bytes + " = " + nestedCodec + ".encode(" + getter + ");");
+        w.line("out.writeMessageTag(" + num + ", " + bytes + ".length);");
+        w.line("out.writeRawBytes(" + bytes + ");");
+        w.indent(ind - 1);
         w.line("}");
     }
 
     private void emitRepeatedScalar(JavaWriter w, Field f, int num, String getter) {
-        String elem = types.resolveElement(f);
         WireScalar wire = types.wireScalar(f);
-        w.line("for (" + elem + " _x : " + getter + ") out." + encodeCall(wire) + "(_x);");
+        w.line("for (var _x : " + getter + ") out." + encodeCall(wire) + "(" + num + ", _x);");
     }
     private void emitRepeatedEnum(JavaWriter w, Field f, int num, String getter) {
         w.line("for (var _e : " + getter + ") out.writeEnum(" + num + ", _e.getNumber());");
     }
     private void emitRepeatedMessage(JavaWriter w, Field f, int num, String getter) {
         String codecRef = codecFor(f.typeUrl());
-        String localVar = "_msg";
-        w.line("for (var " + localVar + " : " + getter + ") {");
-        w.indent(w.indent() + 1);
-        w.line("byte[] " + localVar + "_b = " + codecRef + ".encode(" + localVar + ");");
-        w.line("out.writeMessageTag(" + num + ", " + localVar + "_b.length);");
-        w.line("out.writeRawBytes(" + localVar + "_b);");
-        w.indent(w.indent() - 1);
+        w.line("for (var _m : " + getter + ") {");
+        int ind = w.indent() + 1;
+        w.indent(ind);
+        w.line("byte[] _m_b = " + codecRef + ".encode(_m);");
+        w.line("out.writeMessageTag(" + num + ", _m_b.length);");
+        w.line("out.writeRawBytes(_m_b);");
+        w.indent(ind - 1);
         w.line("}");
     }
 
@@ -161,27 +159,26 @@ public final class CodecGenerator {
 
     private void emitDecode(JavaWriter w, Message m) {
         for (Field f : m.fields()) {
-            w.line("var " + f.javaName() + " = " + initialValue(f) + ";");
+            w.line(initDecl(f));
         }
         w.line();
-        w.line("com.google.protobuf.CodedInputStream in = com.google.protobuf.CodedInputStream.newInstance(in);");
-        w.line("int lim = in.pushLimit(in.getBufferedByteCount());");
-        w.line("com.google.protobuf.UnsafeUtil.checkAccess();"); // no-op, keep import alive
+        w.line("com.google.protobuf.CodedInputStream in = com.google.protobuf.CodedInputStream.newInstance(inBytes);");
         w.line("while (!in.isAtEnd()) {");
-        w.indent(w.indent() + 1);
+        int outer = w.indent() + 1;
+        w.indent(outer);
         w.line("int tag = in.readTag();");
         w.line("if (tag == 0) break;");
         w.line("int fieldNum = com.google.protobuf.WireFormat.getTagFieldNumber(tag);");
         w.line("switch (fieldNum) {");
-        w.indent(w.indent() + 1);
+        int inner = outer + 1;
+        w.indent(inner);
         for (Field f : m.fields()) {
             emitDecodeCase(w, m, f);
         }
-        w.line("default: in.skipField(tag);");
-        w.indent(w.indent() - 1);
+        w.line("default -> in.skipField(tag);");
+        w.indent(outer);
         w.line("}");
         w.line("}");
-        w.line("in.popLimit(lim);");
         w.line();
         w.line("return new " + m.name() + "(");
         for (int i = 0; i < m.fields().size(); i++) {
@@ -195,54 +192,63 @@ public final class CodecGenerator {
     private void emitDecodeCase(JavaWriter w, Message m, Field f) {
         int num = f.number();
         w.line("case " + num + " -> {");
-        w.indent(w.indent() + 1);
+        int ind = w.indent() + 1;
+        w.indent(ind);
         if (f.isMap()) {
             w.line("// TODO(v1): map decode for " + f.javaName());
         } else if (f.isRepeated()) {
-            switch (f.kind()) {
-                case SCALAR -> {
-                    WireScalar wire = types.wireScalar(f);
-                    w.line(f.javaName() + ".add(" + decodeCall(wire) + ");");
-                }
-                case ENUM -> {
-                    String enumName = lastSeg(f.typeUrl());
-                    w.line(f.javaName() + ".add(" + enumName + ".forNumber((int) in.readEnum()));");
-                }
-                case MESSAGE -> {
-                    String codecRef = codecFor(f.typeUrl());
-                    w.line(f.javaName() + ".add(" + codecRef + ".decode(in.readMessage(" + num + ")));");
-                }
-                default -> { }
-            }
+            emitRepeatedDecode(w, m, f, num);
         } else {
-            boolean optional = f.isOptionalWrapped();
-            switch (f.kind()) {
-                case SCALAR -> {
-                    WireScalar wire = types.wireScalar(f);
-                    String read = decodeCall(wire);
-                    if (optional) w.line(f.javaName() + " = java.util.Optional.of(" + read + ");");
-                    else          w.line(f.javaName() + " = " + read + ";");
-                }
-                case ENUM -> {
-                    String enumName = lastSeg(f.typeUrl());
-                    String read = enumName + ".forNumber((int) in.readEnum())";
-                    if (optional) w.line(f.javaName() + " = java.util.Optional.of(" + read + ");");
-                    else          w.line(f.javaName() + " = " + read + ";");
-                }
-                case MESSAGE -> {
-                    String codecRef = codecFor(f.typeUrl());
-                    String read = codecRef + ".decode(in.readMessage(" + num + "))";
-                    if (optional) w.line(f.javaName() + " = java.util.Optional.of(" + read + ");");
-                    else          w.line(f.javaName() + " = " + read + ";");
-                }
-                default -> { }
-            }
+            emitSingularDecode(w, m, f, num);
         }
-        w.indent(w.indent() - 1);
+        w.indent(ind - 1);
         w.line("}");
     }
 
+    private void emitSingularDecode(JavaWriter w, Message m, Field f, int num) {
+        switch (f.kind()) {
+            case SCALAR -> {
+                w.line(f.javaName() + " = " + decodeCall(types.wireScalar(f)) + ";");
+            }
+            case ENUM -> {
+                String enumName = lastSeg(f.typeUrl());
+                w.line(f.javaName() + " = " + enumName + ".forNumber((int) in.readEnum());");
+            }
+            case MESSAGE -> {
+                String codecRef = codecFor(f.typeUrl());
+                w.line(f.javaName() + " = " + codecRef + ".decode(in.readMessage(" + num + "));");
+            }
+            default -> { }
+        }
+    }
+
+    private void emitRepeatedDecode(JavaWriter w, Message m, Field f, int num) {
+        switch (f.kind()) {
+            case SCALAR -> {
+                String read = decodeCall(types.wireScalar(f));
+                w.line(f.javaName() + ".add(" + read + ");");
+            }
+            case ENUM -> {
+                String enumName = lastSeg(f.typeUrl());
+                w.line(f.javaName() + ".add(" + enumName + ".forNumber((int) in.readEnum()));");
+            }
+            case MESSAGE -> {
+                String codecRef = codecFor(f.typeUrl());
+                w.line(f.javaName() + ".add(" + codecRef + ".decode(in.readMessage(" + num + ")));");
+            }
+            default -> { }
+        }
+    }
+
     // --- helpers ---
+
+    /** The local-declaration line for a decoded field. */
+    private String initDecl(Field f) {
+        // A present-able field is declared with its boxed/reference type and
+        // starts null; every other field keeps a default value.
+        if (f.isNullable()) return types.resolve(f) + " " + f.javaName() + " = null;";
+        return "var " + f.javaName() + " = " + initialValue(f) + ";";
+    }
 
     private String encodeCall(WireScalar wire) {
         return switch (wire) {
@@ -254,7 +260,7 @@ public final class CodecGenerator {
             case DOUBLE                  -> "writeDouble";
             case BOOL                    -> "writeBool";
             case STRING                  -> "writeString";
-            case BYTES                   -> "writeBytes";
+            case BYTES                   -> "writeByteArray"; // byte[] -> 2-arg byte-array op
         };
     }
 
@@ -268,7 +274,7 @@ public final class CodecGenerator {
             case DOUBLE                  -> "in.readDouble()";
             case BOOL                    -> "in.readBool()";
             case STRING                  -> "in.readString()";
-            case BYTES                   -> "in.readBytes()";
+            case BYTES                   -> "in.readByteArray()";
         };
     }
 
@@ -284,9 +290,8 @@ public final class CodecGenerator {
     }
 
     private String initialValue(Field f) {
-        if (f.isRepeated())       return "new java.util.ArrayList<>();";
-        if (f.isOptionalWrapped()) return "java.util.Optional.empty()";
-        if (f.isMap())            return "java.util.Map.of()";
+        if (f.isRepeated()) return "new java.util.ArrayList<>()";
+        if (f.isMap())      return "java.util.Map.of()";
         return switch (f.kind()) {
             case SCALAR -> {
                 WireScalar wire = types.wireScalar(f);
@@ -297,7 +302,7 @@ public final class CodecGenerator {
                     case DOUBLE                                        -> "0.0";
                     case BOOL                                          -> "false";
                     case STRING                                        -> "\"\"";
-                    case BYTES                                         -> "byte[0]";
+                    case BYTES                                         -> "new byte[0]";
                 };
             }
             case ENUM, MESSAGE -> "null";

@@ -1,0 +1,13 @@
+// Reference counterpart of int.proto for the i32 family interop test.
+// Same message shape + field number; DIFFERENT java_package so the
+// protobuf-java reference type (Sample) lives in a sibling package and does
+// not collide with the recordbuf record of the same name. The wire bytes
+// are field-number-driven and so are identical regardless of Java package.
+syntax = "proto3";
+package bijnagte.recordbuf.comgen.i32.ref;
+option java_package = "bijnagte.recordbuf.comgen.i32.ref";
+option java_multiple_files = true;
+
+message Sample {
+  int32 a = 1;
+}

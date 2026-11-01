@@ -23,24 +23,47 @@ public final class TypeResolver {
     }
 
     /**
-     * Resolve the full Java type of a field, considering its label
-     * (repeated→List, optional→Optional) and kind (scalar/message/enum/map).
+     * Resolve the full Java type of a field. Repeated → {@code List<...>}. A
+     * presence-tracked field ({@link Field#isNullable()}) boxes its scalar to the
+     * corresponding wrapper type; the caller annotates it
+     * {@code @org.jspecify.annotations.Nullable}. It is never wrapped in
+     * {@code java.util.Optional}.
      */
     public String resolve(Field f) {
-        String base;
-        switch (f.kind()) {
-            case SCALAR -> base = scalarJava(f.typeUrl());
-            case MESSAGE, ENUM -> base = resolveType(f.typeUrl());
+        if (f.isRepeated()) return "java.util.List<" + resolveElement(f) + ">";
+        String base = baseFor(f);
+        if (f.isNullable() && f.isScalar()) return boxed(base);
+        return base;
+    }
+
+    /** The non-repeated, non-boxed base type: scalar primitive, reference type,
+     * or {@code Map<K,V>}. */
+    private String baseFor(Field f) {
+        return switch (f.kind()) {
+            case SCALAR -> scalarJava(f.typeUrl());
+            case MESSAGE, ENUM -> resolveType(f.typeUrl());
             case MAP -> {
                 String k = f.mapKey()  == null ? "java.lang.Object" : f.mapKey();
                 String v = f.mapValue() == null ? "java.lang.Object" : f.mapValue();
-                base = "java.util.Map<" + k + ", " + v + ">";
+                yield "java.util.Map<" + k + ", " + v + ">";
             }
-            default -> base = "java.lang.Object";
-        }
-        if (f.isRepeated())         return "java.util.List<" + base + ">";
-        if (f.isOptionalWrapped())  return "java.util.Optional<" + base + ">";
-        return base;
+            default -> "java.lang.Object";
+        };
+    }
+
+    /**
+     * Box a scalar primitive to its wrapper type. Only called for presence-tracked
+     * (nullable) scalars, where primitive-as-is is not representable.
+     */
+    private static String boxed(String primitive) {
+        return switch (primitive) {
+            case "int"     -> "java.lang.Integer";
+            case "long"    -> "java.lang.Long";
+            case "double"  -> "java.lang.Double";
+            case "float"   -> "java.lang.Float";
+            case "boolean" -> "java.lang.Boolean";
+            default -> primitive; // byte[], java.lang.String, refs already boxed
+        };
     }
 
     /** For repeated fields, just the element type — used when generating loops. */

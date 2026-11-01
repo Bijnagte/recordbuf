@@ -58,6 +58,12 @@ dependencies {
     //     options.compilerArgs += "-XepOpt:NullAway:OnlyNullMarked=true"
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
+    // The generated record/codec live in the TEST source set (see genInterop):
+    // they reference @org.jspecify.annotations.Nullable and protobuf-java, both of
+    // which must be on the test COMPILE classpath. (protobuf-java already flows
+    // in via the main 'implementation' dep; jspecify is compileOnly in main and
+    // does NOT propagate to the test config, so add it explicitly.)
+    testImplementation(libs.jspecify)
 }
 
 application {
@@ -90,3 +96,102 @@ tasks.named<Jar>("jar") {
         )
     }
 }
+
+// ============================ interop harness ============================
+// Each per-family .proto in src/test/proto drives generation of:
+//   1. the recordbuf record + codec  (--recordbuf_out)
+//   2. the protobuf-java reference     (--java_out, on a `.ref`-package variant)
+// Both generated trees are compiled into the TEST source set so each family's
+// JUnit test can byte-equality + interop its record against the reference.
+//
+// The generated record lives in the TEST source set (not main) to avoid the
+// classic same-module codegen circular dependency: the plugin must be compiled
+// into a jar BEFORE it can generate. So `genInterop` depends on `:jar`, and
+// `compileTestJava`/`test` depend on `genInterop`.
+
+val protocBinary: String =
+    (findProperty("protoc") as String?)
+        ?: System.getenv("PROTOC")
+        ?: run {
+            // First find `protoc` on PATH, else fall back to the common Homebrew
+            // location on this machine.
+            val onPath = System.getenv("PATH").split(":")
+                .map { File(it, "protoc") }
+                .firstOrNull { it.isFile && it.canExecute() }
+            onPath?.absolutePath ?: "/opt/homebrew/bin/protoc"
+        }
+
+val interopBase = "generated/interop"
+@Suppress("DEPRECATION")
+val genRecordDir = File(project.buildDir, "$interopBase/record") // record + codec src
+@Suppress("DEPRECATION")
+val genRefDir = File(project.buildDir, "$interopBase/ref")        // protobuf-java reference src
+@Suppress("DEPRECATION")
+val binDir = File(project.buildDir, "$interopBase/bin")            // plugin wrapper
+val genProtoDir = File(project.projectDir, "src/test/proto")
+
+// Checked-in protos split by name: record protos drive --recordbuf_out, their
+// `-ref` counterparts drive --java_out. Each pair shares a message shape but the
+// `-ref` proto uses a `.ref`-suffixed java_package, so the reference type and the
+// record land in sibling packages and don't collide. No runtime string-surgery:
+// the `-ref.proto` is a plain checked-in file.
+val genInterop = tasks.register("genInterop") {
+    group = "verification"
+    description = "Generate interop records + protobuf-java references for all family protos"
+    dependsOn(tasks.jar, tasks.compileJava)
+    doLast {
+        genRecordDir.deleteRecursively(); genRecordDir.mkdirs()
+        genRefDir.deleteRecursively(); genRefDir.mkdirs()
+        binDir.deleteRecursively(); binDir.mkdirs()
+
+        val protos: List<File> = (genProtoDir.listFiles()?.toList() ?: emptyList<File>())
+            .filter { it.name.endsWith(".proto") }
+            .sortedBy { it.name }
+        if (protos.isEmpty()) {
+            logger.warn("genInterop: no .proto found under ${genProtoDir.path}; skipping")
+            return@doLast
+        }
+        val recordProtos = protos.filter { !it.name.endsWith("-ref.proto") }
+        val refProtos = protos.filter { it.name.endsWith("-ref.proto") }
+
+        // An executable wrapper so protoc can invoke the plugin over stdin/stdout.
+        val runtimeCp = sourceSets.main.get().runtimeClasspath.asPath
+        val wrapper = File(binDir, "protoc-gen-recordbuf")
+        wrapper.writeText("#!/bin/sh\nexec java -cp \"$runtimeCp\" bijnagte.recordbuf.plugin.Main \"\$@\"\n")
+        wrapper.setExecutable(true)
+        wrapper.setReadable(true)
+
+        fun run(args: List<String>): Int {
+            val proc = ProcessBuilder(listOf(protocBinary) + args)
+                .directory(project.projectDir).redirectErrorStream(false).start()
+            proc.inputStream.bufferedReader().use { it.forEachLine { System.out.println(it) } }
+            proc.errorStream.bufferedReader().use { it.forEachLine { System.err.println(it) } }
+            return proc.waitFor()
+        }
+
+        if (recordProtos.isNotEmpty()) {
+            val code = run(listOf(
+                "-I", genProtoDir.absolutePath,
+                "--recordbuf_out=" + genRecordDir.absolutePath,
+                "--plugin=protoc-gen-recordbuf=" + wrapper.absolutePath
+            ) + recordProtos.map { it.absolutePath })
+            if (code != 0) throw GradleException("protoc --recordbuf_out failed (exit $code)")
+        }
+        if (refProtos.isNotEmpty()) {
+            val code = run(listOf(
+                "-I", genProtoDir.absolutePath,
+                "--java_out=" + genRefDir.absolutePath
+            ) + refProtos.map { it.absolutePath })
+            if (code != 0) throw GradleException("protoc --java_out failed (exit $code)")
+        }
+        logger.lifecycle("genInterop: ${recordProtos.size} record(s) + ${refProtos.size} reference(s)")
+    }
+    inputs.dir(genProtoDir)
+    outputs.dirs(genRecordDir, genRefDir)
+}
+
+// Both trees compiled into the test source set; generation runs before compile.
+sourceSets.test.get().java.srcDir(genRecordDir)
+sourceSets.test.get().java.srcDir(genRefDir)
+tasks.named("compileTestJava") { dependsOn(genInterop) }
+
