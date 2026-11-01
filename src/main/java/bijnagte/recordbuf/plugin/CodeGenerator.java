@@ -153,6 +153,17 @@ public final class CodeGenerator {
      * comparison would fail. {@code byte[]} components are therefore compared
      * by content via {@link java.util.Arrays}, while every other component keeps
      * its identity/via-{@code Objects} semantics.
+     *
+     * <p><b>Known limitation:</b> this only handles a DIRECT {@code byte[]}
+     * component. A component that CONTAINS byte arrays -- e.g. {@code List<byte[]>}
+     * (a {@code repeated bytes} field) or {@code Map<?,byte[]>} (a bytes-valued
+     * map) -- is still compared by the JDK's implicit record {@code equals}, which
+     * matches nested {@code byte[]} elements by idENTITY rather than content, and
+     * {@code Arrays.deepHashCode} does not recurse into a {@code List}/
+     * {@code Map}. Wire encode/decode of such fields is correct; only value
+     * equality of the boxed container is not content-correct. Fixing this without
+     * breaking the {@code equals}/{@code hashCode} contract for the common cases
+     * needs a per-field content hash and is left as a follow-up.
      */
     private void addEqualsHashCode(JavaWriter w, bijnagte.recordbuf.plugin.model.Message m) {
         if (m.fields().stream().noneMatch(f -> isByteArrayComponent(f))) return;

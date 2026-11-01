@@ -18,8 +18,9 @@
 //   * optional int32       (proto3 presence family; boxed @Nullable, null when absent)
 //
 // Field numbers are declared in ASCENDING order. The generated codec emits fields
-// in descriptor declaration order (which protobuf-java also does), so ascending
-// declaration === ascending tag on the wire; see CompatTest for the order finding.
+// in ascending FIELD-NUMBER order (it sorts the encode loop by Field.number()),
+// exactly as protobuf-java does, so ascending declaration === ascending tag on the
+// wire. The `order` family proves the sort (see OrderTest + order.proto).
 syntax = "proto3";
 
 package bijnagte.recordbuf.comgen.combined;

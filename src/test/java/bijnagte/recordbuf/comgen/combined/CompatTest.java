@@ -36,15 +36,17 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  *   <li>{@code presence} &mdash; optional int32 (presence family), null, omitted</li>
  * </ul>
  *
- * <p>Field-number / declaration ordering: the generated codec emits fields in
- * descriptor (declaration) order, exactly as protobuf-java does, so ascending
- * declaration order in {@code compat.proto} means ascending tag order on the
- * wire and the two byte streams match. A record is positional, so "constructing
- * in non-declaration order" is not a meaningful operation &mdash; the encode loop
- * always iterates the fixed field list, never a caller-supplied order. Decode is
- * fully order-independent (it dispatches on the wire tag number), which the
- * interop/round-trip tests below exercise. No tag-number sort is added: that
- * would diverge from protobuf-java's own declaration-order emission.
+ * <p>Field-number ordering: the generated codec emits fields in ascending
+ * FIELD-NUMBER order (its encode loop sorts by {@code Field.number()}), exactly
+ * as protobuf-java does, so ascending declaration order in {@code compat.proto}
+ * means ascending tag order on the wire and the two byte streams match. A record
+ * is positional, so "constructing in non-declaration order" is not a meaningful
+ * operation &mdash; the encode loop iterates the fixed field list and sorts it by
+ * field number, never a caller-supplied order. Decode is fully order-independent
+ * (it dispatches on the wire tag number), which the interop/round-trip tests
+ * below exercise. The separate {@code order} family (order.proto / OrderTest)
+ * guards that the codec really sorts by field number even when a .proto declares
+ * fields non-ascending.
  */
 class CompatTest {
 
