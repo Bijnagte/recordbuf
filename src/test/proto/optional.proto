@@ -1,0 +1,32 @@
+// Per-family interop fixture for the proto3 `optional` (presence) family. The
+// recordbuf record is generated from this file (--recordbuf_out); the protobuf-java
+// reference is generated from optional-ref.proto (--java_out) into a sibling
+// `*.ref` java_package so the two coexist.
+syntax = "proto3";
+
+package bijnagte.recordbuf.comgen.optional;
+option java_package = "bijnagte.recordbuf.comgen.optional";
+
+// Exactly one top-level message per family proto: the record's public type name
+// must match its source filename (Java requires one public type/file).
+//
+// proto3 carries presence on a SINGULAR field only via the `optional` keyword for
+// scalars/enums (a singular message is present-able by default, but we keep the
+// keyword for explicitness + a uniform ref proto). Each field below is
+// present-able: its Java component is boxed/nullable (@Nullable Integer, String,
+// Boolean, and a nested Fixed message), is null when absent, is omitted from the
+// wire when null, and decodes to null when the tag is missing. One field per
+// shape so the skip-on-encode (null) + null-default-on-decode path is exercised
+// across a boxed int, a reference string, a boxed bool, and a nested message.
+message Sample {
+    optional int32 a = 1;
+    optional string b = 2;
+    optional bool   c = 3;
+    optional Fixed  d = 4;
+
+    // The nested presence target: a length-delimited message field that is omitted
+    // from the wire when null and decoded to null when its tag is absent.
+    message Fixed {
+        int64 value = 1;
+    }
+}

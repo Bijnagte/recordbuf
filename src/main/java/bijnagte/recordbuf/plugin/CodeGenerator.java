@@ -198,6 +198,27 @@ public final class CodeGenerator {
         return String.join(", ", names);
     }
 
+    /**
+     * Place the {@code @Nullable} type-use annotation correctly.
+     *
+     * <p>Java forbids a type-use annotation prefixed to a <em>qualified</em> type
+     * name: {@code @Nullable java.lang.Integer} is a hard compile error; the
+     * annotation must sit directly before the final identifier
+     * ({@code java.lang.@Nullable Integer}). The same rule applies to a nested / 
+     * cross-file FQN (e.g. {@code ...Sample.@Nullable Fixed}). A simple or array
+     * type has no dot, so the annotation is a plain prefix
+     * ({@code @Nullable byte[]}). This matters once a presence-tracked field
+     * boxes its scalar to a fully-qualified wrapper (e.g. {@code java.lang.Integer})
+     * — a shape the earlier families never hit because their nullable components
+     * were same-package simple names.
+     */
+    private static String withNullable(String type) {
+        String annotation = "@org.jspecify.annotations.Nullable ";
+        int dot = type.lastIndexOf('.');
+        if (dot < 0) return annotation + type;
+        return type.substring(0, dot) + "." + annotation + type.substring(dot + 1);
+    }
+
     private String resolveJavaType(bijnagte.recordbuf.plugin.model.Message m,
                                    bijnagte.recordbuf.plugin.model.Field f,
                                    String javaPkg) {
@@ -205,7 +226,7 @@ public final class CodeGenerator {
         String type = types.resolve(f);
         // A presence-tracked (nullable) component is annotated @Nullable and its
         // null/boxed value is meaningful; it is NEVER normalized to empty.
-        if (f.isNullable()) type = "@org.jspecify.annotations.Nullable " + type;
+        if (f.isNullable()) type = withNullable(type);
         return type;
     }
 

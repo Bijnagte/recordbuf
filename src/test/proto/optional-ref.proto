@@ -1,0 +1,20 @@
+// Reference counterpart of optional.proto for the proto3 `optional` (presence)
+// family interop test. Same message shape + field numbers; a DIFFERENT java_package
+// so the protobuf-java reference type lives in a sibling package and does not
+// collide with the recordbuf record of the same name. The wire bytes are
+// field-number-driven and so are identical regardless of Java package.
+syntax = "proto3";
+package bijnagte.recordbuf.comgen.optional.ref;
+option java_package = "bijnagte.recordbuf.comgen.optional.ref";
+option java_multiple_files = true;
+
+message Sample {
+    optional int32 a = 1;
+    optional string b = 2;
+    optional bool   c = 3;
+    optional Fixed  d = 4;
+
+    message Fixed {
+        int64 value = 1;
+    }
+}
