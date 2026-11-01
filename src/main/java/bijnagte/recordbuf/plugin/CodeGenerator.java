@@ -103,7 +103,7 @@ public final class CodeGenerator {
             String sep = (i == m.fields().size() - 1) ? "" : ",";
             w.line("    " + type + " " + f.javaName() + sep);
         }
-        w.line(")");
+        w.line(")" + RecordGenerator.implementsClause(m.interfaces()));
         w.line("{");
         w.indent(w.indent() + 1);
         // Compact constructor: null-safe for Optional/List/Map fields.

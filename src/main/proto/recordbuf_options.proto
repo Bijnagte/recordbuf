@@ -1,13 +1,13 @@
 syntax = "proto2";
 import "google/protobuf/descriptor.proto";
 package recordbuf;
-// Two extension names, each on its own option-message set. The symbol
-// `recordbuf.java_interfaces` cannot be declared on BOTH MessageOptions and
-// EnumOptions without a "already defined in recordbuf" collision (V2 failed);
-// the second one uses a distinct symbol name to avoid the collision.
+// Two extension names, each on its own option-message set. A single symbol cannot be declared on
+// BOTH MessageOptions and EnumOptions without an "already defined" collision, so the two use
+// distinct singular symbol names (the plan's `java_interface` / `java_enum_interface`), matching
+// the constants in bijnagte.recordbuf.plugin.model.ModelLoader.
 extend google.protobuf.MessageOptions {
-    repeated string java_interfaces = 50000;
+    repeated string java_interface = 50000;
 };
 extend google.protobuf.EnumOptions {
-    repeated string java_enum_interfaces = 50001;
+    repeated string java_enum_interface = 50001;
 };

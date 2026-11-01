@@ -13,7 +13,7 @@ public final class EnumGenerator {
     public void write(JavaWriter w, Enum e) {
         String name = e.name();
         if (e.deprecated()) w.line("@Deprecated");
-        w.line("public enum " + name + " {");
+        w.line("public enum " + name + RecordGenerator.implementsClause(e.interfaces()) + " {");
 
         // Foo(0), Bar(1);
         for (int i = 0; i < e.constants().size(); i++) {

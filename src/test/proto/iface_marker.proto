@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package bijnagte.recordbuf.comgen.iface;
+
+option java_package = "bijnagte.recordbuf.comgen.iface";
+option java_multiple_files = true;
+
+// The two custom options are defined here and resolved by protoc (they are NOT
+// generated into the test classpath). recordbuf's plugin reads them off the
+// descriptor's UnknownFieldSet and emits `implements` — no classpath coupling.
+import "recordbuf_options.proto";
+
+// A message that declares the java_interface option. The generated record
+// implements bijnagte.recordbuf.comgen.iface.Marker.
+message Sample {
+  int32 id = 1;
+  option (.recordbuf.java_interface) = "bijnagte.recordbuf.comgen.iface.Marker";
+}
+
+// An enum that declares the java_enum_interface option. The generated enum
+// implements bijnagte.recordbuf.comgen.iface.Named.
+enum Color {
+  option (.recordbuf.java_enum_interface) = "bijnagte.recordbuf.comgen.iface.Named";
+  UNKNOWN = 0;
+  RED = 1;
+  GREEN = 2;
+}

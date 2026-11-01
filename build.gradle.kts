@@ -129,6 +129,17 @@ val genRefDir = File(project.buildDir, "$interopBase/ref")        // protobuf-ja
 @Suppress("DEPRECATION")
 val binDir = File(project.buildDir, "$interopBase/bin")            // plugin wrapper
 val genProtoDir = File(project.projectDir, "src/test/proto")
+val mainProtoDir = File(project.projectDir, "src/main/proto") // host recordbuf_options.proto
+
+// The iface_marker family has its OWN generator task (genInterface) rather than riding the
+// all-proto glob, because it imports recordbuf_options.proto from src/main/proto — an include
+// path genInterop doesn't carry. genInterface generates the record/enum that implement user
+// interfaces via the java_interface / java_enum_interface options.
+val ifaceBase = "generated/iface"
+@Suppress("DEPRECATION")
+val genIfaceDir = File(project.buildDir, "$ifaceBase/java")       // generated iface record/enum src
+@Suppress("DEPRECATION")
+val ifaceBinDir = File(project.buildDir, "$ifaceBase/bin")        // dedicated plugin wrapper
 
 // Checked-in protos split by name: record protos drive --recordbuf_out, their
 // `-ref` counterparts drive --java_out. Each pair shares a message shape but the
@@ -151,7 +162,9 @@ val genInterop = tasks.register("genInterop") {
             logger.warn("genInterop: no .proto found under ${genProtoDir.path}; skipping")
             return@doLast
         }
-        val recordProtos = protos.filter { !it.name.endsWith("-ref.proto") }
+        // iface_marker.proto has its own generator task (genInterface); exclude it here so the
+        // all-proto interop glob doesn't need recordbuf_options.proto on its include path.
+        val recordProtos = protos.filter { !it.name.endsWith("-ref.proto") && it.name != "iface_marker.proto" }
         val refProtos = protos.filter { it.name.endsWith("-ref.proto") }
 
         // An executable wrapper so protoc can invoke the plugin over stdin/stdout.
@@ -194,4 +207,49 @@ val genInterop = tasks.register("genInterop") {
 sourceSets.test.get().java.srcDir(genRecordDir)
 sourceSets.test.get().java.srcDir(genRefDir)
 tasks.named("compileTestJava") { dependsOn(genInterop) }
+
+// ---- Interface-implementation feature (java_interface / java_enum_interface) ----
+// Generate the iface_marker family: a record + enum that implement user interfaces. It reuses
+// the plugin launcher pattern but adds src/main/proto to the include path so the import of
+// recordbuf_options.proto (the two extension definitions) resolves. The generated types are
+// compiled in src/test/java against the hand-written Marker / Named interfaces.
+val genInterface = tasks.register("genInterface") {
+    group = "verification"
+    description = "Generate the iface_marker family (record/enum implementing a user interface via the option)"
+    dependsOn(tasks.jar, tasks.compileJava)
+    doLast {
+        genIfaceDir.deleteRecursively(); genIfaceDir.mkdirs()
+        ifaceBinDir.deleteRecursively(); ifaceBinDir.mkdirs()
+
+        val ifaceProto = File(genProtoDir, "iface_marker.proto")
+        val runtimeCp = sourceSets.main.get().runtimeClasspath.asPath
+        val wrapper = File(ifaceBinDir, "protoc-gen-recordbuf")
+        wrapper.writeText("#!/bin/sh\nexec java -cp \"$runtimeCp\" bijnagte.recordbuf.plugin.Main \"\$@\"\n")
+        wrapper.setExecutable(true)
+        wrapper.setReadable(true)
+
+        fun run(args: List<String>): Int {
+            val proc = ProcessBuilder(listOf(protocBinary) + args)
+                .directory(project.projectDir).redirectErrorStream(false).start()
+            proc.inputStream.bufferedReader().use { it.forEachLine { System.out.println(it) } }
+            proc.errorStream.bufferedReader().use { it.forEachLine { System.err.println(it) } }
+            return proc.waitFor()
+        }
+
+        val code = run(listOf(
+            "-I", genProtoDir.absolutePath,
+            "-I", mainProtoDir.absolutePath,
+            "--recordbuf_out=" + genIfaceDir.absolutePath,
+            "--plugin=protoc-gen-recordbuf=" + wrapper.absolutePath
+        ) + ifaceProto.absolutePath)
+        if (code != 0) throw GradleException("genInterface: protoc --recordbuf_out failed (exit $code)")
+        logger.lifecycle("genInterface: generated iface_marker family")
+    }
+    inputs.file(File(genProtoDir, "iface_marker.proto"))
+    inputs.dir(mainProtoDir)
+    outputs.dir(genIfaceDir)
+}
+
+sourceSets.test.get().java.srcDir(genIfaceDir)
+tasks.named("compileTestJava") { dependsOn(genInterface) }
 
