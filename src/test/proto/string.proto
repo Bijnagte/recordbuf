@@ -1,0 +1,21 @@
+// Per-family interop fixture for the string field family. The recordbuf record
+// is generated from this file (--recordbuf_out); the protobuf-java reference is
+// generated from string-ref.proto (--java_out) into a sibling `*.ref` package so
+// the two coexist.
+syntax = "proto3";
+
+package bijnagte.recordbuf.comgen.string;
+option java_package = "bijnagte.recordbuf.comgen.string";
+
+// Exactly one top-level message per family proto: the record's public type
+// name must match its source filename.
+//
+// One field at each string value shape so the length-delimited UTF-8 encoding
+// is exercised end to end: an empty string (proto3 default, omitted on the
+// wire), a plain ASCII string, and a multibyte Unicode string (accented + CJK
+// + emoji) that forces real UTF-8 length-delimited handling.
+message Sample {
+    string a = 1;
+    string b = 2;
+    string c = 3;
+}

@@ -1,0 +1,15 @@
+// Reference counterpart of string.proto for the string field family interop test.
+// Same message shape + field numbers; DIFFERENT java_package so the
+// protobuf-java reference type (Sample) lives in a sibling package and does
+// not collide with the recordbuf record of the same name. The wire bytes
+// are field-number-driven and so are identical regardless of Java package.
+syntax = "proto3";
+package bijnagte.recordbuf.comgen.string.ref;
+option java_package = "bijnagte.recordbuf.comgen.string.ref";
+option java_multiple_files = true;
+
+message Sample {
+    string a = 1;
+    string b = 2;
+    string c = 3;
+}
