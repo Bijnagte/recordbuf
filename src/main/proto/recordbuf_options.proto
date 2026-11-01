@@ -1,0 +1,13 @@
+syntax = "proto2";
+import "google/protobuf/descriptor.proto";
+package recordbuf;
+// Two extension names, each on its own option-message set. The symbol
+// `recordbuf.java_interfaces` cannot be declared on BOTH MessageOptions and
+// EnumOptions without a "already defined in recordbuf" collision (V2 failed);
+// the second one uses a distinct symbol name to avoid the collision.
+extend google.protobuf.MessageOptions {
+    repeated string java_interfaces = 50000;
+};
+extend google.protobuf.EnumOptions {
+    repeated string java_enum_interfaces = 50001;
+};

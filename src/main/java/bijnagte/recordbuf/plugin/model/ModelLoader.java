@@ -1,8 +1,10 @@
 package bijnagte.recordbuf.plugin.model;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 
+import com.google.protobuf.ByteString;
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.EnumDescriptorProto;
 import com.google.protobuf.DescriptorProtos.EnumValueDescriptorProto;
@@ -10,6 +12,8 @@ import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Label;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
 import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
+import com.google.protobuf.DescriptorProtos.UninterpretedOption;
+import com.google.protobuf.UnknownFieldSet;
 
 /**
  * Builds a {@link ProtoFile} model from a {@link FileDescriptorProto}.
@@ -22,6 +26,20 @@ public final class ModelLoader {
 
     private final FileTable table;
     private final String javaPkgOf; // java package of the file being loaded, computed outside
+
+    // The two shipped proto extensions declared in src/main/proto/recordbuf_options.proto.
+    // A resolved extension survives CodeGeneratorRequest serialization as an unknown field on
+    // MessageOptions / EnumOptions at its assigned tag; we read it back by tag number rather
+    // than by name (the plugin does not link the options .proto itself).
+    //   (recordbuf.java_interface)       on MessageOptions, field 50000
+    //   (recordbuf.java_enum_interface)  on EnumOptions,    field 50001
+    private static final int MESSAGE_INTERFACE_TAG = 50000;
+    private static final int ENUM_INTERFACE_TAG = 50001;
+    // Uninterpreted-option fallback names. This path is unreachable from a real protoc run for
+    // these extensions (protoc errors on an unknown extension option it cannot resolve); it only
+    // serves hand-constructed descriptors, so a matching name suffices.
+    private static final String MESSAGE_INTERFACE_NAME = "recordbuf.java_interface";
+    private static final String ENUM_INTERFACE_NAME = "recordbuf.java_enum_interface";
 
     public ModelLoader(FileTable table, String javaPackageForThisFile) {
         this.table = table;
@@ -87,8 +105,11 @@ public final class ModelLoader {
                 .nestedEnums(List.copyOf(nestedEnums))
                 .deprecated(m.getOptions().getDeprecated())
                 .comment(null)
-                // Option parsing lands in U2; empty (de-duplicated, ordered) for now.
-                .interfaces(List.of())
+                .interfaces(interfacesFor(
+                        m.getOptions().getUnknownFields(),
+                        m.getOptions().getUninterpretedOptionList(),
+                        MESSAGE_INTERFACE_TAG,
+                        MESSAGE_INTERFACE_NAME))
                 .build();
     }
 
@@ -228,8 +249,11 @@ public final class ModelLoader {
                 .constants(List.copyOf(cs))
                 .deprecated(e.getOptions().getDeprecated())
                 .comment(null)
-                // Option parsing lands in U2; empty (de-duplicated, ordered) for now.
-                .interfaces(List.of())
+                .interfaces(interfacesFor(
+                        e.getOptions().getUnknownFields(),
+                        e.getOptions().getUninterpretedOptionList(),
+                        ENUM_INTERFACE_TAG,
+                        ENUM_INTERFACE_NAME))
                 .build();
     }
 
@@ -329,5 +353,46 @@ public final class ModelLoader {
         if (a == null || a.isBlank()) return b == null ? "" : b;
         if (b == null || b.isBlank()) return a;
         return a + "." + b;
+    }
+
+    /**
+     * Collect the fully-qualified interface names for a message/enum that declared the matching
+     * proto option, de-duplicated but preserving declaration order. Prefers the COMPILED path
+     * (a resolved extension reaches us as an unknown field at {@code tag}) and falls back to
+     * uninterpreted options whose dotted name equals {@code uninterpretedName}. Returns an empty
+     * list when none are declared.
+     */
+    private static List<String> interfacesFor(
+            UnknownFieldSet unknownFields,
+            List<UninterpretedOption> uninterpreted,
+            int tag,
+            String uninterpretedName) {
+        LinkedHashMap<String, Boolean> ordered = new LinkedHashMap<>();
+        // Compiled path: one length-delimited entry per declaration, in order (duplicates kept).
+        UnknownFieldSet.Field f = unknownFields.getField(tag);
+        if (f != null) {
+            for (ByteString value : f.getLengthDelimitedList()) {
+                ordered.put(value.toStringUtf8(), Boolean.TRUE);
+            }
+        }
+        // Fallback path: only reachable from hand-constructed descriptors.
+        for (UninterpretedOption opt : uninterpreted) {
+            if (opt.hasStringValue() && optionName(opt).equals(uninterpretedName)) {
+                ordered.put(opt.getStringValue().toStringUtf8(), Boolean.TRUE);
+            }
+        }
+        return new ArrayList<>(ordered.keySet());
+    }
+
+    /** Reconstruct a {@code (pkg.name)} dotted option name from an uninterpreted option's parts. */
+    private static String optionName(UninterpretedOption opt) {
+        StringBuilder sb = new StringBuilder();
+        for (UninterpretedOption.NamePart part : opt.getNameList()) {
+            if (!sb.isEmpty()) {
+                sb.append('.');
+            }
+            sb.append(part.getNamePart());
+        }
+        return sb.toString();
     }
 }
