@@ -61,9 +61,10 @@ A single growing `compat.proto` is fine, but one `.proto` **per family**
 (`int.proto`, `fixed.proto`, `string.proto`, `bytes.proto`, `message.proto`,
 `packed.proto`, `optional.proto`, `map.proto`) plus an end-to-end `compat.proto`
 keeps each unit small, independent, and commit-able one family at a time. The
-record test lives under `src/test/java/<pkg>/<Family><Test>.java` and the proto
-under `src/test/proto/`. A `genInterop` Gradle task auto-discovers new protos,
-so a new family is a `.proto` + a test class — no build wiring per family.
+record test lives under `fixtures/src/test/java/<pkg>/<Family>Test.java` and the
+proto under `fixtures/src/main/proto/`. The `:recordbuf-fixtures:genFixtures` task
+auto-discovers new protos, so a new family is a `.proto` + a test class — no
+build wiring per family.
 
 ### 3. Solve the same-simple-name class collision with a sibling `.ref` package
 
@@ -89,17 +90,27 @@ byte[] pb = bijnagte.recordbuf.comgen.i32.ref.Sample.newBuilder()...build().toBy
 assertArrayEquals(pb, Sample.Codec.encode(sample()));
 ```
 
-`genInterop` then runs one `protoc` invocation with `--recordbuf_out` for the
-plain protos and `--java_out` for the `.ref` variants, into **separate** output
-roots (so both trees are on the test classpath).
+`genFixtures` (a task in `:recordbuf-fixtures`) then runs one `protoc`
+invocation with `--recordbuf_out` for the plain protos and `--java_out` for the
+`.ref` variants, into the fixtures module's own generated source set (so both
+trees are joined to fixtures `main` and therefore on the fixtures test
+classpath).
 
 ### 4. Break the codegen circular dependency
 
-The plugin must produce the generated test sources, but the plugin itself is
-compiled from these sources. The harness wires the *generated* code into the
-**TEST** source set (never main), and `genInterop` depends on `:jar`
-(plugin built first) → `compileTestJava` (generated code compiled last). No
-cycle: `:compileJava → :jar → :genInterop → :compileTestJava → :test`.
+The plugin must produce the generated sources, but the plugin itself is compiled
+first. The classic same-module hack wires the *generated* code into the TEST
+source set of the module under test and makes the generation task depend on that
+module's `:jar` — a cycle that only ever works because of an ordering trick
+(`:compileJava → :jar → :gen* → :compileTestJava → :test`).
+
+recordbuf instead broke the cycle cleanly (KTD6): the interop/interface suites
+live in a dedicated `:recordbuf-fixtures` module, and `genFixtures` invokes the
+`:recordbuf-generator:installDist` launcher (the plugin as a separate, already-
+built install) rather than `:jar` of the module under test. The generated record
++ protobuf-java reference compile into the fixtures module and the fixtures tests
+consume that compiled artifact — so no module ever generates into its own
+compiling source set.
 
 ## Why This Matters
 

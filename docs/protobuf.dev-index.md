@@ -7,7 +7,7 @@ protobuf's `google.protobuf.*` namespace, and what that means for consumers.
 
 ## Where the extensions live
 
-The two extensions are declared in `src/main/proto/recordbuf_options.proto`:
+The two extensions are declared in `options/src/main/proto/recordbuf_options.proto`:
 
 ```proto
 syntax = "proto2";
