@@ -4,8 +4,8 @@
 // a sibling `*.ref` java_package so the two coexist.
 syntax = "proto3";
 
-package bijnagte.recordbuf.comgen.packed;
-option java_package = "bijnagte.recordbuf.comgen.packed";
+package bijnagte.recordbuf.fixture.packed;
+option java_package = "bijnagte.recordbuf.fixture.packed";
 
 // Exactly one top-level message per family proto: the record's public type
 // name must match its source filename (Java requires one public type/file).

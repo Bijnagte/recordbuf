@@ -1,4 +1,4 @@
-package bijnagte.recordbuf.comgen.fixed;
+package bijnagte.recordbuf.fixture.fixed;
 
 import org.junit.jupiter.api.Test;
 
@@ -66,8 +66,8 @@ class FixedTest {
         return new Sample(A, B, C, D, E, F, G, H, I, J, K, L);
     }
 
-    private static bijnagte.recordbuf.comgen.fixed.ref.Sample.Builder newBuilder() {
-        return bijnagte.recordbuf.comgen.fixed.ref.Sample.newBuilder()
+    private static bijnagte.recordbuf.fixture.fixed.ref.Sample.Builder newBuilder() {
+        return bijnagte.recordbuf.fixture.fixed.ref.Sample.newBuilder()
                 .setA(A)
                 .setB(B)
                 .setC(C)

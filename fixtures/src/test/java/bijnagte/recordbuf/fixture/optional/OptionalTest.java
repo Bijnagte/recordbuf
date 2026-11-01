@@ -1,4 +1,4 @@
-package bijnagte.recordbuf.comgen.optional;
+package bijnagte.recordbuf.fixture.optional;
 
 import org.junit.jupiter.api.Test;
 
@@ -57,7 +57,7 @@ class OptionalTest {
         byte[] ours = Sample.Codec.encode(sample());
         assertArrayEquals(theirs, ours, "present record encode must equal protobuf-java toByteArray");
 
-        byte[] theirsDefault = bijnagte.recordbuf.comgen.optional.ref.Sample.newBuilder().build().toByteArray();
+        byte[] theirsDefault = bijnagte.recordbuf.fixture.optional.ref.Sample.newBuilder().build().toByteArray();
         byte[] oursDefault = Sample.Codec.encode(empty());
         assertArrayEquals(theirsDefault, oursDefault, "absent sample must be empty on the wire like protobuf-java");
         assertArrayEquals(new byte[0], oursDefault, "all-null optional fields must encode to zero bytes");
@@ -84,13 +84,13 @@ class OptionalTest {
         assertNull(d.d(), "absent optional message must decode to null");
     }
 
-    private static bijnagte.recordbuf.comgen.optional.ref.Sample.Builder newBuilder() {
-        return bijnagte.recordbuf.comgen.optional.ref.Sample.newBuilder()
+    private static bijnagte.recordbuf.fixture.optional.ref.Sample.Builder newBuilder() {
+        return bijnagte.recordbuf.fixture.optional.ref.Sample.newBuilder()
                 .setA(A)
                 .setB(B)
                 .setC(C)
                 .setD(
-                        bijnagte.recordbuf.comgen.optional.ref.Sample.Fixed.newBuilder()
+                        bijnagte.recordbuf.fixture.optional.ref.Sample.Fixed.newBuilder()
                                 .setValue(1L)
                                 .build());
     }

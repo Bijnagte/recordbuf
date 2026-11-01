@@ -25,7 +25,7 @@ import com.google.protobuf.DescriptorProtos.UninterpretedOption;
  */
 class ModelInterfaceOptionTest {
 
-    private static final String JAVA_PACKAGE = "bijnagte.recordbuf.comgen.iface";
+    private static final String JAVA_PACKAGE = "bijnagte.recordbuf.fixture.iface";
 
     private static ProtoFile loadMessageFile(DescriptorProto message) {
         FileDescriptorProto fd =

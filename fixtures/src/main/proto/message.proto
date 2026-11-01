@@ -4,8 +4,8 @@
 // `*.ref` package so the two coexist.
 syntax = "proto3";
 
-package bijnagte.recordbuf.comgen.message;
-option java_package = "bijnagte.recordbuf.comgen.message";
+package bijnagte.recordbuf.fixture.message;
+option java_package = "bijnagte.recordbuf.fixture.message";
 
 // A second top-level message the Sample references. Each top-level message gets
 // its own generated source file (one public type per file).

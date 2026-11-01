@@ -4,8 +4,8 @@
 // the two coexist.
 syntax = "proto3";
 
-package bijnagte.recordbuf.comgen.bytes;
-option java_package = "bijnagte.recordbuf.comgen.bytes";
+package bijnagte.recordbuf.fixture.bytes;
+option java_package = "bijnagte.recordbuf.fixture.bytes";
 
 // Exactly one top-level message per family proto: the record's public type
 // name must match its source filename.

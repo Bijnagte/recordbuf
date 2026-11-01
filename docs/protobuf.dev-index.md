@@ -58,12 +58,12 @@ the standard `MessageOptions` / `EnumOptions`.
 protoc resolves a custom-option name starting from the **innermost** scope and
 walking outward. If a consumer's file is itself nested under a `recordbuf`
 package — for example recordbuf's own test package
-`bijnagte.recordbuf.comgen.iface` — the bare name `recordbuf.java_interface` is
+`bijnagte.recordbuf.fixture.iface` — the bare name `recordbuf.java_interface` is
 resolved *inside* the consumer package first and fails. In that case, qualify the
 option from the outermost scope with a leading dot:
 
 ```proto
-option (.recordbuf.java_interface) = "bijnagte.recordbuf.comgen.iface.Marker";
+option (.recordbuf.java_interface) = "bijnagte.recordbuf.fixture.iface.Marker";
 ```
 
 Files **not** nested under `recordbuf` need no leading dot; the bare

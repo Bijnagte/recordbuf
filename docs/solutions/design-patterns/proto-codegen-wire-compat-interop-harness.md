@@ -73,8 +73,8 @@ same simple name. Rather than runtime string-surgery, keep **two checked-in
 protos per family**:
 
 ```
-int.proto        package …comgen.i32;        option java_package = "…comgen.i32";
-int-ref.proto    package …comgen.i32.ref;    option java_package = "…comgen.i32.ref";
+int.proto        package …fixture.i32;        option java_package = "…fixture.i32";
+int-ref.proto    package …fixture.i32.ref;    option java_package = "…fixture.i32.ref";
                    option java_multiple_files = true;
 ```
 
@@ -84,9 +84,9 @@ sibling package (`…i32.ref.Sample`), letting the test refer to it by
 fully-qualified name:
 
 ```java
-import bijnagte.recordbuf.comgen.i32.Sample;                 // the record
-// reference: bijnagte.recordbuf.comgen.i32.ref.Sample       // FQN, no import clash
-byte[] pb = bijnagte.recordbuf.comgen.i32.ref.Sample.newBuilder()...build().toByteArray();
+import bijnagte.recordbuf.fixture.i32.Sample;                 // the record
+// reference: bijnagte.recordbuf.fixture.i32.ref.Sample       // FQN, no import clash
+byte[] pb = bijnagte.recordbuf.fixture.i32.ref.Sample.newBuilder()...build().toByteArray();
 assertArrayEquals(pb, Sample.Codec.encode(sample()));
 ```
 
@@ -184,10 +184,10 @@ now guards each. Cited at the current tree:
 Minimal per-family record (the `int` family):
 
 ```java
-// comgen.i32.Sample (record) vs comgen.i32.ref.Sample (protobuf-java reference)
+// fixture.i32.Sample (record) vs fixture.i32.ref.Sample (protobuf-java reference)
 @Test void byteEqual() throws Exception {
     Sample x = new Sample(0x80000000);
-    byte[] pb = bijnagte.recordbuf.comgen.i32.ref.Sample.newBuilder()
+    byte[] pb = bijnagte.recordbuf.fixture.i32.ref.Sample.newBuilder()
         .setA(0x80000000).build().toByteArray();
     assertArrayEquals(pb, Sample.Codec.encode(x));
 }

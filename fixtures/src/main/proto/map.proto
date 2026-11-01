@@ -8,8 +8,8 @@
 // round-trips via an entry-level Codec.
 syntax = "proto3";
 
-package bijnagte.recordbuf.comgen.map;
-option java_package = "bijnagte.recordbuf.comgen.map";
+package bijnagte.recordbuf.fixture.map;
+option java_package = "bijnagte.recordbuf.fixture.map";
 
 // Exactly one top-level message per family proto: the record's public type name
 // must match its source filename (Java requires one public type/file).

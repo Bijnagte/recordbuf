@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package bijnagte.recordbuf.comgen.iface;
+package bijnagte.recordbuf.fixture.iface;
 
-option java_package = "bijnagte.recordbuf.comgen.iface";
+option java_package = "bijnagte.recordbuf.fixture.iface";
 option java_multiple_files = true;
 
 // The two custom options are defined here and resolved by protoc (they are NOT
@@ -11,16 +11,16 @@ option java_multiple_files = true;
 import "recordbuf_options.proto";
 
 // A message that declares the java_interface option. The generated record
-// implements bijnagte.recordbuf.comgen.iface.Marker.
+// implements bijnagte.recordbuf.fixture.iface.Marker.
 message Sample {
   int32 id = 1;
-  option (.recordbuf.java_interface) = "bijnagte.recordbuf.comgen.iface.Marker";
+  option (.recordbuf.java_interface) = "bijnagte.recordbuf.fixture.iface.Marker";
 }
 
 // An enum that declares the java_enum_interface option. The generated enum
-// implements bijnagte.recordbuf.comgen.iface.Named.
+// implements bijnagte.recordbuf.fixture.iface.Named.
 enum Color {
-  option (.recordbuf.java_enum_interface) = "bijnagte.recordbuf.comgen.iface.Named";
+  option (.recordbuf.java_enum_interface) = "bijnagte.recordbuf.fixture.iface.Named";
   UNKNOWN = 0;
   RED = 1;
   GREEN = 2;

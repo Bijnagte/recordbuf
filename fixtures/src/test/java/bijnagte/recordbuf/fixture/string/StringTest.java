@@ -1,6 +1,4 @@
-package bijnagte.recordbuf.comgen.bytes;
-
-import com.google.protobuf.ByteString;
+package bijnagte.recordbuf.fixture.string;
 
 import org.junit.jupiter.api.Test;
 
@@ -9,29 +7,29 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Byte-and-semantic interop of the generated record codec against the
- * protobuf-java reference for the {@code bytes} field family.
+ * protobuf-java reference for the {@code string} field family.
  *
  * <p>The record under test lives in this same package (so {@code Sample} is
  * unqualified). The protobuf-java reference lives in a sibling {@code .ref}
  * package and is referred to by fully-qualified name to avoid a
  * same-simple-name import collision.
  *
- * <p>The values exercise the length-delimited raw-byte encoding: an empty array
- * (proto3 default, omitted on the wire) and a non-empty array with mixed-sign
- * bytes that forces real length-delimited framing and raw byte content (bytes
- * 0x7f and 0x80 prove the value is framed as raw bytes, not a signed
- * primitive).
+ * <p>The values exercise the length-delimited UTF-8 string encoding: an empty
+ * string (proto3 default, omitted on the wire), a plain ASCII string, and a
+ * multibyte Unicode string (accented + CJK + emoji) that forces real UTF-8
+ * length-delimited handling.
  */
-class BytesTest {
+class StringTest {
 
-    // Sample field order: a bytes, b bytes.
-    private static final byte[] A = {};                // empty, proto3 default -> omitted
-    private static final byte[] B = {1, -1, 0, 127, -128, 65}; // mixed-sign raw bytes, non-default
+    // Sample field order: a string, b string, c string.
+    private static final String A = "";               // empty string, proto3 default -> omitted
+    private static final String B = "hello";          // plain ASCII, non-default
+    private static final String C = "héllo-世界-🎉"; // multibyte UTF-8, non-default
 
     /**
      * Our byte output for the non-default fields must match protobuf-java's
-     * {@code toByteArray()}: field tag numbers included, length-delimited raw
-     * bytes, empty-array default omitted.
+     * {@code toByteArray()}: field tag numbers included, length-delimited
+     * UTF-8, empty-string default omitted.
      */
     @Test
     void byteEqual() throws Exception {
@@ -40,7 +38,7 @@ class BytesTest {
         assertArrayEquals(theirs, ours, "record encode must equal protobuf-java toByteArray");
     }
 
-    /** The non-default bytes are present on the wire; decode from protobuf-java bytes. */
+    /** The non-default strings are present on the wire; decode from protobuf-java bytes. */
     @Test
     void interopDecodesProtobuf() throws Exception {
         byte[] theirs = newBuilder().build().toByteArray();
@@ -55,12 +53,13 @@ class BytesTest {
     }
 
     private static Sample sample() {
-        return new Sample(A, B);
+        return new Sample(A, B, C);
     }
 
-    private static bijnagte.recordbuf.comgen.bytes.ref.Sample.Builder newBuilder() {
-        return bijnagte.recordbuf.comgen.bytes.ref.Sample.newBuilder()
-                .setA(ByteString.copyFrom(A))
-                .setB(ByteString.copyFrom(B));
+    private static bijnagte.recordbuf.fixture.string.ref.Sample.Builder newBuilder() {
+        return bijnagte.recordbuf.fixture.string.ref.Sample.newBuilder()
+                .setA(A)
+                .setB(B)
+                .setC(C);
     }
 }

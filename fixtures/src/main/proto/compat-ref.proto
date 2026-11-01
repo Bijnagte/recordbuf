@@ -5,8 +5,8 @@
 // records of the same name. The wire bytes are field-number-driven and so are
 // identical regardless of Java package.
 syntax = "proto3";
-package bijnagte.recordbuf.comgen.combined.ref;
-option java_package = "bijnagte.recordbuf.comgen.combined.ref";
+package bijnagte.recordbuf.fixture.combined.ref;
+option java_package = "bijnagte.recordbuf.fixture.combined.ref";
 option java_multiple_files = true;
 
 message Compat {

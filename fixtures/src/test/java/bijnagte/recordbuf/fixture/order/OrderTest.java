@@ -1,4 +1,4 @@
-package bijnagte.recordbuf.comgen.order;
+package bijnagte.recordbuf.fixture.order;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
  * hold if the codec sorts by {@code field.number()}.
  *
  * <p>The record {@code Sample} lives in this package; the protobuf-java
- * reference is {@code comgen.order.ref.Sample}, referred to by fully-qualified
+ * reference is {@code fixture.order.ref.Sample}, referred to by fully-qualified
  * name to avoid the same-simple-name import collision.
  */
 class OrderTest {
@@ -25,7 +25,7 @@ class OrderTest {
     }
 
     private byte[] refBytes() {
-        return bijnagte.recordbuf.comgen.order.ref.Sample.newBuilder()
+        return bijnagte.recordbuf.fixture.order.ref.Sample.newBuilder()
                 .setC(3)
                 .setA(1)
                 .setB(2)

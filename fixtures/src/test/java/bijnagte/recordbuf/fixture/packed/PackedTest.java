@@ -1,4 +1,4 @@
-package bijnagte.recordbuf.comgen.packed;
+package bijnagte.recordbuf.fixture.packed;
 
 import java.util.List;
 
@@ -64,7 +64,7 @@ class PackedTest {
         byte[] ours = Sample.Codec.encode(sample());
         assertArrayEquals(theirs, ours, "record encode must equal protobuf-java toByteArray");
 
-        byte[] theirsDefault = bijnagte.recordbuf.comgen.packed.ref.Sample.newBuilder().build().toByteArray();
+        byte[] theirsDefault = bijnagte.recordbuf.fixture.packed.ref.Sample.newBuilder().build().toByteArray();
         byte[] oursDefault = Sample.Codec.encode(empty());
         assertArrayEquals(theirsDefault, oursDefault, "default sample must be empty on the wire");
         assertArrayEquals(new byte[0], oursDefault, "all-empty packed lists must encode to zero bytes");
@@ -89,8 +89,8 @@ class PackedTest {
         assertEquals(List.of(), d.j());
     }
 
-    private static bijnagte.recordbuf.comgen.packed.ref.Sample.Builder newBuilder() {
-        return bijnagte.recordbuf.comgen.packed.ref.Sample.newBuilder()
+    private static bijnagte.recordbuf.fixture.packed.ref.Sample.Builder newBuilder() {
+        return bijnagte.recordbuf.fixture.packed.ref.Sample.newBuilder()
                 .addAllA(A)
                 .addAllB(B)
                 .addAllC(C)

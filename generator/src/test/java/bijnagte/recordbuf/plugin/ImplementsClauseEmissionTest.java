@@ -85,7 +85,7 @@ class ImplementsClauseEmissionTest {
         opts.addUninterpretedOption(option("recordbuf.java_interface", "java.lang.Comparable"));
         opts.addUninterpretedOption(option("recordbuf.java_interface", "com.example.Marker"));
 
-        FileDescriptorProto fd = messageFile("impl.proto", "bijnagte.recordbuf.comgen.iface",
+        FileDescriptorProto fd = messageFile("impl.proto", "bijnagte.recordbuf.fixture.iface",
                 message("Sample", opts));
         String src = generatedSource(fd, "impl.proto");
 
@@ -95,7 +95,7 @@ class ImplementsClauseEmissionTest {
     @Test
     void recordWithoutOptionEmitsNoImplements() {
         FileDescriptorProto fd =
-                messageFile("plain.proto", "bijnagte.recordbuf.comgen.iface",
+                messageFile("plain.proto", "bijnagte.recordbuf.fixture.iface",
                         message("Plain", MessageOptions.newBuilder()));
         String src = generatedSource(fd, "plain.proto");
 
@@ -107,7 +107,7 @@ class ImplementsClauseEmissionTest {
         EnumOptions.Builder opts = EnumOptions.newBuilder();
         opts.addUninterpretedOption(option("recordbuf.java_enum_interface", "com.example.Named"));
 
-        FileDescriptorProto fd = enumFile("color.proto", "bijnagte.recordbuf.comgen.iface",
+        FileDescriptorProto fd = enumFile("color.proto", "bijnagte.recordbuf.fixture.iface",
                 EnumDescriptorProto.newBuilder().setName("Color").setOptions(opts.build()).build());
         String src = generatedSource(fd, "color.proto");
 
@@ -117,7 +117,7 @@ class ImplementsClauseEmissionTest {
     @Test
     void enumWithoutOptionEmitsNoImplements() {
         FileDescriptorProto fd =
-                enumFile("color.proto", "bijnagte.recordbuf.comgen.iface",
+                enumFile("color.proto", "bijnagte.recordbuf.fixture.iface",
                         EnumDescriptorProto.newBuilder().setName("Plain").build());
         String src = generatedSource(fd, "color.proto");
 

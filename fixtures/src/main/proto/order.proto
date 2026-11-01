@@ -9,8 +9,8 @@
 // int-family wire path.
 syntax = "proto3";
 
-package bijnagte.recordbuf.comgen.order;
-option java_package = "bijnagte.recordbuf.comgen.order";
+package bijnagte.recordbuf.fixture.order;
+option java_package = "bijnagte.recordbuf.fixture.order";
 
 message Sample {
     int32 c = 3;

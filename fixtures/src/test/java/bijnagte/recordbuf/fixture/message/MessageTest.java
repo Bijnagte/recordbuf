@@ -1,4 +1,4 @@
-package bijnagte.recordbuf.comgen.message;
+package bijnagte.recordbuf.fixture.message;
 
 import java.util.List;
 
@@ -59,7 +59,7 @@ class MessageTest {
         byte[] ours = Sample.Codec.encode(sample());
         assertArrayEquals(theirs, ours, "record encode must equal protobuf-java toByteArray");
 
-        byte[] theirsDefault = bijnagte.recordbuf.comgen.message.ref.Sample.newBuilder().build().toByteArray();
+        byte[] theirsDefault = bijnagte.recordbuf.fixture.message.ref.Sample.newBuilder().build().toByteArray();
         byte[] oursDefault = Sample.Codec.encode(empty());
         assertArrayEquals(theirsDefault, oursDefault, "default sample must be empty on the wire");
         assertArrayEquals(new byte[0], oursDefault, "a null single + empty items must encode to zero bytes");
@@ -84,20 +84,20 @@ class MessageTest {
         assertEquals(List.of(), d.items());
     }
 
-    private static bijnagte.recordbuf.comgen.message.ref.Sample.Builder newBuilder() {
-        return bijnagte.recordbuf.comgen.message.ref.Sample.newBuilder()
+    private static bijnagte.recordbuf.fixture.message.ref.Sample.Builder newBuilder() {
+        return bijnagte.recordbuf.fixture.message.ref.Sample.newBuilder()
                 .setSingle(
-                        bijnagte.recordbuf.comgen.message.ref.Item.newBuilder()
+                        bijnagte.recordbuf.fixture.message.ref.Item.newBuilder()
                                 .setId(ID)
                                 .setName(NAME)
                                 .build())
                 .addItems(
-                        bijnagte.recordbuf.comgen.message.ref.Item.newBuilder()
+                        bijnagte.recordbuf.fixture.message.ref.Item.newBuilder()
                                 .setId(1)
                                 .setName("one")
                                 .build())
                 .addItems(
-                        bijnagte.recordbuf.comgen.message.ref.Item.newBuilder()
+                        bijnagte.recordbuf.fixture.message.ref.Item.newBuilder()
                                 .setId(2)
                                 .setName("two")
                                 .build());

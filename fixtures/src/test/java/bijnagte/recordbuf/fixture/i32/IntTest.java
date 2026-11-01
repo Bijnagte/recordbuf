@@ -1,4 +1,4 @@
-package bijnagte.recordbuf.comgen.i32;
+package bijnagte.recordbuf.fixture.i32;
 
 import org.junit.jupiter.api.Test;
 
@@ -24,7 +24,7 @@ class IntTest {
     @Test
     void byteEqual() throws Exception {
         byte[] theirs =
-                bijnagte.recordbuf.comgen.i32.ref.Sample.newBuilder()
+                bijnagte.recordbuf.fixture.i32.ref.Sample.newBuilder()
                         .setA(0x8000_0000)
                         .build()
                         .toByteArray();
@@ -36,7 +36,7 @@ class IntTest {
     @Test
     void interopDecodesProtobuf() throws Exception {
         byte[] theirs =
-                bijnagte.recordbuf.comgen.i32.ref.Sample.newBuilder()
+                bijnagte.recordbuf.fixture.i32.ref.Sample.newBuilder()
                         .setA(0x8000_0000)
                         .build()
                         .toByteArray();

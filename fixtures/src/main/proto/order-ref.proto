@@ -4,8 +4,8 @@
 // record. The field NUMBERS are still declared non-ascending, so the wire bytes
 // only match if the generated encode loop sorts by field number.
 syntax = "proto3";
-package bijnagte.recordbuf.comgen.order.ref;
-option java_package = "bijnagte.recordbuf.comgen.order.ref";
+package bijnagte.recordbuf.fixture.order.ref;
+option java_package = "bijnagte.recordbuf.fixture.order.ref";
 option java_multiple_files = true;
 
 message Sample {

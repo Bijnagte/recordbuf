@@ -1,4 +1,4 @@
-package bijnagte.recordbuf.comgen.iface;
+package bijnagte.recordbuf.fixture.iface;
 
 /**
  * A user-supplied marker interface for enums. The generated {@link Color} enum is expected to

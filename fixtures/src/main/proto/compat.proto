@@ -23,13 +23,13 @@
 // wire. The `order` family proves the sort (see OrderTest + order.proto).
 syntax = "proto3";
 
-package bijnagte.recordbuf.comgen.combined;
-option java_package = "bijnagte.recordbuf.comgen.combined";
+package bijnagte.recordbuf.fixture.combined;
+option java_package = "bijnagte.recordbuf.fixture.combined";
 
 // Exactly one top-level message per family proto: the record's public type name
 // must match its source filename (Java requires one public type/file). The
 // nested-message family's type, `Sub`, is itself a top-level message so it gets
-// its own generated file (comgen.combined.Sub).
+// its own generated file (fixture.combined.Sub).
 message Compat {
     int32        i        = 1;
     fixed64      fx       = 2;

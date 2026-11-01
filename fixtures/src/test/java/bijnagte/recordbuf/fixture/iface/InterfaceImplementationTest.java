@@ -1,4 +1,4 @@
-package bijnagte.recordbuf.comgen.iface;
+package bijnagte.recordbuf.fixture.iface;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 

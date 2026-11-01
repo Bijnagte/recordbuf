@@ -1,4 +1,4 @@
-package bijnagte.recordbuf.comgen.iface;
+package bijnagte.recordbuf.fixture.iface;
 
 /**
  * A user-supplied marker interface. The generated {@link Sample} record is expected to

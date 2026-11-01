@@ -1,4 +1,4 @@
-package bijnagte.recordbuf.comgen.map;
+package bijnagte.recordbuf.fixture.map;
 
 import java.util.Map;
 
@@ -59,7 +59,7 @@ class MapTest {
         byte[] ours = Sample.Codec.encode(sample());
         assertArrayEquals(theirs, ours, "record encode must equal protobuf-java toByteArray");
 
-        byte[] theirsDefault = bijnagte.recordbuf.comgen.map.ref.Sample.newBuilder().build().toByteArray();
+        byte[] theirsDefault = bijnagte.recordbuf.fixture.map.ref.Sample.newBuilder().build().toByteArray();
         byte[] oursDefault = Sample.Codec.encode(empty());
         assertArrayEquals(theirsDefault, oursDefault, "default sample must be empty on the wire");
         assertArrayEquals(new byte[0], oursDefault, "all-empty maps must encode to zero bytes");
@@ -88,8 +88,8 @@ class MapTest {
         assertEquals(Map.of(), d.c());
     }
 
-    private static bijnagte.recordbuf.comgen.map.ref.Sample.Builder newBuilder() {
-        return bijnagte.recordbuf.comgen.map.ref.Sample.newBuilder()
+    private static bijnagte.recordbuf.fixture.map.ref.Sample.Builder newBuilder() {
+        return bijnagte.recordbuf.fixture.map.ref.Sample.newBuilder()
                 .putAllA(A)
                 .putAllB(B)
                 .putAllC(C);

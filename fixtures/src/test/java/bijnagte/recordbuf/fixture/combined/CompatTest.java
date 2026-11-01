@@ -1,4 +1,4 @@
-package bijnagte.recordbuf.comgen.combined;
+package bijnagte.recordbuf.fixture.combined;
 
 import java.util.List;
 import java.util.Map;
@@ -88,7 +88,7 @@ class CompatTest {
         byte[] ours = Compat.Codec.encode(sample());
         assertArrayEquals(theirs, ours, "record encode must equal protobuf-java toByteArray");
 
-        byte[] theirsDefault = bijnagte.recordbuf.comgen.combined.ref.Compat.newBuilder().build().toByteArray();
+        byte[] theirsDefault = bijnagte.recordbuf.fixture.combined.ref.Compat.newBuilder().build().toByteArray();
         byte[] oursDefault = Compat.Codec.encode(empty());
         assertArrayEquals(theirsDefault, oursDefault, "default sample must be empty on the wire");
         assertArrayEquals(new byte[0], oursDefault, "all-default fields must encode to zero bytes");
@@ -119,23 +119,23 @@ class CompatTest {
         assertNull(d.presence(), "absent optional int32 must decode to null, not 0");
     }
 
-    private static bijnagte.recordbuf.comgen.combined.ref.Compat.Builder newBuilder() {
-        return bijnagte.recordbuf.comgen.combined.ref.Compat.newBuilder()
+    private static bijnagte.recordbuf.fixture.combined.ref.Compat.Builder newBuilder() {
+        return bijnagte.recordbuf.fixture.combined.ref.Compat.newBuilder()
                 .setI(I)
                 .setFx(FX)
                 .setS(S)
                 .setB(com.google.protobuf.ByteString.copyFrom(B))
                 .addAllPacked(PACKED)
                 .setNested(
-                        bijnagte.recordbuf.comgen.combined.ref.Sub.newBuilder()
+                        bijnagte.recordbuf.fixture.combined.ref.Sub.newBuilder()
                                 .setId(NESTED.id())
                                 .setLabel(NESTED.label())
                                 .build())
                 .addSubs(
-                        bijnagte.recordbuf.comgen.combined.ref.Sub.newBuilder()
+                        bijnagte.recordbuf.fixture.combined.ref.Sub.newBuilder()
                                 .setId(1).setLabel("one").build())
                 .addSubs(
-                        bijnagte.recordbuf.comgen.combined.ref.Sub.newBuilder()
+                        bijnagte.recordbuf.fixture.combined.ref.Sub.newBuilder()
                                 .setId(2).setLabel("two").build())
                 .putAllM(M)
                 .setPresence(PRESENCE);
