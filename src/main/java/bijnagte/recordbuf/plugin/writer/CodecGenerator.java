@@ -252,11 +252,13 @@ public final class CodecGenerator {
 
     private String encodeCall(WireScalar wire) {
         return switch (wire) {
-            case INT32, UINT32, FIXED32  -> "writeInt32";
-            case SINT32, SINT_32         -> "writeSInt32";
-            case INT64, UINT64, FIXED64  -> "writeInt64";
-            case SINT64, SINT_64         -> "writeSInt64";
-            case FLOAT                   -> "writeFloat";
+            case INT32, UINT32              -> "writeInt32";
+            case SINT_32                    -> "writeSInt32";
+            case FIXED32                    -> "writeFixed32";
+            case INT64, UINT64              -> "writeInt64";
+            case SINT_64                    -> "writeSInt64";
+            case FIXED64                    -> "writeFixed64";
+            case FLOAT                      -> "writeFloat";
             case DOUBLE                  -> "writeDouble";
             case BOOL                    -> "writeBool";
             case STRING                  -> "writeString";
@@ -266,11 +268,13 @@ public final class CodecGenerator {
 
     private String decodeCall(WireScalar wire) {
         return switch (wire) {
-            case INT32, UINT32, FIXED32  -> "in.readInt32()";
-            case SINT32, SINT_32         -> "in.readSInt32()";
-            case INT64, UINT64, FIXED64  -> "in.readInt64()";
-            case SINT64, SINT_64         -> "in.readSInt64()";
-            case FLOAT                   -> "in.readFloat()";
+            case INT32, UINT32              -> "in.readInt32()";
+            case SINT_32                    -> "in.readSInt32()";
+            case FIXED32                    -> "in.readFixed32()";
+            case INT64, UINT64              -> "in.readInt64()";
+            case SINT_64                    -> "in.readSInt64()";
+            case FIXED64                    -> "in.readFixed64()";
+            case FLOAT                      -> "in.readFloat()";
             case DOUBLE                  -> "in.readDouble()";
             case BOOL                    -> "in.readBool()";
             case STRING                  -> "in.readString()";
@@ -280,8 +284,8 @@ public final class CodecGenerator {
 
     private String defaultValueFor(WireScalar wire) {
         return switch (wire) {
-            case INT32, UINT32, SINT32, SINT_32, FIXED32              -> "0";
-            case INT64, UINT64, SINT64, SINT_64, FIXED64              -> "0L";
+            case INT32, UINT32, SINT_32, FIXED32              -> "0";
+            case INT64, UINT64, SINT_64, FIXED64              -> "0L";
             case FLOAT                                                 -> "0.0f";
             case DOUBLE                                                -> "0.0";
             case BOOL                                                  -> "false";
@@ -296,9 +300,9 @@ public final class CodecGenerator {
             case SCALAR -> {
                 WireScalar wire = types.wireScalar(f);
                 yield switch (wire) {
-                    case INT32, UINT32, SINT32, SINT_32, FIXED32     -> "0";
-                    case INT64, UINT64, SINT64, SINT_64, FIXED64     -> "0L";
-                    case FLOAT                                         -> "0.0f";
+                    case INT32, UINT32, SINT_32, FIXED32     -> "0";
+                    case INT64, UINT64, SINT_64, FIXED64     -> "0L";
+                    case FLOAT                                 -> "0.0f";
                     case DOUBLE                                        -> "0.0";
                     case BOOL                                          -> "false";
                     case STRING                                        -> "\"\"";

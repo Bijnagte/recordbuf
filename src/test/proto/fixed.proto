@@ -1,0 +1,33 @@
+// Per-family interop fixture for the fixed/int/float scalar family. The
+// recordbuf record is generated from this file (--recordbuf_out); the
+// protobuf-java reference is generated from fixed-ref.proto (--java_out) into
+// a sibling `*.ref` java_package so the two coexist.
+syntax = "proto3";
+
+package bijnagte.recordbuf.comgen.fixed;
+option java_package = "bijnagte.recordbuf.comgen.fixed";
+
+// Exactly one top-level message per family proto: the record's public type
+// name must match its source filename (Java requires one public type/file),
+// so a self-contained message keeps the file layout trivial. Nested messages
+// would live in the same generated file.
+//
+// One field of EACH fixed/int/float scalar type, each with a distinct
+// non-default value so presence + the correct varint-vs-fixed encoding is
+// exercised: varint types (int32/uint32/int64/uint64/sint32/sint64), the
+// fixed-width family (fixed32/fixed64/sfixed32/sfixed64), and the IEEE
+// floating-point types (float/double).
+message Sample {
+    uint32  a = 1;
+    int32   b = 2;
+    int64   c = 3;
+    uint64  d = 4;
+    fixed32 e = 5;
+    fixed64 f = 6;
+    sfixed32 g = 7;
+    sfixed64 h = 8;
+    double  i = 9;
+    float   j = 10;
+    sint32  k = 11;
+    sint64  l = 12;
+}
