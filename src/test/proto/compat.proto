@@ -1,0 +1,49 @@
+// End-to-end interop fixture that stresses EVERY family at once, in one message,
+// for byte-and-semantic parity with protobuf-java. The recordbuf record is
+// generated from this file (--recordbuf_out); the protobuf-java reference is
+// generated from compat-ref.proto (--java_out) into a sibling `*.ref`
+// java_package so the two coexist.
+//
+// Because the wire bytes are field-number-driven, a single message carrying one
+// field of every family proves the generated codec is byte-compatible across the
+// whole surface in one shot:
+//   * plain int32          (i32 / int-family varint)
+//   * fixed64              (fixed-width scalar family)
+//   * string               (length-delimited UTF-8)
+//   * bytes                (length-delimited raw bytes)
+//   * repeated int32       (packed repeated-numeric family)
+//   * singular Sub         (nested-message family, present iff set)
+//   * repeated Sub         (repeated-nested-message family)
+//   * map<string,int32>    (map family; on the wire a repeated Entry message)
+//   * optional int32       (proto3 presence family; boxed @Nullable, null when absent)
+//
+// Field numbers are declared in ASCENDING order. The generated codec emits fields
+// in descriptor declaration order (which protobuf-java also does), so ascending
+// declaration === ascending tag on the wire; see CompatTest for the order finding.
+syntax = "proto3";
+
+package bijnagte.recordbuf.comgen.combined;
+option java_package = "bijnagte.recordbuf.comgen.combined";
+
+// Exactly one top-level message per family proto: the record's public type name
+// must match its source filename (Java requires one public type/file). The
+// nested-message family's type, `Sub`, is itself a top-level message so it gets
+// its own generated file (comgen.combined.Sub).
+message Compat {
+    int32        i        = 1;
+    fixed64      fx       = 2;
+    string       s        = 3;
+    bytes        b        = 4;
+    repeated int32 packed = 5;
+    Sub          nested   = 6;
+    repeated Sub subs     = 7;
+    map<string, int32> m  = 8;
+    optional int32 presence = 9;
+}
+
+// The nested-message family's type. A separate top-level message so it generates
+// its own Sub.java in the same package (one public type per file).
+message Sub {
+    int32  id    = 1;
+    string label = 2;
+}
