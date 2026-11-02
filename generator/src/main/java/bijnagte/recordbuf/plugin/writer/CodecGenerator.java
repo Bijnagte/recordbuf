@@ -254,6 +254,7 @@ public final class CodecGenerator {
         w.line("default -> " + ci.use(RT + ".Wire") + ".skip(in, tag);");
         w.indent(outer);
         w.line("}");
+        w.indent(dec);
         w.line("}");
         w.line();
         w.line("return new " + name + "(key, value);");
@@ -325,6 +326,7 @@ public final class CodecGenerator {
         w.line("default -> " + ci.use(RT + ".Wire") + ".skip(in, tag);");
         w.indent(outer);
         w.line("}");
+        w.indent(outer - 1);
         w.line("}");
         w.line();
         w.line("return new " + m.name() + "(");
