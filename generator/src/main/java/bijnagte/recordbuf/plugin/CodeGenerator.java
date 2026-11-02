@@ -28,12 +28,18 @@ import bijnagte.recordbuf.plugin.writer.RecordGenerator;
  */
 public final class CodeGenerator {
 
-    private final FileTable table = new FileTable();
+    // Assigned at the start of generate() from the request's plugin parameter so
+    // per-call generation (Main invokes one CodeGenerator per request) stays
+    // stateless. Built fresh each call with the parsed package_suffix.
+    private FileTable table = new FileTable();
 
     /** Run generation; returns a response ready to serialize to the client. */
     public CodeGeneratorResponse generate(CodeGeneratorRequest request) {
         // Pass 1: load ALL files (including dependencies) into the type table.
         // Without this, we wouldn't know the Java FQNs for cross-file types.
+        // The table carries the run-wide package_suffix so every file's java package
+        // (and every cross-file resolution through it) is suffixed uniformly.
+        table = new FileTable(parsePackageSuffix(request.getParameter()));
         table.addAll(request.getProtoFileList());
 
         List<CodeGeneratorResponse.File> outFiles = new ArrayList<>();
@@ -51,7 +57,7 @@ public final class CodeGenerator {
         FileDescriptorProto fdp = findByPath(fileName);
         if (fdp == null) throw new IllegalStateException("file not found: " + fileName);
 
-        String javaPkg = javaPackage(fdp);
+        String javaPkg = table.javaPackage(fdp);
         ProtoFile pf = new ModelLoader(table, javaPkg).load(fdp);
         String outDir = "src/main/java/" + javaPkg.replace('.', '/') + "/";
         List<CodeGeneratorResponse.File> files = new ArrayList<>();
@@ -240,20 +246,32 @@ public final class CodeGenerator {
         return type;
     }
 
-    private FileDescriptorProto findByPath(String path) {
-        return table.byName(path);
+    /**
+     * Resolve the run-wide {@code package_suffix} parameter to a normalized
+     * suffix (leading/trailing dots and whitespace stripped; absent/blank is an
+     * empty no-op). The parameter is the protoc plugin param string
+     * (e.g. {@code package_suffix=.rec}) — comma-separated {@code key=value}
+     * pairs — of which only {@code package_suffix} is honored. An absent value
+     * leaves every file's java package byte-for-byte unchanged (R5).
+     */
+    private static String parsePackageSuffix(String parameter) {
+        if (parameter == null || parameter.isBlank()) return "";
+        String suffix = "";
+        for (String pair : parameter.split(",")) {
+            int eq = pair.indexOf('=');
+            String key = (eq < 0 ? pair : pair.substring(0, eq)).trim();
+            if (!key.equals("package_suffix")) continue;
+            String value = (eq < 0 ? "" : pair.substring(eq + 1)).trim();
+            // Normalize so ".rec" and "rec" are equivalent: strip surrounding dots.
+            int s = 0, e = value.length();
+            while (s < e && value.charAt(s) == '.') s++;
+            while (e > s && value.charAt(e - 1) == '.') e--;
+            suffix = value.substring(s, e);
+        }
+        return suffix;
     }
 
-    private String javaPackage(FileDescriptorProto fdp) {
-        if (fdp.getOptions().hasJavaPackage() && !fdp.getOptions().getJavaPackage().isBlank()) {
-            return fdp.getOptions().getJavaPackage();
-        }
-        if (!fdp.getPackage().isBlank()) return fdp.getPackage();
-        String stem = fdp.getName();
-        int slash = stem.lastIndexOf('/');
-        if (slash >= 0) stem = stem.substring(slash + 1);
-        int dot = stem.indexOf('.');
-        if (dot >= 0) stem = stem.substring(0, dot);
-        return stem;
+    private FileDescriptorProto findByPath(String path) {
+        return table.byName(path);
     }
 }

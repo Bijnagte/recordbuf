@@ -19,20 +19,34 @@ import com.google.protobuf.DescriptorProtos.OneofDescriptorProto;
 public final class FileTable {
     private final Map<String, String> protoFqnToJavaFqn = new HashMap<>();
     private final Map<String, FileDescriptorProto> byFileName = new HashMap<>();
+    private final String packageSuffix;
+
+    public FileTable() {
+        this("");
+    }
+
+    /**
+     * Construct with a normalized run-wide {@code package_suffix} (leading/
+     * trailing dots stripped) applied uniformly to every file's java package. An
+     * empty suffix is a no-op that leaves every package byte-for-byte unchanged.
+     */
+    public FileTable(String packageSuffix) {
+        this.packageSuffix = (packageSuffix == null) ? "" : packageSuffix;
+    }
 
     public void addAll(java.util.List<FileDescriptorProto> files) {
         // Pass 1: java package resolution (in case it depends on relative proto
         // package, which it normally doesn't, but be safe).
         for (FileDescriptorProto f : files) {
             byFileName.put(f.getName(), f);
-            String javaPkg = javaPackageFor(f);
+            String javaPkg = javaPackage(f);
             // Pass 2: walk each file and register every top-level and nested
             // type.
             registerFile(f, javaPkg);
         }
     }
 
-    /** Java FQN for a proto FQN, or null if unknown. */
+    /** java FQN for a proto FQN, or null if unknown. */
     public String javaFqn(String protoFqn) {
         return protoFqnToJavaFqn.get(protoFqn);
     }
@@ -41,9 +55,33 @@ public final class FileTable {
         return byFileName.get(fileName);
     }
 
+    /**
+     * The Java package for a proto file: the declared {@code java_package} (or
+     * proto-package / filename fallback), then the run-wide {@code package_suffix}
+     * composed on as the final segment — e.g. suffix {@code .rec} on declared
+     * java_package {@code bijnagte.recordbuf.fixture} yields
+     * {@code bijnagte.recordbuf.fixture.rec}. An absent/blank suffix is a no-op.
+     */
+    public String javaPackage(FileDescriptorProto f) {
+        return applyPackageSuffix(rawJavaPackage(f), packageSuffix);
+    }
+
     // --- internals ---
 
-    private String javaPackageFor(FileDescriptorProto f) {
+    /**
+     * Compose a java package with the run-wide suffix. A blank suffix is a no-op
+     * (byte-for-byte unchanged). Otherwise the suffix becomes the final path
+     * segment: {@code nativePkg + "." + suffix}. If the base is empty, the bare
+     * suffix is the package.
+     */
+    public static String applyPackageSuffix(String base, String suffix) {
+        if (suffix == null || suffix.isEmpty()) return base;
+        if (base == null || base.isEmpty()) return suffix;
+        return base + "." + suffix;
+    }
+
+    /** The declared Java package for {@code f} with NO suffix applied. */
+    private static String rawJavaPackage(FileDescriptorProto f) {
         if (f.getOptions().hasJavaPackage() && !f.getOptions().getJavaPackage().isBlank()) {
             return f.getOptions().getJavaPackage();
         }
