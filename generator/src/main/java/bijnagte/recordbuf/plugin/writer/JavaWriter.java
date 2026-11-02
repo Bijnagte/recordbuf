@@ -12,8 +12,10 @@ import java.util.function.Consumer;
  * <p>Tracks current indentation and a list of leading comment header lines.
  * Callers add code via {@link #line(String) line(...)} and structural blocks
  * via {@link #block(String, String, Consumer) block(...)}. The header comment
- * is emitted automatically before the body on {@link #toString()}; generated
- * types are named fully-qualified, so this writer does not track imports.
+ * is emitted automatically before the body on {@link #toString()}. A file's
+ * referenced types are collected by a shared {@link TypeImports} so {@link
+ * #emitImports()} can render a short-name + import block instead of fully-
+ * qualified names.
  *
  * <p>This is intentionally simple — it is not a parser-aware Java code
  * generator. We avoid line continuations, generics spanning lines, and
@@ -23,9 +25,27 @@ public final class JavaWriter {
     private final StringBuilder sb;
     private int indent = 0;
     private final List<String> headerLines = new ArrayList<>();
+    private final TypeImports imports;
 
+    /** A writer with no import collection (used only for the collect pass). */
     public JavaWriter() {
+        this(new TypeImports(""));
+    }
+
+    /**
+     * A writer that collects the file's referenced types so they resolve to short
+     * names plus a deduplicated, ordered import block. The collector is shared
+     * across the collection and render passes, so a single instance is passed to
+     * both writers for a file.
+     */
+    public JavaWriter(TypeImports imports) {
         this.sb = new StringBuilder(1024);
+        this.imports = imports;
+    }
+
+    /** The file's import collector, shared by the generators running on this writer. */
+    public TypeImports imports() {
+        return imports;
     }
 
     /** Add a multi-line comment header line, emitted before the body. */
@@ -62,6 +82,23 @@ public final class JavaWriter {
         body.accept(this);
         indent = prev;
         line(close);
+    }
+
+    /**
+     * Emit the file's resolved import block: a blank line after the package
+     * statement, then each import, then a blank line before the first
+     * declaration. A no-op when the file imports nothing.
+     */
+    public JavaWriter emitImports() {
+        List<String> lines = imports.importLines();
+        if (lines.isEmpty()) {
+            line();
+            return this;
+        }
+        line();
+        for (String l : lines) line(l);
+        line();
+        return this;
     }
 
     @Override

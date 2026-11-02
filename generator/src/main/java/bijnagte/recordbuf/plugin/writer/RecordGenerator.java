@@ -12,16 +12,20 @@ public final class RecordGenerator {
     private RecordGenerator() {
     }
 
-    /**
-     * The {@code implements X, Y} suffix for a record or enum header, or the empty string when the
-     * type declares no interfaces (so a marker interface is emitted byte-for-byte unchanged). The
-     * names are emitted fully qualified — no import is added — to keep the generator decoupled from
-     * the user's interface types, which live on the consumer's classpath.
-     */
-    public static String implementsClause(List<String> interfaces) {
+    /** Build a Java {@code implements} clause from the declared option values,
+     *  each resolved through the file's import collector: an interface in the
+     *  generated file's own package is emitted short and import-free; one in
+     *  another package is imported and emitted short, or (on a simple-name
+     *  collision with another type in the same file) left fully-qualified. */
+    public static String implementsClause(TypeImports ci, List<String> interfaces) {
         if (interfaces.isEmpty()) {
             return "";
         }
-        return " implements " + String.join(", ", interfaces);
+        StringBuilder sb = new StringBuilder(" implements ");
+        for (int i = 0; i < interfaces.size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(ci.use(interfaces.get(i)));
+        }
+        return sb.toString();
     }
 }

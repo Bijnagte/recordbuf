@@ -89,7 +89,13 @@ class ImplementsClauseEmissionTest {
                 message("Sample", opts));
         String src = generatedSource(fd, "impl.proto");
 
-        assertTrue(src.contains("implements java.lang.Comparable, com.example.Marker"), src);
+        // U3 updated for feat-fqn-to-imports: cross-package interfaces resolve to their short
+        // name with one import each, instead of being spelled out fully-qualified inline. A
+        // java.lang type (Comparable) is used short with no import; a cross-package type
+        // (com.example.Marker) is short + imported.
+        assertTrue(src.contains("implements Comparable, Marker"), src);
+        assertTrue(src.contains("import com.example.Marker;"), src);
+        assertFalse(src.contains("java.lang.Comparable"), "java.lang types are used short, no import: " + src);
     }
 
     @Test
@@ -111,7 +117,10 @@ class ImplementsClauseEmissionTest {
                 EnumDescriptorProto.newBuilder().setName("Color").setOptions(opts.build()).build());
         String src = generatedSource(fd, "color.proto");
 
-        assertTrue(src.contains("public enum Color implements com.example.Named"), src);
+        // U3 updated for feat-fqn-to-imports: the cross-package interface resolves to its short
+        // name with one import, not a fully-qualified inline reference.
+        assertTrue(src.contains("public enum Color implements Named"), src);
+        assertTrue(src.contains("import com.example.Named;"), src);
     }
 
     @Test

@@ -1,6 +1,7 @@
 package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.plugin.model.Enum;
+import bijnagte.recordbuf.plugin.writer.TypeImports;
 
 /**
  * Emits a Java enum from a {@link Enum} model. We keep the proto-style enum
@@ -10,10 +11,10 @@ import bijnagte.recordbuf.plugin.model.Enum;
 public final class EnumGenerator {
 
     /** Emit a top-level enum declaration at the current writer indent. */
-    public void write(JavaWriter w, Enum e) {
+    public void write(JavaWriter w, Enum e, TypeImports ci) {
         String name = e.name();
         if (e.deprecated()) w.line("@Deprecated");
-        w.line("public enum " + name + RecordGenerator.implementsClause(e.interfaces()) + " {");
+        w.line("public enum " + name + RecordGenerator.implementsClause(ci, e.interfaces()) + " {");
 
         // Foo(0), Bar(1);
         for (int i = 0; i < e.constants().size(); i++) {

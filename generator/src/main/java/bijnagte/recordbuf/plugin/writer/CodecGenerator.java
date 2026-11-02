@@ -5,6 +5,8 @@ import bijnagte.recordbuf.plugin.model.JavaNames;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.types.TypeResolver;
 import bijnagte.recordbuf.plugin.types.TypeResolver.WireScalar;
+import bijnagte.recordbuf.plugin.writer.TypeImports;
+import java.util.Comparator;
 
 /**
  * Emits the static {@code Codec} nested class for a {@link Message}. The
@@ -20,19 +22,25 @@ import bijnagte.recordbuf.plugin.types.TypeResolver.WireScalar;
  * <p>Nullability uses {@code @org.jspecify.annotations.Nullable} (see
  * {@code Field.isNullable()}): a present-able field is {@code null} when
  * absent and is skipped on the wire; it is never wrapped in {@code Optional}.
+ *
+ * <p>Cross-file types and the runtime helpers (CodecDefaults/Decoder/Encoder/Wire),
+ * {@code java.io.IOException}, and {@code java.util.*} each resolve to their short
+ * name via the per-file {@link TypeImports} collector, which adds one import each,
+ * instead of spelling out fully-qualified names inline. The per-message dispatch
+ * stays generated; only the mechanical framing lives in bijnagte.recordbuf.runtime.
  */
 public final class CodecGenerator {
 
-    // The runtime package a generated codec calls into, emitted as fully-qualified
-    // text (no import) -- matching how the plugin already names
-    // com.google.protobuf.CodedOutputStream. The per-message dispatch stays
-    // generated; only the mechanical framing lives in bijnagte.recordbuf.runtime.
+    // The runtime package a generated codec calls into. Resolved to short imported
+    // names per-file via TypeImports (CodecDefaults/Decoder/Encoder/Wire).
     private static final String RT = "bijnagte.recordbuf.runtime";
 
     private final TypeResolver types;
+    private final TypeImports ci;
 
-    public CodecGenerator(TypeResolver types) {
+    public CodecGenerator(TypeResolver types, TypeImports ci) {
         this.types = types;
+        this.ci = ci;
     }
 
     /** Emit {@code public static final class Codec { ... }} at current indent. */
@@ -53,7 +61,7 @@ public final class CodecGenerator {
         w.line();
 
         // --- encode ---
-        w.line("public static byte[] encode(" + m.name() + " v) throws java.io.IOException {");
+        w.line("public static byte[] encode(" + m.name() + " v) throws " + ci.use("java.io.IOException") + " {");
         w.indent(w.indent() + 1);
         emitEncode(w, m);
         w.indent(prev + 1);
@@ -61,7 +69,7 @@ public final class CodecGenerator {
         w.line();
 
         // --- decode ---
-        w.line("public static " + m.name() + " decode(byte[] inBytes) throws java.io.IOException {");
+        w.line("public static " + m.name() + " decode(byte[] inBytes) throws " + ci.use("java.io.IOException") + " {");
         w.indent(w.indent() + 1);
         emitDecode(w, m);
         w.indent(prev + 1);
@@ -74,9 +82,9 @@ public final class CodecGenerator {
     // --- encode ---
 
     private void emitEncode(JavaWriter w, Message m) {
-        w.line("var enc = " + RT + ".Encoder.start();");
+        w.line("var enc = " + ci.use(RT + ".Encoder") + ".start();");
         w.line("var out = enc.out();");
-        for (Field f : m.fields().stream().sorted(java.util.Comparator.comparingInt(Field::number)).toList()) {
+        for (Field f : m.fields().stream().sorted(Comparator.comparingInt(Field::number)).toList()) {
             emitEncodeField(w, m, f);
         }
         w.line("return enc.finish();");
@@ -123,7 +131,7 @@ public final class CodecGenerator {
             case BYTES  ->
                 w.line("if (" + getter + ".length != 0) out." + call + "(" + num + ", " + getter + ");");
             default ->
-                w.line("if (" + getter + " != " + RT + ".CodecDefaults." + defaultMethod(wire) + "()) out." + call + "(" + num + ", " + getter + ");");
+                w.line("if (" + getter + " != " + ci.use(RT + ".CodecDefaults") + "." + defaultMethod(wire) + "()) out." + call + "(" + num + ", " + getter + ");");
         }
     }
 
@@ -140,7 +148,7 @@ public final class CodecGenerator {
         // wire when null (proto3 absent). Otherwise encode the child bytes via
         // its own Codec and frame them as one length-delimited byte array
         // (tag + length + raw bytes).
-        String nestedCodec = codecFor(f.typeUrl());
+        String nestedCodec = types.resolveElement(f) + ".Codec";
         w.line("if (" + getter + " != null) {");
         int ind = w.indent() + 1;
         w.indent(ind);
@@ -212,10 +220,10 @@ public final class CodecGenerator {
         w.line();
 
         // --- encode ---
-        w.line("public static byte[] encode(" + name + " v) throws java.io.IOException {");
+        w.line("public static byte[] encode(" + name + " v) throws " + ci.use("java.io.IOException") + " {");
         int enc = w.indent() + 1;
         w.indent(enc);
-        w.line("var enc = " + RT + ".Encoder.start();");
+        w.line("var enc = " + ci.use(RT + ".Encoder") + ".start();");
         w.line("var out = enc.out();");
         emitEntryScalar(w, keyWire, 1, "v.key()");
         emitEntryScalar(w, valWire, 2, "v.value()");
@@ -225,25 +233,25 @@ public final class CodecGenerator {
         w.line();
 
         // --- decode ---
-        w.line("public static " + name + " decode(byte[] inBytes) throws java.io.IOException {");
+        w.line("public static " + name + " decode(byte[] inBytes) throws " + ci.use("java.io.IOException") + " {");
         int dec = w.indent() + 1;
         w.indent(dec);
-        w.line("var key = " + RT + ".CodecDefaults." + defaultMethod(keyWire) + "();");
-        w.line("var value = " + RT + ".CodecDefaults." + defaultMethod(valWire) + "();");
+        w.line("var key = " + ci.use(RT + ".CodecDefaults") + "." + defaultMethod(keyWire) + "();");
+        w.line("var value = " + ci.use(RT + ".CodecDefaults") + "." + defaultMethod(valWire) + "();");
         w.line();
-        w.line("var in = " + RT + ".Decoder.start(inBytes).in();");
+        w.line("var in = " + ci.use(RT + ".Decoder") + ".start(inBytes).in();");
         w.line("while (!in.isAtEnd()) {");
         int outer = w.indent() + 1;
         w.indent(outer);
-        w.line("int tag = " + RT + ".Wire.readTag(in);");
+        w.line("int tag = " + ci.use(RT + ".Wire") + ".readTag(in);");
         w.line("if (tag == 0) break;");
-        w.line("int fieldNum = " + RT + ".Wire.tagFieldNumber(tag);");
+        w.line("int fieldNum = " + ci.use(RT + ".Wire") + ".tagFieldNumber(tag);");
         w.line("switch (fieldNum) {");
         int inner = outer + 1;
         w.indent(inner);
         w.line("case 1 -> { key = " + decodeCall(keyWire) + "; }");
         w.line("case 2 -> { value = " + decodeCall(valWire) + "; }");
-        w.line("default -> " + RT + ".Wire.skip(in, tag);");
+        w.line("default -> " + ci.use(RT + ".Wire") + ".skip(in, tag);");
         w.indent(outer);
         w.line("}");
         w.line("}");
@@ -276,7 +284,7 @@ public final class CodecGenerator {
         w.indent(ind);
         // proto3 packs a repeated scalar as ONE length-delimited group framed through
         // the runtime's Encoder: buffer the tight no-tag value sequence, then frame it.
-        w.line("var body = " + RT + ".Encoder.start();");
+        w.line("var body = " + ci.use(RT + ".Encoder") + ".start();");
         w.line("var _o = body.out();");
         w.line("for (var _x : " + getter + ") _o." + op + "(_x);");
         // Frame the buffered sequence as one length-delimited group. writeByteArray writes
@@ -290,7 +298,7 @@ public final class CodecGenerator {
     }
     private void emitRepeatedMessage(JavaWriter w, Field f, int num, String getter) {
         // Each element gets its own length-delimited byte array.
-        String codecRef = codecFor(f.typeUrl());
+        String codecRef = types.resolveElement(f) + ".Codec";
         w.line("for (var _m : " + getter + ") out.writeByteArray(" + num + ", " + codecRef + ".encode(_m));");
     }
 
@@ -301,20 +309,20 @@ public final class CodecGenerator {
             w.line(initDecl(f));
         }
         w.line();
-        w.line("var in = " + RT + ".Decoder.start(inBytes).in();");
+        w.line("var in = " + ci.use(RT + ".Decoder") + ".start(inBytes).in();");
         w.line("while (!in.isAtEnd()) {");
         int outer = w.indent() + 1;
         w.indent(outer);
-        w.line("int tag = " + RT + ".Wire.readTag(in);");
+        w.line("int tag = " + ci.use(RT + ".Wire") + ".readTag(in);");
         w.line("if (tag == 0) break;");
-        w.line("int fieldNum = " + RT + ".Wire.tagFieldNumber(tag);");
+        w.line("int fieldNum = " + ci.use(RT + ".Wire") + ".tagFieldNumber(tag);");
         w.line("switch (fieldNum) {");
         int inner = outer + 1;
         w.indent(inner);
         for (Field f : m.fields()) {
             emitDecodeCase(w, m, f);
         }
-        w.line("default -> " + RT + ".Wire.skip(in, tag);");
+        w.line("default -> " + ci.use(RT + ".Wire") + ".skip(in, tag);");
         w.indent(outer);
         w.line("}");
         w.line("}");
@@ -350,13 +358,13 @@ public final class CodecGenerator {
                 w.line(f.javaName() + " = " + decodeCall(types.wireScalar(f)) + ";");
             }
             case ENUM -> {
-                String enumName = lastSeg(f.typeUrl());
+                String enumName = types.resolveElement(f);
                 w.line(f.javaName() + " = " + enumName + ".forNumber((int) in.readEnum());");
             }
             case MESSAGE -> {
                 // The tag was already consumed by readTag(); read the remaining
                 // length-delimited byte array and hand it to the child Codec.
-                String codecRef = codecFor(f.typeUrl());
+                String codecRef = types.resolveElement(f) + ".Codec";
                 w.line(f.javaName() + " = " + codecRef + ".decode(in.readByteArray());");
             }
             default -> { }
@@ -375,11 +383,11 @@ public final class CodecGenerator {
                 w.line("in.popLimit(_lim);");
             }
             case ENUM -> {
-                String enumName = lastSeg(f.typeUrl());
+                String enumName = types.resolveElement(f);
                 w.line(f.javaName() + ".add(" + enumName + ".forNumber((int) in.readEnum()));");
             }
             case MESSAGE -> {
-                String codecRef = codecFor(f.typeUrl());
+                String codecRef = types.resolveElement(f) + ".Codec";
                 w.line(f.javaName() + ".add(" + codecRef + ".decode(in.readByteArray()));");
             }
             default -> { }
@@ -396,12 +404,12 @@ public final class CodecGenerator {
         // A repeated field starts as an explicit List<Element> (diamond inference
         // on `var` would leave it as List<Object>); the nested type is the
         // element type from resolve()'s List<Element> head.
-        if (f.isRepeated()) return types.resolve(f) + " " + f.javaName() + " = new java.util.ArrayList<>();";
+        if (f.isRepeated()) return types.resolve(f) + " " + f.javaName() + " = new " + ci.use("java.util.ArrayList") + "<>();";
         // A map field decodes into a MUTABLE, typed map so the decode loop can
         // put entries into it; the record's compact constructor then copies it to
         // an immutable Map.copyOf(...).
-        if (f.isMap()) return types.resolve(f) + " " + f.javaName() + " = new java.util.HashMap<>();";
-        return "var " + f.javaName() + " = " + RT + ".CodecDefaults." + defaultMethod(f) + "();";
+        if (f.isMap()) return types.resolve(f) + " " + f.javaName() + " = new " + ci.use("java.util.HashMap") + "<>();";
+        return "var " + f.javaName() + " = " + ci.use(RT + ".CodecDefaults") + "." + defaultMethod(f) + "();";
     }
 
     private String encodeCall(WireScalar wire) {
@@ -470,13 +478,5 @@ public final class CodecGenerator {
             case STRING                             -> "string";
             case BYTES                              -> "bytes";
         };
-    }
-
-    private static String codecFor(String protoFqn) {
-        return lastSeg(protoFqn) + ".Codec";
-    }
-    private static String lastSeg(String fqn) {
-        int dot = fqn.lastIndexOf('.');
-        return dot < 0 ? fqn : fqn.substring(dot + 1);
     }
 }

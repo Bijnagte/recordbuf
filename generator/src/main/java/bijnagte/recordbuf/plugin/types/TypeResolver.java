@@ -2,6 +2,7 @@ package bijnagte.recordbuf.plugin.types;
 
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FileTable;
+import bijnagte.recordbuf.plugin.writer.TypeImports;
 
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
 
@@ -17,11 +18,16 @@ import org.jspecify.annotations.Nullable;
 public final class TypeResolver {
 
     private final FileTable table;
-    private final String ownJavaPkg;
+    private final TypeImports ci;
 
-    public TypeResolver(FileTable table, String ownJavaPkg) {
+    public TypeResolver(FileTable table, TypeImports ci) {
         this.table = table;
-        this.ownJavaPkg = ownJavaPkg;
+        this.ci = ci;
+    }
+
+    /** The file's shared import collector. */
+    public TypeImports imports() {
+        return ci;
     }
 
     /**
@@ -32,17 +38,38 @@ public final class TypeResolver {
      * {@code java.util.Optional}.
      */
     public String resolve(Field f) {
-        if (f.isRepeated()) return "java.util.List<" + resolveElement(f) + ">";
+        if (f.isRepeated()) return ci.use("java.util.List") + "<" + resolveElement(f) + ">";
         String base = baseFor(f);
-        if (f.isNullable() && f.isScalar()) return boxed(base);
+        if (f.isNullable() && f.isScalar()) return ci.use(boxed(base));
         return base;
+    }
+
+    /**
+     * As {@link #resolve(Field)} but prefixed with the {@code @Nullable}
+     * type-use annotation (imported by the collector) for a presence-tracked
+     * component. Java forbids a type-use annotation prefixed to a qualified
+     * type, so for a fully-qualified fallback (a short name that collided) the
+     * annotation sits before the final identifier ({@code pkg.@Nullable T});
+     * a bare name is a plain prefix ({@code @Nullable T}).
+     */
+    public String resolveNullable(Field f) {
+        String type = resolve(f);
+        // The @Nullable type-use annotation, resolved (and imported) like any other
+        // referenced type. A bare component type gets a plain prefix (@Nullable T);
+        // a fully-qualified fallback (short name that collided) puts it directly
+        // before the final identifier, as Java requires (pkg.@Nullable T).
+        String ann = ci.use("org.jspecify.annotations.Nullable");
+        String at = "@" + ann + " ";
+        int dot = type.lastIndexOf('.');
+        if (dot < 0) return at + type;
+        return type.substring(0, dot) + "." + at + type.substring(dot + 1);
     }
 
     /** The non-repeated, non-boxed base type: scalar primitive, reference type,
      * or {@code Map<K,V>}. */
     private String baseFor(Field f) {
         return switch (f.kind()) {
-            case SCALAR -> scalarJava(f.typeUrl());
+            case SCALAR -> ci.use(scalarJava(f.typeUrl()));
             case MESSAGE, ENUM -> resolveType(f.typeUrl());
             case MAP -> {
                 // Map<K,V> cannot hold primitives, so both bounds are the BOXED
@@ -51,17 +78,17 @@ public final class TypeResolver {
                 // type name; mapComponentType boxes it.
                 String k = mapComponentType(f.mapKey());
                 String v = mapComponentType(f.mapValue());
-                yield "java.util.Map<" + k + ", " + v + ">";
+                yield ci.use("java.util.Map") + "<" + k + ", " + v + ">";
             }
-            default -> "java.lang.Object";
+            default -> ci.use("java.lang.Object");
         };
     }
 
     /** The boxed Java component type of a map key/value, from its proto type name
      *  (e.g. "int32" -> "java.lang.Integer", "string"/"bool" -> the boxed ref). */
     public String mapComponentType(@Nullable String protoType) {
-        if (protoType == null) return "java.lang.Object";
-        return boxed(scalarJava(protoType));
+        if (protoType == null) return ci.use("java.lang.Object");
+        return ci.use(boxed(scalarJava(protoType)));
     }
 
     /**
@@ -86,34 +113,21 @@ public final class TypeResolver {
             // so a repeated scalar's element type is its boxed wrapper; primitive
             // scalars become Integer/Long/Float/Double/Boolean while byte[] and
             // reference types already pass through boxed() unchanged.
-            case SCALAR          -> boxed(scalarJava(f.typeUrl()));
+            case SCALAR          -> ci.use(boxed(scalarJava(f.typeUrl())));
             case MESSAGE, ENUM   -> resolveType(f.typeUrl());
             case MAP             -> throw new IllegalStateException("map fields are not repeated in proto3");
-            default              -> "java.lang.Object";
+            default              -> ci.use("java.lang.Object");
         };
     }
 
     private String resolveType(String protoFqn) {
-        if (protoFqn == null) return "java.lang.Object";
+        if (protoFqn == null) return ci.use("java.lang.Object");
         String javaFqn = table.javaFqn(protoFqn);
-        if (javaFqn == null) return lastSegment(protoFqn);
-        // If the type lives in the same java package as the one we're generating
-        // into, drop the package prefix — it's import-free locally. The record
-        // is always declared at the top of its own file; nested types inherit
-        // their parent's package, so the comparison is correct for them too.
-        String javaPkg = packagePart(javaFqn);
-        if (javaPkg.equals(ownJavaPkg)) return typePart(javaFqn);
-        return javaFqn;
-    }
-
-    private static String packagePart(String fqn) {
-        int dot = fqn.lastIndexOf('.');
-        return dot < 0 ? "" : fqn.substring(0, dot);
-    }
-
-    private static String typePart(String fqn) {
-        int dot = fqn.lastIndexOf('.');
-        return dot < 0 ? fqn : fqn.substring(dot + 1);
+        if (javaFqn == null) return ci.use(lastSegment(protoFqn));
+        // The collector applies the same-package (import-free) rule and collision
+        // fallback for us, so cross-file types become short + imported and collided
+        // types fall back to their fully-qualified name.
+        return ci.use(javaFqn);
     }
 
     private static String lastSegment(String fqn) {
