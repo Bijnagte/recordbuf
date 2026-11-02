@@ -37,10 +37,12 @@ public final class CodecGenerator {
 
     private final TypeResolver types;
     private final TypeImports ci;
+    private final String sourceProto;
 
-    public CodecGenerator(TypeResolver types, TypeImports ci) {
+    public CodecGenerator(TypeResolver types, TypeImports ci, String sourceProto) {
         this.types = types;
         this.ci = ci;
+        this.sourceProto = sourceProto;
     }
 
     /** Emit {@code public static final class Codec { ... }} at current indent. */
@@ -54,6 +56,7 @@ public final class CodecGenerator {
         }
 
         w.line();
+        w.javadoc(codecDoc(m));
         w.line("public static final class Codec {");
         int prev = w.indent();
         w.indent(prev + 1);
@@ -114,6 +117,17 @@ public final class CodecGenerator {
             case MESSAGE -> emitMessage(w, f, num, getter, nullable);
             default      -> { }
         }
+    }
+
+    /**
+     * The nested {@code Codec}'s Javadoc: a short note naming the enclosing
+     * record and the source {@code .proto}, matching recordbuf's clean style
+     * (two lines of plain text, so no HTML escaping is needed).
+     */
+    private String codecDoc(Message m) {
+        return "Wire codec for the " + m.name() + " record, generated from "
+                + sourceProto + ".\n"
+                + "Reads and writes messages in the protobuf wire format.";
     }
 
     private void emitScalar(JavaWriter w, Field f, int num, String getter, boolean nullable) {

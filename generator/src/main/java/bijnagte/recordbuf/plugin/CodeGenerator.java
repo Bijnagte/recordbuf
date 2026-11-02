@@ -76,7 +76,7 @@ public final class CodeGenerator {
         // Each top-level message gets its OWN file (record + nested types + codec).
         for (var m : pf.messages()) {
             files.add(generateFile(fdp, javaPkg, outDir + JavaNames.cap(m.name()) + ".java",
-                    w -> emitMessage(w, m, javaPkg)));
+                    w -> emitMessage(w, m, javaPkg, fdp.getName())));
         }
         return files;
     }
@@ -128,16 +128,21 @@ public final class CodeGenerator {
                 .build();
     }
 
-    private void emitMessage(JavaWriter w, Message m, String javaPkg) {
+    private void emitMessage(JavaWriter w, Message m, String javaPkg, String sourceProto) {
         TypeImports ci = w.imports();
         TypeResolver types = new TypeResolver(table, ci);
-        CodecGenerator codec = new CodecGenerator(types, ci);
+        CodecGenerator codec = new CodecGenerator(types, ci, sourceProto);
         recordAndCodec(w, types, codec, m, javaPkg);
     }
 
     private void recordAndCodec(JavaWriter w, TypeResolver types, CodecGenerator codec,
                                 Message m, String javaPkg) {
         TypeImports ci = w.imports();
+        // Type-level Javadoc (clean, HTML-escaped at emit time) followed by a bare
+        // @Deprecated when the proto marked this message deprecated. A bare (java.lang,
+        // never-imported) annotation matches recordbuf's "clean output" style.
+        w.javadoc(m.comment());
+        if (m.deprecated()) w.line("@Deprecated");
         w.line("public record " + m.name() + "(");
         for (int i = 0; i < m.fields().size(); i++) {
             var f = m.fields().get(i);
@@ -145,7 +150,13 @@ public final class CodeGenerator {
             // null/boxed value is meaningful; it is NEVER normalized to empty.
             String type = f.isNullable() ? types.resolveNullable(f) : types.resolve(f);
             String sep = (i == m.fields().size() - 1) ? "" : ",";
-            w.line("    " + type + " " + f.javaName() + sep);
+            // Per-component Javadoc sits one level deeper than the type header's,
+            // to match the fields' own 4-space-deeper indentation.
+            w.javadoc(w.indent() + 1, f.comment());
+            // @Deprecated before @Nullable when a component is deprecated; bare
+            // (java.lang.Deprecated is never imported, matching recordbuf's style).
+            String prefix = f.deprecated() ? "@Deprecated " : "";
+            w.line("    " + prefix + type + " " + f.javaName() + sep);
         }
         w.line(")" + RecordGenerator.implementsClause(ci, m.interfaces()));
         w.line("{");

@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * Minimal indented Java source writer.
  *
@@ -71,6 +73,58 @@ public final class JavaWriter {
         for (int i = 0; i < indent; i++) sb.append("    ");
         sb.append(text).append('\n');
         return this;
+    }
+
+    /**
+     * Emit a JavaDoc block comment for an element at the current indent. A
+     * leading/trailing blank in the source comment is trimmed, each line is
+     * HTML-escaped and prefixed with {@code * }, matching recordbuf's
+     * clean-output style (no {@code <pre>} / {@code <code>} protobuf
+     * boilerplate). A no-op when there is no (non-blank) comment.
+     */
+    public JavaWriter javadoc(@Nullable String rawText) {
+        return javadoc(indent(), rawText);
+    }
+
+    /**
+     * {@link #javadoc(String) javadoc} at a fixed indent level. Record
+     * components sit one level deeper than their type's header, so the writer
+     * passes {@code w.indent() + 1} when documenting a component.
+     */
+    public JavaWriter javadoc(int level, @Nullable String rawText) {
+        if (rawText == null || rawText.isBlank()) return this;
+        boolean first = true;
+        for (String raw : rawText.strip().split("\n")) {
+            for (int i = 0; i < level; i++) sb.append("    ");
+            sb.append(first ? "/**" : " *");
+            first = false;
+            String c = escapeHtml(raw);
+            if (c.isEmpty()) {
+                sb.append('\n');
+            } else {
+                sb.append(' ').append(c).append('\n');
+            }
+        }
+        for (int i = 0; i < level; i++) sb.append("    ");
+        sb.append("*/\n");
+        return this;
+    }
+
+    /** HTML-escape the characters that would otherwise read as markup in a
+     *  Javadoc block. Only {@code & < >} are escaped; {@code @} is left intact
+     *  (clean mode, no {@code <pre>} wrapper, so a bare {@code @} is safe). */
+    private static String escapeHtml(String s) {
+        StringBuilder out = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '&' -> out.append("&amp;");
+                case '<' -> out.append("&lt;");
+                case '>' -> out.append("&gt;");
+                default  -> out.append(c);
+            }
+        }
+        return out.toString();
     }
 
     /** Run {@code body} with indentation incremented and the block wrapped in

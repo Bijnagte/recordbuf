@@ -1,0 +1,72 @@
+// Per-family interop fixture for Javadoc + @Deprecated emission. A single
+// .proto drives both halves at generation time: recordbuf emits a record into
+// the `.rec` sibling package; protobuf-java emits its reference into this
+// package.
+//
+// This fixture exercises every ELEMENT that recordbuf now documents or
+// deprecates:
+//   - A type-level (record + enum) comment.
+//   - @Deprecated on a record (a nested message; a singular message is always
+//     presence-tracked, so its component is @Nullable — testing the
+//     @Nullable + @Deprecated combination).
+//   - @Deprecated on an enum CONSTANT.
+//   - @Deprecated on a NON-NULLABLE record component (a scalar).
+//   - A deprecated MAP field, exercising buildMapField carry-through: the
+//     synthesized map field IS the user's field, so its comment and
+//     deprecation must both land on the emitted Map component.
+//   - An HTML-content comment (<, >, &) that verifies the writer escapes
+//     only &, <, > and leaves @ bare (clean mode).
+//
+// No behavior change beyond presence; wire parity holds, so the interop
+// round-trip + byte-match harness still proves it.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.annotations;
+option java_package = "bijnagte.recordbuf.fixture.annotations";
+option java_multiple_files = true;
+
+// The record's public type name.
+//
+// Every element-level comment on this message and its nested types becomes a
+// clean Javadoc block; every @Deprecated on an option (message or field)
+// renders as a BARE @Deprecated annotation (java.lang is never imported).
+message Sample {
+    // A documented, non-deprecated scalar.
+    int32 id = 1;
+
+    // A documented, deprecated, OPTIONAL string component.
+    // HTML in the comment (the <, > and & below) must escape in the
+    // emitted Javadoc: & -> &amp;, < -> &lt;, > -> &gt;, but a bare @ stays.
+    optional string note = 2 [deprecated = true];
+
+    // A documented singular nested message that is itself @Deprecated.
+    //
+    // The nested record's own Javadoc and @Deprecated flag must both render;
+    // the component is @Nullable (a singular message is present-tracked) and
+    // @Deprecated — the two annotations compose in @Deprecated @Nullable order.
+    Payload payload = 3;
+
+    // A documented + deprecated map exercising buildMapField carry-through:
+    // the synthesized map field IS the user's field, so its comment and
+    // deprecation must both land on the emitted Map component.
+    map<string, int32> tags = 4 [deprecated = true];
+
+    // A documented (non-deprecated) nested message.
+    message Payload {
+        // The payload's single string body.
+        string body = 1;
+    }
+}
+
+// A documented top-level enum.
+enum Kind {
+    // Default / unspecified kind.
+    KIND_UNSET = 0;
+
+    // A deprecated constant should render @Deprecated on its own line above
+    // the declaration, preceded by a clean Javadoc block.
+    KIND_LEGACY = 1 [deprecated = true];
+
+    // A documented, non-deprecated constant.
+    KIND_ACTIVE = 2;
+}

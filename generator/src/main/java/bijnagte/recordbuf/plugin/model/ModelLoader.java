@@ -3,6 +3,7 @@ package bijnagte.recordbuf.plugin.model;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
@@ -10,6 +11,7 @@ import com.google.protobuf.DescriptorProtos.EnumDescriptorProto;
 import com.google.protobuf.DescriptorProtos.EnumValueDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Label;
+import com.google.protobuf.DescriptorProtos.SourceCodeInfo;
 
 import org.jspecify.annotations.Nullable;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
@@ -28,6 +30,12 @@ public final class ModelLoader {
 
     private final FileTable table;
     private final String javaPkgOf; // java package of the file being loaded, computed outside
+
+    // Leading doc comments (raw, un-escaped text) keyed by the element's location path in the
+    // FileDescriptorProto's source_code_info tree. Populated by load() for the file being loaded;
+    // the writers HTML-escape at emit time, so the model stores the user's raw text. Empty by
+    // default so the nested load* helpers (which read it) never dereference null.
+    private Map<List<Integer>, String> commentPaths = Map.of();
 
     // The two shipped proto extensions declared in src/main/proto/recordbuf_options.proto.
     // A resolved extension survives CodeGeneratorRequest serialization as an unknown field on
@@ -49,13 +57,19 @@ public final class ModelLoader {
     }
 
     public ProtoFile load(FileDescriptorProto fdp) {
+        // Leading comments are looked up by the element's source_code_info location path; build the
+        // index up front so every nested load* helper can attach a comment to its target. The
+        // file-level location (path []) is deliberately NOT rendered here (D3: file-level dropped).
+        this.commentPaths = indexComments(fdp);
         List<Message> topMsgs = new ArrayList<>();
-        for (DescriptorProto m : fdp.getMessageTypeList()) {
-            topMsgs.add(loadMessage(m, /*protoScope=*/ scopeRoot(fdp)));
+        for (int i = 0; i < fdp.getMessageTypeCount(); i++) {
+            DescriptorProto m = fdp.getMessageType(i);
+            topMsgs.add(loadMessage(m, /*protoScope=*/ scopeRoot(fdp), /*basePath=*/ path(4, i)));
         }
         List<Enum> topEnums = new ArrayList<>();
-        for (EnumDescriptorProto e : fdp.getEnumTypeList()) {
-            topEnums.add(loadEnum(e, /*protoScope=*/ scopeRoot(fdp)));
+        for (int i = 0; i < fdp.getEnumTypeCount(); i++) {
+            EnumDescriptorProto e = fdp.getEnumType(i);
+            topEnums.add(loadEnum(e, /*protoScope=*/ scopeRoot(fdp), /*basePath=*/ path(5, i)));
         }
         return new ProtoFile(
                 fdp.getName(),
@@ -68,34 +82,73 @@ public final class ModelLoader {
         );
     }
 
+    /** The two-element source_code_info path to a top-level message/enum by (fieldNumber, index). */
+    private static List<Integer> path(int fieldNumber, int index) {
+        return List.of(fieldNumber, index);
+    }
+
+    /** Extend a location path one level: the child's fieldNumber and its index within the parent. */
+    private static List<Integer> child(List<Integer> parent, int fieldNumber, int index) {
+        List<Integer> c = new ArrayList<>(parent.size() + 2);
+        c.addAll(parent);
+        c.add(fieldNumber);
+        c.add(index);
+        return c;
+    }
+
+    /**
+     * Index each {@code source_code_info} location's {@code leading_comments} by its path, skipping
+     * locations with no (non-blank) leading comment. {@code leading_detached_comments} is ignored
+     * (a detached block does not immediately precede its declaration, matching native).
+     */
+    private static Map<List<Integer>, String> indexComments(FileDescriptorProto fdp) {
+        Map<List<Integer>, String> map = new LinkedHashMap<>();
+        for (SourceCodeInfo.Location loc : fdp.getSourceCodeInfo().getLocationList()) {
+            if (!loc.hasLeadingComments()) continue;
+            String c = loc.getLeadingComments();
+            if (c == null || c.isBlank()) continue;
+            map.put(List.copyOf(loc.getPathList()), c);
+        }
+        return map;
+    }
+
+    /** The raw leading comment for a location path, or {@code null} when none was captured. */
+    @Nullable
+    private String commentAtPath(List<Integer> p) {
+        return commentPaths.get(p);
+    }
+
     private static String scopeRoot(FileDescriptorProto fdp) {
         return fdp.getPackage();
     }
 
     // --- messages ---
 
-    private Message loadMessage(DescriptorProto m, String protoScope) {
+    private Message loadMessage(DescriptorProto m, String protoScope, List<Integer> basePath) {
         List<Field> fields = new ArrayList<>();
-        for (FieldDescriptorProto f : m.getFieldList()) {
+        for (int i = 0; i < m.getFieldCount(); i++) {
             // Skip the synthesized "Entry" fields inside map-entry messages:
             // they should never appear as fields of a user-declared message,
-            // but defensively skip them anyway.
+            // but defensively skip them anyway. `i` is the raw field index, which
+            // is what source_code_info locations key on, so it is used even on skip.
             if (isMapEntryDescriptor(m)) {
                 // skip — we represent maps as a single "map" Field on the parent
             } else {
-                fields.add(loadField(f, m, protoScope));
+                fields.add(loadField(m.getField(i), m, protoScope, child(basePath, 2, i)));
             }
         }
         fields = maybeExpandMaps(fields, m, protoScope);
 
         List<Message> nestedMsgs = new ArrayList<>();
-        for (DescriptorProto nested : m.getNestedTypeList()) {
+        for (int j = 0; j < m.getNestedTypeCount(); j++) {
+            DescriptorProto nested = m.getNestedType(j); // raw index: source_code_info keys on it
             if (isMapEntryDescriptor(nested)) continue; // don't surface Entry records
-            nestedMsgs.add(loadMessage(nested, protoScopeForNested(m, protoScope)));
+            nestedMsgs.add(loadMessage(nested, protoScopeForNested(m, protoScope), child(basePath, 3, j)));
         }
         List<Enum> nestedEnums = new ArrayList<>();
-        for (EnumDescriptorProto nested : m.getEnumTypeList()) {
-            nestedEnums.add(loadEnum(nested, protoScopeForNested(m, protoScope)));
+        for (int j = 0; j < m.getEnumTypeCount(); j++) {
+            EnumDescriptorProto nested = m.getEnumType(j); // raw index: source_code_info keys on it
+            nestedEnums.add(loadEnum(nested, protoScopeForNested(m, protoScope), child(basePath, 4, j)));
         }
 
         String javaScope = join(javaPkgOf, JavaNames.cap(m.getName()));
@@ -106,7 +159,7 @@ public final class ModelLoader {
                 .nestedMessages(List.copyOf(nestedMsgs))
                 .nestedEnums(List.copyOf(nestedEnums))
                 .deprecated(m.getOptions().getDeprecated())
-                .comment(null)
+                .comment(commentAtPath(basePath))
                 .interfaces(interfacesFor(
                         m.getOptions().getUnknownFields(),
                         m.getOptions().getUninterpretedOptionList(),
@@ -173,7 +226,9 @@ public final class ModelLoader {
         // this family) is resolved to its proto FQN for later resolution.
         String keyProtoType = mapMemberProtoType(keyP, typeScope(entry, protoScope));
         String valProtoType = mapMemberProtoType(valP, typeScope(entry, protoScope));
-        // For maps, we keep the synthetic field's name but mark as MAP.
+        // For maps, we keep the synthetic field's name but mark as MAP. The synthetic map field IS
+        // the user's field (e.g. `map<string,int32> users = 1;`), so its comment/deprecation must
+        // carry through from the field loadField already built -- not be re-defaulted to null/false.
         return new Field(
                 synthetic.name(),
                 synthetic.javaName(),
@@ -185,7 +240,8 @@ public final class ModelLoader {
                 valProtoType,
                 /*proto3Optional=*/ false,
                 /*defaultValue=*/ null,
-                null
+                /*comment=*/ synthetic.comment(),
+                /*deprecated=*/ synthetic.deprecated()
         );
     }
 
@@ -229,14 +285,15 @@ public final class ModelLoader {
 
     // --- enums ---
 
-    private Enum loadEnum(EnumDescriptorProto e, String protoScope) {
+    private Enum loadEnum(EnumDescriptorProto e, String protoScope, List<Integer> basePath) {
         List<Enum.EnumConstant> cs = new ArrayList<>();
-        for (EnumValueDescriptorProto v : e.getValueList()) {
+        for (int i = 0; i < e.getValueCount(); i++) {
+            EnumValueDescriptorProto v = e.getValue(i);
             cs.add(new Enum.EnumConstant(
                     JavaNames.snakeUpper(v.getName()),
                     v.getNumber(),
                     v.getOptions().getDeprecated(),
-                    null
+                    commentAtPath(child(basePath, 2, i))
             ));
         }
         String javaFqn = join(javaPkgOf, JavaNames.cap(e.getName()));
@@ -245,7 +302,7 @@ public final class ModelLoader {
                 .fullName(javaFqn)
                 .constants(List.copyOf(cs))
                 .deprecated(e.getOptions().getDeprecated())
-                .comment(null)
+                .comment(commentAtPath(basePath))
                 .interfaces(interfacesFor(
                         e.getOptions().getUnknownFields(),
                         e.getOptions().getUninterpretedOptionList(),
@@ -256,7 +313,7 @@ public final class ModelLoader {
 
     // --- fields ---
 
-    private Field loadField(FieldDescriptorProto f, DescriptorProto parent, String protoScope) {
+    private Field loadField(FieldDescriptorProto f, DescriptorProto parent, String protoScope, List<Integer> path) {
         String javaName = JavaNames.camel(f.getName());
         FieldLabel label = label(f.getLabel());
 
@@ -299,7 +356,8 @@ public final class ModelLoader {
                 mapValue,
                 /*proto3Optional=*/ proto3Opt,
                 defaultVal,
-                null
+                /*comment=*/ commentAtPath(path),
+                /*deprecated=*/ f.getOptions().getDeprecated()
         );
     }
 

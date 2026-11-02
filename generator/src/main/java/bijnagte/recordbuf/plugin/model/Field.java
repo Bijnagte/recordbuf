@@ -22,6 +22,9 @@ import org.jspecify.annotations.Nullable;
  *                       kind/label) to decide presence — see {@link #isNullable()}
  * @param defaultValue   textual default (only meaningful for proto2 optionals
  *                       and for map/scalar defaults)
+ * @param comment        the field's own leading doc comment, if captured
+ * @param deprecated     {@code option deprecated = true} on the field (rendered as a bare
+ *                       {@code @Deprecated} on the record component)
  */
 @RecordBuilder
 public record Field(
@@ -35,7 +38,8 @@ public record Field(
         @Nullable String mapValue,
         boolean proto3Optional,
         @Nullable Object defaultValue,
-        @Nullable String comment
+        @Nullable String comment,
+        boolean deprecated
 ) {
     public boolean isMap() { return kind == FieldKind.MAP; }
     public boolean isMessage() { return kind == FieldKind.MESSAGE; }

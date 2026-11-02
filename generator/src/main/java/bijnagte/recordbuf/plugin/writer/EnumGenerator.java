@@ -13,13 +13,18 @@ public final class EnumGenerator {
     /** Emit a top-level enum declaration at the current writer indent. */
     public void write(JavaWriter w, Enum e, TypeImports ci) {
         String name = e.name();
+        // Type-level Javadoc (clean, HTML-escaped at emit time) then a bare
+        // @Deprecated when the proto marked this enum deprecated.
+        w.javadoc(e.comment());
         if (e.deprecated()) w.line("@Deprecated");
         w.line("public enum " + name + RecordGenerator.implementsClause(ci, e.interfaces()) + " {");
 
-        // Foo(0), Bar(1);
+        // Foo(0), Bar(1); -- each constant may carry a Javadoc and/or @Deprecated.
         for (int i = 0; i < e.constants().size(); i++) {
             var c = e.constants().get(i);
             char sep = (i == e.constants().size() - 1) ? ';' : ',';
+            w.javadoc(c.comment());
+            if (c.deprecated()) w.line("@Deprecated");
             w.line(c.name() + "(" + c.number() + ")" + sep);
         }
         w.line();
