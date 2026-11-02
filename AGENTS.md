@@ -39,18 +39,23 @@ documented area. `docs/README.md` describes the layout.
   carrying `@NullMarked`, and `Optional<String>` comment / name fields have
   been rewritten to `@Nullable String` (see
   `model.Field#comment`, `model.Message#comment`, `model.Enum.EnumConstant#name`,
-  `model.ProtoFile#message`/`enum`/`package`). **NullAway itself is DEFERRED**
-  (see the `plugins{}` note in `build.gradle.kts`): `com.uber:nullaway` has
-  no resolvable versions in this environment's current Maven mirror, and
-  enabling Error Prone's full default checker set on its own fires ~71
-  warnings that are mostly in the generated `com.google.protobuf.compiler`
-  shim we treat as out-of-scope protocol glue. Re-enabling NullAway is
-  a one-line `errorprone(libs.nullaway)` plus the `JSpecifyMode=true` +
-  `OnlyNullMarked=true` `-XepOpt`s (documented in `build.gradle.kts`); on
-  JDK 22+ both flags are needed so the checker *honors* the JSpecify
-  annotations instead of re-inventing its own nullability model, and
-  `OnlyNullMarked` keeps the generated shim out of its scope. Don't assume
-  the checker is running until that step lands.
+  `model.ProtoFile#message`/`enum`/`package`). **NullAway is WIRED and
+  enforced at error severity** in both `:recordbuf-generator` and
+  `:recordbuf-runtime` via `net.ltgt.errorprone` (catalog alias
+  `libs.plugins.gradle.errorprone`, v5.1.1) + `errorprone(libs.nullaway)`
+  (catalog coordinate is **`com.uber.nullaway:nullaway:0.14.3`**, NOT
+  `com.uber:nullaway` — the latter never resolves). Each affected module
+  passes its `JSpecifyMode`/`OnlyNullMarked` scope via the *blessed*
+  `options.errorprone { … }` DSL (**not** `compilerArgs.add("-XepOpt:…")`,
+  which is rejected as `invalid flag` on this toolchain combo); only
+  `OnlyNullMarked=true` is set (0.14.x auto-detects JSpecify on 22+, so
+  `JSpecifyMode` is NOT set and the `OnlyNullMarked` flag keeps the un-
+  `@NullMarked` generated `com.google.protobuf.compiler` shim out of scope).
+  In `:recordbuf-generator` the record-builder-generated `*Builder`/`*With`
+  sources (which don't propagate `@Nullable`) are kept out via `excludedPaths`.
+  Both modules are also `@NullMarked`-annotated on their `package-info.java`
+  (runtime's was added this session). A real null violation fails the build —
+  verified by a mutation test in both modules.
 - **Record builders: WIRED for the plugin's own model records.**
   `Field`, `Message`, `Enum`, `Enum.EnumConstant`, and `ProtoFile` all carry
   `@RecordBuilder` (`io.soabase.recordbuilder.core.RecordBuilder`); the
@@ -59,12 +64,19 @@ documented area. `docs/README.md` describes the layout.
   code produced by the plugin itself does NOT get `@RecordBuilder` — the
   plugin output stays dependency-free (per the original `record`-output
   requirement).
-- **Error Prone / NullAway: DEFERRED.** See `build.gradle.kts` for the
-  exact recipe. The version catalog still declares
-  `error-prone=2.51.0` (group `com.google.errorprone`, NOT
-  `com.github.errorprone` — the latter group has no resolvable version in
-  this environment), `nullaway=0.14.3` (group `com.uber`), and
-  `gradle-errorprone=5.1.1` (`net.ltgt.errorprone`).
+- **Error Prone / NullAway: WIRED.** `:recordbuf-generator` and `:recordbuf-runtime`
+  both apply `net.ltgt.errorprone`, add `errorprone(libs.nullaway)` +
+  `errorprone(libs.error.prone.core)`, and run NullAway at error severity via
+  `options.errorprone { disableAllChecks = true; error("NullAway"); option(
+  "NullAway:OnlyNullMarked","true") }` (the generator also excludes its
+  record-builder-generated sources via `excludedPaths`). The catalog declares
+  `error-prone=2.51.0` (group `com.google.errorprone`, NOT `com.github.errorprone`
+  — the latter group has no resolvable version), **`nullaway=0.14.3` (group
+  `com.uber.nullaway` — NOT `com.uber`, which never resolves — a coordinate
+  bug fixed this session)** and `gradle-errorprone=5.1.1`
+  (`net.ltgt.errorprone`). JDK 16+ auto-forking + `--add-opens`/
+  `--add-exports` are handled by the plugin; error-prone 2.51.0's min-JDK is 21
+  (per the plugin docs table), so it runs cleanly on this project's JDK 25.
 - **Formatting / logging:** the cross-project requirements — Spotless +
   Google Java Format and SLF4J-only logging — are **not yet wired into
   recordbuf.** Don't assume `spotlessCheck` or a logging framework are present;
@@ -117,7 +129,7 @@ documented area. `docs/README.md` describes the layout.
 `java-code-style`, `java-unit-testing`, `java-gradle-build`, and
 `java-design-review` from `~/.pi/agent/skills/` are in scope here. They carry
 the cross-project defaults; the overrides above win when they conflict
-(principally the **deferred** NullAway + Spotless/SLF4J tooling).
+(principally the **not-yet-wired** Spotless + SLF4J-logging cross-project tooling).
 
 <!-- BEGIN COMPOUND PI TOOL MAP -->
 ## Compound Engineering (Pi compatibility)
