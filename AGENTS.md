@@ -7,14 +7,25 @@ defaults in `~/.pi/agent/AGENTS.md` and the Java skills for this project.
 
 `recordbuf` builds **`protoc-gen-recordbuf`**, a `protoc` code generator plugin
 that turns `.proto` files into Java records + protobuf codecs.
-- Group / version: `bijnagte.recordbuf` / `0.0.1`.
-- Main class: `bijnagte.recordbuf.plugin.Main`; application name
-  `protoc-gen-recordbuf`.
-- Output of codegen goes to `src/main/java` under the `bijnagte.recordbuf`
-  package (subpackages: `plugin`, `plugin.model`, `plugin.types`,
-  `plugin.writer`). A `com.google.protobuf.compiler` shim in
-  `src/main/java/com/google/protobuf/compiler` holds the protoc plugin-protocol
-  classes — treat it as generated/protocol glue; don't hand-rename.
+- Group / version: `bijnagte.recordbuf` / `0.0.1`, co-versioned from a single
+  `subprojects {}` block in the root `build.gradle.kts`.
+- **Multi-module (flat role-named dirs under the repo root; see
+  `settings.gradle.kts` — KTD1):**
+  - `:recordbuf-generator` → `generator/` — the plugin itself.
+  - `:recordbuf-runtime` → `runtime/` — the codec helpers generated code calls
+    into (`bijnagte.recordbuf.runtime`).
+  - `:recordbuf-options` → `options/` — the `recordbuf_options.proto`.
+  - `:recordbuf-fixtures` → `fixtures/` — interop/interface test fixtures.
+  There is **no top-level `src/`**; each module has its own `src/`.
+- Main class: `bijnagte.recordbuf.plugin.Main` (in `:recordbuf-generator`);
+  application name `protoc-gen-recordbuf`.
+- The plugin's own source lives under
+  `generator/src/main/java/bijnagte/recordbuf/plugin` (subpackages
+  `plugin.model`, `plugin.types`, `plugin.writer`). A `com.google.protobuf.compiler`
+  shim in `generator/src/main/java/com/google/protobuf/compiler` holds the protoc
+  plugin-protocol classes — treat it as generated/protocol glue; don't
+  hand-rename. Generated codec records/encoders are written wherever you point
+  `--recordbuf_out`; they are not part of the repo's own `src/`.
 
 ## Documented solutions
 
@@ -27,8 +38,10 @@ documented area. `docs/README.md` describes the layout.
 
 - **Build tool:** Gradle, **Kotlin DSL** (`build.gradle.kts`). Always use the
   wrapper `./gradlew` — never a global `gradle`.
-- **Java level: this project targets Java 25** (`java.release = 25`,
-  `sourceCompatibility/targetCompatibility = 25`). The user's active JDK is
+- **Java level: this project targets Java 25** via the Gradle toolchain
+  (`toolchain { languageVersion = JavaLanguageVersion.of(25) }` in both
+  `:recordbuf-generator` and `:recordbuf-runtime`), **NOT**
+  `sourceCompatibility`/`targetCompatibility` or `java.release`. The user's active JDK is
   Temurin 25 (LTS); we don't artificially down-level. Use **Java 25 language
   features** when building on the project's toolchain — but generated code
   that goes into *user's* classpaths should stay close to a wider baseline
@@ -92,13 +105,14 @@ documented area. `docs/README.md` describes the layout.
 - Full check (compile + test + assemble): `./gradlew build`
 - Tests (JUnit Platform — no AssertJ/Mockito are in this project's classpath
   yet): `./gradlew test`
-- Regenerate the plugin launcher for use by `protoc`: `./gradlew installDist`
-  → produces `build/scripts/protoc-gen-recordbuf` (a self-contained launcher
-  that execs `java -cp … bijnagte.recordbuf.plugin.Main`).
+- Regenerate the plugin launcher for use by `protoc`:
+  `./gradlew :recordbuf-generator:installDist`
+  → produces `generator/build/scripts/protoc-gen-recordbuf` (a self-contained
+  launcher that execs `java -cp … bijnagte.recordbuf.plugin.Main`).
 - Generate code from a `.proto` (after `installDist`):
   ```bash
-  protoc --plugin=protoc-gen-recordbuf=$PWD/build/scripts/protoc-gen-recordbuf \
-         --recordbuf_out=src/main/java src/main/proto/hello.proto
+  protoc --plugin=protoc-gen-recordbuf=$PWD/generator/build/scripts/protoc-gen-recordbuf \
+         --recordbuf_out=src/main/java <some>/hello.proto
   ```
 - Gradle is configured for **cache + parallel** (`gradle.properties`); expect
   up-to-date cache hits and run `./gradlew --rerun-tasks` only to bypass it.
@@ -111,16 +125,16 @@ documented area. `docs/README.md` describes the layout.
   new annotations only when a new model record is added, not per-declaration.
   The un-annotated `types`/`writer`/top-level `Main`/`CodeGenerator` classes
   follow the older, un-annotated style until they are touched.
-- Generated code under `src/main/java` (from `.proto`) — prefer editing the
-  generator / source model over hand-patching generated outputs; if you must,
-  say so.
+- Generated code (wherever you point `--recordbuf_out`; the fixtures use
+  `fixtures/src/main/java`) — prefer editing the generator / source model over
+  hand-patching generated outputs; if you must, say so.
 - The `com.google.protobuf.compiler` shim: don't rename or refactor without a
   reason.
 
 ## Verification before "done"
 
 1. `./gradlew build` is green (compile + `./gradlew test`).
-2. If codegen was touched: `./gradlew installDist`, re-generate a sample
+2. If codegen was touched: `./gradlew :recordbuf-generator:installDist`, re-generate a sample
    `.proto`, and confirm the generated output compiles + round-trips.
 3. No manual reformatting that the project doesn't otherwise enforce.
 
