@@ -18,14 +18,14 @@ import org.junit.jupiter.api.Test;
  */
 class OrderTest {
 
-    private Sample sample() {
+    private bijnagte.recordbuf.fixture.order.rec.Sample sample() {
         // Construct in declaration order (c, a, b); the codec must re-order by
         // field number on the wire so it matches protobuf-java (a, b, c on the wire).
-        return new Sample(3, 1, 2);
+        return new bijnagte.recordbuf.fixture.order.rec.Sample(3, 1, 2);
     }
 
     private byte[] refBytes() {
-        return bijnagte.recordbuf.fixture.order.ref.Sample.newBuilder()
+        return Sample.newBuilder()
                 .setC(3)
                 .setA(1)
                 .setB(2)
@@ -36,20 +36,20 @@ class OrderTest {
     /** Byte-for-byte: record encode == protobuf-java toByteArray. */
     @Test
     void byteEqual() throws Exception {
-        assertArrayEquals(refBytes(), Sample.Codec.encode(sample()),
+        assertArrayEquals(refBytes(), bijnagte.recordbuf.fixture.order.rec.Sample.Codec.encode(sample()),
             "non-ascending field numbers must still byte-match protobuf-java");
     }
 
     /** Semantics: decode(protobuf-java bytes) == record. */
     @Test
     void interopDecodesProtobuf() throws Exception {
-        assertEquals(sample(), Sample.Codec.decode(refBytes()));
+        assertEquals(sample(), bijnagte.recordbuf.fixture.order.rec.Sample.Codec.decode(refBytes()));
     }
 
     /** Invariant: decode(encode(x)) == x. */
     @Test
     void roundTrip() throws Exception {
-        Sample x = sample();
-        assertEquals(x, Sample.Codec.decode(Sample.Codec.encode(x)));
+        bijnagte.recordbuf.fixture.order.rec.Sample x = sample();
+        assertEquals(x, bijnagte.recordbuf.fixture.order.rec.Sample.Codec.decode(bijnagte.recordbuf.fixture.order.rec.Sample.Codec.encode(x)));
     }
 }

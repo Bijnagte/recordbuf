@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class PackedTest {
 
-    // Sample field order: a int32, b int64, c fixed32, d fixed64, e float,
+    // bijnagte.recordbuf.fixture.packed.rec.Sample field order: a int32, b int64, c fixed32, d fixed64, e float,
     // f double, g sint32, h sint64, i uint32, j uint64. Each list is
     // distinct-value so packed-width + zigzag framing is exercised.
     private static final List<Integer> A = List.of(1, -2, Integer.MAX_VALUE, 0);
@@ -42,13 +42,13 @@ class PackedTest {
     private static final List<Long>    J = List.of(1L, 12_345L, 9_000_000_000L);
 
     /** A fully-populated sample: a non-empty packed list for every field. */
-    private static Sample sample() {
-        return new Sample(A, B, C, D, E, F, G, H, I, J);
+    private static bijnagte.recordbuf.fixture.packed.rec.Sample sample() {
+        return new bijnagte.recordbuf.fixture.packed.rec.Sample(A, B, C, D, E, F, G, H, I, J);
     }
 
     /** The proto3 default sample: an empty list for every field, all omitted. */
-    private static Sample empty() {
-        return new Sample(List.of(), List.of(), List.of(), List.of(), List.of(),
+    private static bijnagte.recordbuf.fixture.packed.rec.Sample empty() {
+        return new bijnagte.recordbuf.fixture.packed.rec.Sample(List.of(), List.of(), List.of(), List.of(), List.of(),
                 List.of(), List.of(), List.of(), List.of(), List.of());
     }
 
@@ -61,11 +61,11 @@ class PackedTest {
     @Test
     void byteEqual() throws Exception {
         byte[] theirs = newBuilder().build().toByteArray();
-        byte[] ours = Sample.Codec.encode(sample());
+        byte[] ours = bijnagte.recordbuf.fixture.packed.rec.Sample.Codec.encode(sample());
         assertArrayEquals(theirs, ours, "record encode must equal protobuf-java toByteArray");
 
-        byte[] theirsDefault = bijnagte.recordbuf.fixture.packed.ref.Sample.newBuilder().build().toByteArray();
-        byte[] oursDefault = Sample.Codec.encode(empty());
+        byte[] theirsDefault = Sample.newBuilder().build().toByteArray();
+        byte[] oursDefault = bijnagte.recordbuf.fixture.packed.rec.Sample.Codec.encode(empty());
         assertArrayEquals(theirsDefault, oursDefault, "default sample must be empty on the wire");
         assertArrayEquals(new byte[0], oursDefault, "all-empty packed lists must encode to zero bytes");
     }
@@ -74,23 +74,23 @@ class PackedTest {
     @Test
     void interopDecodesProtobuf() throws Exception {
         byte[] theirs = newBuilder().build().toByteArray();
-        Sample parsed = Sample.Codec.decode(theirs);
+        bijnagte.recordbuf.fixture.packed.rec.Sample parsed = bijnagte.recordbuf.fixture.packed.rec.Sample.Codec.decode(theirs);
         assertEquals(sample(), parsed);
     }
 
     /** Decoding an all-empty encode yields empty lists for every field. */
     @Test
     void roundTrip() throws Exception {
-        Sample v = sample();
-        assertEquals(v, Sample.Codec.decode(Sample.Codec.encode(v)));
+        bijnagte.recordbuf.fixture.packed.rec.Sample v = sample();
+        assertEquals(v, bijnagte.recordbuf.fixture.packed.rec.Sample.Codec.decode(bijnagte.recordbuf.fixture.packed.rec.Sample.Codec.encode(v)));
 
-        Sample d = Sample.Codec.decode(Sample.Codec.encode(empty()));
+        bijnagte.recordbuf.fixture.packed.rec.Sample d = bijnagte.recordbuf.fixture.packed.rec.Sample.Codec.decode(bijnagte.recordbuf.fixture.packed.rec.Sample.Codec.encode(empty()));
         assertEquals(List.of(), d.a());
         assertEquals(List.of(), d.j());
     }
 
-    private static bijnagte.recordbuf.fixture.packed.ref.Sample.Builder newBuilder() {
-        return bijnagte.recordbuf.fixture.packed.ref.Sample.newBuilder()
+    private static Sample.Builder newBuilder() {
+        return Sample.newBuilder()
                 .addAllA(A)
                 .addAllB(B)
                 .addAllC(C)

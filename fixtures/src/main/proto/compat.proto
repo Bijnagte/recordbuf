@@ -25,6 +25,7 @@ syntax = "proto3";
 
 package bijnagte.recordbuf.fixture.combined;
 option java_package = "bijnagte.recordbuf.fixture.combined";
+option java_multiple_files = true;
 
 // Exactly one top-level message per family proto: the record's public type name
 // must match its source filename (Java requires one public type/file). The

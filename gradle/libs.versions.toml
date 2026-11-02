@@ -7,6 +7,11 @@ error-prone       = "2.51.0"
 nullaway          = "0.14.3"
 gradle-errorprone = "5.1.1"   # net.ltgt.errorprone Gradle plugin
 protobuf          = "4.36.2"
+# NOTE: the com.google.protobuf (Protobuf-Gradle-plugin) version is pinned inline
+# in fixtures/build.gradle.kts as id("com.google.protobuf") version "0.10.0".
+# It is deliberately NOT a [plugins]-catalog entry: a catalog key named
+# `protobuf-...` would be grouped under the `protobuf` version prefix and break
+# the `libs.versions.protobuf` accessor.
 junit-jupiter     = "5.11.3"
 junit-platform    = "1.11.3"   # junit-platform-* modules are versioned 1.x, paired with jupiter 5.11.x
 

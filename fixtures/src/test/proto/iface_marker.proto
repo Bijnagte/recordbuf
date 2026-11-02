@@ -1,3 +1,6 @@
+// Record-only interop fixture for the java_interface / java_enum_interface options.
+// It is generated from the `test` proto source set by generateTestProto, which drops the
+// protobuf-java builtin (no reference) so the natural-package record stays collision-free.
 syntax = "proto3";
 
 package bijnagte.recordbuf.fixture.iface;

@@ -1,15 +1,16 @@
-// Per-family interop fixture for the proto3 map<K,V> field family. The recordbuf
-// record is generated from this file (--recordbuf_out); the protobuf-java
-// reference is generated from map-ref.proto (--java_out) into a sibling `*.ref`
-// java_package so the two coexist. A proto3 `map<K,V>` is syntactic sugar for a
-// `repeated Entry` message (key=1, value=2), so on the wire each entry is a
-// length-delimited nested message -- the same framing as a repeated/nested
-// message. The generated record component is a java.util.Map<K,V> whose entry
-// round-trips via an entry-level Codec.
+// Per-family interop fixture for the map field family. A single .proto drives
+// both halves at generation time via the recordbuf plugin and the protobuf-gradle
+// plugin: the record is emitted to the `.rec` sibling package (via the
+// package_suffix=.rec plugin parameter, so recordbuf appends a `.rec` segment to
+// each java_package, and the protobuf-java reference is emitted to this family's
+// natural java_package via --java_out. The record (bijnagte.recordbuf.fixture.map
+// .rec.*) and the reference (bijnagte.recordbuf.fixture.map.*) coexist, so the
+// interop test qualifies the record and leaves the reference unqualified.
 syntax = "proto3";
 
 package bijnagte.recordbuf.fixture.map;
 option java_package = "bijnagte.recordbuf.fixture.map";
+option java_multiple_files = true;
 
 // Exactly one top-level message per family proto: the record's public type name
 // must match its source filename (Java requires one public type/file).

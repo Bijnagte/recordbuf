@@ -38,13 +38,13 @@ class MapTest {
     private static final Map<String, Boolean> C = Map.of("on", true, "off", false);
 
     /** A fully-populated sample: a distinct non-empty map for every family. */
-    private static Sample sample() {
-        return new Sample(A, B, C);
+    private static bijnagte.recordbuf.fixture.map.rec.Sample sample() {
+        return new bijnagte.recordbuf.fixture.map.rec.Sample(A, B, C);
     }
 
     /** The proto3 default sample: an empty map for every field, all omitted. */
-    private static Sample empty() {
-        return new Sample(Map.of(), Map.of(), Map.of());
+    private static bijnagte.recordbuf.fixture.map.rec.Sample empty() {
+        return new bijnagte.recordbuf.fixture.map.rec.Sample(Map.of(), Map.of(), Map.of());
     }
 
     /**
@@ -56,11 +56,11 @@ class MapTest {
     @Test
     void byteEqual() throws Exception {
         byte[] theirs = newBuilder().build().toByteArray();
-        byte[] ours = Sample.Codec.encode(sample());
+        byte[] ours = bijnagte.recordbuf.fixture.map.rec.Sample.Codec.encode(sample());
         assertArrayEquals(theirs, ours, "record encode must equal protobuf-java toByteArray");
 
-        byte[] theirsDefault = bijnagte.recordbuf.fixture.map.ref.Sample.newBuilder().build().toByteArray();
-        byte[] oursDefault = Sample.Codec.encode(empty());
+        byte[] theirsDefault = Sample.newBuilder().build().toByteArray();
+        byte[] oursDefault = bijnagte.recordbuf.fixture.map.rec.Sample.Codec.encode(empty());
         assertArrayEquals(theirsDefault, oursDefault, "default sample must be empty on the wire");
         assertArrayEquals(new byte[0], oursDefault, "all-empty maps must encode to zero bytes");
     }
@@ -69,7 +69,7 @@ class MapTest {
     @Test
     void interopDecodesProtobuf() throws Exception {
         byte[] theirs = newBuilder().build().toByteArray();
-        Sample parsed = Sample.Codec.decode(theirs);
+        bijnagte.recordbuf.fixture.map.rec.Sample parsed = bijnagte.recordbuf.fixture.map.rec.Sample.Codec.decode(theirs);
         assertEquals(sample(), parsed);
         // The int map key (field b) round-trips as a boxed Integer, not a primitive int.
         assertEquals("one", parsed.b().get(1));
@@ -79,17 +79,17 @@ class MapTest {
     /** Decoding an all-empty encode yields an empty map for every field. */
     @Test
     void roundTrip() throws Exception {
-        Sample v = sample();
-        assertEquals(v, Sample.Codec.decode(Sample.Codec.encode(v)));
+        bijnagte.recordbuf.fixture.map.rec.Sample v = sample();
+        assertEquals(v, bijnagte.recordbuf.fixture.map.rec.Sample.Codec.decode(bijnagte.recordbuf.fixture.map.rec.Sample.Codec.encode(v)));
 
-        Sample d = Sample.Codec.decode(Sample.Codec.encode(empty()));
+        bijnagte.recordbuf.fixture.map.rec.Sample d = bijnagte.recordbuf.fixture.map.rec.Sample.Codec.decode(bijnagte.recordbuf.fixture.map.rec.Sample.Codec.encode(empty()));
         assertEquals(Map.of(), d.a());
         assertEquals(Map.of(), d.b());
         assertEquals(Map.of(), d.c());
     }
 
-    private static bijnagte.recordbuf.fixture.map.ref.Sample.Builder newBuilder() {
-        return bijnagte.recordbuf.fixture.map.ref.Sample.newBuilder()
+    private static Sample.Builder newBuilder() {
+        return Sample.newBuilder()
                 .putAllA(A)
                 .putAllB(B)
                 .putAllC(C);

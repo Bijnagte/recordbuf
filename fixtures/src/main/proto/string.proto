@@ -1,11 +1,21 @@
-// Per-family interop fixture for the string field family. The recordbuf record
-// is generated from this file (--recordbuf_out); the protobuf-java reference is
-// generated from string-ref.proto (--java_out) into a sibling `*.ref` package so
-// the two coexist.
+// Per-family interop fixture for the string field family. A single .proto drives
+// both halves at generation time via the recordbuf plugin and the protobuf-gradle
+// plugin: the record is emitted to the `.rec` sibling package (via the
+// package_suffix=.rec plugin parameter, so recordbuf appends a `.rec` segment to
+// each java_package, and the protobuf-java reference is emitted to this family's
+// natural java_package via --java_out. The record (bijnagte.recordbuf.fixture.string
+// .rec.*) and the reference (bijnagte.recordbuf.fixture.string.*) coexist, so the
+// interop test qualifies the record and leaves the reference unqualified.
 syntax = "proto3";
 
 package bijnagte.recordbuf.fixture.string;
 option java_package = "bijnagte.recordbuf.fixture.string";
+option java_multiple_files = true;
+// Keep the protobuf-java gencode class out of the way of java.lang.String: with
+// the reference sharing this family's natural package (no more .ref split), a
+// default `String` gencode class would shadow java.lang.String in the same-package
+// test. Naming it StringProto avoids the collision.
+option java_outer_classname = "StringProto";
 
 // Exactly one top-level message per family proto: the record's public type
 // name must match its source filename.

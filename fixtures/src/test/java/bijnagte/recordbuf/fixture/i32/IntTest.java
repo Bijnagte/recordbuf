@@ -9,10 +9,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * Byte-and-semantic interop of the generated record codec against the
  * protobuf-java reference for the {@code int32} family.
  *
- * <p>The record under test lives in this same package (so {@code Sample} is
- * unqualified). The protobuf-java reference lives in a sibling {@code .ref}
- * package and is referred to by fully-qualified name to avoid a
- * same-simple-name import collision.
+ * <p>The record under test lives in a sibling {@code .rec} package and is
+referred to by fully-qualified name. The protobuf-java reference lives in
+this same package (so {@code Sample} is unqualified), avoiding a
+same-simple-name import collision.
  */
 class IntTest {
 
@@ -24,11 +24,11 @@ class IntTest {
     @Test
     void byteEqual() throws Exception {
         byte[] theirs =
-                bijnagte.recordbuf.fixture.i32.ref.Sample.newBuilder()
+                Sample.newBuilder()
                         .setA(0x8000_0000)
                         .build()
                         .toByteArray();
-        byte[] ours = Sample.Codec.encode(new Sample(0x8000_0000));
+        byte[] ours = bijnagte.recordbuf.fixture.i32.rec.Sample.Codec.encode(new bijnagte.recordbuf.fixture.i32.rec.Sample(0x8000_0000));
         assertArrayEquals(theirs, ours, "record encode must equal protobuf-java toByteArray");
     }
 
@@ -36,17 +36,17 @@ class IntTest {
     @Test
     void interopDecodesProtobuf() throws Exception {
         byte[] theirs =
-                bijnagte.recordbuf.fixture.i32.ref.Sample.newBuilder()
+                Sample.newBuilder()
                         .setA(0x8000_0000)
                         .build()
                         .toByteArray();
-        Sample parsed = Sample.Codec.decode(theirs);
-        assertEquals(new Sample(0x8000_0000), parsed);
+        bijnagte.recordbuf.fixture.i32.rec.Sample parsed = bijnagte.recordbuf.fixture.i32.rec.Sample.Codec.decode(theirs);
+        assertEquals(new bijnagte.recordbuf.fixture.i32.rec.Sample(0x8000_0000), parsed);
     }
 
     @Test
     void roundTrip() throws Exception {
-        Sample v = new Sample(0x8000_0000);
-        assertEquals(v, Sample.Codec.decode(Sample.Codec.encode(v)));
+        bijnagte.recordbuf.fixture.i32.rec.Sample v = new bijnagte.recordbuf.fixture.i32.rec.Sample(0x8000_0000);
+        assertEquals(v, bijnagte.recordbuf.fixture.i32.rec.Sample.Codec.decode(bijnagte.recordbuf.fixture.i32.rec.Sample.Codec.encode(v)));
     }
 }

@@ -1,0 +1,131 @@
+// NOTE: This module is intentionally Groovy (build.gradle, not .kts). This was
+// checked empirically by converting to .kts and running generateProto:
+// the com.google.protobuf (protobuf-gradle-plugin) per-task DSL is *drivable*
+// from Kotlin but not cleanly — a KTS conversion required at least five
+// non-trivial workarounds, one of which is unreachable on the KTS script
+// classpath:
+//   1. includeDirs is a FileCollection (no .from); needs addIncludeDir(files(...)).
+//   2. builtins.removeByName("java") is unavailable on the KTS script classpath;
+//      the plugin's own `remove`/`id` Kotlin extension holder
+//      (ProtobufConfiguratorExtsKt) does not resolve from a .kts build, so even
+//      that path is dead. option() on the per-task PluginOptions IS typed and
+//      works from both languages.
+//   3. `id("java-library")` (not the java`-library` shortcut) and the Test task
+//      type must be referenced fully-qualified as org.gradle.api.tasks.testing.Test.
+//   4. optionsProtoDir / wktIncludeDir are Provider<Directory>, not FileCollection;
+//      they too need files() wrapping to reach addIncludeDir.
+// Groovy's runtime dispatch resolves all of these for free (getBuiltins(),
+// getIncludeDirs().from(...), the `test` task extension) because the script
+// compiles at runtime. A single-module Groovy script is a supported Gradle
+// feature and keeps the rest of the build on kotlin-dsl. Revisit only if the
+// plugin exposes a fully type-safe per-task Kotlin API.
+// (The version catalog keeps `protobuf-gradle-plugin` out: a key on that name
+// collides with the `protobuf` prefix in Gradle's generated catalog accessors.
+// See libs.versions.toml.)
+buildscript {
+    // The plugin is not in the version catalog: a `protobuf-gradle-plugin` version
+    // key collides with the `protobuf` prefix in Gradle's generated catalog
+    // accessors. Use the literal version (see libs.versions.toml comment).
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.google.protobuf:protobuf-gradle-plugin:0.10.0'
+    }
+}
+
+apply plugin: 'java-library'
+apply plugin: 'com.google.protobuf'
+
+def GenerateProtoTask = 'com.google.protobuf.gradle.GenerateProtoTask'
+
+// KTD5/R3 (2026-11-01-002): recordbuf_options.proto is NOT a Gradle dependency of
+// the generator; the options proto is produced by :recordbuf-options as a plain
+// text include directory consumed at generation time.
+def optionsProtoDir = project(':recordbuf-options').layout.projectDirectory.dir('src/main/proto')
+
+// KTD6/R3: generation uses the :recordbuf-generator installDist launcher directly,
+// by path the plugin was built for — never a glob.
+def recordbufLauncher = project(':recordbuf-generator').file(
+    'build/install/protoc-gen-recordbuf/bin/protoc-gen-recordbuf',
+).absolutePath
+
+// The managed protoc version. Kept literal here (no catalog accessor): a
+// `protobuf-gradle-plugin` version key collides with the `protobuf` prefix in
+// Gradle's generated version-catalog accessors. See libs.versions.toml comment.
+def protocArtifact = 'com.google.protobuf:protoc:4.36.2'
+// R8: the same 4.36.2 ref is the live byte-compat oracle (generated java).
+def protobufJava = 'com.google.protobuf:protobuf-java:4.36.2'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // The runtime is a compile dependency, not a generated type: generated records
+    // are pure Java that only import bijnagte.recordbuf.runtime.*.
+    implementation project(':recordbuf-runtime')
+    // Generated records annotate optional/presence fields with @org.jspecify.annotations.Nullable;
+    // the annotation is on the compile classpath so the generated code compiles.
+    implementation libs.jspecify
+    // The 4.36.2 protobuf-java reference (byte-compat oracle, R8). Also the source
+    // of the WKT .protos (descriptor.proto) needed to compile recordbuf_options.
+    implementation protobufJava
+    testImplementation libs.junit.jupiter
+    testRuntimeOnly libs.junit.platform.launcher
+}
+
+// Extract the Well-Known-Types (.proto) shipped inside the managed protobuf-java jar
+// so the recordbuf_options.proto include resolves during generation. The java builtin
+// would otherwise supply them; the iface_marker task has the java builtin removed, so
+// the WKT dir is provided independently.
+def wktIncludeDir = layout.buildDirectory.dir('wkt-include')
+def extractWkt = tasks.register('extractWkt', Copy) {
+    from configurations.runtimeClasspath
+    include 'google/protobuf/*.proto'
+    into wktIncludeDir
+}
+
+protobuf {
+    protoc {
+        // R7: single managed protoc, no system protoc.
+        artifact = protocArtifact
+    }
+    // Top-level executable locator; each generate task references it by name.
+    plugins {
+        create('recordbuf') {
+            path = recordbufLauncher
+        }
+    }
+    // R5/R9: two tasks. ofSourceSet('main') handles the byte-compat families
+    // (record into .rec sibling + ref at natural pkg via the java builtin);
+    // ofSourceSet('test') handles iface_marker (natural record, no ref, no java builtin).
+    generateProtoTasks {
+        ofSourceSet('main')
+        ofSourceSet('test')
+        all().configureEach { task ->
+            task.plugins.create('recordbuf')
+            if (task.name == 'generateProto') {
+                // byte-compat families: record -> .rec sibling; ref stays at natural pkg.
+                task.plugins.getByName('recordbuf').option('package_suffix=.rec')
+            } else {
+                // iface_marker: natural output, no protobuf-java ref.
+                task.getBuiltins().removeByName('java')
+                task.getIncludeDirs().from optionsProtoDir, wktIncludeDir
+                task.dependsOn extractWkt
+            }
+        }
+    }
+}
+
+// KTD6: generation depends on installDist so the launcher exists before protoc runs.
+['generateProto', 'generateTestProto'].each { n ->
+    tasks.named(n, Class.forName(GenerateProtoTask)).configure {
+        dependsOn ':recordbuf-generator:installDist'
+    }
+}
+
+test {
+    useJUnitPlatform()
+    outputs.upToDateWhen { false }
+}

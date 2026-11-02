@@ -11,6 +11,7 @@ syntax = "proto3";
 
 package bijnagte.recordbuf.fixture.order;
 option java_package = "bijnagte.recordbuf.fixture.order";
+option java_multiple_files = true;
 
 message Sample {
     int32 c = 3;

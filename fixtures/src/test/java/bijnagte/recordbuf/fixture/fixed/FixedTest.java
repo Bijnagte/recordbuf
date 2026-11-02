@@ -9,10 +9,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * Byte-and-semantic interop of the generated record codec against the
  * protobuf-java reference for the {@code fixed/int/float} scalar family.
  *
- * <p>The record under test lives in this same package (so {@code Sample} is
- * unqualified). The protobuf-java reference lives in a sibling {@code .ref}
- * package and is referred to by fully-qualified name to avoid a
- * same-simple-name import collision.
+ * <p>The record under test lives in a sibling {@code .rec} package and is
+referred to by fully-qualified name. The protobuf-java reference lives in
+this same package (so {@code Sample} is unqualified), avoiding a
+same-simple-name import collision.
  *
  * <p>The values are each meaningfully non-default: signed fields are negative,
  * the fixed-width family carries a non-zero fixed value, and the IEEE
@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class FixedTest {
 
-    // Sample field order: a uint32, b int32, c int64, d uint64, e fixed32,
+    // bijnagte.recordbuf.fixture.fixed.rec.Sample field order: a uint32, b int32, c int64, d uint64, e fixed32,
     // f fixed64, g sfixed32, h sfixed64, i double, j float, k sint32, l sint64.
     private static final int   A = 2_000_000_000; // uint32 -> int; non-default, in range
     private static final int   B = -42;            // int32, negative
@@ -44,7 +44,7 @@ class FixedTest {
     @Test
     void byteEqual() throws Exception {
         byte[] theirs = newBuilder().build().toByteArray();
-        byte[] ours = Sample.Codec.encode(sample());
+        byte[] ours = bijnagte.recordbuf.fixture.fixed.rec.Sample.Codec.encode(sample());
         assertArrayEquals(theirs, ours, "record encode must equal protobuf-java toByteArray");
     }
 
@@ -52,22 +52,22 @@ class FixedTest {
     @Test
     void interopDecodesProtobuf() throws Exception {
         byte[] theirs = newBuilder().build().toByteArray();
-        Sample parsed = Sample.Codec.decode(theirs);
+        bijnagte.recordbuf.fixture.fixed.rec.Sample parsed = bijnagte.recordbuf.fixture.fixed.rec.Sample.Codec.decode(theirs);
         assertEquals(sample(), parsed);
     }
 
     @Test
     void roundTrip() throws Exception {
-        Sample v = sample();
-        assertEquals(v, Sample.Codec.decode(Sample.Codec.encode(v)));
+        bijnagte.recordbuf.fixture.fixed.rec.Sample v = sample();
+        assertEquals(v, bijnagte.recordbuf.fixture.fixed.rec.Sample.Codec.decode(bijnagte.recordbuf.fixture.fixed.rec.Sample.Codec.encode(v)));
     }
 
-    private static Sample sample() {
-        return new Sample(A, B, C, D, E, F, G, H, I, J, K, L);
+    private static bijnagte.recordbuf.fixture.fixed.rec.Sample sample() {
+        return new bijnagte.recordbuf.fixture.fixed.rec.Sample(A, B, C, D, E, F, G, H, I, J, K, L);
     }
 
-    private static bijnagte.recordbuf.fixture.fixed.ref.Sample.Builder newBuilder() {
-        return bijnagte.recordbuf.fixture.fixed.ref.Sample.newBuilder()
+    private static Sample.Builder newBuilder() {
+        return Sample.newBuilder()
                 .setA(A)
                 .setB(B)
                 .setC(C)
