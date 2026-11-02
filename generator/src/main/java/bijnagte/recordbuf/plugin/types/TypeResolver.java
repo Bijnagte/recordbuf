@@ -5,6 +5,8 @@ import bijnagte.recordbuf.plugin.model.FileTable;
 
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * Resolves a {@link Field} to its Java static type name (e.g.
  * {@code "java.util.List\u003cjava.lang.String\u003e"}).
@@ -57,7 +59,7 @@ public final class TypeResolver {
 
     /** The boxed Java component type of a map key/value, from its proto type name
      *  (e.g. "int32" -> "java.lang.Integer", "string"/"bool" -> the boxed ref). */
-    public String mapComponentType(String protoType) {
+    public String mapComponentType(@Nullable String protoType) {
         if (protoType == null) return "java.lang.Object";
         return boxed(scalarJava(protoType));
     }
@@ -155,7 +157,10 @@ public final class TypeResolver {
 
     /** Wire-level primitive type for a bare proto scalar type name (used for both
      *  fields and map key/value members, which store the proto type name). */
-    public WireScalar wireScalarForType(String protoType) {
+    public WireScalar wireScalarForType(@Nullable String protoType) {
+        // A map key/value is always a populated scalar, so a null here is a
+        // model bug; reject up front rather than letting it slip to the default.
+        if (protoType == null) throw new IllegalStateException("map component has no proto type");
         return switch (protoType) {
             case "int32"    -> WireScalar.INT32;
             case "uint32"   -> WireScalar.UINT32;

@@ -12,6 +12,8 @@ import bijnagte.recordbuf.plugin.model.FileTable;
 import bijnagte.recordbuf.plugin.model.JavaNames;
 import bijnagte.recordbuf.plugin.model.ModelLoader;
 import bijnagte.recordbuf.plugin.model.ProtoFile;
+
+import org.jspecify.annotations.Nullable;
 import bijnagte.recordbuf.plugin.types.TypeResolver;
 import bijnagte.recordbuf.plugin.writer.CodecGenerator;
 import bijnagte.recordbuf.plugin.writer.EnumGenerator;
@@ -271,7 +273,7 @@ public final class CodeGenerator {
         return suffix;
     }
 
-    private FileDescriptorProto findByPath(String path) {
+    private @Nullable FileDescriptorProto findByPath(String path) {
         return table.byName(path);
     }
 }

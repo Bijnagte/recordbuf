@@ -1,17 +1,19 @@
+// net.ltgt.gradle.errorprone: brings the `options.errorprone { … }` DSL into
+// scope for the `JavaCompile` tasks below (required in *.gradle.kts scripts).
+import net.ltgt.gradle.errorprone.errorprone
+
 plugins {
     java
     application
-    // NOTE: net.ltgt.errorprone is NOT applied yet. Error Prone + NullAway were
-    // the step-4 cross-project goal, but (1) NullAway's jar (com.uber:nullaway)
-    // is not resolvable from this environment's Maven mirror, and (2) enabling
-    // Error Prone's full default checker set on its own spams ~71 warnings, most
-    // of them in the generated com.google.protobuf.compiler.PluginProtos shim, a
-    // file we treat as out-of-scope glue. Both are a clean, self-contained
-    // future task. When done, apply `id("net.ltgt.errorprone")` (auto-forks
-    // javac + add-exports on JDK 16+), add the `errorprone` configuration below,
-    // and (on JDK 22+) pass -XepOpt:NullAway:JSpecifyMode=true +
-    // -XepOpt:NullAway:OnlyNullMarked=true to compileJava/compileTestJava so the
-    // generated shim stays out of NullAway's scope.
+    // Activates the default Error Prone check set; NullAway is added via the
+    // `errorprone` configuration below. The plugin auto-forks javac and adds
+    // the --add-exports/--add-opens JEP 396 needs (JDK 16+), so NullAway's
+    // scope flag reaches error-prone correctly. NullAway options are passed
+    // through the blessed `options.errorprone { … }` DSL -- NOT as raw
+    // `compilerArgs.add("-XepOpt:…")`, which hand-feeds the flag to javac and
+    // is rejected as "invalid flag" on this plugin/toolchain combo.
+    // Version comes from the catalog via `alias` (libs.plugins.gradle.errorprone).
+    alias(libs.plugins.gradle.errorprone)
 }
 
 java {
@@ -46,13 +48,16 @@ dependencies {
     compileOnly(libs.record.builder.core)
     annotationProcessor(libs.record.builder.processor)
 
-    // Error Prone / NullAway wiring is DEFERRED -- see the note on the plugin
-    // block above. The catalog still declares the coordinates (com.google.errorprone
-    // for both error-prone-core and error-prone-check; com.uber for nullaway) so
-    // re-enabling is a one-line `errorprone(...)` addition. To turn on when the
-    // jars are reachable, add the `id("net.ltgt.errorprone")` plugin and, per task:
-    //     options.compilerArgs += "-XepOpt:NullAway:JSpecifyMode=true"
-    //     options.compilerArgs += "-XepOpt:NullAway:OnlyNullMarked=true"
+    // NullAway runs as an Error Prone check: it registers via the errorprone
+    // configuration (the net.ltgt.errorprone plugin puts that configuration on
+    // the annotation-processor path of every compile task). error-prone-core
+    // is on the plugin path so Error Prone itself loads; nullaway is the
+    // nullness check we actually care about. JSpecify (via its transitive dep
+    // on nullaway) provides the @NullMarked / @Nullable annotations NullAway
+    // honors; JSpecifyMode is NOT a flag we set (0.14.x auto-detects it).
+    errorprone(libs.nullaway)
+    errorprone(libs.error.prone.core)
+
     // JUnit Jupiter + plain assertions only (the plugin/model tests).
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
@@ -68,6 +73,41 @@ tasks.test {
     testLogging {
         events("passed", "skipped", "failed")
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+}
+
+// NullAway via `options.errorprone { … }` (the DSL the plugin needs on JDK 16+;
+// raw `compilerArgs.add("-XepOpt:NullAway:…")` is an invalid flag there).
+// NullAway 0.14.3 has NO default scope - its scanner crashes at init unless it
+// is told a scope. Our generator packages carry JSpecify `@NullMarked`, so
+// `OnlyNullMarked=true` restricts NullAway to those and keeps the un-annotated
+// generated `com.google.protobuf.compiler` shim out of NullAway's scope. `JSpecifyMode`
+// is NOT set: NullAway 0.14.x auto-detects JSpecify on JDK 22+, so passing it
+// is an unknown-flag rejection. The record-builder-generated `*Builder`/`*With`
+// classes live in our `@NullMarked` `model` package but don't propagate
+// `@Nullable`; NullAway would flag ~25 lines of *generator output*, so
+// `excludedPaths` excludes `.*build/generated/.*`.
+//
+// `disableAllChecks = true` + `error("NullAway")` turns on ONLY NullAway, at
+// error severity: a real null violation blocks the build, while the ~15 first-
+// party Error Prone default-check findings (UnusedVariable, etc.) stay deferred
+// to a separate "cleanup" scope.
+tasks.withType<JavaCompile>().configureEach {
+    options.errorprone {
+        // NullAway only: turn off the default check set (its other
+        // first-party findings are style/cleanup, deferred to a separate
+        // scope per the "warnings are OK, fix later" decision), then re-enable
+        // NullAway at error severity so a real null violation blocks the build.
+        disableAllChecks = true
+        error("NullAway")
+        // `OnlyNullMarked=true` restricts NullAway to our `@NullMarked` packages. 0.14.x
+        // auto-detects JSpecify; `JSpecifyMode` is NOT set.
+        option("NullAway:OnlyNullMarked", "true")
+        // The @RecordBuilder-generated *Builder/*With interfaces live in our
+        // @NullMarked `model` package but do NOT propagate @Nullable; NullAway
+        // would flag ~25 lines of *generated* output, so exclude them.
+        excludedPaths.set(".*build/generated/.*")
+        disableWarningsInGeneratedCode = true
     }
 }
 

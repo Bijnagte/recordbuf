@@ -10,6 +10,8 @@ import com.google.protobuf.DescriptorProtos.EnumDescriptorProto;
 import com.google.protobuf.DescriptorProtos.EnumValueDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Label;
+
+import org.jspecify.annotations.Nullable;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
 import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
 import com.google.protobuf.DescriptorProtos.UninterpretedOption;
@@ -142,7 +144,7 @@ public final class ModelLoader {
         return result;
     }
 
-    private DescriptorProto findNestedMessage(DescriptorProto owner, String typeUrl) {
+    private @Nullable DescriptorProto findNestedMessage(DescriptorProto owner, String typeUrl) {
         // typeUrl may be a fully-qualified proto FQN or just a short name. We
         // only care about the last segment because the Entry message is always
         // a direct nested type of `owner`.
@@ -156,7 +158,6 @@ public final class ModelLoader {
     }
 
     private static String shortName(String typeUrl) {
-        if (typeUrl == null) return null;
         int dot = typeUrl.lastIndexOf('.');
         String s = dot < 0 ? typeUrl : typeUrl.substring(dot + 1);
         return s.startsWith(".") ? s.substring(1) : s;
@@ -331,7 +332,7 @@ public final class ModelLoader {
         };
     }
 
-    private static Object extractDefault(FieldDescriptorProto f) {
+    private static @Nullable Object extractDefault(FieldDescriptorProto f) {
         if (f.getType() == Type.TYPE_STRING)
             return f.hasDefaultValue() ? f.getDefaultValue() : "";
         if (f.getType() == Type.TYPE_BYTES)

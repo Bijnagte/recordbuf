@@ -476,7 +476,6 @@ public final class CodecGenerator {
         return lastSeg(protoFqn) + ".Codec";
     }
     private static String lastSeg(String fqn) {
-        if (fqn == null) return null;
         int dot = fqn.lastIndexOf('.');
         return dot < 0 ? fqn : fqn.substring(dot + 1);
     }

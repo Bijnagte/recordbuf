@@ -3,6 +3,8 @@ package bijnagte.recordbuf.plugin.model;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.jspecify.annotations.Nullable;
+
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.EnumDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
@@ -47,11 +49,12 @@ public final class FileTable {
     }
 
     /** java FQN for a proto FQN, or null if unknown. */
-    public String javaFqn(String protoFqn) {
+    public @Nullable String javaFqn(String protoFqn) {
         return protoFqnToJavaFqn.get(protoFqn);
     }
 
-    public FileDescriptorProto byName(String fileName) {
+    /** The file for a filename, or null if not present. */
+    public @Nullable FileDescriptorProto byName(String fileName) {
         return byFileName.get(fileName);
     }
 
@@ -74,9 +77,13 @@ public final class FileTable {
      * segment: {@code nativePkg + "." + suffix}. If the base is empty, the bare
      * suffix is the package.
      */
-    public static String applyPackageSuffix(String base, String suffix) {
-        if (suffix == null || suffix.isEmpty()) return base;
-        if (base == null || base.isEmpty()) return suffix;
+    public static String applyPackageSuffix(@Nullable String base, @Nullable String suffix) {
+        // A blank on either side is a no-op; a null/empty side is normalised to
+        // the empty string (the "no package" sentinel, matching rawJavaPackage).
+        if (base == null || base.isEmpty()) base = "";
+        if (suffix == null || suffix.isEmpty()) suffix = "";
+        if (suffix.isEmpty()) return base;
+        if (base.isEmpty()) return suffix;
         return base + "." + suffix;
     }
 
@@ -122,7 +129,7 @@ public final class FileTable {
         String nestedProtoScope = protoFqn;
         String nestedJavaScope = javaFqn;
         for (DescriptorProto nested : m.getNestedTypeList()) {
-            registerMessageTree(nested, nestedProtoScope, nestedJavaScope, null);
+            registerMessageTree(nested, nestedProtoScope, nestedJavaScope, "");
         }
         for (EnumDescriptorProto nested : m.getEnumTypeList()) {
             String pe = join(nestedProtoScope, nested.getName());

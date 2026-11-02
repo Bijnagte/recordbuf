@@ -37,7 +37,7 @@ public final class JavaNames {
     }
 
     public static String snakeUpper(String s) {
-        return s == null ? null : s.toUpperCase(Locale.ROOT).replace('-', '_');
+        return s.toUpperCase(Locale.ROOT).replace('-', '_');
     }
 
 }

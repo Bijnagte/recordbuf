@@ -31,10 +31,10 @@ public record Field(
         FieldLabel label,
         FieldKind kind,
         String typeUrl,
-        String mapKey,
-        String mapValue,
+        @Nullable String mapKey,
+        @Nullable String mapValue,
         boolean proto3Optional,
-        Object defaultValue,
+        @Nullable Object defaultValue,
         @Nullable String comment
 ) {
     public boolean isMap() { return kind == FieldKind.MAP; }

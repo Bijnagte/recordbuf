@@ -2,7 +2,7 @@
 # Central version pins. Bump here, not in build.gradle.kts.
 # All pins below are the latest GA as of Oct 2026, verified Java 25 + Gradle 9 compatible.
 record-builder    = "53"
-jspecify          = "1.0.0"
+jspecify          = "1.0.1"
 error-prone       = "2.51.0"
 nullaway          = "0.14.3"
 gradle-errorprone = "5.1.1"   # net.ltgt.errorprone Gradle plugin
@@ -26,7 +26,7 @@ jspecify       = { group = "org.jspecify", name = "jspecify", version.ref = "jsp
 # additional annotation processor through net.ltgt.errorprone.
 error-prone-core    = { group = "com.google.errorprone", name = "error_prone_core", version.ref = "error-prone" }
 error-prone-check   = { group = "com.google.errorprone", name = "error_prone_check_api", version.ref = "error-prone" }
-nullaway            = { group = "com.uber", name = "nullaway", version.ref = "nullaway" }
+nullaway            = { group = "com.uber.nullaway", name = "nullaway", version.ref = "nullaway" }
 # Protobuf runtime -- used to parse FileDescriptorProto in the plugin and
 # consumed by GENERATED code (CodedInputStream/CodedOutputStream at user
 # classpath). Pulled here so we can bump in one place.
