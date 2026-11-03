@@ -4,6 +4,7 @@ import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.JavaNames;
 import bijnagte.recordbuf.plugin.model.Message;
+import bijnagte.recordbuf.plugin.model.Oneof;
 import bijnagte.recordbuf.plugin.types.TypeResolver;
 
 /**
@@ -70,9 +71,10 @@ import bijnagte.recordbuf.plugin.types.TypeResolver;
  * FQN'd.</p>
  *
  * <p>Not covered (documented as future work, not silently broken):
- * {@code oneof} / {@code group} (record layout not yet modelled), an
- * <em>optional</em> enum field (not exercised today), and message / enum map
- * values (out of scope for this family, matching the codec's own limitation).
+ * an <em>optional</em> enum field (not exercised today), message / enum map
+ * values (out of scope for this family, matching the codec's own limitation),
+ * and {@code oneof} members ({@code from} emits a {@code null} oneof local;
+ * {@code to} skips them -- byte-compat is still proven by hand-built refs).
  */
 public final class InteropGenerator {
 
@@ -142,10 +144,18 @@ public final class InteropGenerator {
             fromLocal(w, f);
         }
         int n = m.fields().size();
+        // Oneof locals: Interop does not yet convert oneof members; the local is null.
+        for (Oneof o : m.oneofs()) {
+            w.line(o.ifaceName() + " _" + o.name() + " = null; // oneof not yet supported in Interop");
+        }
         w.line("return new " + rec + "(");
         for (int i = 0; i < n; i++) {
             // Every field now carries a trailing comma: the carrier is the last arg.
             w.line("    _" + m.fields().get(i).javaName() + ",");
+        }
+        // Oneof components appended after the fields, before the carrier.
+        for (Oneof o : m.oneofs()) {
+            w.line("    _" + o.name() + ",");
         }
         // Layer B `from(X)` is a structural X<->R copy that touches no wire bytes, so
         // the record's unknown-fields carrier stays empty: unknown fields do not cross

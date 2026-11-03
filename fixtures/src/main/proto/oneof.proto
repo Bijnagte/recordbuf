@@ -1,0 +1,40 @@
+// End-to-end interop fixture for the sealed-hierarchy oneof codec. Generated from the
+// main proto source set by generateProto (which produces both the recordbuf record and
+// the protobuf-java reference via the java builtin), proving byte-and-semantic parity
+// with protobuf-java for every oneof branch.
+//
+// The fixture probes every branch of the oneof codec:
+//   * a scalar string member (name)   → per-member record NameValue
+//   * a scalar int32 member (count)   → per-member record CountValue
+//   * a singular sub message (item)   → identity subtype Sub implements Choice
+//
+// recordbuf_options.proto must be on the gen-proto include path (the fixtures'
+// generateProto task supplies it) so this import and the recordbuf.protobuf_java
+// declarations resolve at parse time.
+
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.oneof;
+
+option java_package = "bijnagte.recordbuf.fixture.oneof";
+option java_multiple_files = true;
+
+import "recordbuf_options.proto";
+
+// Record under test. The oneof has scalar and message members, exercising all
+// branches of the per-member sealed hierarchy.
+message Compat {
+  oneof choice {
+    string name = 1;
+    int32  count = 2;
+    Sub    item = 3;
+  }
+  option (.recordbuf.protobuf_java) = "bijnagte.recordbuf.fixture.oneof";
+}
+
+// Nested-message oneof member type. A separate top-level message so it generates
+// its own Sub.java in the same package (one public type per file).
+message Sub {
+  string text = 1;
+  option (.recordbuf.protobuf_java) = "bijnagte.recordbuf.fixture.oneof";
+}
