@@ -204,3 +204,7 @@ public static byte[] encode(Sample v) throws java.io.IOException {
   return baos.toByteArray();
 }
 ```
+
+## Related
+
+* `docs/solutions/design-patterns/unknown-field-capture-reemit.md` -- the runtime side of this same *silent* corruption class: an always-on `UnknownFields` carrier so a field the schema does not model survives a round-trip byte-for-byte. The per-family `byteEqual`/`roundTrip` oracles above are where its unknown-field round-trip guard lands.
