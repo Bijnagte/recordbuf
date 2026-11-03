@@ -16,6 +16,12 @@ import java.io.IOException;
  *
  * <p>Exactly one instance method keeps the hook JIT-clean: a virtual call to a
  * {@code final} implementation that the record's own generated codec satisfies.
+ *
+ * <p>The {@link #unknownFields() carrier} is a default (empty) on this very
+ * interface so every record — even one hand-written that omits the carrier
+ * component — has it and can cross the boundary; generated records override it
+ * (via the record's own component accessor) to return the fields their decode
+ * captured.
  */
 public interface ProtobufMessage {
     /**
@@ -27,4 +33,17 @@ public interface ProtobufMessage {
      * @throws IOException if the underlying encode fails
      */
     byte[] toByteArray() throws IOException;
+
+    /**
+     * The fields this record saw on the wire during its decode that its schema
+     * does not model, in wire order with repeats preserved. The default is the
+     * shared {@link UnknownFields#empty()} carrier, so a record that carries the
+     * field but saw nothing unknown pays nothing; generated records expose their
+     * decoded-and-captured carrier through the record's own component.
+     *
+     * @return the captured unknown fields, empty when none
+     */
+    default UnknownFields unknownFields() {
+        return UnknownFields.empty();
+    }
 }
