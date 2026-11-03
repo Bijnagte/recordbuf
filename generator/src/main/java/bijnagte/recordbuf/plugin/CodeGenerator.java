@@ -194,7 +194,7 @@ public final class CodeGenerator {
         // the equivalent protobuf-java reference, emitted only when recordbuf.protobuf_java
         // was declared on this message. It stays off for every other message.
         if (m.protobufJava() != null) {
-            new bijnagte.recordbuf.plugin.writer.InteropGenerator(types, ci, sourceProto, javaPkg)
+            new bijnagte.recordbuf.plugin.writer.InteropGenerator(types, ci, sourceProto)
                     .writeInterop(w, m);
         }
         // Codec as last member so the type can reference itself.

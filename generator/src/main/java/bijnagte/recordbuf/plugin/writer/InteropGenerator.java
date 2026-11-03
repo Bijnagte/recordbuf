@@ -52,11 +52,22 @@ import bijnagte.recordbuf.plugin.types.TypeResolver;
  * {@link bijnagte.recordbuf.plugin.types.TypeResolver#resolve} and is
  * collision-resolved the same way.</p>
  *
- * <p>Proto <em>message</em> / <em>enum</em> <em>sibling</em> types are spelled
- * out fully-qualified at every use. A user may name a protobuf message or enum
- * anything, so a collision with a Java standard type is possible on the
- * <em>proto</em> type -- that's the collision the user controls. The standard
- * library is handled by the import collector; the proto types are FQN'd.</p>
+ * <p>The <em>record</em> sibling types -- the record being converted and any
+ * proto message / enum it references -- are emitted in the record's own package
+ * (all top-level records from one .proto share one record package), and
+ * {@code Interop} is nested inside the record it converts. So the record and its
+ * record siblings resolve by their <em>short</em> name in the enclosing
+ * scope; no import and no FQN is needed.</p>
+ *
+ * <p>The <em>protobuf-java</em> reference types, however, live in a different
+ * package (the option's {@code java_package}) and may even share a simple name
+ * with the record -- e.g. a {@code combined.Message} reference next to the record's
+ * own {@code rec.Message}. Short names would be ambiguous there, so the reference
+ * types are spelled out fully-qualified at every use. A user may name a protobuf
+ * message or enum anything, so a collision with a Java standard type is possible
+ * on the <em>proto</em> type -- that's the collision the user controls. The
+ * standard library is handled by the import collector; the reference types are
+ * FQN'd.</p>
  *
  * <p>Not covered (documented as future work, not silently broken):
  * {@code oneof} / {@code group} (record layout not yet modelled), an
@@ -75,19 +86,16 @@ public final class InteropGenerator {
     private final TypeResolver types;
     private final TypeImports ci;
     private final String sourceName;
-    private final String javaPkg;
 
     /**
      * @param types     the shared type resolver for this record type
      * @param ci        the shared import collector for this record type
      * @param sourceName   the source .proto file name (for the generated javadoc)
-     * @param javaPkg   the record's Java package (also its sibling records')
      */
-    public InteropGenerator(TypeResolver types, TypeImports ci, String sourceName, String javaPkg) {
+    public InteropGenerator(TypeResolver types, TypeImports ci, String sourceName) {
         this.types = types;
         this.ci = ci;
         this.sourceName = sourceName;
-        this.javaPkg = javaPkg;
     }
 
     /**
@@ -263,20 +271,22 @@ public final class InteropGenerator {
 
     // -- helpers ------------------------------------------------------------------
 
+    /** The record being converted is the enclosing type of this nested
+     *  {@code Interop}, so it resolves by its own short name in scope -- no FQN. */
     private String recordFqn(String name) {
-        return javaPkg.isEmpty() ? name : javaPkg + "." + name;
+        return name;
     }
 
     private String refFqn(String refPkg, String refType) {
         return refPkg.isEmpty() ? refType : refPkg + "." + refType;
     }
 
-    /** A message / enum field's sibling record lives in the same Java package as
-     *  the record being emitted -- all top-level records in a .proto share one
-     *  record package, so the FQN is {@code <recordPkg>.<cap(shortName)>}. */
+    /** A message / enum field's sibling record lives in the record's own package --
+     *  all top-level records in a .proto share one record package, and this record
+     *  is emitted in that same package -- so the sibling resolves by its short name
+     *  ({@code cap(shortName)}); no FQN or import is needed. */
     private String recordSiblingFqn(Field f) {
-        String seg = JavaNames.cap(lastSegment(f.typeUrl()));
-        return javaPkg.isEmpty() ? seg : javaPkg + "." + seg;
+        return JavaNames.cap(lastSegment(f.typeUrl()));
     }
 
     private String refSiblingFqn(String refPkg, Field f) {
