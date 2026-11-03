@@ -9,10 +9,19 @@ import org.jspecify.annotations.Nullable;
  *
  * @param name            short name (last path component)
  * @param fullName        fully-qualified name within this file (e.g. {@code foo.Bar.Baz})
- * @param fields          direct fields (maps and oneofs expanded to "synthetic"
- *                        fields by the loader; see {@link Field#isMap()}).
+ * @param fields          direct fields, exclusive of oneof members: real
+ *                        {@code oneof{...}} members are routed into {@link #oneofs}
+ *                        (one nested sealed interface per oneof), while a proto3
+ *                        {@code optional} scalar/enum's synthetic oneof stays a
+ *                        top-level field here. Map fields are expanded per
+ *                        {@link Field#isMap()}.
  * @param nestedMessages  messages declared inside this one
  * @param nestedEnums     enums declared inside this one
+ * @param oneofs          the real {@code oneof{...}} groups declared inside this
+ *                        one, in declaration order, each carrying its own members
+ *                        (never {@code null}; empty when the message has none). A
+ *                        proto3-optional scalar/enum is NOT an entry here (its
+ *                        synthetic oneof is skipped by the loader).
  * @param deprecated      {@code option deprecated = true}
  * @param comment         leading doc comment, if captured
  * @param interfaces      fully-qualified Java interface names the record should
@@ -32,6 +41,7 @@ public record Message(
         List<Field> fields,
         List<Message> nestedMessages,
         List<Enum> nestedEnums,
+        List<Oneof> oneofs,
         boolean deprecated,
         @Nullable String comment,
         List<String> interfaces,
@@ -47,6 +57,7 @@ public record Message(
      *  "non-null package". */
     public Message {
         if (interfaces == null) interfaces = List.of();
+        if (oneofs == null) oneofs = List.of();
         if (protobufJava != null && protobufJava.isEmpty()) protobufJava = null;
     }
 }

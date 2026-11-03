@@ -25,6 +25,11 @@ import com.google.protobuf.UnknownFieldSet;
  * <p>Scope for type resolution is computed by walking the proto tree manually:
  * a field of type "Foo" inside message {@code a.B.C} resolves against
  * {@code a.B.C.Foo}, {@code a.B.Foo}, {@code a.Foo}, and {@code Foo}.
+ *
+ * <p>Real {@code oneof{...}} groups are routed out of a message's flat fields
+ * into {@link Oneof} entries on {@link Message#oneofs()} (each becomes one nested
+ * sealed interface on the generated record), while a proto3-{@code optional}
+ * scalar/enum's synthetic oneof is skipped and its member stays a top-level field.
  */
 public final class ModelLoader {
 
@@ -129,6 +134,13 @@ public final class ModelLoader {
     // --- messages ---
 
     private Message loadMessage(DescriptorProto m, String protoScope, List<Integer> basePath) {
+        // Real oneof members are routed OUT of the flat fields() list and grouped by
+        // their (raw) oneofIndex into Oneof entries (K1): a proto3 oneof{...} becomes
+        // one nested sealed interface, and its members live only there. A proto3-optional
+        // scalar/enum carries a SYNTHETIC oneofIndex (oneofDecl synthetic == true) whose
+        // member must stay a top-level field, so a real oneof member is exactly
+        // hasOneofIndex() && !proto3Optional().
+        Map<Integer, List<Field>> oneofMembersByIndex = new LinkedHashMap<>();
         List<Field> fields = new ArrayList<>();
         for (int i = 0; i < m.getFieldCount(); i++) {
             // Skip the synthesized "Entry" fields inside map-entry messages:
@@ -137,11 +149,34 @@ public final class ModelLoader {
             // is what source_code_info locations key on, so it is used even on skip.
             if (isMapEntryDescriptor(m)) {
                 // skip — we represent maps as a single "map" Field on the parent
+                continue;
+            }
+            FieldDescriptorProto raw = m.getField(i);
+            Field f = loadField(raw, m, protoScope, child(basePath, 2, i));
+            if (raw.hasOneofIndex() && !raw.getProto3Optional()) {
+                // A real oneof member: group it on its oneofIndex (a top-level field is
+                // not routed here, so its flat field list keeps its declaration order).
+                oneofMembersByIndex
+                        .computeIfAbsent(raw.getOneofIndex(), k -> new ArrayList<>())
+                        .add(f);
             } else {
-                fields.add(loadField(m.getField(i), m, protoScope, child(basePath, 2, i)));
+                fields.add(f);
             }
         }
         fields = maybeExpandMaps(fields, m, protoScope);
+
+        // One entry per REAL oneof_decl, in declaration order. A proto3-optional scalar/
+        // enum is a *synthetic* oneof whose sole member carries proto3Optional == true and
+        // therefore routed NO member here; its absence of routed members is the gate that
+        // skips it (a real oneof group always has routed members, and proto3 rejects empty
+        // groups). NOTE: protobuf-java 4.36.2 does not expose OneofDescriptorProto.synthetic,
+        // so the "has routed members" test is used in place of a synthetic flag.
+        List<Oneof> oneofs = new ArrayList<>();
+        for (int oi = 0; oi < m.getOneofDeclCount(); oi++) {
+            List<Field> members = oneofMembersByIndex.get(oi);
+            if (members == null || members.isEmpty()) continue;
+            oneofs.add(new Oneof(m.getOneofDecl(oi).getName(), members));
+        }
 
         List<Message> nestedMsgs = new ArrayList<>();
         for (int j = 0; j < m.getNestedTypeCount(); j++) {
@@ -162,6 +197,7 @@ public final class ModelLoader {
                 .fields(List.copyOf(fields))
                 .nestedMessages(List.copyOf(nestedMsgs))
                 .nestedEnums(List.copyOf(nestedEnums))
+                .oneofs(List.copyOf(oneofs))
                 .deprecated(m.getOptions().getDeprecated())
                 .comment(commentAtPath(basePath))
                 .interfaces(interfacesFor(
