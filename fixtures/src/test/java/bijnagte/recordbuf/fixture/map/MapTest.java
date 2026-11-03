@@ -39,12 +39,16 @@ class MapTest {
 
     /** A fully-populated sample: a distinct non-empty map for every family. */
     private static bijnagte.recordbuf.fixture.map.rec.Sample sample() {
-        return new bijnagte.recordbuf.fixture.map.rec.Sample(A, B, C);
+        return bijnagte.recordbuf.fixture.map.rec.Sample.builder()
+                .a(A)
+                .b(B)
+                .c(C)
+                .build();
     }
 
     /** The proto3 default sample: an empty map for every field, all omitted. */
     private static bijnagte.recordbuf.fixture.map.rec.Sample empty() {
-        return new bijnagte.recordbuf.fixture.map.rec.Sample(Map.of(), Map.of(), Map.of());
+        return bijnagte.recordbuf.fixture.map.rec.Sample.builder().build();
     }
 
     /**

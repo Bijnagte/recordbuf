@@ -35,6 +35,10 @@ import bijnagte.recordbuf.plugin.writer.TypeImports;
  */
 public final class CodeGenerator {
 
+    // The recordbuf runtime package, referenced by generated records for the
+    // unknown-field carrier and the ProtobufMessage marker.
+    private static final String RT = "bijnagte.recordbuf.runtime";
+
     // Assigned at the start of generate() from the request's plugin parameter so
     // per-call generation (Main invokes one CodeGenerator per request) stays
     // stateless. Built fresh each call with the parsed package_suffix.
@@ -151,21 +155,31 @@ public final class CodeGenerator {
             // A presence-tracked (nullable) component is annotated @Nullable and its
             // null/boxed value is meaningful; it is NEVER normalized to empty.
             String type = f.isNullable() ? types.resolveNullable(f) : types.resolve(f);
-            String sep = (i == m.fields().size() - 1) ? "" : ",";
+            // Every field now carries a trailing comma: the always-present
+            // unknownFields carrier is emitted as the last component after the loop.
             // Per-component Javadoc sits one level deeper than the type header's,
             // to match the fields' own 4-space-deeper indentation.
             w.javadoc(w.indent() + 1, f.comment());
             // @Deprecated before @Nullable when a component is deprecated; bare
             // (java.lang.Deprecated is never imported, matching recordbuf's style).
             String prefix = f.deprecated() ? "@Deprecated " : "";
-            w.line("    " + prefix + type + " " + f.javaName() + sep);
+            w.line("    " + prefix + type + " " + f.javaName() + ",");
         }
+        // The always-on unknown-field carrier: the record's LAST component, defaulting
+        // to the shared empty() so a message that sees nothing unknown carries an empty
+        // carrier with no per-record payload. Captured on decode, re-emitted on encode.
+        String uf = ci.use(RT + ".UnknownFields");
+        w.javadoc(w.indent() + 1, "Unknown fields seen during this record's decode that its schema does "
+                + "not model, captured so they survive a round-trip: re-emitted byte-for-byte on "
+                + "encode. An empty decode carries the shared " + uf
+                + ".empty(), so the common case adds no payload.");
+        w.line("    " + uf + " unknownFields");
         // Layer A marshal hook: every record implements ProtobufMessage (a tiny,
         // runtime-only marker) so it can be wired out with zero structural conversion
         // at a gRPC/protobuf-java boundary. Added after the option interfaces, so
         // both render in decl order.
         List<String> impls = new ArrayList<>(m.interfaces());
-        impls.add("bijnagte.recordbuf.runtime.ProtobufMessage");
+        impls.add(RT + ".ProtobufMessage");
         w.line(")" + RecordGenerator.implementsClause(ci, impls));
         w.line("{");
         w.indent(w.indent() + 1);
@@ -250,6 +264,10 @@ public final class CodeGenerator {
             w.line("private " + componentType(f, types) + " " + f.javaName()
                     + " = " + freshDefault(f, types, ci) + ";");
         }
+        // The always-on carrier, defaulting to the shared empty() so the common
+        // path carries no unknown-field payload.
+        String uf = ci.use(RT + ".UnknownFields");
+        w.line("private " + uf + " unknownFields = " + uf + ".empty();");
         w.line();
         // Fresh builder: the field initializers above supply the codec default values.
         w.line("private Builder() {}");
@@ -262,6 +280,8 @@ public final class CodeGenerator {
         for (var f : m.fields()) {
             w.line(copyAssignment(f, ci));
         }
+        // The carrier is immutable; a copy ctor only references it (no defensive copy).
+        w.line("this.unknownFields = x.unknownFields();");
         w.indent(w.indent() - 1);
         w.line("}");
 
@@ -279,6 +299,17 @@ public final class CodeGenerator {
             w.indent(w.indent() - 1);
             w.line("}");
         }
+        // The carrier's fluent setter; the fresh builder defaults it to empty().
+        w.line();
+        w.javadoc(w.indent(), "Set this record's unknown-fields carrier. Default is the shared "
+                + "empty() when nothing was captured during a decode.");
+        w.line("public Builder unknownFields(" + uf + " unknownFields) {");
+        int s1u = w.indent() + 1;
+        w.indent(s1u);
+        w.line("this.unknownFields = unknownFields;");
+        w.line("return this;");
+        w.indent(w.indent() - 1);
+        w.line("}");
         w.line();
         // Terminal build(): constructs the record via its canonical ctor.
         w.javadoc(w.indent(), "Builds a " + m.name()
@@ -290,9 +321,10 @@ public final class CodeGenerator {
         w.line("return new " + m.name() + "(");
         for (int i = 0; i < m.fields().size(); i++) {
             var f = m.fields().get(i);
-            String sep = (i == m.fields().size() - 1) ? "" : ",";
-            w.line("    this." + f.javaName() + sep);
+            // Always a trailing comma: the unknownFields carrier is the last ctor arg.
+            w.line("    this." + f.javaName() + ",");
         }
+        w.line("    this.unknownFields");
         w.line(");");
         w.indent(w.indent() - 1);
         w.line("}");

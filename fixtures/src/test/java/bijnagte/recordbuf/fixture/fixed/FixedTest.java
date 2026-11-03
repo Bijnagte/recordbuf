@@ -63,7 +63,20 @@ class FixedTest {
     }
 
     private static bijnagte.recordbuf.fixture.fixed.rec.Sample sample() {
-        return new bijnagte.recordbuf.fixture.fixed.rec.Sample(A, B, C, D, E, F, G, H, I, J, K, L);
+        return bijnagte.recordbuf.fixture.fixed.rec.Sample.builder()
+                .a(A)
+                .b(B)
+                .c(C)
+                .d(D)
+                .e(E)
+                .f(F)
+                .g(G)
+                .h(H)
+                .i(I)
+                .j(J)
+                .k(K)
+                .l(L)
+                .build();
     }
 
     private static Sample.Builder newBuilder() {

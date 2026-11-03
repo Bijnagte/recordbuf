@@ -144,8 +144,14 @@ public final class InteropGenerator {
         int n = m.fields().size();
         w.line("return new " + rec + "(");
         for (int i = 0; i < n; i++) {
-            w.line("    _" + m.fields().get(i).javaName() + (i == n - 1 ? "" : ","));
+            // Every field now carries a trailing comma: the carrier is the last arg.
+            w.line("    _" + m.fields().get(i).javaName() + ",");
         }
+        // Layer B `from(X)` is a structural X<->R copy that touches no wire bytes, so
+        // the record's unknown-fields carrier stays empty: unknown fields do not cross
+        // the protobuf-java boundary (a design choice, not a loss -- Layer A handles
+        // unknown fields on the record's own codec, not on this converter).
+        w.line("    " + ci.use("bijnagte.recordbuf.runtime.UnknownFields") + ".empty()");
         w.line("    );");
         w.indent(w.indent() - 1);
         w.line("}");

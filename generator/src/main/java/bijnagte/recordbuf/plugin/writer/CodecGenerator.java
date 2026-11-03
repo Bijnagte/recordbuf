@@ -90,6 +90,12 @@ public final class CodecGenerator {
         for (Field f : m.fields().stream().sorted(Comparator.comparingInt(Field::number)).toList()) {
             emitEncodeField(w, m, f);
         }
+        // Re-emit the fields captured on the decode as not modeled by this schema,
+        // in the wire order they were seen, so a record read through an older schema
+        // survives a round-trip byte-for-byte. A common empty carrier writes nothing,
+        // so the guard keeps the empty path from touching the stream at all.
+        w.line("if (!v.unknownFields().isEmpty()) " + ci.use(RT + ".Wire")
+                + ".writeUnknown(out, v.unknownFields());");
         w.line("return enc.finish();");
     }
 
@@ -323,6 +329,9 @@ public final class CodecGenerator {
         for (Field f : m.fields()) {
             w.line(initDecl(f));
         }
+        // A builder that captures any field the schema does not model, on demand,
+        // into a byte-exact carrier the record will hold as its unknownFields component.
+        w.line("var unknown = " + ci.use(RT + ".UnknownFields") + ".builder();");
         w.line();
         w.line("var in = " + ci.use(RT + ".Decoder") + ".start(inBytes).in();");
         w.line("while (!in.isAtEnd()) {");
@@ -337,7 +346,10 @@ public final class CodecGenerator {
         for (Field f : m.fields()) {
             emitDecodeCase(w, m, f);
         }
-        w.line("default -> " + ci.use(RT + ".Wire") + ".skip(in, tag);");
+        // A field the schema does not model: capture its raw bytes on demand so it rides
+        // back out on encode and can be inspected without the newer schema. Replaces the
+        // old Wire.skip, which discarded unknown fields.
+        w.line("default -> " + ci.use(RT + ".Wire") + ".capture(in, unknown, tag);");
         w.indent(outer);
         w.line("}");
         w.indent(outer - 1);
@@ -346,9 +358,11 @@ public final class CodecGenerator {
         w.line("return new " + m.name() + "(");
         for (int i = 0; i < m.fields().size(); i++) {
             Field f = m.fields().get(i);
-            String sep = (i == m.fields().size() - 1) ? "" : ",";
-            w.line("    " + f.javaName() + sep);
+            // Always a trailing comma: the unknownFields carrier (unknown.build()) is
+            // the last constructor argument.
+            w.line("    " + f.javaName() + ",");
         }
+        w.line("    unknown.build()");
         w.line(");");
     }
 

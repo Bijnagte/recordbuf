@@ -43,10 +43,10 @@ class CompatInteropTest {
     private static final byte[] B = { (byte) 0x7f, (byte) 0x80, -1 };
     private static final List<Integer> PACKED = List.of(1, -2, 0, 100);
     private static final bijnagte.recordbuf.fixture.combined.rec.Sub NESTED =
-            new bijnagte.recordbuf.fixture.combined.rec.Sub(7, "seven");
+            bijnagte.recordbuf.fixture.combined.rec.Sub.builder().id(7).label("seven").build();
     private static final List<bijnagte.recordbuf.fixture.combined.rec.Sub> SUBS =
-            List.of(new bijnagte.recordbuf.fixture.combined.rec.Sub(1, "one"),
-                    new bijnagte.recordbuf.fixture.combined.rec.Sub(2, "two"));
+            List.of(bijnagte.recordbuf.fixture.combined.rec.Sub.builder().id(1).label("one").build(),
+                    bijnagte.recordbuf.fixture.combined.rec.Sub.builder().id(2).label("two").build());
     private static final Map<String, Integer> M = Map.of("x", 1, "z", -2);
     private static final Integer PRESENCE = 7;
 
@@ -148,7 +148,7 @@ class CompatInteropTest {
     @Test
     void siblingSubInteropRoundTrip() {
         bijnagte.recordbuf.fixture.combined.rec.Sub recSub =
-                new bijnagte.recordbuf.fixture.combined.rec.Sub(123, "alpha");
+                bijnagte.recordbuf.fixture.combined.rec.Sub.builder().id(123).label("alpha").build();
         Sub refSub = bijnagte.recordbuf.fixture.combined.rec.Sub.Interop.to(recSub);
         assertEquals(recSub.id(), refSub.getId());
         assertEquals(recSub.label(), refSub.getLabel());
@@ -175,7 +175,16 @@ class CompatInteropTest {
     }
 
     private static bijnagte.recordbuf.fixture.combined.rec.Compat recSample() {
-        return new bijnagte.recordbuf.fixture.combined.rec.Compat(
-                I, FX, S, B, PACKED, NESTED, SUBS, M, PRESENCE);
+        return bijnagte.recordbuf.fixture.combined.rec.Compat.builder()
+                .i(I)
+                .fx(FX)
+                .s(S)
+                .b(B)
+                .packed(PACKED)
+                .nested(NESTED)
+                .subs(SUBS)
+                .m(M)
+                .presence(PRESENCE)
+                .build();
     }
 }

@@ -43,13 +43,23 @@ class PackedTest {
 
     /** A fully-populated sample: a non-empty packed list for every field. */
     private static bijnagte.recordbuf.fixture.packed.rec.Sample sample() {
-        return new bijnagte.recordbuf.fixture.packed.rec.Sample(A, B, C, D, E, F, G, H, I, J);
+        return bijnagte.recordbuf.fixture.packed.rec.Sample.builder()
+                .a(A)
+                .b(B)
+                .c(C)
+                .d(D)
+                .e(E)
+                .f(F)
+                .g(G)
+                .h(H)
+                .i(I)
+                .j(J)
+                .build();
     }
 
     /** The proto3 default sample: an empty list for every field, all omitted. */
     private static bijnagte.recordbuf.fixture.packed.rec.Sample empty() {
-        return new bijnagte.recordbuf.fixture.packed.rec.Sample(List.of(), List.of(), List.of(), List.of(), List.of(),
-                List.of(), List.of(), List.of(), List.of(), List.of());
+        return bijnagte.recordbuf.fixture.packed.rec.Sample.builder().build();
     }
 
     /**

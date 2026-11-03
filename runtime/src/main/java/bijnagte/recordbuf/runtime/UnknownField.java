@@ -30,7 +30,11 @@ public record UnknownField(int fieldNumber, WireType wireType, byte[] value) {
     }
 
     /**
-     * Read the value as the raw bytes of a length-delimited field.
+     * Read the value as the raw byte <em>content</em> of a length-delimited field
+     * &mdash; the bytes the field held on the wire, with the length-delimited
+     * length prefix stripped. (The captured value retains the length prefix so it
+     * re-emits the identical bytes on encode; this accessor surfaces the content.
+     *)
      *
      * @throws IllegalStateException if the captured value is not length-delimited
      */
@@ -38,13 +42,23 @@ public record UnknownField(int fieldNumber, WireType wireType, byte[] value) {
         if (wireType != WireType.LENGTH_DELIMITED) {
             throw new IllegalStateException("value is " + wireType + ", cannot read as bytes");
         }
-        return Arrays.copyOf(value, value.length);
+        // The captured value is [length-varint][content]; skip the varint length
+        // prefix and return the content alone.
+        int pos = 0;
+        while ((value[pos] & 0x80) != 0) {
+            if (++pos == value.length) {
+                throw new IllegalStateException("length-delimited value is not self-terminating");
+            }
+        }
+        byte[] content = new byte[value.length - pos - 1];
+        System.arraycopy(value, pos + 1, content, 0, content.length);
+        return content;
     }
 
     /**
-     * Read a length-delimited value as a UTF-8 string. A wire-honest view: a
-     * length-delimited byte value surfaced as text, with no claim that the proto
-     * type was a string.
+     * Read a length-delimited value as a UTF-8 string &mdash; its content, with the
+     * length prefix stripped. A wire-honest view: a length-delimited byte value
+     * surfaced as text, with no claim that the proto type was a string.
      *
      * @throws IllegalStateException if the captured value is not length-delimited
      */

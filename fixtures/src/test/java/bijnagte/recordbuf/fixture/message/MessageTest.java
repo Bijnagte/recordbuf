@@ -31,20 +31,23 @@ class MessageTest {
     private static final String NAME = "seven";
 
     private static bijnagte.recordbuf.fixture.message.rec.Item aItem(int id, String name) {
-        return new bijnagte.recordbuf.fixture.message.rec.Item(id, name);
+        return bijnagte.recordbuf.fixture.message.rec.Item.builder()
+                .id(id)
+                .name(name)
+                .build();
     }
 
     /** A fully-populated sample: a non-null single bijnagte.recordbuf.fixture.message.rec.Item and a non-empty items list. */
     private static bijnagte.recordbuf.fixture.message.rec.Sample sample() {
-        return new bijnagte.recordbuf.fixture.message.rec.Sample(
-                aItem(ID, NAME),
-                List.of(aItem(1, "one"), aItem(2, "two"))
-        );
+        return bijnagte.recordbuf.fixture.message.rec.Sample.builder()
+                .single(aItem(ID, NAME))
+                .items(List.of(aItem(1, "one"), aItem(2, "two")))
+                .build();
     }
 
     /** The proto3 default sample: a null single bijnagte.recordbuf.fixture.message.rec.Item and an empty items list. */
     private static bijnagte.recordbuf.fixture.message.rec.Sample empty() {
-        return new bijnagte.recordbuf.fixture.message.rec.Sample(null, List.of());
+        return bijnagte.recordbuf.fixture.message.rec.Sample.builder().build();
     }
 
     /**

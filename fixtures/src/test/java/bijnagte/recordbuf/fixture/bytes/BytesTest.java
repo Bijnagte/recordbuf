@@ -55,7 +55,10 @@ class BytesTest {
     }
 
     private static bijnagte.recordbuf.fixture.bytes.rec.Sample sample() {
-        return new bijnagte.recordbuf.fixture.bytes.rec.Sample(A, B);
+        return bijnagte.recordbuf.fixture.bytes.rec.Sample.builder()
+                .a(A)
+                .b(B)
+                .build();
     }
 
     private static Sample.Builder newBuilder() {

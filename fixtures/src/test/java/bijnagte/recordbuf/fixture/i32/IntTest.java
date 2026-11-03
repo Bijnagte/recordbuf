@@ -28,7 +28,7 @@ class IntTest {
                         .setA(0x8000_0000)
                         .build()
                         .toByteArray();
-        byte[] ours = bijnagte.recordbuf.fixture.i32.rec.Sample.Codec.encode(new bijnagte.recordbuf.fixture.i32.rec.Sample(0x8000_0000));
+        byte[] ours = bijnagte.recordbuf.fixture.i32.rec.Sample.Codec.encode(bijnagte.recordbuf.fixture.i32.rec.Sample.builder().a(0x8000_0000).build());
         assertArrayEquals(theirs, ours, "record encode must equal protobuf-java toByteArray");
     }
 
@@ -41,12 +41,12 @@ class IntTest {
                         .build()
                         .toByteArray();
         bijnagte.recordbuf.fixture.i32.rec.Sample parsed = bijnagte.recordbuf.fixture.i32.rec.Sample.Codec.decode(theirs);
-        assertEquals(new bijnagte.recordbuf.fixture.i32.rec.Sample(0x8000_0000), parsed);
+        assertEquals(bijnagte.recordbuf.fixture.i32.rec.Sample.builder().a(0x8000_0000).build(), parsed);
     }
 
     @Test
     void roundTrip() throws Exception {
-        bijnagte.recordbuf.fixture.i32.rec.Sample v = new bijnagte.recordbuf.fixture.i32.rec.Sample(0x8000_0000);
+        bijnagte.recordbuf.fixture.i32.rec.Sample v = bijnagte.recordbuf.fixture.i32.rec.Sample.builder().a(0x8000_0000).build();
         assertEquals(v, bijnagte.recordbuf.fixture.i32.rec.Sample.Codec.decode(bijnagte.recordbuf.fixture.i32.rec.Sample.Codec.encode(v)));
     }
 }

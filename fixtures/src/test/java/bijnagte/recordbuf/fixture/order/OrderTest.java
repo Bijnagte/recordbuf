@@ -21,7 +21,11 @@ class OrderTest {
     private bijnagte.recordbuf.fixture.order.rec.Sample sample() {
         // Construct in declaration order (c, a, b); the codec must re-order by
         // field number on the wire so it matches protobuf-java (a, b, c on the wire).
-        return new bijnagte.recordbuf.fixture.order.rec.Sample(3, 1, 2);
+        return bijnagte.recordbuf.fixture.order.rec.Sample.builder()
+                .c(3)
+                .a(1)
+                .b(2)
+                .build();
     }
 
     private byte[] refBytes() {

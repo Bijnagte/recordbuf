@@ -41,16 +41,17 @@ class AnnotationsTest {
 
     /** A populated sample with the non-null / non-default fields set. */
     private static bijnagte.recordbuf.fixture.annotations.rec.Sample populated() {
-        return new bijnagte.recordbuf.fixture.annotations.rec.Sample(
-                7,                             // id (int32, non-deprecated)
-                "hello <tag> & friends",       // note (string, @Deprecated @Nullable)
-                new bijnagte.recordbuf.fixture.annotations.rec.Sample.Payload("body"), // payload (@Nullable)
-                Map.of("k", 1, "j", -2));      // tags (Map, @Deprecated)
+        return bijnagte.recordbuf.fixture.annotations.rec.Sample.builder()
+                .id(7)                             // id (int32, non-deprecated)
+                .note("hello <tag> & friends")       // note (string, @Deprecated @Nullable)
+                .payload(bijnagte.recordbuf.fixture.annotations.rec.Sample.Payload.builder().body("body").build()) // payload (@Nullable)
+                .tags(Map.of("k", 1, "j", -2))      // tags (Map, @Deprecated)
+                .build();
     }
 
     /** The all-default sample: every field at its proto3 default. */
     private static bijnagte.recordbuf.fixture.annotations.rec.Sample empty() {
-        return new bijnagte.recordbuf.fixture.annotations.rec.Sample(0, null, null, Map.of());
+        return bijnagte.recordbuf.fixture.annotations.rec.Sample.builder().build();
     }
 
     /** Build a protobuf-java reference with the populated fields set. */

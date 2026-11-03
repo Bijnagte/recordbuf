@@ -16,7 +16,7 @@ class InterfaceImplementationTest {
 
     @Test
     void sampleImplementsMarker() {
-        Sample sample = new Sample(7);
+        Sample sample = Sample.builder().id(7).build();
         assertTrue(sample instanceof Marker);
         Marker marker = sample;
         assertTrue(marker instanceof Sample);

@@ -22,7 +22,10 @@ class MessageBuilderTest {
     private static final String NAME = "seven";
 
     private static bijnagte.recordbuf.fixture.message.rec.Item aItem(int id, String name) {
-        return new bijnagte.recordbuf.fixture.message.rec.Item(id, name);
+        return bijnagte.recordbuf.fixture.message.rec.Item.builder()
+                .id(id)
+                .name(name)
+                .build();
     }
 
     @Test
@@ -51,8 +54,10 @@ class MessageBuilderTest {
     @Test
     void toBuilderCopyIsDefensive() {
         bijnagte.recordbuf.fixture.message.rec.Sample original =
-                new bijnagte.recordbuf.fixture.message.rec.Sample(
-                        aItem(ID, NAME), List.of(aItem(1, "one")));
+                bijnagte.recordbuf.fixture.message.rec.Sample.builder()
+                        .single(aItem(ID, NAME))
+                        .items(List.of(aItem(1, "one")))
+                        .build();
 
         var b = original.toBuilder();
         List<bijnagte.recordbuf.fixture.message.rec.Item> mutated = new ArrayList<>(original.items());

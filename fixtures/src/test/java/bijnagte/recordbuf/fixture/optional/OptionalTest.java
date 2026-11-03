@@ -32,17 +32,24 @@ class OptionalTest {
     private static final boolean C = true;
 
     private static bijnagte.recordbuf.fixture.optional.rec.Sample.Fixed aFixed(long value) {
-        return new bijnagte.recordbuf.fixture.optional.rec.Sample.Fixed(value);
+        return bijnagte.recordbuf.fixture.optional.rec.Sample.Fixed.builder()
+                .value(value)
+                .build();
     }
 
     /** A fully-populated sample: a non-default, non-null value for every field. */
     private static bijnagte.recordbuf.fixture.optional.rec.Sample sample() {
-        return new bijnagte.recordbuf.fixture.optional.rec.Sample(A, B, C, aFixed(1));
+        return bijnagte.recordbuf.fixture.optional.rec.Sample.builder()
+                .a(A)
+                .b(B)
+                .c(C)
+                .d(aFixed(1))
+                .build();
     }
 
     /** The proto3 absent sample: every field is null, so all are omitted. */
     private static bijnagte.recordbuf.fixture.optional.rec.Sample empty() {
-        return new bijnagte.recordbuf.fixture.optional.rec.Sample(null, null, null, null);
+        return bijnagte.recordbuf.fixture.optional.rec.Sample.builder().build();
     }
 
     /**

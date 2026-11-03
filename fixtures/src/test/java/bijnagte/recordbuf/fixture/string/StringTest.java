@@ -53,7 +53,11 @@ class StringTest {
     }
 
     private static bijnagte.recordbuf.fixture.string.rec.Sample sample() {
-        return new bijnagte.recordbuf.fixture.string.rec.Sample(A, B, C);
+        return bijnagte.recordbuf.fixture.string.rec.Sample.builder()
+                .a(A)
+                .b(B)
+                .c(C)
+                .build();
     }
 
     private static Sample.Builder newBuilder() {
