@@ -27,10 +27,13 @@ package bijnagte.recordbuf.fixture.combined;
 option java_package = "bijnagte.recordbuf.fixture.combined";
 option java_multiple_files = true;
 
-// Exactly one top-level message per family proto: the record's public type name
-// must match its source filename (Java requires one public type/file). The
-// nested-message family's type, `Sub`, is itself a top-level message so it gets
-// its own generated file (fixture.combined.Sub).
+// Layer B (feat-protobuf-interop): recordbuf_options.proto must be on the gen-proto
+// include path (the fixtures' generateProto task supplies it) so this import and the
+// recordbuf.protobuf_java declarations resolve at parse time.
+import "recordbuf_options.proto";
+
+// message field's Interop.from/to recurses through its sibling's Interop. Both top-level
+// messages here opt in the same way.
 message Compat {
     int32        i        = 1;
     fixed64      fx       = 2;
@@ -41,11 +44,14 @@ message Compat {
     repeated Sub subs     = 7;
     map<string, int32> m  = 8;
     optional int32 presence = 9;
+    option (.recordbuf.protobuf_java) = "bijnagte.recordbuf.fixture.combined";
 }
 
 // The nested-message family's type. A separate top-level message so it generates
-// its own Sub.java in the same package (one public type per file).
+// its own Sub.java in the same package (one public type per file). It opts in to
+// protobuf-java interop too, so Compat's message-field Interop can recurse through it.
 message Sub {
     int32  id    = 1;
     string label = 2;
+    option (.recordbuf.protobuf_java) = "bijnagte.recordbuf.fixture.combined";
 }

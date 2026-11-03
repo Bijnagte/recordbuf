@@ -37,19 +37,23 @@ public final class ModelLoader {
     // default so the nested load* helpers (which read it) never dereference null.
     private Map<List<Integer>, String> commentPaths = Map.of();
 
-    // The two shipped proto extensions declared in src/main/proto/recordbuf_options.proto.
-    // A resolved extension survives CodeGeneratorRequest serialization as an unknown field on
-    // MessageOptions / EnumOptions at its assigned tag; we read it back by tag number rather
-    // than by name (the plugin does not link the options .proto itself).
-    //   (recordbuf.java_interface)       on MessageOptions, field 50000
-    //   (recordbuf.java_enum_interface)  on EnumOptions,    field 50001
+    // The three shipped proto extensions from src/main/proto/recordbuf_options.proto:
+    //   (recordbuf.java_interface)        on MessageOptions, field 50000
+    //   (recordbuf.java_enum_interface)   on EnumOptions,    field 50001
+    //   (recordbuf.protobuf_java)         on MessageOptions, field 50002
+    // Each resolved extension survives CodeGeneratorRequest serialization as an unknown field on
+    // MessageOptions / EnumOptions at its assigned tag; we read it back by tag number rather than
+    // by name (the plugin does not link the options .proto itself).
     private static final int MESSAGE_INTERFACE_TAG = 50000;
     private static final int ENUM_INTERFACE_TAG = 50001;
+    private static final int MESSAGE_PROTobuf_java_TAG = 50002;
     // Uninterpreted-option fallback names. This path is unreachable from a real protoc run for
     // these extensions (protoc errors on an unknown extension option it cannot resolve); it only
     // serves hand-constructed descriptors, so a matching name suffices.
     private static final String MESSAGE_INTERFACE_NAME = "recordbuf.java_interface";
     private static final String ENUM_INTERFACE_NAME = "recordbuf.java_enum_interface";
+    private static final String MESSAGE_PROTobuf_java_NAME = "recordbuf.protobuf_java";
+    private static final String EMPTY_PROTobuf_java = "";
 
     public ModelLoader(FileTable table, String javaPackageForThisFile) {
         this.table = table;
@@ -165,6 +169,9 @@ public final class ModelLoader {
                         m.getOptions().getUninterpretedOptionList(),
                         MESSAGE_INTERFACE_TAG,
                         MESSAGE_INTERFACE_NAME))
+                .protobufJava(protobufJavaFor(
+                        m.getOptions().getUnknownFields(),
+                        m.getOptions().getUninterpretedOptionList()))
                 .build();
     }
 
@@ -449,5 +456,28 @@ public final class ModelLoader {
             sb.append(part.getNamePart());
         }
         return sb.toString();
+    }
+
+    /**
+     * Read the singular {@code recordbuf.protobuf_java} option value (the java_package that
+     * hosts the equivalent protobuf-java reference) for a message, or <strong>empty</strong> when
+     * neither path carries it. Prefers the COMPILED path (a resolved extension reaches us as an
+     * unknown field at {@code 50002}); falls back to an uninterpreted option whose dotted name
+     * equals {@link #MESSAGE_PROTobuf_java_NAME}. Returns {@code ""} on absence so the caller can
+     * tell "not opted in" from "opted in with a blank package" without a null check.
+     */
+    private static String protobufJavaFor(
+            UnknownFieldSet unknownFields,
+            List<UninterpretedOption> uninterpreted) {
+        UnknownFieldSet.Field f = unknownFields.getField(MESSAGE_PROTobuf_java_TAG);
+        if (f != null && !f.getLengthDelimitedList().isEmpty()) {
+            return f.getLengthDelimitedList().get(0).toStringUtf8();
+        }
+        for (UninterpretedOption opt : uninterpreted) {
+            if (opt.hasStringValue() && optionName(opt).equals(MESSAGE_PROTobuf_java_NAME)) {
+                return opt.getStringValue().toStringUtf8();
+            }
+        }
+        return EMPTY_PROTobuf_java;
     }
 }

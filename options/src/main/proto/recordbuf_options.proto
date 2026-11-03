@@ -1,12 +1,28 @@
 syntax = "proto2";
 import "google/protobuf/descriptor.proto";
 package recordbuf;
+// When this .proto is fed to protobuf-java's --java_out (e.g. a fixture that opts a
+// message in to recordbuf.protobuf_java and ALSO generates the protobuf-java reference),
+// the generated reference's descriptor embeds this extension and references
+// `recordbuf.RecordbufOptions` — so the extension's generated Java class must be on the
+// classpath. `java_package` + `java_multiple_files` place it where the generated refs look
+// for it. (The plugin itself does NOT link this class; only the generated protobuf-java
+// references do.)
+option java_package = "recordbuf";
+option java_multiple_files = true;
 // Two extension names, each on its own option-message set. A single symbol cannot be declared on
 // BOTH MessageOptions and EnumOptions without an "already defined" collision, so the two use
 // distinct singular symbol names (the plan's `java_interface` / `java_enum_interface`), matching
 // the constants in bijnagte.recordbuf.plugin.model.ModelLoader.
 extend google.protobuf.MessageOptions {
     repeated string java_interface = 50000;
+    // (recordbuf.protobuf_java) — opt into a STRUCTURAL X<->R converter (Layer B).
+    // Singular string naming the java_package that hosts the equivalent protobuf-java
+    // reference (`X`). When present on a message, recordbuf emits a nested `Interop`
+    // type with `from(X)`/`to(R)` statics; when absent, none is emitted. Like
+    // java_interface, it rides the descriptor's UnknownFieldSet as a plain string
+    // value the plugin reads off the tag without linking this .proto.
+    optional string protobuf_java = 50002;
 };
 extend google.protobuf.EnumOptions {
     repeated string java_enum_interface = 50001;

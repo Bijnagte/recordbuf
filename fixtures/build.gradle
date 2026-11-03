@@ -61,6 +61,16 @@ repositories {
     mavenCentral()
 }
 
+// Layer B (feat-protobuf-interop): a message that opts in to recordbuf.protobuf_java
+// generates a protobuf-java REFERENCE whose descriptor embeds the extension and therefore
+// references recordbuf.RecordbufOptions. Adding the options proto as a main source dir makes
+// the java builtin generate that class (into package `recordbuf`) so the refs compile. The
+// recordbuf plugin also sees it, but it has no messages/enums, so it emits nothing but an
+// empty header file.
+sourceSets.main.proto {
+    srcDir project(':recordbuf-options').file('src/main/proto')
+}
+
 dependencies {
     // The runtime is a compile dependency, not a generated type: generated records
     // are pure Java that only import bijnagte.recordbuf.runtime.*.
@@ -108,6 +118,11 @@ protobuf {
             if (task.name == 'generateProto') {
                 // byte-compat families: record -> .rec sibling; ref stays at natural pkg.
                 task.plugins.getByName('recordbuf').option('package_suffix=.rec')
+                // Layer B (feat-protobuf-interop): recordbuf_options.proto must be on the
+                // include path so a fixture's `import "recordbuf_options.proto"` + the
+                // `recordbuf.protobuf_java` option resolve at parse time. WKT is supplied
+                // by the java builtin automatically; only the options proto is added here.
+                task.getIncludeDirs().from(optionsProtoDir)
             } else {
                 // iface_marker: natural output, no protobuf-java ref.
                 task.getBuiltins().removeByName('java')

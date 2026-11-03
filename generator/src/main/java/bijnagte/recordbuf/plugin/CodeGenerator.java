@@ -134,11 +134,11 @@ public final class CodeGenerator {
         TypeImports ci = w.imports();
         TypeResolver types = new TypeResolver(table, ci);
         CodecGenerator codec = new CodecGenerator(types, ci, sourceProto);
-        recordAndCodec(w, types, codec, m, javaPkg);
+        recordAndCodec(w, types, codec, m, javaPkg, sourceProto);
     }
 
     private void recordAndCodec(JavaWriter w, TypeResolver types, CodecGenerator codec,
-                                Message m, String javaPkg) {
+                                Message m, String javaPkg, String sourceProto) {
         TypeImports ci = w.imports();
         // Type-level Javadoc (clean, HTML-escaped at emit time) followed by a bare
         // @Deprecated when the proto marked this message deprecated. A bare (java.lang,
@@ -160,7 +160,13 @@ public final class CodeGenerator {
             String prefix = f.deprecated() ? "@Deprecated " : "";
             w.line("    " + prefix + type + " " + f.javaName() + sep);
         }
-        w.line(")" + RecordGenerator.implementsClause(ci, m.interfaces()));
+        // Layer A marshal hook: every record implements ProtobufMessage (a tiny,
+        // runtime-only marker) so it can be wired out with zero structural conversion
+        // at a gRPC/protobuf-java boundary. Added after the option interfaces, so
+        // both render in decl order.
+        List<String> impls = new ArrayList<>(m.interfaces());
+        impls.add("bijnagte.recordbuf.runtime.ProtobufMessage");
+        w.line(")" + RecordGenerator.implementsClause(ci, impls));
         w.line("{");
         w.indent(w.indent() + 1);
         // Compact constructor: null-safe for List/Map fields.
@@ -170,7 +176,7 @@ public final class CodeGenerator {
         // Nested messages and enums (share this file's collector + resolver).
         for (var nested : m.nestedMessages()) {
             w.line();
-            recordAndCodec(w, types, codec, nested, javaPkg);
+            recordAndCodec(w, types, codec, nested, javaPkg, sourceProto);
         }
         for (var nested : m.nestedEnums()) {
             w.line();
@@ -180,6 +186,17 @@ public final class CodeGenerator {
         // before the codec so the Builder (a later member) can reference it freely; the
         // codec still stays the last member so the type can reference itself.
         addBuilder(w, types, ci, m);
+        // Layer A hook: toByteArray() (instance) + fromBytes(byte[]) (static), emitted
+        // after the builder and before the codec so the forward reference to the codec
+        // (a later member) resolves as it did for the map-entry records.
+        emitMarshallingHook(w, ci, m);
+        // Layer B opt-in: a nested Interop { from(X); to(R); } structural converter to/from
+        // the equivalent protobuf-java reference, emitted only when recordbuf.protobuf_java
+        // was declared on this message. It stays off for every other message.
+        if (m.protobufJava() != null) {
+            new bijnagte.recordbuf.plugin.writer.InteropGenerator(types, ci, sourceProto, javaPkg)
+                    .writeInterop(w, m);
+        }
         // Codec as last member so the type can reference itself.
         codec.writeCodec(w, m);
         w.indent(w.indent() - 1);
@@ -288,6 +305,34 @@ public final class CodeGenerator {
     private static String componentType(Field f, TypeResolver types) {
         return f.isNullable() ? types.resolveNullable(f) : types.resolve(f);
     }
+
+    /**
+     * Emit the Layer A marshalling hook for a record: an instance {@code
+     * toByteArray()} that implements {@code bijnagte.recordbuf.runtime.ProtobufMessage}
+     * by delegating to the record's own {@code Codec.encode}, and a {@code static
+     * fromBytes(byte[])} (a static cannot ride the marker interface, so the read
+     * half is reached by a decoder function held by the runtime
+     * {@code ProtobufMarshaller}, never by reflection). Emitted after the builder
+     * and before the codec, so the forward reference to the later {@code Codec}
+     * member resolves as it does for the map-entry records. The unqualified
+     * {@code Codec} resolves to this record's own nested {@code Codec} (innermost
+     * scope), correct for both top-level and nested messages.
+     */
+    private void emitMarshallingHook(JavaWriter w, TypeImports ci, Message m) {
+        String io = ci.use("java.io.IOException");
+        w.line();
+        w.javadoc(w.indent(), "Wire-encode this record through its generated Codec. The bytes are "
+                + "byte-identical to the equivalent protobuf-java message, so this record can "
+                + "cross a gRPC / protobuf-java boundary with no structural conversion.");
+        w.line("@Override");
+        w.line("public byte[] toByteArray() throws " + io + " { return Codec.encode(this); }");
+        w.line();
+        w.javadoc(w.indent(), "Decode a record from its wire bytes via the generated Codec. The "
+                + "runtime ProtobufMarshaller holds a record type's fromBytes as its decoder.");
+        w.line("public static " + m.name() + " fromBytes(byte[] in) throws " + io
+                + " { return Codec.decode(in); }");
+    }
+
 
     /** The fresh builder's storage-field default -- mirrors the codec's decode default
      *  (empty containers, codec-default scalars/enum, null for present-able fields). */

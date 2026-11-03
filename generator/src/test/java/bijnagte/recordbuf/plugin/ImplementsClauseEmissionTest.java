@@ -99,13 +99,19 @@ class ImplementsClauseEmissionTest {
     }
 
     @Test
-    void recordWithoutOptionEmitsNoImplements() {
+    void recordWithoutOptionStillImplementsProtobufMessage() {
         FileDescriptorProto fd =
                 messageFile("plain.proto", "bijnagte.recordbuf.fixture.iface",
                         message("Plain", MessageOptions.newBuilder()));
         String src = generatedSource(fd, "plain.proto");
 
-        assertFalse(src.contains("implements"), "marker interface path must be untouched: " + src);
+        // Layer A is always-on: every record implements the runtime ProtobufMessage
+        // marker even with no option interfaces declared. Option-derived interfaces
+        // remain absent, so the clause holds only the marker.
+        assertTrue(src.contains("implements ProtobufMessage"),
+                "Layer A marker is always on for records: " + src);
+        assertFalse(src.contains("import bijnagte.recordbuf.fixture.iface"),
+                "no option interfaces declared, so none imported: " + src);
     }
 
     @Test

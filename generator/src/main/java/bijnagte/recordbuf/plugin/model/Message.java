@@ -19,6 +19,11 @@ import org.jspecify.annotations.Nullable;
  *                        emit in an {@code implements} clause, in declaration
  *                        order and de-duplicated (never {@code null}); empty when
  *                        none are declared. The FQNs are opaque to the generator.
+ * @param protobufJava    the java_package that hosts the equivalent protobuf-java
+ *                        reference {@code X} for a Layer B structural converter
+ *                        ({@code Interop.from}/{@code Interop.to}), or {@code null}
+ *                        when no converter is opt-ed in. {@code null} for every
+ *                        message except those that declare {@code recordbuf.protobuf_java}.
  */
 @RecordBuilder
 public record Message(
@@ -29,15 +34,19 @@ public record Message(
         List<Enum> nestedEnums,
         boolean deprecated,
         @Nullable String comment,
-        List<String> interfaces
+        List<String> interfaces,
+        @Nullable String protobufJava
 ) {
     public boolean hasNested() {
         return !nestedMessages.isEmpty() || !nestedEnums.isEmpty();
     }
 
     /** Enforce the never-{@code null}, empty-default invariant on {@link #interfaces} even
-     *  when a caller (or the record-builder's default initialization) supplies {@code null}. */
+     *  when a caller (or the record-builder's default initialization) supplies {@code null},
+     *  and fold a blank {@link #protobufJava} to {@code null} so "opted in" is exactly
+     *  "non-null package". */
     public Message {
         if (interfaces == null) interfaces = List.of();
+        if (protobufJava != null && protobufJava.isEmpty()) protobufJava = null;
     }
 }
