@@ -134,9 +134,20 @@ protobuf {
 }
 
 // KTD6: generation depends on installDist so the launcher exists before protoc runs.
+//
+// KTD8: the protobuf-gradle-plugin's GenerateProtoTask up-to-date check tracks only the
+// .proto sources and the managed protoc artifact -- NOT the custom `recordbuf` plugin
+// executable it shells out to. Left to its own devices, recompiling :recordbuf-generator
+// rebuilds the launcher yet the generate task still reports up-to-date and emits STALE
+// record output. Pointing at the installDist output directory as an input closes that gap
+// precisely: regeneration fires when the generator's distribution actually changes and is
+// skipped (cached) when it does not.
+def recordbufInstallDir = project(':recordbuf-generator').layout.buildDirectory
+    .dir('install/protoc-gen-recordbuf').get().asFile
 ['generateProto', 'generateTestProto'].each { n ->
     tasks.named(n, Class.forName(GenerateProtoTask)).configure {
         dependsOn ':recordbuf-generator:installDist'
+        inputs.dir(recordbufInstallDir)
     }
 }
 
