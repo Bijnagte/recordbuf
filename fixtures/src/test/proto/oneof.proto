@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.oneof;
+
+option java_package = "bijnagte.recordbuf.fixture.oneof";
+option java_multiple_files = true;
+
+// Record-only interop fixture for the sealed-hierarchy oneof feature. Generated from the
+// `test` proto source set by generateTestProto (the protobuf-java builtin is removed, so
+// no reference is emitted and no protobuf-java reference import is required).
+//
+// The fixture probes every branch of the oneof codec:
+//   * a scalar string member (name)   → per-member record NameValue
+//   * a scalar int32 member (count)   → per-member record CountValue
+//   * a singular sub message (item)   → identity subtype Sub implements Choice
+//
+// The round-trip test encodes a Compat with each member set individually, decodes it,
+// and asserts the recovered value matches the original — proving:
+//   1. per-member records carry the correct typed value without needing a tag number,
+//   2. the codec's instanceof dispatch picks the right encode/decode primitive,
+//   3. a message member is recovered via Sub.Codec.decode and matches Sub.equals(),
+//   4. Unwrapable.value() works uniformly across scalar and message members..
+
+message Compat {
+  oneof choice {
+    string name = 1;
+    int32  count = 2;
+    Sub    item = 3;
+  }
+}
+
+message Sub {
+  string text = 1;
+}

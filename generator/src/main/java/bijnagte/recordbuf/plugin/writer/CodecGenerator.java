@@ -3,9 +3,12 @@ package bijnagte.recordbuf.plugin.writer;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.JavaNames;
 import bijnagte.recordbuf.plugin.model.Message;
+import bijnagte.recordbuf.plugin.model.Oneof;
 import bijnagte.recordbuf.plugin.types.TypeResolver;
 import bijnagte.recordbuf.plugin.types.TypeResolver.WireScalar;
 import bijnagte.recordbuf.plugin.writer.TypeImports;
+import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
+
 import java.util.Comparator;
 
 /**
@@ -54,6 +57,11 @@ public final class CodecGenerator {
         for (Field f : m.fields()) {
             if (f.isMap()) emitMapEntry(w, f);
         }
+        // One nested sealed interface per real oneof group is emitted by
+        // CodeGenerator.recordAndCodec at the record-body level (a peer of the
+        // Builder and Codec, not inside the Codec). This method only emits the
+        // Codec class itself. The codec's encode/decode dispatch on m.oneofs()
+        // at the call site in emitEncode/emitDecode.
 
         w.line();
         w.javadoc(codecDoc(m));
@@ -90,6 +98,12 @@ public final class CodecGenerator {
         for (Field f : m.fields().stream().sorted(Comparator.comparingInt(Field::number)).toList()) {
             emitEncodeField(w, m, f);
         }
+        // Oneof members: one wire field each, written only when the oneof's interface
+        // component is set (the message subtype or the shared Scalar wrapper). The
+        // wrapper carries the member's wire field number so the codec can dispatch on it.
+        for (Oneof o : m.oneofs()) {
+            emitOneofEncode(w, m, o);
+        }
         // Re-emit the fields captured on the decode as not modeled by this schema,
         // in the wire order they were seen, so a record read through an older schema
         // survives a round-trip byte-for-byte. A common empty carrier writes nothing,
@@ -97,6 +111,90 @@ public final class CodecGenerator {
         w.line("if (!v.unknownFields().isEmpty()) " + ci.use(RT + ".Wire")
                 + ".writeUnknown(out, v.unknownFields());");
         w.line("return enc.finish();");
+    }
+
+    // --- oneof members ---
+
+    /**
+     * Encode one real {@code oneof{...}} group into the stream. The record carries
+     * one {@code @Nullable} component of the oneof's nested sealed interface type;
+     * a null component means the oneof was absent off the wire, so nothing is
+     * written. A non-null component is either a message subtype (the message
+     * member's record, permitted by the interface via the K6 registry) or the
+     * shared {@code Scalar} wrapper carrying a scalar/enum value plus a wire field
+     * number tag; the latter dispatches on the tag to pick the wire primitive.
+     */
+    private void emitOneofEncode(JavaWriter w, Message m, Oneof o) {
+        String iface = o.ifaceName();
+        String cmp = o.componentName();
+        String getter = "v." + cmp + "()";
+        // Exhaustive pattern-matching switch on the sealed oneof interface. Java 21+
+        // forbids a default case: the 'permits' clause plus 'case null ->' is
+        // exhaustive by construction. Each case encodes its member via the write
+        // primitive that matches the member's wire type.
+        w.line("switch (" + getter + ") {");
+        int li = w.indent() + 1;
+        w.indent(li);
+        w.line("case null -> {}");
+        for (Field f : o.members()) {
+            if (f.isMessage()) {
+                String elem = ci.use(types.resolveElement(f));
+                String bnd = String.valueOf(f.name().charAt(0));
+                w.line("case " + elem + " " + bnd
+                        + " -> out.writeByteArray(" + f.number()
+                        + ", " + elem + ".Codec.encode(" + bnd + "));");
+            } else {
+                String recName = iface + "." + JavaNames.cap(f.name()) + "Value";
+                String bnd = String.valueOf(f.name().charAt(0));
+                w.line("case " + recName + " " + bnd + " -> " + oneofScalarEncode(o, f, bnd, "out"));
+            }
+        }
+        w.indent(li - 1);
+        w.line("}");
+    }
+
+    /** The single encode statement for one non-message oneof member, dispatched from the
+     *  per-member record binding's {@code value()} accessor. The concrete proto field
+     *  for that member is looked up on the oneof's raw descriptor so the writer
+     *  primitive matches the member's wire type. With per-member typed records the
+     *  accessor already returns the correct Java type (e.g. {@code String},
+     *  {@code Integer}), so no cast from {@code Object} is needed. Returns the
+     *  full statement (including its terminating semicolon) for an arrow. */
+    private String oneofScalarEncode(Oneof o, Field f, String scalarBinding, String out) {
+        var raw = rawMemberField(o, f.number());
+        switch (raw.getType()) {
+            case TYPE_STRING -> {
+                return out + ".writeString(" + f.number() + ", " + scalarBinding + ".value());";
+            }
+            case TYPE_BYTES -> {
+                return out + ".writeByteArray(" + f.number() + ", " + scalarBinding + ".value());";
+            }
+            case TYPE_BOOL -> {
+                return out + ".writeBool(" + f.number() + ", " + scalarBinding + ".value());";
+            }
+            case TYPE_DOUBLE -> {
+                return out + ".writeDouble(" + f.number() + ", " + scalarBinding + ".value());";
+            }
+            case TYPE_FLOAT -> {
+                return out + ".writeFloat(" + f.number() + ", " + scalarBinding + ".value());";
+            }
+            case TYPE_INT32, TYPE_SINT32, TYPE_SFIXED32, TYPE_UINT32, TYPE_FIXED32 -> {
+                return out + ".writeInt32(" + f.number() + ", " + scalarBinding + ".value());";
+            }
+            case TYPE_INT64, TYPE_SINT64, TYPE_SFIXED64, TYPE_UINT64, TYPE_FIXED64 -> {
+                return out + ".writeInt64(" + f.number() + ", " + scalarBinding + ".value());";
+            }
+            case TYPE_ENUM -> {
+                return out + ".writeEnum(" + f.number() + ", " + scalarBinding + ".value().getNumber());";
+            }
+            case TYPE_MESSAGE, TYPE_GROUP -> {
+                // Message members are routed through the identity-subtype path in
+                // emitOneofEncode, not through this method; if they ever land
+                // here it is a generator logic bug, so fail loudly.
+                throw new IllegalStateException("oneof scalar encode: unexpected TYPE_MESSAGE member tag " + f.number());
+            }
+            default -> throw new IllegalStateException("unsupported oneof scalar type: " + raw.getType());
+        }
     }
 
     private void emitEncodeField(JavaWriter w, Message m, Field f) {
@@ -329,6 +427,13 @@ public final class CodecGenerator {
         for (Field f : m.fields()) {
             w.line(initDecl(f));
         }
+        // One local per oneof, defaulting to null (the absent case). Each member of a
+        // oneof is a distinct case in the decode switch and assigns the SAME local,
+        // so a repeated same-tag member would overwrite a prior one (proto3 oneof
+        // semantics: last one seen wins).
+        for (Oneof o : m.oneofs()) {
+            w.line(o.ifaceName() + " " + o.componentName() + " = null;");
+        }
         // A builder that captures any field the schema does not model, on demand,
         // into a byte-exact carrier the record will hold as its unknownFields component.
         w.line("var unknown = " + ci.use(RT + ".UnknownFields") + ".builder();");
@@ -346,6 +451,9 @@ public final class CodecGenerator {
         for (Field f : m.fields()) {
             emitDecodeCase(w, m, f);
         }
+        for (Oneof o : m.oneofs()) {
+            emitOneofDecodeCases(w, m, o);
+        }
         // A field the schema does not model: capture its raw bytes on demand so it rides
         // back out on encode and can be inspected without the newer schema. Replaces the
         // old Wire.skip, which discarded unknown fields.
@@ -362,8 +470,79 @@ public final class CodecGenerator {
             // the last constructor argument.
             w.line("    " + f.javaName() + ",");
         }
+        // The record's canonical ctor places the oneof components between its fields and
+        // the unknownFields carrier, matching the declaration order in the record header.
+        for (Oneof o : m.oneofs()) {
+            w.line("    " + o.componentName() + ",");
+        }
         w.line("    unknown.build()");
         w.line(");");
+    }
+
+    /** Each oneof member becomes a case in the decode switch that assigns the
+     *  oneof's shared local to a freshly decoded value: a message member decodes
+     *  via its own Codec; a scalar/enum member decodes via {@code in.read<Wire>()} or
+     *  the enum's {@code forNumber}, wrapped in the oneof's {@code Scalar} wrapper.
+     *  Multiple members of one oneof share the local, so proto3's "last seen wins"
+     *  semantics fall out of a normal switch. */
+    private void emitOneofDecodeCases(JavaWriter w, Message m, Oneof o) {
+        String iface = o.ifaceName();
+        String cmp = o.componentName();
+        for (Field f : o.members()) {
+            int num = f.number();
+            w.line("case " + num + " -> {");
+            int ind = w.indent() + 1;
+            w.indent(ind);
+            if (f.isMessage()) {
+                w.line(cmp + " = " + types.resolveElement(f) + ".Codec.decode(in.readByteArray());");
+            } else {
+                // The per-member nested record carries just the value; no tag needed.
+                w.line(cmp + " = new " + iface + "." + JavaNames.cap(f.name()) + "Value(" + oneofMemberDecodeValue(o, f) + ");");
+            }
+            w.indent(ind - 1);
+            w.line("}");
+        }
+    }
+
+    /** The right-hand value expression for decoding a scalar/enum oneof member in the
+     *  switch: the result of {@code in.read<Wire>()} for a scalar (autoboxed into the
+     *  {@code Object} value of {@code Scalar}) or the enum's {@code forNumber} for an
+     *  enum member. The raw descriptor's member field (looked up by the member's wire
+     *  tag among the enclosing message's fields) tells us the scalar's wire type. */
+    private String oneofMemberDecodeValue(Oneof o, Field f) {
+        var raw = rawMemberField(o, f.number());
+        switch (raw.getType()) {
+            case TYPE_STRING -> { return "in.readString()"; }
+            case TYPE_BYTES  -> { return "in.readByteArray()"; }
+            case TYPE_BOOL   -> { return "in.readBool()"; }
+            case TYPE_DOUBLE -> { return "in.readDouble()"; }
+            case TYPE_FLOAT  -> { return "in.readFloat()"; }
+            case TYPE_INT32, TYPE_SINT32, TYPE_SFIXED32, TYPE_UINT32, TYPE_FIXED32
+                    -> { return "in.readInt32()"; }
+            case TYPE_INT64, TYPE_SINT64, TYPE_SFIXED64, TYPE_UINT64, TYPE_FIXED64
+                    -> { return "in.readInt64()"; }
+            case TYPE_ENUM -> {
+                String enumName = types.resolveElement(f);
+                return enumName + ".forNumber((int) in.readEnum())";
+            }
+            case TYPE_MESSAGE, TYPE_GROUP -> {
+                // Message members are routed through the message-branch in
+                // emitOneofDecodeCases, not through oneofMemberDecodeValue.
+                throw new IllegalStateException("oneof decode: unexpected TYPE_MESSAGE member tag " + f.number());
+            }
+            default -> throw new IllegalStateException("unsupported oneof scalar type: " + raw.getType());
+        }
+    }
+
+    /** The raw {@code FieldDescriptorProto} for this oneof member, looked up by its
+     *  wire tag among the enclosing message's raw fields. */
+    private static com.google.protobuf.DescriptorProtos.FieldDescriptorProto rawMemberField(Oneof o, int number) {
+        var parent = o.parentDescriptor();
+        for (int i = 0; i < parent.getFieldCount(); i++) {
+            var f = parent.getField(i);
+            if (f.getNumber() == number) return f;
+        }
+        throw new IllegalStateException("no oneof member with tag " + number + " in raw descriptor for oneof " + o.name());
     }
 
     private void emitDecodeCase(JavaWriter w, Message m, Field f) {

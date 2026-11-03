@@ -60,6 +60,8 @@ class OneofLoaderTest {
         assertEquals(1, msg.oneofs().size(), () -> "expected one oneof, had " + msg.oneofs());
         Oneof payload = msg.oneofs().get(0);
         assertEquals("payload", payload.name());
+        assertEquals("Payload", payload.ifaceName());
+        assertEquals("payload", payload.componentName());
         assertEquals(
                 List.of("a", "b", "c"),
                 payload.members().stream().map(Field::name).toList(),

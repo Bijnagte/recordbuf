@@ -175,7 +175,7 @@ public final class ModelLoader {
         for (int oi = 0; oi < m.getOneofDeclCount(); oi++) {
             List<Field> members = oneofMembersByIndex.get(oi);
             if (members == null || members.isEmpty()) continue;
-            oneofs.add(new Oneof(m.getOneofDecl(oi).getName(), members));
+            oneofs.add(new Oneof(m.getOneofDecl(oi).getName(), m.getOneofDecl(oi), m, members));
         }
 
         List<Message> nestedMsgs = new ArrayList<>();

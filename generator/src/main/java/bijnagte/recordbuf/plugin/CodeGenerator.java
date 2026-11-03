@@ -1,6 +1,8 @@
 package bijnagte.recordbuf.plugin;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -15,6 +17,7 @@ import bijnagte.recordbuf.plugin.model.FileTable;
 import bijnagte.recordbuf.plugin.model.JavaNames;
 import bijnagte.recordbuf.plugin.model.ModelLoader;
 import bijnagte.recordbuf.plugin.model.Message;
+import bijnagte.recordbuf.plugin.model.Oneof;
 import bijnagte.recordbuf.plugin.model.ProtoFile;
 
 import org.jspecify.annotations.Nullable;
@@ -22,6 +25,7 @@ import bijnagte.recordbuf.plugin.types.TypeResolver;
 import bijnagte.recordbuf.plugin.writer.CodecGenerator;
 import bijnagte.recordbuf.plugin.writer.EnumGenerator;
 import bijnagte.recordbuf.plugin.writer.JavaWriter;
+import bijnagte.recordbuf.plugin.writer.OneofGenerator;
 import bijnagte.recordbuf.plugin.writer.RecordGenerator;
 import bijnagte.recordbuf.plugin.writer.TypeImports;
 
@@ -44,6 +48,22 @@ public final class CodeGenerator {
     // stateless. Built fresh each call with the parsed package_suffix.
     private FileTable table = new FileTable();
 
+    /**
+     * The oneof member-to-interface registry for this invocation. A oneof's
+     * MESSAGE members are identity subtypes of the enclosing record's nested oneof
+     * interface (K6), so each such member's record must {@code implements} that
+     * interface — and that is resolved per-invocation, not by the model. The map
+     * is keyed by the member type's Java fully-qualified name and maps it to every
+     * interface (by FQN) it must implement. It is built over the model of every
+     * protobuf file in the request (not just {@code file_to_generate}) so a message
+     * may live in a different file than the oneof that references it. Scalar/enum
+     * members never appear as keys: they fold into the enclosing interface's shared
+     * {@code Scalar} wrapper rather than being identity subtypes. An absent key
+     * means "not a oneof member" and the record implements only the marker.
+     */
+    private java.util.Map<String, java.util.Set<String>> oneofRegistry =
+            new java.util.LinkedHashMap<>();
+
     /** Run generation; returns a response ready to serialize to the client. */
     public CodeGeneratorResponse generate(CodeGeneratorRequest request) {
         // Pass 1: load ALL files (including dependencies) into the type table.
@@ -52,6 +72,10 @@ public final class CodeGenerator {
         // (and every cross-file resolution through it) is suffixed uniformly.
         table = new FileTable(parsePackageSuffix(request.getParameter()));
         table.addAll(request.getProtoFileList());
+        // A second pass over every requested file builds the oneof member-to-
+        // interface registry so a record can implement the nested interface a
+        // message member of another file's oneof belongs to (K6, cross-file).
+        this.oneofRegistry = buildOneofRegistry(request.getProtoFileList());
 
         List<CodeGeneratorResponse.File> outFiles = new ArrayList<>();
         for (String fileName : request.getFileToGenerateList()) {
@@ -70,7 +94,7 @@ public final class CodeGenerator {
 
         String javaPkg = table.javaPackage(fdp);
         ProtoFile pf = new ModelLoader(table, javaPkg).load(fdp);
-        String outDir = "src/main/java/" + javaPkg.replace('.', '/') + "/";
+        String outDir = javaPkg.replace('.', '/') + "/";
         List<CodeGeneratorResponse.File> files = new ArrayList<>();
 
         // Each top-level enum gets its OWN file so the public type name matches
@@ -82,9 +106,54 @@ public final class CodeGenerator {
         // Each top-level message gets its OWN file (record + nested types + codec).
         for (var m : pf.messages()) {
             files.add(generateFile(fdp, javaPkg, outDir + JavaNames.cap(m.name()) + ".java",
-                    w -> emitMessage(w, m, javaPkg, fdp.getName())));
+                    w -> emitMessage(w, m, javaPkg, fdp.getName(), oneofRegistry)));
         }
         return files;
+    }
+
+    /**
+     * Build the run-wide oneof member-to-interface registry by loading the model
+     * of EVERY requested protobuf file (not just {@code file_to_generate}) and
+     * recording, for each oneof <em>message</em> member, that its record must
+     * implement the enclosing record's nested oneof interface. Scalar/enum
+     * members are excluded (they fold into the interface's shared {@code Scalar}
+     * wrapper). A member type whose Java FQN is unresolved (e.g. an external
+     * type) contributes no entry, so its record implements no oneof interface.
+     */
+    private java.util.Map<String, java.util.Set<String>> buildOneofRegistry(
+            java.util.List<FileDescriptorProto> files) {
+        var registry = new java.util.LinkedHashMap<String, java.util.Set<String>>();
+        for (FileDescriptorProto fdp : files) {
+            String javaPkg = table.javaPackage(fdp);
+            ProtoFile pf = new ModelLoader(table, javaPkg).load(fdp);
+            for (Message m : pf.messages()) collectOneofInterfaces(m, registry);
+        }
+        return registry;
+    }
+
+    /**
+     * Record, for a top-level (or nested) message's oneof message members, that
+     * each member's record must implement the enclosing record's nested oneof
+     * interface. Walks nested messages so a oneof declared on a nested message
+     * registers too. A member whose Java FQN is unresolved contributes nothing.
+     */
+    private void collectOneofInterfaces(
+            Message m, java.util.Map<String, java.util.Set<String>> registry) {
+        String ifaceBase = m.fullName();
+        for (Oneof oneof : m.oneofs()) {
+            String ifaceFqn = ifaceBase + "." + oneof.ifaceName();
+            for (Field member : oneof.members()) {
+                if (!member.isMessage()) continue;  // scalar/enum fold into the Scalar wrapper
+                // The member's proto FQN resolves through the same file table the
+                // generator's TypeResolver uses, so the key lines up with the
+                // member record's own fullName() at its emission site.
+                String memberFqn = table.javaFqn(member.typeUrl());
+                if (memberFqn == null) continue;  // unresolved external type: no interface to implement
+                registry.computeIfAbsent(memberFqn, k -> new java.util.LinkedHashSet<>())
+                        .add(ifaceFqn);
+            }
+        }
+        for (Message nested : m.nestedMessages()) collectOneofInterfaces(nested, registry);
     }
 
     /**
@@ -134,15 +203,17 @@ public final class CodeGenerator {
                 .build();
     }
 
-    private void emitMessage(JavaWriter w, Message m, String javaPkg, String sourceProto) {
+    private void emitMessage(JavaWriter w, Message m, String javaPkg, String sourceProto,
+            java.util.Map<String, java.util.Set<String>> oneofRegistry) {
         TypeImports ci = w.imports();
         TypeResolver types = new TypeResolver(table, ci);
         CodecGenerator codec = new CodecGenerator(types, ci, sourceProto);
-        recordAndCodec(w, types, codec, m, javaPkg, sourceProto);
+        recordAndCodec(w, types, codec, m, javaPkg, sourceProto, oneofRegistry);
     }
 
     private void recordAndCodec(JavaWriter w, TypeResolver types, CodecGenerator codec,
-                                Message m, String javaPkg, String sourceProto) {
+                                Message m, String javaPkg, String sourceProto,
+                                java.util.Map<String, java.util.Set<String>> oneofRegistry) {
         TypeImports ci = w.imports();
         // Type-level Javadoc (clean, HTML-escaped at emit time) followed by a bare
         // @Deprecated when the proto marked this message deprecated. A bare (java.lang,
@@ -165,6 +236,18 @@ public final class CodeGenerator {
             String prefix = f.deprecated() ? "@Deprecated " : "";
             w.line("    " + prefix + type + " " + f.javaName() + ",");
         }
+        // One component per real oneof group: a @Nullable reference to the nested
+        // sealed interface that name-spaces its members (a nested type, so no import
+        // and no @Nullable-prefixed-FQN special case). Null denotes the absent case.
+        for (Oneof oneof : m.oneofs()) {
+            String iface = oneof.ifaceName();
+            w.javadoc(w.indent() + 1, "The '" + oneof.name() + "' oneof: at most one member is present"
+                    + " at a time; null when absent. A member's value is either one of the"
+                    + " interface's permitted message subtypes or one of the nested value records "
+                    + "(one per non-message member, carrying its underlying value). A null "
+                    + "reference means the oneof was absent off the wire.");
+            w.line("    " + oneofComponentType(oneof, ci) + " " + oneof.componentName() + ",");
+        }
         // The always-on unknown-field carrier: the record's LAST component, defaulting
         // to the shared empty() so a message that sees nothing unknown carries an empty
         // carrier with no per-record payload. Captured on decode, re-emitted on encode.
@@ -179,6 +262,13 @@ public final class CodeGenerator {
         // at a gRPC/protobuf-java boundary. Added after the option interfaces, so
         // both render in decl order.
         List<String> impls = new ArrayList<>(m.interfaces());
+        // K6: a oneof's MESSAGE members are identity subtypes of this record's nested
+        // oneof interface, so a message that is a member of some oneof implements that
+        // nested interface. Resolved per-invocation from the registry built over every
+        // requested file, keyed by this record's own JVM FQN. Option-declared
+        // interfaces precede this; the runtime marker is last.
+        java.util.Set<String> oneofInterfaces = oneofRegistry.get(m.fullName());
+        if (oneofInterfaces != null) impls.addAll(oneofInterfaces);
         impls.add(RT + ".ProtobufMessage");
         w.line(")" + RecordGenerator.implementsClause(ci, impls));
         w.line("{");
@@ -190,11 +280,20 @@ public final class CodeGenerator {
         // Nested messages and enums (share this file's collector + resolver).
         for (var nested : m.nestedMessages()) {
             w.line();
-            recordAndCodec(w, types, codec, nested, javaPkg, sourceProto);
+            recordAndCodec(w, types, codec, nested, javaPkg, sourceProto, oneofRegistry);
         }
         for (var nested : m.nestedEnums()) {
             w.line();
             new EnumGenerator().write(w, nested, ci);
+        }
+        // One nested sealed interface per real oneof group: the members' Java types
+        // plus a shared Scalar wrapper, with the builder reference and the codec
+        // dispatching off the interface's permitted subtypes. Emitted after nested
+        // messages/enums and before the builder, so the codec can still reference
+        // both the nested interface and the message itself as the last member.
+        for (Oneof oneof : m.oneofs()) {
+            w.line();
+            new OneofGenerator(types, ci).write(w, m, oneof);
         }
         // Fluent builder so consumers can avoid the positional canonical ctor. Emitted
         // before the codec so the Builder (a later member) can reference it freely; the
@@ -264,6 +363,12 @@ public final class CodeGenerator {
             w.line("private " + componentType(f, types) + " " + f.javaName()
                     + " = " + freshDefault(f, types, ci) + ";");
         }
+        // One nested-sealed-interface reference per oneof, defaulting to null (the
+        // absent oneof case). Type is @Nullable <Iface> (a nested type of the record).
+        for (Oneof oneof : m.oneofs()) {
+            w.line("private " + oneofComponentType(oneof, ci) + " " + oneof.componentName()
+                    + " = null;");
+        }
         // The always-on carrier, defaulting to the shared empty() so the common
         // path carries no unknown-field payload.
         String uf = ci.use(RT + ".UnknownFields");
@@ -279,6 +384,11 @@ public final class CodeGenerator {
         w.indent(c1);
         for (var f : m.fields()) {
             w.line(copyAssignment(f, ci));
+        }
+        // Oneof references copy by-value (the nested interface is an immutable
+        // reference type; null stays null).
+        for (Oneof oneof : m.oneofs()) {
+            w.line("this." + oneof.componentName() + " = x." + oneof.componentName() + "();");
         }
         // The carrier is immutable; a copy ctor only references it (no defensive copy).
         w.line("this.unknownFields = x.unknownFields();");
@@ -310,7 +420,21 @@ public final class CodeGenerator {
         w.line("return this;");
         w.indent(w.indent() - 1);
         w.line("}");
-        w.line();
+        // One fluent setter per oneof, taking a member value (an identity subtype
+        // or the shared Scalar wrapper) and folding it into the nested interface.
+        for (Oneof oneof : m.oneofs()) {
+            String type = oneofComponentType(oneof, ci);
+            String cmp = oneof.componentName();
+            w.line();
+            w.line("public Builder " + cmp + "(" + type + " " + cmp + ") {");
+            int s1o = w.indent() + 1;
+            w.indent(s1o);
+            w.line("this." + cmp + " = " + cmp + ";");
+            w.line("return this;");
+            w.indent(s1o - 1);
+            w.line("}");
+        }
+        w.line(); 
         // Terminal build(): constructs the record via its canonical ctor.
         w.javadoc(w.indent(), "Builds a " + m.name()
                 + " record from the accumulated field values via the canonical"
@@ -324,6 +448,11 @@ public final class CodeGenerator {
             // Always a trailing comma: the unknownFields carrier is the last ctor arg.
             w.line("    this." + f.javaName() + ",");
         }
+        // Oneof components follow the fields in the canonical ctor's declaration
+        // order (the record declares its oneofs right after its fields).
+        for (Oneof oneof : m.oneofs()) {
+            w.line("    this." + oneof.componentName() + ",");
+        }
         w.line("    this.unknownFields");
         w.line(");");
         w.indent(w.indent() - 1);
@@ -336,6 +465,17 @@ public final class CodeGenerator {
     /** The component's Java static type, matching the record's own component. */
     private static String componentType(Field f, TypeResolver types) {
         return f.isNullable() ? types.resolveNullable(f) : types.resolve(f);
+    }
+
+    /**
+     * The record/builder component type for a oneof: {@code @Nullable <Iface>}, a
+     * reference to the nested sealed interface that name-spaces the oneof's
+     * members. A nested type of the record resolves to its bare short name (no
+     * import); the {@code @Nullable} is imported like any other referenced type.
+     */
+    private static String oneofComponentType(Oneof oneof, TypeImports ci) {
+        String ann = ci.use("org.jspecify.annotations.Nullable");
+        return "@" + ann + " " + oneof.ifaceName();
     }
 
     /**
