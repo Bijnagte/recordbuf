@@ -6,6 +6,9 @@ jspecify          = "1.0.1"
 error-prone       = "2.51.0"
 nullaway          = "0.14.3"
 gradle-errorprone = "5.1.1"   # net.ltgt.errorprone Gradle plugin
+spotless          = "8.11.0"   # diffplug Spotless Gradle plugin (latest, 2026-10)
+google-java-format = "1.36.1"  # last 1.x: standard Google style, whitespace-only
+                                # (2.0.0+ adds non-whitespace cleanups we don't want)
 protobuf          = "4.36.2"
 # NOTE: the com.google.protobuf (Protobuf-Gradle-plugin) version is pinned inline
 # in fixtures/build.gradle.kts as id("com.google.protobuf") version "0.10.0".
@@ -39,3 +42,4 @@ test = ["junit-jupiter", "junit-platform-launcher"]
 
 [plugins]
 gradle-errorprone = { id = "net.ltgt.errorprone", version.ref = "gradle-errorprone" }
+spotless          = { id = "com.diffplug.spotless", version.ref = "spotless" }

@@ -2,8 +2,8 @@ package bijnagte.recordbuf.plugin.model;
 
 /** Field tag kind. */
 public enum FieldKind {
-    SCALAR,
-    MESSAGE,
-    ENUM,
-    MAP
+  SCALAR,
+  MESSAGE,
+  ENUM,
+  MAP
 }
