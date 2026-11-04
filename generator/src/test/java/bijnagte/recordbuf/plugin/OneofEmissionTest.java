@@ -8,7 +8,10 @@ import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Label;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
 import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
+import com.google.protobuf.DescriptorProtos.MessageOptions;
 import com.google.protobuf.DescriptorProtos.OneofDescriptorProto;
+import com.google.protobuf.DescriptorProtos.UninterpretedOption;
+import com.google.protobuf.ByteString;
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorRequest;
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse;
 import org.junit.jupiter.api.Test;
@@ -128,5 +131,82 @@ class OneofEmissionTest {
         String src = generatedSource(simpleFile());
         assertFalse(src.contains(".Scalar(") || src.contains("record Scalar("),
                 "the old shared Scalar(value, tag) wrapper should no longer appear:\n" + src);
+    }
+
+    // --- Interop oneof conversion emission tests -----------------------------
+
+    private static UninterpretedOption option(String dottedName, String value) {
+        UninterpretedOption.Builder b = UninterpretedOption.newBuilder();
+        for (String part : dottedName.split("\\.")) {
+            b.addName(
+                    UninterpretedOption.NamePart.newBuilder()
+                            .setNamePart(part)
+                            .setIsExtension(false)
+                            .build());
+        }
+        b.setStringValue(ByteString.copyFromUtf8(value));
+        return b.build();
+    }
+
+    // The same choice oneof as simpleFile, but message-opted-in to protobuf-java so the
+    // Interop converter is emitted. A scalar-only fixture keeps the emission test focused;
+    // the enum+message arms are locked end-to-end by the fixture round-trip test.
+    private static FileDescriptorProto interopFile() {
+        var compat =
+                com.google.protobuf.DescriptorProtos.DescriptorProto.newBuilder()
+                        .setName("Compat")
+                        .addField(
+                                FieldDescriptorProto.newBuilder()
+                                        .setName("name")
+                                        .setNumber(1)
+                                        .setLabel(Label.LABEL_OPTIONAL)
+                                        .setType(Type.TYPE_STRING)
+                                        .setOneofIndex(0))
+                        .addField(
+                                FieldDescriptorProto.newBuilder()
+                                        .setName("count")
+                                        .setNumber(20)
+                                        .setLabel(Label.LABEL_OPTIONAL)
+                                        .setType(Type.TYPE_INT32)
+                                        .setOneofIndex(0))
+                        .addOneofDecl(OneofDescriptorProto.newBuilder().setName("choice"))
+                        .setOptions(
+                                MessageOptions.newBuilder()
+                                        .addUninterpretedOption(
+                                                option("recordbuf.protobuf_java", PKG)))
+                        .build();
+        var b =
+                FileDescriptorProto.newBuilder()
+                        .setName(FILE)
+                        .setPackage(PKG)
+                        .setSyntax("proto3");
+        b.addMessageType(compat);
+        return b.build();
+    }
+
+    @Test
+    void interopOneofConvertedNotStubbed() {
+        String src = generatedSource(interopFile());
+        // `from` switches on the protobuf-java case discriminator to reconstruct the
+        // sealed component, mapping scalar members to their nested value records.
+        assertTrue(
+                src.contains("get" + IFACE + "Case()"),
+                "from must switch on the protobuf-java case getter:\n" + src);
+        assertTrue(
+                src.contains("new " + IFACE + ".NameValue(x.getName())"),
+                "a scalar oneof arm must build the value record in from:\n" + src);
+        assertTrue(
+                src.contains("new " + IFACE + ".CountValue(x.getCount())"),
+                "an int oneof arm must build the value record in from:\n" + src);
+        // `to` pattern-matches the sealed component back onto the builder.
+        assertTrue(
+                src.contains("switch (r." + COMPONENT + "())"),
+                "to must pattern-match the oneof component:\n" + src);
+        assertTrue(src.contains("case null ->"), "to must null-guard the absent oneof:\n" + src);
+        assertTrue(src.contains("case " + NAME_REC + " v ->"), "to must have a scalar-arm pattern:\n" + src);
+        // The old oneof "not yet supported" stub must be gone.
+        assertFalse(
+                src.contains("oneof not yet supported in Interop"),
+                "the old oneof-not-supported stub must no longer be emitted:\n" + src);
     }
 }

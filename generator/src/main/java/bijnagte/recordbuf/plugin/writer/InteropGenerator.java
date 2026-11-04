@@ -39,6 +39,13 @@ import bijnagte.recordbuf.plugin.types.TypeResolver;
  *   <li><b>enum</b> &rarr; mapped by number; record enums have
  *   {@code getNumber()}/{@code forNumber(int)} (see {@link EnumGenerator}),
  *   protobuf-java ref enums expose {@code getNumber()}.</li>
+ *   <li><b>oneof</b> (singular members only) &rarr; {@code from} switches on the
+ *   reference's {@code get<XxxCase>()} discriminator, mapping the active case to
+ *   the nested value record (scalar / bytes / enum) or the member record's own
+ *   {@code Interop.from} (a message member); {@code to} pattern-matches the
+ *   sealed component back into the builder via its {@code setX}. A null component
+ *   (an absent oneof) is the {@code default}/{@code null} arm -- proto3 sets
+ *   nothing when the oneof is absent, so the converter writes nothing back.</li>
  * </ul>
  *
  * <h2>Imports</h2>
@@ -71,10 +78,8 @@ import bijnagte.recordbuf.plugin.types.TypeResolver;
  * FQN'd.</p>
  *
  * <p>Not covered (documented as future work, not silently broken):
- * an <em>optional</em> enum field (not exercised today), message / enum map
- * values (out of scope for this family, matching the codec's own limitation),
- * and {@code oneof} members ({@code from} emits a {@code null} oneof local;
- * {@code to} skips them -- byte-compat is still proven by hand-built refs).
+ * an <em>optional</em> enum field (not exercised today) and message / enum map
+ * values (out of scope for this family, matching the codec's own limitation).
  */
 public final class InteropGenerator {
 
@@ -144,9 +149,10 @@ public final class InteropGenerator {
             fromLocal(w, f);
         }
         int n = m.fields().size();
-        // Oneof locals: Interop does not yet convert oneof members; the local is null.
+        // Oneof locals: oneof members are converted -- `from` switches on the
+        // reference's getCase() discriminator to reconstruct the sealed component.
         for (Oneof o : m.oneofs()) {
-            w.line(o.ifaceName() + " _" + o.name() + " = null; // oneof not yet supported in Interop");
+            emitOneofFrom(w, o);
         }
         w.line("return new " + rec + "(");
         for (int i = 0; i < n; i++) {
@@ -192,9 +198,7 @@ public final class InteropGenerator {
             return;
         }
         if (f.kind() == FieldKind.ENUM) {
-            String recEnum = recordSiblingFqn(f);
-            w.line(recEnum + " _" + f.javaName()
-                    + " = " + recEnum + ".forNumber(x.get" + cap + "().getNumber());");
+            w.line(recordSiblingFqn(f) + " _" + f.javaName() + " = " + fromExpr(f) + ";");
             return;
         }
         if (f.isRepeated()) {
@@ -209,15 +213,59 @@ public final class InteropGenerator {
             }
             return;
         }
-        // Singular scalar / bytes.
+        // Singular scalar / bytes (a oneof member's value record reuses fromExpr).
         String type = types.resolve(f);
         if ("bytes".equals(f.typeUrl())) {
-            w.line("byte[] _" + f.javaName() + " = x.get" + cap + "().toByteArray();");
+            w.line("byte[] _" + f.javaName() + " = " + fromExpr(f) + ";");
         } else if (f.isNullable()) {
             w.line(type + " _" + f.javaName() + " = x.has" + cap + "() ? x.get" + cap + "() : null;");
         } else {
-            w.line(type + " _" + f.javaName() + " = x.get" + cap + "();");
+            w.line(type + " _" + f.javaName() + " = " + fromExpr(f) + ";");
         }
+    }
+
+    /**
+     * The right-hand value expression that reads a singular scalar / bytes /
+     * enum member off the protobuf-java reference {@code x}. Shared by a
+     * top-level singular field's {@code from} local and a oneof member's
+     * nested value record, so the family rule (scalar getter, bytes
+     * {@code toByteArray}, enum {@code forNumber(getNumber())}) lives in one
+     * place. The presence (proto3-{@code optional}) and message families are
+     * resolved at the field level, not here.
+     */
+    private String fromExpr(Field f) {
+        String cap = JavaNames.cap(f.javaName());
+        if (f.kind() == FieldKind.ENUM) {
+            return recordSiblingFqn(f) + ".forNumber(x.get" + cap + "().getNumber())";
+        }
+        if ("bytes".equals(f.typeUrl())) {
+            return "x.get" + cap + "().toByteArray()";
+        }
+        return "x.get" + cap + "()";
+    }
+
+    /**
+     * The single builder-set statement that writes a singular scalar / bytes /
+     * enum family onto the protobuf-java reference builder {@code _b} from a
+     * source expression {@code src}. Shared by a top-level field's {@code to} (src
+     * {@code r.<field>()}) and a oneof member's {@code to} arm (src {@code v.value()}
+     * for a scalar/enum value record). The presence (proto3-{@code optional}) and
+     * bytes families are guarded/copied here; the message family is handled
+     * separately (it always delegates to the sibling record's {@code Interop.to}).
+     */
+    private String toSet(Field f, String src, String refPkg) {
+        String cap = JavaNames.cap(f.javaName());
+        if (f.kind() == FieldKind.ENUM) {
+            return "_b.set" + cap + "(" + refSiblingFqn(refPkg, f)
+                    + ".forNumber(" + src + ".getNumber()));";
+        }
+        if ("bytes".equals(f.typeUrl())) {
+            return "_b.set" + cap + "(" + ci.use(BYTE_STRING) + ".copyFrom(" + src + "));";
+        }
+        if (f.isNullable()) {
+            return "if (" + src + " != null) _b.set" + cap + "(" + src + ");";
+        }
+        return "_b.set" + cap + "(" + src + ");";
     }
 
     // -- to(record) -> reference --------------------------------------------------
@@ -231,8 +279,75 @@ public final class InteropGenerator {
         for (Field f : m.fields()) {
             toStmt(w, f, refPkg);
         }
+        // Oneof components set the active case onto the reference builder; a null
+        // component (an absent oneof) sets nothing, matching proto3's omission.
+        for (Oneof o : m.oneofs()) {
+            emitOneofTo(w, o, refPkg);
+        }
         w.line("return _b.build();");
         w.indent(w.indent() - 1);
+        w.line("}");
+    }
+
+    // -- oneof conversion: the case->value switch (from) and the pattern-matched
+    // back-conversion (to) -------------------------------
+
+    /**
+     * {@code from} arm for a oneof: a {@code switch} on the protobuf-java
+     * reference's {@code get<Cap(oneofName)>Case()} discriminator whose per-member
+     * constants are unqualified in the expression. Each case maps the active field
+     * to the nested value record (scalar / bytes / enum via {@link #fromExpr}) or to
+     * the member record's own {@code Interop.from} (a message member). The {@code default}
+     * arm is {@code null} (an absent oneof), so the local is always assigned; the
+     * component is {@code @Nullable}, so that never trips NullAway on an unbox.
+     */
+    private void emitOneofFrom(JavaWriter w, Oneof o) {
+        String iface = o.ifaceName();
+        int li = w.indent() + 1;
+        w.line("@Nullable " + iface + " _" + o.name() + " = switch (x.get"
+                + iface + "Case()) {");
+        w.indent(li);
+        for (Field f : o.members()) {
+            if (f.isMessage()) {
+                w.line("case " + JavaNames.snakeUpper(f.name()) + " -> "
+                        + recordSiblingFqn(f) + ".Interop.from(x.get"
+                        + JavaNames.cap(f.javaName()) + "());");
+                continue;
+            }
+            w.line("case " + JavaNames.snakeUpper(f.name()) + " -> new " + iface + "."
+                    + JavaNames.cap(f.name()) + "Value(" + fromExpr(f) + ");");
+        }
+        w.line("default -> null;");
+        w.indent(li - 1);
+        w.line("};");
+    }
+
+    /**
+     * {@code to} arm for a oneof: a pattern-matching {@code switch} over the sealed
+     * component ({@link Oneof#ifaceName()}'s permitted subtypes — the per-member
+     * scalar/enum value records and, by the K6 registry, the message-member records),
+     * mapping each back to its proto field via {@code setX}; a message member
+     * delegates to its own {@code Interop.to}. The arms enumerate every permitted
+     * subtype, so the switch is exhaustive (no {@code default}). A leading {@code null}
+     * arm (the absent oneof) sets nothing, matching proto3's omission.
+     */
+    private void emitOneofTo(JavaWriter w, Oneof o, String refPkg) {
+        String iface = o.ifaceName();
+        int li = w.indent() + 1;
+        w.line("switch (r." + o.componentName() + "()) {");
+        w.indent(li);
+        w.line("case null -> {}");
+        for (Field f : o.members()) {
+            if (f.isMessage()) {
+                String recSibling = recordSiblingFqn(f);
+                w.line("case " + recSibling + " v -> _b.set" + JavaNames.cap(f.javaName())
+                        + "(" + recSibling + ".Interop.to(v));");
+                continue;
+            }
+            w.line("case " + iface + "." + JavaNames.cap(f.name()) + "Value v -> "
+                    + toSet(f, "v.value()", refPkg));
+        }
+        w.indent(li - 1);
         w.line("}");
     }
 
@@ -258,12 +373,6 @@ public final class InteropGenerator {
             w.line("}");
             return;
         }
-        if (f.kind() == FieldKind.ENUM) {
-            String refEnum = refSiblingFqn(refPkg, f);
-            w.line("_b.set" + cap + "(" + refEnum
-                    + ".forNumber(r." + f.javaName() + "().getNumber()));");
-            return;
-        }
         if (f.isRepeated()) {
             // protobuf-java sets a repeated field with addAllX(List<T>) for
             // scalars / enums; byte[] repeated elements must each be copied to ByteString.
@@ -275,14 +384,8 @@ public final class InteropGenerator {
             }
             return;
         }
-        String getter = "r." + f.javaName() + "()";
-        if ("bytes".equals(f.typeUrl())) {
-            w.line("_b.set" + cap + "(" + ci.use(BYTE_STRING) + ".copyFrom(" + getter + "));");
-        } else if (f.isNullable()) {
-            w.line("if (" + getter + " != null) _b.set" + cap + "(" + getter + ");");
-        } else {
-            w.line("_b.set" + cap + "(" + getter + ");");
-        }
+        // Singular scalar / bytes / enum (a oneof member's `to` reuses toSet, src v.value()).
+        w.line(toSet(f, "r." + f.javaName() + "()", refPkg));
     }
 
     // -- helpers ------------------------------------------------------------------

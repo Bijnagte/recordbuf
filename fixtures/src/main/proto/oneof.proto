@@ -7,6 +7,7 @@
 //   * a scalar string member (name)   → per-member record NameValue
 //   * a scalar int32 member (count)   → per-member record CountValue
 //   * a singular sub message (item)   → identity subtype Sub implements Choice
+//   * an enum member (color)          → per-member record ColorValue → Ref.forNumber
 //
 // recordbuf_options.proto must be on the gen-proto include path (the fixtures'
 // generateProto task supplies it) so this import and the recordbuf.protobuf_java
@@ -28,8 +29,19 @@ message Compat {
     string name = 1;
     int32  count = 2;
     Sub    item = 3;
+    Color  color = 4;
   }
   option (.recordbuf.protobuf_java) = "bijnagte.recordbuf.fixture.oneof";
+}
+
+// Enum oneof member type. A top-level enum so it generates its own Color.java in the
+// same record package (via the recordbuf generator) and in the same protobuf-java
+// reference package (via the java builtin), exercising the enum family end-to-end.
+enum Color {
+  COLOR_UNSPECIFIED = 0;
+  RED = 1;
+  GREEN = 2;
+  BLUE = 3;
 }
 
 // Nested-message oneof member type. A separate top-level message so it generates

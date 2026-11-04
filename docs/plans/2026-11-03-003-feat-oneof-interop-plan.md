@@ -106,7 +106,8 @@ smaller than the full field matrix the converter already handles.
 - `fixtures/src/main/proto/oneof.proto`: add an enum type and an `enum` oneof
   member so the enum family is exercised end-to-end through the converter;
   regenerate fixtures.
-- A dedicated behavioral test `OneofInteropTest` (Layer B, oneof family).
+- Behavioral tests folded into the existing `OneofRoundTripTest` (Layer B,
+  oneof family) — see Unit 3.
 
 #### Deferred to Follow-Up
 - **Unknown-field preservation through the bridge** — carries forward the
@@ -163,11 +164,17 @@ smaller than the full field matrix the converter already handles.
 - **v1 covers the full singular family including `enum`.** Chosen over the
   "string/int + message only" alternative so the family has no arbitrary gap;
   the enum gap is closed by adding a single enum oneof member to the fixture.
-- **Tests are a dedicated `OneofInteropTest`, not an extension of the round-trip
-  class.** Keeps Layer A codec round-trip concerns (`OneofRoundTripTest`)
-  distinct from Layer B structural-converter concerns, mirroring how
-  `combined` keeps `CompatTest` (codec) separate from `CompatInteropTest`
-  (converter).
+- **Tests fold INTO the existing `OneofRoundTripTest` — no new class.** Per
+  direction, Layer A (record ↔ bytes, the class's "Layer A") and Layer B
+  (record ↔ proto, the class's "byte-compat" section) are both oneof byte-
+  compatibility, so a single converter-aware class covers both without a new
+  file. Each family's `*IsByteCompatibleWithProtobufJava` test drives the
+  generated `rec.Compat.Interop` in both directions via a shared
+  `assertConvertsByteIdentically(tag, record, ref)` helper; a new
+  `enumMemberIsByteCompatibleAndRecoversKnownConstant` covers the 4th family +
+  the known-value mapping; `absentOneofIsNull` gains the zero-byte ⟷ `null`
+  checks. (Originally the plan specified a separate `OneofInteropTest`; the
+  user directed folding in instead.)
 
 ---
 
@@ -341,11 +348,18 @@ call `toSet(f, "v.value()", ...)`; oneof message members delegate via
   `oneof/Compat.java` (protobuf-java ref) both compile; the record `Choice`
   now permits `ColorValue` and the ref now has a `getColor()`/`Color` accessor.
 
-### Unit 3 — Dedicated `OneofInteropTest` (Layer B, oneof family)
+### Unit 3 — Interop tests folded into `OneofRoundTripTest` (Layer B, oneof family)
 
-- **Files:** `fixtures/src/test/java/bijnagte/recordbuf/fixture/oneof/OneofInteropTest.java`
-  (new). Reference the record types by FQN (`bijnagte.recordbuf.fixture.oneof.rec.*`)
-  and the protobuf-java refs by short name, mirroring `combined/CompatInteropTest.java`.
+- **Files:** `fixtures/src/test/java/bijnagte/recordbuf/fixture/oneof/OneofRoundTripTest.java`
+  (edited, NOT a new class — per direction the interop checks fold into the
+  existing oneof test class whose "byte-compat" section already compares the
+  record codec to a hand-built protobuf-java ref). Reference the record types by
+  FQN (`bijnagte.recordbuf.fixture.oneof.rec.*`) and the protobuf-java refs by
+  short name, mirroring `combined/CompatInteropTest.java`. A shared
+  `assertConvertsByteIdentically(tag, record, ref)` helper drives `to(record)` and
+  `from(ref)`; a new `enumMemberIsByteCompatibleAndRecoversKnownConstant`
+  covers the 4th family + the known-value mapping; `absentOneofIsNull` gains the
+  zero-byte ⟷ `null` checks. No new test class was created.
 - **Test scenarios (the orange, per R3):**
   - **Each family byte-identical through the converter, vs a hand-built ref:**
     for `name` (string), `count` (int, incl. a zero-valued *active* member),
@@ -374,8 +388,9 @@ call `toSet(f, "v.value()", ...)`; oneof message members delegate via
   `:recordbuf-runtime:test`, `:recordbuf-fixtures:test`).
 - Because codegen *is* touched: run `./gradlew :recordbuf-generator:installDist`,
   regenerate the fixtures (`:recordbuf-fixtures:generateProto`), and confirm the
-  regenerated oneof `Interop` compiles and `OneofInteropTest` passes — i.e. a
-  from-repo-clean end-to-end, not only the committed generated snapshot.
+  regenerated oneof `Interop` compiles and the folded-in `OneofRoundTripTest`
+  interop tests pass — i.e. a from-repo-clean end-to-end, not only the committed
+  generated snapshot.
 - Spot-check that non-oneof `Interop` output (e.g. `combined`) is unchanged
   (Unit 1's no-churn scenario) so the factorization did not perturb existing
   families.
@@ -387,7 +402,8 @@ call `toSet(f, "v.value()", ...)`; oneof message members delegate via
    means no compile break if an enum member is not yet present).
 2. **Unit 2** (fixture enum member + regenerate) — depends on 1's codegen being
    correct for enum members; regenerate and compile.
-3. **Unit 3** (`OneofInteropTest`) — depends on 2 (needs the enum family in the
+3. **Unit 3** (interop tests folded into `OneofRoundTripTest`) — depends on 2
+   (needs the enum family in the
    regenerated fixture) and 1.
 4. **Unit 4** (verify) — after all three; the `installDist` + regenerate +
    `build` gate.
@@ -403,7 +419,7 @@ clean-regenerate gate is Unit 4.
   the proto name; carry as a verify point, not a v1 dependency.
 - **Zero-valued active scalar** — a `count = 0` that is the *active* case must
   still write; both sides do, but it is the easiest to get subtly wrong, so it is
-  an explicit `OneofInteropTest` scenario.
+  an explicit interop scenario in `OneofRoundTripTest`.
 - **Unknown-field preservation through the bridge** — deferred (existing interop
   bridge R10); `from` keeps the carrier empty and `to` does not merge it. Not
   oneof-specific.
