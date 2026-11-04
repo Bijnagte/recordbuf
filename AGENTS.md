@@ -34,6 +34,10 @@ workflow (`ce-compound`), organized by category with YAML frontmatter
 (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in a
 documented area. `docs/README.md` describes the layout.
 
+`CONCEPTS.md` (repo root) holds the project's shared domain vocabulary — entities,
+named processes, and status concepts (e.g. `Codec`, the unknown-field carrier) —
+consult it when orienting to the codebase or discussing domain concepts.
+
 ## Build & toolchain overrides (read these)
 
 - **Build tool:** Gradle, **Kotlin DSL** (`build.gradle.kts`). Always use the
