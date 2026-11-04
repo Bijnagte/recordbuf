@@ -209,6 +209,63 @@ public final class CodeGenerator {
     recordAndCodec(w, types, codec, m, javaPkg, sourceProto, oneofRegistry);
   }
 
+  /**
+   * The record's class-level Javadoc as one raw block: the type-level summary (when the proto
+   * supplied one) followed by one {@code @param <component> <description>} entry per documented
+   * component. Rendered through {@link JavaWriter#javadoc(String)}, which HTML-escapes every line;
+   * a blank source line between the summary and the {@code @param} section keeps them visually
+   * separated. Returns {@code null} when nothing is documented, so the writer emits no block.
+   */
+  private static @Nullable String recordJavadoc(
+      @Nullable String typeComment, List<String[]> params) {
+    List<String> lines = new ArrayList<>();
+    if (typeComment != null && !typeComment.isBlank()) {
+      lines.add(typeComment.strip());
+      lines.add("");
+    }
+    for (String[] p : params) {
+      String[] desc = p[1].strip().split("\n");
+      lines.add("@param " + p[0] + " " + desc[0]);
+      for (int i = 1; i < desc.length; i++) {
+        lines.add(desc[i]);
+      }
+    }
+    if (lines.isEmpty()) {
+      return null;
+    }
+    return String.join("\n", lines);
+  }
+
+  /**
+   * Append a component's {@code @param} entry to {@code params} when its comment is non-blank; a
+   * component without a comment contributes no {@code @param}.
+   */
+  private static void addComponentParam(
+      List<String[]> params, String componentName, @Nullable String comment) {
+    if (comment != null && !comment.isBlank()) {
+      params.add(new String[] {componentName, comment});
+    }
+  }
+
+  /** The fixed description emitted for a oneof's sealed-interface component. */
+  private static String oneofComponentDoc(String oneofName) {
+    return "The '"
+        + oneofName
+        + "' oneof: at most one member is present at a time; null when absent. A member's value is "
+        + "either one of the interface's permitted message subtypes or one of the nested value "
+        + "records (one per non-message member, carrying its underlying value). A null reference "
+        + "means the oneof was absent off the wire.";
+  }
+
+  /** The fixed description emitted for the always-on {@code unknownFields} carrier component. */
+  private static String carrierComponentDoc(String unknownFieldsFqn) {
+    return "Unknown fields seen during this record's decode that its schema does not model, captured "
+        + "so they survive a round-trip: re-emitted byte-for-byte on encode. An empty decode carries "
+        + "the shared "
+        + unknownFieldsFqn
+        + ".empty(), so the common case adds no payload.";
+  }
+
   private void recordAndCodec(
       JavaWriter w,
       TypeResolver types,
@@ -218,54 +275,46 @@ public final class CodeGenerator {
       String sourceProto,
       java.util.Map<String, java.util.Set<String>> oneofRegistry) {
     TypeImports ci = w.imports();
-    // Type-level Javadoc (clean, HTML-escaped at emit time) followed by a bare
-    // @Deprecated when the proto marked this message deprecated. A bare (java.lang,
-    // never-imported) annotation matches recordbuf's "clean output" style.
-    w.javadoc(m.comment());
+    // Class-level Javadoc = the record's type-level summary (if any) plus one @param entry per
+    // documented component, in declaration order (fields, oneofs, then the always-on carrier).
+    // Record components are documented the idiomatic way -- as @param tags in the record's OWN
+    // Javadoc, NOT as a per-component block comment in the component header: per-component
+    // /** */ is not a valid Javadoc location, so javac's -Xlint:dangling-doc-comments flags every
+    // one and the javadoc tool silently drops per-component comments from the generated HTML. A
+    // component whose comment is non-blank yields an @param; an undocumented one yields none
+    // (the project runs no doclint, so a missing @param never warns).
+    String uf = ci.use(RT + ".UnknownFields");
+    List<String[]> componentParams = new ArrayList<>();
+    for (var f : m.fields()) addComponentParam(componentParams, f.javaName(), f.comment());
+    for (Oneof oneof : m.oneofs()) {
+      addComponentParam(componentParams, oneof.componentName(), oneofComponentDoc(oneof.name()));
+    }
+    addComponentParam(componentParams, "unknownFields", carrierComponentDoc(uf));
+
+    w.javadoc(recordJavadoc(m.comment(), componentParams));
+    // A bare @Deprecated (java.lang, never imported) when the proto marked this message deprecated.
     if (m.deprecated()) w.line("@Deprecated");
     w.line("public record " + m.name() + "(");
-    for (int i = 0; i < m.fields().size(); i++) {
-      var f = m.fields().get(i);
-      // A presence-tracked (nullable) component is annotated @Nullable and its
-      // null/boxed value is meaningful; it is NEVER normalized to empty.
+    // Components: header-only (no per-component Javadoc blocks -- their docs live in the @param
+    // tags emitted above). @Nullable marks a presence-tracked component, whose null/boxed value is
+    // meaningful and is NEVER normalized to empty; every component carries a trailing comma so the
+    // always-present carrier is the record's last component.
+    for (var f : m.fields()) {
       String type = f.isNullable() ? types.resolveNullable(f) : types.resolve(f);
-      // Every field now carries a trailing comma: the always-present
-      // unknownFields carrier is emitted as the last component after the loop.
-      // Per-component Javadoc sits one level deeper than the type header's,
-      // to match the fields' own 4-space-deeper indentation.
-      w.javadoc(w.indent() + 1, f.comment());
       // @Deprecated before @Nullable when a component is deprecated; bare
       // (java.lang.Deprecated is never imported, matching recordbuf's style).
       String prefix = f.deprecated() ? "@Deprecated " : "";
       w.line("    " + prefix + type + " " + f.javaName() + ",");
     }
-    // One component per real oneof group: a @Nullable reference to the nested
-    // sealed interface that name-spaces its members (a nested type, so no import
-    // and no @Nullable-prefixed-FQN special case). Null denotes the absent case.
+    // One component per real oneof group: a @Nullable reference to the nested sealed interface that
+    // name-spaces its members (a nested type, so no import and no @Nullable-prefixed-FQN special
+    // case). Null denotes the absent case.
     for (Oneof oneof : m.oneofs()) {
-      String iface = oneof.ifaceName();
-      w.javadoc(
-          w.indent() + 1,
-          "The '"
-              + oneof.name()
-              + "' oneof: at most one member is present"
-              + " at a time; null when absent. A member's value is either one of the"
-              + " interface's permitted message subtypes or one of the nested value records "
-              + "(one per non-message member, carrying its underlying value). A null "
-              + "reference means the oneof was absent off the wire.");
       w.line("    " + oneofComponentType(oneof, ci) + " " + oneof.componentName() + ",");
     }
-    // The always-on unknown-field carrier: the record's LAST component, defaulting
-    // to the shared empty() so a message that sees nothing unknown carries an empty
-    // carrier with no per-record payload. Captured on decode, re-emitted on encode.
-    String uf = ci.use(RT + ".UnknownFields");
-    w.javadoc(
-        w.indent() + 1,
-        "Unknown fields seen during this record's decode that its schema does "
-            + "not model, captured so they survive a round-trip: re-emitted byte-for-byte on "
-            + "encode. An empty decode carries the shared "
-            + uf
-            + ".empty(), so the common case adds no payload.");
+    // The always-on unknown-field carrier: the record's LAST component, defaulting to the shared
+    // empty() so a message that sees nothing unknown carries an empty carrier with no per-record
+    // payload. Captured on decode, re-emitted on encode.
     w.line("    " + uf + " unknownFields");
     // Layer A marshal hook: every record implements ProtobufMessage (a tiny,
     // runtime-only marker) so it can be wired out with zero structural conversion

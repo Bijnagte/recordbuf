@@ -32,6 +32,9 @@ import org.junit.jupiter.api.Test;
  * (and, for the protobuf-java side, the unqualified in-package reference) avoid the
  * same-simple-name collision.
  */
+// This test intentionally exercises @Deprecated record fields/components, so the class uses
+// deprecated accessors/ builders (setNote/putAllTags/note/tags) and declares the suppressor.
+@SuppressWarnings("deprecation")
 class AnnotationsTest {
 
   /** A populated sample with the non-null / non-default fields set. */

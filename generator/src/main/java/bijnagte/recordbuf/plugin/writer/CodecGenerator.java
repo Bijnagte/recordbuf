@@ -621,7 +621,8 @@ public final class CodecGenerator {
       }
       case TYPE_ENUM -> {
         String enumName = types.resolveElement(f);
-        return enumName + ".forNumber((int) in.readEnum())";
+        // readEnum() already yields an int and forNumber takes an int, so no (int) cast.
+        return enumName + ".forNumber(in.readEnum())";
       }
       case TYPE_MESSAGE, TYPE_GROUP -> {
         // Message members are routed through the message-branch in
@@ -671,7 +672,8 @@ public final class CodecGenerator {
       }
       case ENUM -> {
         String enumName = types.resolveElement(f);
-        w.line(f.javaName() + " = " + enumName + ".forNumber((int) in.readEnum());");
+        // readEnum() already yields an int and forNumber takes an int, so no (int) cast.
+        w.line(f.javaName() + " = " + enumName + ".forNumber(in.readEnum());");
       }
       case MESSAGE -> {
         // The tag was already consumed by readTag(); read the remaining
@@ -696,7 +698,8 @@ public final class CodecGenerator {
       }
       case ENUM -> {
         String enumName = types.resolveElement(f);
-        w.line(f.javaName() + ".add(" + enumName + ".forNumber((int) in.readEnum()));");
+        // readEnum() already yields an int and forNumber takes an int, so no (int) cast.
+        w.line(f.javaName() + ".add(" + enumName + ".forNumber(in.readEnum()));");
       }
       case MESSAGE -> {
         String codecRef = types.resolveElement(f) + ".Codec";

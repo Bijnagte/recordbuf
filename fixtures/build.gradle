@@ -36,6 +36,17 @@ buildscript {
 
 apply plugin: 'java-library'
 apply plugin: 'com.google.protobuf'
+// protobuf-gradle-plugin 0.10.0 (the latest GA, per Maven Central metadata) calls the
+// deprecated Configuration.setVisible(false) on its internal configs, so applying it emits
+// "The Configuration.setVisible(boolean) method has been deprecated ... removal in Gradle
+// 11". This is an UPSTREAM bug: protobuf-gradle-plugin PR #816 fixes it (guards the
+// setVisible call behind a GradleVersion check) but that fix is NOT in 0.10.0 and no
+// release newer than 0.10.0 exists yet. The call is inert since Gradle 9.0 (visible has
+// no effect), so it is a benign deprecation-only warning -- harmless under the project's
+// default warning mode, a hard failure only under `org.gradle.warning.mode=fail`.
+// It is not resolvable from this build without a patched / non-release plugin artifact
+// (out of scope -- do not patch external libraries), so it is documented and left here
+// rather than papered over. Re-visit after a protobuf-gradle-plugin release > 0.10.0 lands.
 
 def GenerateProtoTask = 'com.google.protobuf.gradle.GenerateProtoTask'
 

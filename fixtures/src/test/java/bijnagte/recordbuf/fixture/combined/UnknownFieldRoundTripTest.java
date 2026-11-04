@@ -27,6 +27,9 @@ class UnknownFieldRoundTripTest {
   private static final int UNKNOWN_LENGTH_FIELD = 98;
   private static final String UNKNOWN_LENGTH_VALUE = "future-data";
 
+  // writeRawVarint64 is @Deprecated in protobuf-java but this helper craft raw varint bytes on
+  // purpose, so the deprecation is suppressed locally.
+  @SuppressWarnings("deprecation")
   private static byte[] appendVarintField(byte[] prefix, int fieldNumber, long value)
       throws Exception {
     var baos = new ByteArrayOutputStream();
