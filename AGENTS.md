@@ -105,11 +105,24 @@ consult it when orienting to the codebase or discussing domain concepts.
   (`net.ltgt.errorprone`). JDK 16+ auto-forking + `--add-opens`/
   `--add-exports` are handled by the plugin; error-prone 2.51.0's min-JDK is 21
   (per the plugin docs table), so it runs cleanly on this project's JDK 25.
-- **Formatting / logging:** the cross-project requirements — Spotless +
-  Google Java Format and SLF4J-only logging — are **not yet wired into
-  recordbuf.** Don't assume `spotlessCheck` or a logging framework are present;
-  add them deliberately if the user asks. Until then match the surrounding
-  (unformatted-by-tool, no-framework) code.
+- **Formatting: WIRED (Spotless + Google Java Format).** The root `build.gradle.kts`
+  applies `com.diffplug.spotless` to **every** subproject that carries a `java` source
+  set (`subprojects { withPlugin("java") { apply(...) } }`), formatting first-party
+  `src/**/*.java` with `googleJavaFormat` — pinned in the catalog
+  (`spotless = "8.11.0"`, `google-java-format = "2.0.0"`). So `spotlessCheck` **is** part
+  of `./gradlew build`; run `./gradlew spotlessApply` before committing and match the
+  Google Java Format style. Excluded from formatting: the `com.google.protobuf.compiler`
+  protocol shim, the protobuf-java reference output under `build/`, and `options/` (no
+  `java` source set, so skipped). The `:recordbuf-fixtures` module additionally pulls its
+  recordbuf-generated `.rec` output into the formatted set, so generated records are
+  expected to be format-clean.
+- **Logging: NOT WIRED.** No SLF4J / logging framework is on any module's classpath;
+  generated code stays dependency-free. The *only* `System.out`/`System.err` usage in the
+  codebase is in `Main.java`, where they **are** the protoc plugin's stdio protocol
+  (a `CodeGeneratorRequest` on stdin, the `CodeGeneratorResponse` on stdout, diagnostics
+  on stderr) — intentional I/O that is the one sanctioned exception to the cross-project
+  SLF4J-only rule, not application logging. That rule stays aspirational here; add a
+  logging framework only when real logging becomes a need.
 - **Protobuf runtime:** generated codecs use
   `com.google.protobuf.{CodedInputStream,CodedOutputStream}` — keep
   `com.google.protobuf:protobuf-java` (`4.36.2`, pinned in the catalog) on
@@ -157,8 +170,11 @@ consult it when orienting to the codebase or discussing domain concepts.
 
 `java-code-style`, `java-unit-testing`, `java-gradle-build`, and
 `java-design-review` from `~/.pi/agent/skills/` are in scope here. They carry
-the cross-project defaults; the overrides above win when they conflict
-(principally the **not-yet-wired** Spotless + SLF4J-logging cross-project tooling).
+the cross-project defaults; the overrides above win where they conflict. The
+former divergences — Spotless and Error Prone/NullAway — are now wired to those
+same defaults, so the **only** remaining one is the **not-yet-wired** SLF4J-only
+logging rule: no logging framework is present, and `Main.java`'s `System.out`/
+`System.err` are the sanctioned protoc-plugin stdio exception.
 
 <!-- BEGIN COMPOUND PI TOOL MAP -->
 ## Compound Engineering (Pi compatibility)
