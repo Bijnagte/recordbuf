@@ -34,6 +34,15 @@ buildscript {
     }
 }
 
+// U2 (feat-nullaway-generated-code): run NullAway (an Error Prone check) on every Java
+// compile task, scoped (OnlyNullMarked=true) to the generated @NullMarked output packages.
+// Resolved from the Gradle Plugin Portal (the default plugin management), mirroring
+// :recordbuf-runtime / :recordbuf-generator; the protobuf-gradle-plugin stays on the
+// buildscript classpath because its per-task DSL forces this module's Groovy form.
+plugins {
+    alias(libs.plugins.gradle.errorprone)
+}
+
 apply plugin: 'java-library'
 apply plugin: 'com.google.protobuf'
 // protobuf-gradle-plugin 0.10.0 (the latest GA, per Maven Central metadata) calls the
@@ -94,6 +103,12 @@ dependencies {
     implementation protobufJava
     testImplementation libs.junit.jupiter
     testRuntimeOnly libs.junit.platform.launcher
+
+    // U2: Error Prone + NullAway prove the generated codec is nullness-safe by construction
+    // once a package-info carries @NullMarked (U1). error-prone-core loads Error Prone;
+    // nullaway is the nullness check. Mirrors :recordbuf-runtime / :recordbuf-generator.
+    errorprone libs.nullaway
+    errorprone libs.error.prone.core
 }
 
 // Extract the Well-Known-Types (.proto) shipped inside the managed protobuf-java jar
@@ -159,6 +174,26 @@ def recordbufInstallDir = project(':recordbuf-generator').layout.buildDirectory
     tasks.named(n, Class.forName(GenerateProtoTask)).configure {
         dependsOn ':recordbuf-generator:installDist'
         inputs.dir(recordbufInstallDir)
+    }
+}
+
+// U2 (feat-nullaway-generated-code): run NullAway on every Java compile task, mirroring
+// :recordbuf-runtime. Disable all the other checks, keep only NullAway as an error, and
+// restrict it to @NullMarked packages with OnlyNullMarked=true. The generated codec lives in
+// @NullMarked packages (U1's package-info); the protobuf-java REFERENCE output stays at the
+// un-suffixed natural package (e.g. bijnagte.recordbuf.fixture.{i32,optional}), which is
+// UNMARKED and therefore out of scope -- exactly the interop boundary the check is meant to
+// cover. JSpecifyMode is NOT passed: 0.14.x auto-detects JSpecify on the project's JDK 21+
+// toolchain, so the flag is rejected as invalid on this toolchain combo and is omitted
+// (mirrors :recordbuf-runtime / :recordbuf-generator).
+tasks.withType(JavaCompile).configureEach {
+    // The net.ltgt.errorprone plugin wires the errorprone configuration onto the
+    // annotation-processor path and forks the compiler itself (mirrors
+    // :recordbuf-runtime / :recordbuf-generator); we only add the check options.
+    options.errorprone {
+        disableAllChecks = true
+        error("NullAway")
+        option("NullAway:OnlyNullMarked", "true")
     }
 }
 

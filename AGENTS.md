@@ -81,12 +81,23 @@ consult it when orienting to the codebase or discussing domain concepts.
   code produced by the plugin itself does NOT get `@RecordBuilder` — the
   plugin output stays dependency-free (per the original `record`-output
   requirement).
-- **Error Prone / NullAway: WIRED.** `:recordbuf-generator` and `:recordbuf-runtime`
-  both apply `net.ltgt.errorprone`, add `errorprone(libs.nullaway)` +
-  `errorprone(libs.error.prone.core)`, and run NullAway at error severity via
+- **Error Prone / NullAway: WIRED — incl. the generated output.** `:recordbuf-generator`,
+  `:recordbuf-runtime`, **and `:recordbuf-fixtures`** all apply `net.ltgt.errorprone`, add
+  `errorprone(libs.nullaway)` + `errorprone(libs.error.prone.core)`, and run NullAway at error
+  severity via
   `options.errorprone { disableAllChecks = true; error("NullAway"); option(
   "NullAway:OnlyNullMarked","true") }` (the generator also excludes its
-  record-builder-generated sources via `excludedPaths`). The catalog declares
+  record-builder-generated sources via `excludedPaths`). On `:recordbuf-fixtures` this scopes, via
+  `OnlyNullMarked=true`, to the recordbuf-generated `.rec` records: the generator now emits a
+  per-package `@NullMarked` `package-info.java` for every non-empty generated package
+  (de-duplicated across a request; a type-less file like the options proto emits none), so the
+  generated records fall in NullAway's scope while the un-marked protobuf-java reference output
+  (the un-suffixed natural package) and the WKT `recordbuf.RecordbufOptions` stay out of scope for
+  free. Because the encode/decode arms re-invoke a guarded getter into the un-marked
+  `com.google.protobuf.CodedOutputStream` boundary (which `OnlyNullMarked` leaves un-scoped), that
+  re-invocation is NOT a finding; the one real generated-code finding was the builder
+  copy-constructor assigning a null-guarded `byte[]` read to a `@NonNull` record field, now
+  defaulted to `new byte[0]` for `@NonNull` fields. The catalog declares
   `error-prone=2.51.0` (group `com.google.errorprone`, NOT `com.github.errorprone`
   — the latter group has no resolvable version), **`nullaway=0.14.3` (group
   `com.uber.nullaway` — NOT `com.uber`, which never resolves — a coordinate
