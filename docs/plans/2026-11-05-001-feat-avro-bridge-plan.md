@@ -3,8 +3,10 @@ title: Avro Conversion Bridge - Plan
 type: feat
 date: 2026-11-05
 artifact_contract: ce-unified-plan/v1
-artifact_readiness: requirements-only
+artifact_readiness: implementation-ready
 product_contract_source: ce-brainstorm
+product_contract_preservation: Product Contract preserved as-is; this plan adds only a planning layer. P2 (R20) moves to a separate follow-on plan; no requirement/flow/acceptance rewritten (R1-R25, AE1-AE15 unchanged).
+deepened: 2026-11-05
 execution: code
 ---
 
@@ -29,11 +31,24 @@ protobuf framing). The existing protobuf-java interop (`Layer A` always-on
 marshaller, `Layer B` structural converter) is unchanged. The bridge is additive
 and is a complete no-op when not enabled.
 
-**Open blockers:** None. All brainstorm-time framing is resolved in **Key
-Decisions**; the shape-level forks left to ce-plan are enumerated in **Open
-Sub-Decisions for ce-planning**. Deferred follow-ons (Confluent/SR dialect,
-dynamic WKTs, `uint64` lossless, map-of-message/enum, per-message toggle,
-record-level wire wrappers, cross-file nesting) do not block v1.
+**Open blockers:** None launch-blocking. All brainstorm-time framing is resolved
+in **Key Decisions**; the shape-level forks left to ce-plan are resolved in the
+**Planning Contract** (KTDs). Deferred follow-ons - Confluent/SR dialect, dynamic
+WKTs, `uint64` lossless, map-of-message/enum, per-message toggle, cross-file
+nesting - do not block v1. Per the user's scoping decision, the record-level Avro
+wire wrappers (P2, R20) move to a **separate follow-on plan**; this plan executes
+**P1 only** (converter + `SpecificRecord` + schema + `.avsc` + toggle + WKT
+bridge + schema-driven `GenericDatumReader/Writer`).
+
+**Execution profile (sequential P1):** unit 1 (module + catalog) -> 2 (bridge seam
++ per-file tri-state toggle) -> 3 (WKT bridge) -> 4 (schema + `.avsc` emitter) ->
+5 (converter + `SpecificRecord` emitter) -> 6 (fixtures interop + parity oracle).
+Stop conditions: a failing build or a parity-oracle mismatch halts the unit on its
+current diff; a record classpath that ever acquires `org.apache.avro`, or any
+change to Layer A/B output, is an invariant breach and halts immediately; a P1
+type with no spec-clean Avro target is a fail-loud (R17) - confirm the deferral,
+don't coerce. Tail ownership passes to the P2 plan once P1's fixtures interop is
+green and committed (P1 independently shippable; P2 additive).
 
 ---
 
@@ -270,10 +285,10 @@ shaped effort.
   ```mermaid
   flowchart LR
     P[proto bytes] -->|protobuf decode| R[record]
-    R -->|record -> Avro| A[Avro SpecificRecord]
+    R -->|record to Avro| A[Avro SpecificRecord]
     A -->|Avro serialize| W[Avro wire bytes]
     W -->|Avro deserialize| A2[Avro SpecificRecord]
-    A2 -->|Avro -> record| R2[record]
+    A2 -->|Avro to record| R2[record]
   ```
   **Covers R3, R8, R10, R19, R24.**
 
@@ -286,7 +301,7 @@ shaped effort.
     per -->|ON| on[Emit Avro bridge]
     per -->|OFF| off[Skip — no Avro output]
     per -->|INHERIT or absent| glob{Global toggle on?}
-    glob -->|true (default: false)| on
+    glob -->|true, default false| on
     glob -->|false / absent| off
   ```
   **Covers R12, R13, R14.**
@@ -301,7 +316,7 @@ flowchart TB
   proto -->|protobuf-java protoc| pb["protobuf-java X<br/>Layer B — existing"]
   proto -->|recordbuf plugin, opt-in| avro["Avro SpecificRecord + .avsc<br/>Layer B — new"]
   rec <-->|Codec.encode/decode, byte-identical| pb
-  rec <-->|record <-> Avro converter (new)| avro
+  rec <-->|record to Avro, new converter| avro
   rec -.-> future["future bridges<br/>(GraphQL / Jackson ...)"]
   avro --> rt[":recordbuf-avro<br/>WKT bridge + org.apache.avro"]
 ```
@@ -400,8 +415,9 @@ flowchart TB
   boundary (R15/R17).
 - **Per-message toggle granularity** — v1 is global + per-file (R13); per-message
   is deferred.
-- **P2 record-level Avro wire wrappers** (`toAvroBytes`/`fromAvroBytes`) — the
-  additive second phase on P1 (R20).
+- **P2 record-level Avro wire wrappers** (`toAvroBytes`/`fromAvroBytes` on the
+  record) - a **separate follow-on plan**, additive on P1 (R20). *Deferred-to-
+  separate-plan* per the user's scoping decision; not an active unit in this plan.
 - **Other bridges** — GraphQL schema generation and Jackson JSON serialization,
   built on the same extension point as future registrations (R1).
 - **Avro `GenericRecord`/`Map`** representation — a deferred variant; v1 is
@@ -455,41 +471,429 @@ flowchart TB
 
 ---
 
-## Open Sub-Decisions for ce-planning
+## Planning Contract
 
-These are deliberately not resolved in brainstorm; they are the shape-level
-questions for the next artifact.
+This Planning Contract resolves the shape-level forks the brainstorm parked in its
+former "Open Sub-Decisions" section. The general assumptions are in the Product
+Contract's **Assumptions**; two implementation-specific ones are added below.
+No requirement, flow, or acceptance example was rewritten (R1-R25, AE1-AE15
+unchanged).
 
-- **R5 / R7 package + namespace mechanism.** How the generator is told the
-  generated Avro types' target package: a new `FileOptions` knob, an Avro-bridge
-  analogue of `package_suffix`, or a sibling of `java_package`. The namespace =
-  proto package is assumed, but the exact wiring is a ce-planning decision.
-- **R1 extension-point shape.** What "a thin generic extension point" looks like in
-  the model — an enum of bridge kinds, a registration interface, or a config — and
-  where Avro registers. The requirement is extensibility (a future bridge is a
-  registration, not a core change), not a specific shape.
-- **R12 / R13 option wiring.** Reuse the existing `FileOptions` channel for the
-  per-file tri-state and a new **global** param for the on/off default (the
-  `package_suffix` analogue), vs a single new flag; the exact tag and key are
-  planning.
-- **R16 / R9 enum + WKT mapping details.** Exact Avro `enum` default policy and the
-  per-WKT schema fragments the bridge emits (e.g. exact `timestamp-micros`
-  `type`/logical-type encoding; `FieldMask` as `bytes` vs its own representation).
-- **R20 converter/wrapper shape.** The exact converter type shape
-  (`fromAvro(SpecificRecord) → R` / `toAvro(R) → SpecificRecord` vs a builder-driven
-  variant vs both) and the P2 wrapper signatures.
-- **R21 module name + layout.** Final name of the Avro runtime module
-  (`:recordbuf-avro`) and how it hosts the WKT bridge + `org.apache.avro` while
-  staying out of the record's classpath.
-- **R8 WKT recognition mechanism.** How the generator recognizes a WKT field
-  (a type-name check against the known WKT set that the bridge names) without the
-  record layer learning about WKTs.
-- **R24 reference/parity oracle.** Parity against the same-proto protobuf-java
-  reference, a committed Avro reference fixture, or Avro's own runtime
-  serialization of the same data — the exact oracle and per-family matrix.
-- **Reader/writer scope (P1).** Whether `GenericDatumReader/Writer` alone suffices
-  for v1 or whether the generated `SpecificRecord` needs a custom codec beyond
-  what `SpecificData` provides.
+### Key Technical Decisions
+
+#### KTD1 - Bridge extension seam (R1)
+Add a small **`FormatBridge`** seam the generator consults per file:
+`String name()`, `boolean enabled(CodeGeneratorOptions global, FileOptions file)`,
+v`List<String> emit(ProtoFile model, String outDir)`. A `BridgeRegistry` holds the
+registered bridges; v1 registers exactly one, **`AvroBridge`**. A future GraphQL /
+JSON bridge is a new registrant, not a change to core generation (R1).
+YAGNI: ship the interface + one registrant now; build out a multi-bridge registry
+only when a second bridge actually exists. *Deferred-to-impl:* the registry's
+exact location (a package-private `Bridges` list vs a `ServiceLoader`-style scan).
+
+#### KTD2 - Bridge enablement / toggle (R12 / R13)
+- **Global:** a new `--avro` boolean, parsed in `CodeGenerator` (the
+  `--package_suffix` analogue) and threaded via `CodeGeneratorOptions`; **default off**.
+- **Per-file tri-state:** a new `extend google.protobuf.FileOptions {`
+  `recordbuf.AvroControl avro = 50003; }` in `recordbuf_options.proto` where
+  `AvroControl { INHERIT = 0; ON = 1; OFF = 2 }`. `ModelLoader` reads the tag off
+  the `FileDescriptorProto` options `UnknownFieldSet` (the existing
+  `protobuf_java`/`interfaces` tag-read pattern, **not** by linking the extension
+  class) and projects it to `model.ProtoFile.avroControl()` ∈ {INHERIT, ON, OFF}.
+- **Effective:** `enabled = (perFile == INHERIT) ? globalOn : (perFile == ON)`.
+*Deferred-to-impl:* the exact free tag number (50003 assumed; take the next free
+slot) and `--avro` vs `--avro_on`.
+
+#### KTD3 - WKT recognition + record representation (R8 / R9)
+Net-new finding: the record layer is **WKT-agnostic** - a WKT field today emits a
+nested record mirroring the WKT's own proto structure (e.g. `Timestamp{seconds,nanos}`);
+there is **no** Java-typed `Timestamp → Instant` mapping in `:recordbuf-runtime`.
+Therefore the **bridge owns WKT handling**: (i) it recognizes a WKT field by its
+proto `typeUrl` FQN (`.google.protobuf.Timestamp`, `...Duration`, ...) matched
+against a known-WKT set the bridge names; (ii) it converts that record's nested
+WKT fields ↔ the Avro representation. The record layer and its output are
+**untouched** (R10). *This corrects the earlier `WktFieldMappings` assumption* -
+that mapping does not exist; the bridge introduces it over the record's nested
+representation.
+
+#### KTD4 - Per-WKT mapping + enum/presence rules (R9 / R16)
+- `Timestamp` → `{"type":"long","logicalType":"timestamp-micros"}` (epoch micros,
+  ↔ record `seconds`/`nanos`) — *or* structured `{seconds,nanos}`; **adopt
+  timestamp-micros** (a native Avro logical type, no Confluent dependency).
+- `Duration` → structured record `{seconds: long, nanos: int}` (per the structured-
+  duration decision; Avro's duration-logical is micros-only).
+- `FieldMask` → `["null","string"]` (null ⇒ empty mask; string = canonical paths).
+- `NullValue` → `["null", enum]`; message wrappers (`*Value`/`DoubleValue`/...) →
+  `["null", inner logical]`; `Empty` → an empty Avro record.
+- **Enum** absent-in-`SpecificRecord` default → the **number-0** Avro enum
+  constant (documented; proto3 requires a 0-value constant, so it is always
+  valid).
+- **Presence** (`optional`) → `[null, T]`, default `null`. **Non-present scalar**
+  → Avro's default (zero/empty), **not null**.
+*Deferred-to-impl:* exact `FieldMask`/`NullValue` encodings; confirm
+`timestamp-micros` over `{seconds,nanos}` on first compile.
+
+#### KTD5 - Package + namespace (R5 / R7)
+Generated Avro types live in a **parallel Java package**: default = proto
+`java_package` + a bridge-decided base (e.g. `.avro`), overridable by a new global
+`--avro_package` (or a suffix form). **Namespace = proto package** (`model.ProtoFile()
+.package()` - the Avro default, distinct from the Java package). Record package /
+namespace and the `.rec`/java-reference outputs are **unaffected**. *Deferred-to-
+impl:* the exact override knob (whole-package vs suffix) and the default base.
+
+#### KTD6 - Converter shape + reader/writer (P1)
+Per-type **static converter** in `:recordbuf-avro`, mirroring `Interop`:
+`XAvro.fromRecord(XRecord) → SpecificX` and `XAvro.toRecord(SpecificX) → XRecord`
+- **not** a method on the record, so the record stays `org.apache.avro`-free.
+Nested-message converters compose recursively, schema-qualified by FQN. The reader
+/writer is **schema-driven**: Avro `GenericDatumReader`/`GenericDatumWriter` +
+`SpecificData` (rejected: the legacy class-name `SpecificDatumReader` class-scan /
+`AVRO-3659` path, per **Sources**). Each generated `SpecificRecord` carries
+`public static final Schema SCHEMA` (the embedded schema, R3). P2's
+`toAvroBytes`/`fromAvroBytes` are deferred to a separate plan (KTD12).
+
+#### KTD7 - Module `:recordbuf-avro` (R21)
+`settings.gradle.kts`: `include(":recordbuf-avro")` +
+`project(":recordbuf-avro").projectDir = File(rootDir, "avro")`, co-versioned by
+the existing root `subprojects {}` (group `bijnagte.recordbuf`, version `0.0.1`).
+A new `avro/build.gradle.kts` **mirrors `runtime/build.gradle.kts`** (Spotless +
+NullAway auto-applied by the root `subprojects { withPlugin("java") }` blocks;
+a `@NullMarked` package-info) plus `api org.apache.avro:avro:<catalog>`. Package
+`bijnagte.recordbuf.avro` hosts the bridge, the WKT registry, and converter
+helpers; the generated Avro types (consumer package, KTD5) `import
+bijnagte.recordbuf.avro.*` exactly as records import `bijnagte.recordbuf.runtime.*` -
+the record never imports Avro.
+
+#### KTD8 - Avro version (R6)
+Pin `org.apache.avro:avro:1.12.2` (latest GA 1.x; the 1.11.x LTS line is the
+fallback). 1.x wire + schema are stable (the binary encoding has not changed across
+1.x); **not** Avro 2.0 (its JSON-schema rework is future work). Catalog key
+`avro`; add `avro = "1.12.2"` to `gradle/libs.versions.toml`.
+
+#### KTD9 - Fail-loud for unsupported P1 (R11 / R17)
+Unsupported P1 (`uint64` lossless, `map<…,message/enum>`, dynamic WKTs
+`Struct`/`Value`/`ListValue`/`Any`) → a **generation-time error**
+(`CodeGeneratorResponse.error`, as `Main` currently reports) - the "don't cut off
+the path" mechanism: a deferral, not a hard no, so each path can be filled in
+later.
+
+#### KTD10 - Emission wiring
+The enabled bridge emits Avro into a **new output path** `--avro_out=DIR`, a
+sibling of `--recordbuf_out` (parsed and threaded like `package_suffix`). A
+disabled (OFF / INHERIT+global-off) file emits **nothing** under `--avro_out`.
+The `recordbuf_options.proto` `AvroControl` extension is declared; the java/
+`.rec` outputs are unaffected. *Deferred-to-impl:* a dedicated `--avro_out` on the
+recordbuf plugin (one process, one pass) is recommended over a second
+`GenerateProtoTask`.
+
+#### KTD11 - Interop parity oracle + harness (R24)
+Per family (mirroring the protobuf-interop family) the fixtures grow an Avro
+output + a test asserting two things: (a) the **round-trip**
+`record → SpecificRecord → record == original`, and (b) a **committed Avro-bytes
+golden reference** - serialize a known `SpecificRecord` and compare the written
+byte[] to committed bytes (the "orange", parallel to the protobuf family's
+`*Proto.bytes` oracle). WKT conversions are asserted in both directions against
+the reference. Test classpath: `implementation project(':recordbuf-avro')` +
+`implementation org.apache.avro:avro`.
+
+#### KTD12 - P2 deferral
+P2 record-level `toAvroBytes`/`fromAvroBytes` (R20) is **deferred to a separate
+follow-on plan**; it is additive on the P1 converter (KTD6) and is **not** an
+active unit here.
+
+### High-Level Technical Design
+
+The generator consults the bridge registry per file; the bridge emits schema +
+`SpecificRecord` into a parallel package via existing `Generator`/`Writer`
+patterns; the record layer is never touched:
+
+```mermaid
+flowchart TD
+  REQ[CodeGeneratorRequest] --> CG[CodeGenerator.generateFiles]
+  CG --> R[BridgeRegistry: which bridges enabled for this file?]
+  R -->|AvroBridge enabled, KTD2| AV[AvroBridge.emit]
+  R -->|none / disabled| NOOP[emit nothing under --avro_out]
+  AV --> AVSC[emit .avsc per file]
+  AV --> SPEC[emit SpecificRecord + XAvro converter, parallel pkg]
+  AV --> W{field .typeUrl is a WKT?}
+  W -->|yes| BR[WktAvroBridge: schema fragment + record to Avro]
+  W -->|no| NAT[emit native Avro field per mapping table]
+  AV --> W
+  REC[(record layer)] -.->|untouched, R10| CG
+```
+
+Toggle precedence and the record-clean invariant:
+
+```mermaid
+flowchart LR
+  G["global --avro (default OFF)"] --> E["effective enabled"]
+  F["per-file recordbuf.avro: INHERIT/ON/OFF"] --> E
+  E -->|ON| GEN[emit Avro for this file]
+  E -->|OFF / INHERIT+global OFF| SKIP[no Avro for this file]
+  INV["record classpath: NO org.apache.avro"] -.->|invariant| CLS[avro lives in a converter, not the record]
+```
+
+**Field-type mapping (proto → Avro)**, P1 (a `mermaid-table` equivalent):
+
+| Proto type (P1)            | Avro schema (P1)                                     | Fail-loud instead? |
+|----------------------------|-----------------------------------------------------|--------------------|
+| `int32`/`int64`/`uint32`/`fixed…`/`double`/`float`/`bool`/`string`/`bytes` | native Avro `int`/`long`/`double`/`float`/`boolean`/`string`/`bytes` | — |
+| `enum`                       | Avro `enum`; absent default = number-0 constant      | — |
+| `repeated T`                 | Avro `array` of T; empty → empty array               | — |
+| `map<K,v>` (K scalar; v scalar) | Avro `map<v>`; `K` → `int`/`long`/`string` per Avro rule | map of message/enum → **error** |
+| `message` (nested, same-file) | nested Avro record                                   | cross-file (dynamic) → **error** |
+| `oneof`                      | `[null, field]` union per alternative                | — |
+| `Timestamp`/`Duration`/`FieldMask`/`NullValue`/wrappers/`Empty` | WKT bridge fragment (KTD4) | dynamic WKTs → **error** |
+| `uint64` (> `Long.MAX`)      | —                                                    | **generation error** |
+
+### Dependencies / Prerequisites
+- `:recordbuf-runtime` (codec helpers, unchanged) and the fixtures oracle harness.
+- `org.apache.avro:avro:1.12.2` (KTD8) on `:recordbuf-avro` (+ on the fixtures
+test classpath).
+- No prerequisite external systems; the plugin needs only `--avro_out` wired (KTD10).
+
+### Sequencing
+U1 (module + catalog) → U2 (bridge seam + per-file tri-state toggle) and
+U3 (WKT bridge) in parallel (both depend only on U1) → U4 (schema + `.avsc`
+emitter, needs U2+U3) → U5 (converter + `SpecificRecord` emitter, needs U4) →
+U6 (fixtures interop + parity oracle, needs U5).
+
+## Implementation Units
+
+### U1 - Module `:recordbuf-avro` + Avro catalog pin
+
+**Goal:** Stand up the Avro runtime module (KTD7/KTD8) so the bridge and
+generated types have a home, co-versioned and tooling-clean.
+
+**Requirements:** R5, R21, R22.
+**Dependencies:** none (foundation).
+**Files:**
+- `settings.gradle.kts` (add `include(":recordbuf-avro")` + `projectDir = File(rootDir, "avro")`).
+- `avro/build.gradle.kts` (new; mirror `runtime/build.gradle.kts`; add
+  `api("org.apache.avro:avro:" + libs.versions.avro.get())` or a catalog accessor).
+- `gradle/libs.versions.toml` (add `avro = "1.12.2"` under `[versions]`; a
+  `[libraries]` `avro = { module = "org.apache.avro:avro", version.ref = "avro" }`).
+- `avro/src/main/java/bijnagte/recordbuf/avro/package-info.java` (new `@NullMarked`).
+
+**Approach:** Mirror `:recordbuf-runtime` exactly (build, `@NullMarked` package-
+info, Spotless + NullAway auto-applied by the root `subprojects {}`). Verify the
+module compiles empty + `./gradlew :recordbuf-avro:build` (no main yet, just the
+package-info + an empty module is fine; add a trivial type or rely on the package-
+info). Keep the record's classpath free of `org.apache.avro` (the module is
+`api`-only, reached by generated consumers, never by the record).
+
+**Patterns:** `:recordbuf-runtime`'s `build.gradle.kts` + `package-info.java`.
+**Test scenarios (U1):** `./gradlew :recordbuf-avro:build` compiles; the module
+is co-versioned (`group`/`version` inherit from `subprojects {}`).
+**Verification:** `./gradlew :recordbuf-avro:build` green; `settings` recognizes
+the module.
+
+### U2 - Bridge seam + per-file tri-state toggle
+
+**Goal:** Add the `FormatBridge` seam + registry and the per-file `recordbuf.avro`
+tri-state + global `--avro`, so the Avro bridge is gated correctly (KTD1/KTD2).
+
+**Requirements:** R1, R12, R13, R14 (global param + per-file knob), R17 (the
+default-off no-op).
+**Dependencies:** U1.
+**Files:**
+- `options/src/main/proto/recordbuf_options.proto` (add `extend google.protobuf.FileOptions {`
+  `recordbuf.AvroControl avro = 50003; }` + `enum AvroControl { INHERIT=0; ON=1; OFF=2; }`).
+- `generator/…/plugin/model/*` (read the `FileOptions` tag in `ModelLoader` the way
+  `protobuf_java`/`interfaces` are read; project `ProtoFile.avroControl()`
+∈ {INHERIT,ON,OFF}; add the model accessor).
+- `generator/…/plugin/CodeGenerator.java` (+ `CodeGeneratorOptions`/options model —
+parse + thread the global `--avro` param).
+- `generator/…/plugin/Bridge` / `BridgeRegistry` / `AvroBridge`(stub until U4/U5)
+- (new seam types under `bijnagte.recordbuf.plugin` — package-info not yet needed).
+
+**Approach:** Introduce the `FormatBridge` interface + a registry the generation
+loop consults per file (the `emitMessage`/`generateFiles` seam). `AvroBridge.enabled(...)`
+computes the effective per-file decision from KTD2. The `AvroBridge.emit(...)` is
+a stub in U2 (returns nothing for the message/enum/schema writers, U4/U5); it
+becomes real in U4/U5. Assert the toggle: OFF / INHERIT+global-off emit nothing
+under `--avro_out`; ON / INHERIT+global-on emit for that file.
+
+**Patterns:** `protobufJavaFqnFor` / `interfacesFor` (tag-read off the options
+UnknownFieldSet); the `generateFiles` per-file emit loop. The existing `--package_suffix`
+global-param plumbing.
+**Test scenarios (U2):** `AvroBridgeEnabledTest` (JUnit 5, plain asserts):
+inherited default off ⇒ no emits; global on ⇒ emits; `ON`/`OFF` per-file override
+the global; `INHERIT` falls back to global.
+**Verification:** `:recordbuf-generator:test` green; OFF/INHERIT+global-off files
+produce no `--avro_out` output.
+
+### U3 - WKT bridge (recognition + mapping + conversion)
+
+**Goal:** In `:recordbuf-avro`, implement the WKT bridge over the record's nested
+representation, so WKT fields map to Avro via native logical types / structured
+`Duration` and the record layer stays WKT-agnostic (KTD3/KTD4).
+
+**Requirements:** R8, R9, R10, R16.
+**Dependencies:** U1.
+**Files:**
+- `avro/…/wkt/` (new): a known-WKT registry (typeUrl FQN → schema fragment +
+  record↔Avro converter); `Timestamp`→timestamp-micros, `Duration`→`{seconds,nanos}`,
+  `FieldMask`→`["null","string"]`, `NullValue`/wrappers → `["null",…]`, `Empty` →
+  an empty record.
+- `avro/…/wkt/*Test` (JUnit 5): per-WKT round-trip + (where applicable)
+  logical-type assertions.
+
+**Approach:** The registry maps each known WKT `typeUrl` to (a) its Avro schema
+fragment and (b) a `record-nested-WKT ↔ Avro` converter. WKT recognition is purely
+a `typeUrl` check here (the generator consults it in U4/U5); the record layer is
+never asked to know about WKTs. Structured `Duration`, not the micros-only
+logical. Native logicals (`timestamp-micros`) only - no Confluent (R8/R9).
+
+**Patterns:** a `Map<String, WktBridge>` / a small registry; converters that are
+null-aware (a nullable WKT is `[null, T]`).
+**Test scenarios (U3):** `WktBridgeTest` - for each WKT, `record ↔ Avro` round-
+triips and (for `Timestamp`) the micros boundary (whole-seconds + sub-second
+`nanos`). `Duration` structured boundary. `FieldMask`/`NullValue`/wrapper null
+handling.
+**Verification:** `:recordbuf-avro:test` green on the WKT suite.
+
+### U4 - Avro schema emitter (`.avsc` + embedded `SCHEMA`)
+
+**Goal:** Emit the Avro schema per proto as a standalone `.avsc` (R3) and embed
+it on the generated types' `SCHEMA` constant, translating field types per the
+KTD4 table (native / presence / enum / map / oneof / WKT) and failing loud on
+unmappable P1 types (KTD4/KTD9).
+
+**Requirements:** R2, R3, R2, R4, R6, R7, R17 (+ KTD4 mapping table).
+**Dependencies:** U2, U3.
+**Files:**
+- `generator/…/plugin/writer/AvroSchemaGenerator.java` (new; a
+  `Generator`/`Writer` that builds `org.apache.avro.Schema` from `model.ProtoFile` -
+  or an emitted JSON schema string; recommend building the `Schema` object and
+  writing `toString()`).
+- `generator/…/plugin/AvroBridge.emit` (wire the U2 stub to emit the `.avsc` + the
+  embedded schema fragment; per-message/enum, namespace = proto package).
+- `generator/…/plugin/writer/*Test` / emit-test asserts the emitted `.avsc` +
+  `SCHEMA` contain the expected schema fragments (schema text / structure).
+
+**Approach:** Walk `model.ProtoFile` (messages/enums/repeated/map/oneof/WKT),
+build the corresponding `Schema` (record/enum/array/map/union/logical), embed it.
+WKT fields delegate to the U3 bridge (`typeUrl` match). Unknown/unmappable P1
+(`uint64`, map-of-message/enum, dynamic WKTs) → `throw` a generation error
+(KTD9). Namespace = proto package. Output under `--avro_out` as `.avsc` (R3).
+
+**Patterns:** `Generator`/`Writer` + `generateFile(w -> new AvroSchemaGenerator().write(w, …))`
+(the existing per-file emit pattern); `WktBridge` for WKT fragments.
+**Test scenarios (U4):** `AvroSchemaGeneratorTest` - (a) a nested message → nested
+Avro record; (b) `repeated T` → array; (c) `map<int32,int32>` → `map`; (d) a
+`oneof` → union; (e) a `Timestamp` field → `timestamp-micros` (delegated to U3);
+(f) a `uint64`/map-of-message → generation error (fail-loud).
+**Verification:** `:recordbuf-generator:test` green; emit a sample proto and assert
+the `.avsc`/`SCHEMA` shape + that an unsupported type errors.
+
+### U5 - Converter + `SpecificRecord` emitter
+
+**Goal:** Emit the generated `SpecificRecord` types + the per-type
+`record ↔ SpecificRecord` converters, composing nested-message converters and
+routing WKT fields through the U3 bridge (KTD6).
+
+**Requirements:** R20 (P1 portion), R17, R1 (converter on the seam), R6.
+**Dependencies:** U4.
+**Files:**
+- `generator/…/plugin/writer/AvroSpecificGenerator.java` (new; emits
+  `public class XSpecific extends org.apache.avro.specific.SpecificRecord` with a
+  `public static final Schema SCHEMA` and accessors; or an equivalent record-shaped
+  `SpecificRecord` — recommend the classic `SpecificRecord` with a static schema).
+- `generator/…/plugin/writer/AvroConverterGenerator.java` (new; emits
+  `XAvro.fromRecord/toRecord`; nested converters composed; WKT via U3).
+- `AvroBridge.emit` wires these into the per-file emit.
+- emit-tests assert the generated types + converter fragments compile + round-trip.
+
+**Approach:** Emit a `SpecificRecord` per message (fields per KTD4 mapping +
+presence/enum rules; `SCHEMA` = U4 output). Emit `XAvro.fromRecord(R)→SpecificX`
+/ `toRecord(SpecificX)→R`; nested message fields call the nested converter; WKT
+fields call the U3 bridge converter. Reader/writer is schema-driven
+(`GenericDatumReader`/`GenericDatumWriter` + `SpecificData`) used in tests, not
+custom per the legacy shim. P1 only (no `toAvroBytes`; KTD12).
+
+**Patterns:** `InteropGenerator`'s structural-converter shape; `Generator`/`Writer`.
+**Test scenarios (U5):** `AvroConverterGeneratorTest` - a generated type compiles
++ `XAvro.fromRecord/toRecord` round-trips a representative value; a nested + a WKT
+field both convert; presence/enum defaults behave per KTD4.
+**Verification:** `:recordbuf-generator:test` green; generated type compiles
+under `:recordbuf-fixtures` and round-trips via `XAvro`.
+
+### U6 - Fixtures interop + parity oracle
+
+**Goal:** Lock the whole bridge with the fixtures' interop harness: a per-family
+Avro output + a round-trip + committed-bytes parity oracle (KTD11), proving
+"same data" against a committed reference and proving the record stays avro-free
++ Layer A/B unchanged (R25).
+
+**Requirements:** R24, R25, R5 (+ R17 fail-loud coverage), R12/R13 (the toggle is
+tested ON for the interop family).
+**Dependencies:** U1, U5 (U4, U3).
+**Files:**
+- `fixtures/…` an Avro interop proto (mirrors a protobuf-interop family, plus a
+  WKT field and an enum for presence/enum coverage); wire an `--avro_out` task in
+  `fixtures/build.gradle` + `implementation project(':recordbuf-avro')` +
+  `implementation org.apache.avro:avro` on the test classpath.
+- `fixtures/src/test/java/bijnagte/recordbuf/fixture/*AvroInterop*` + a committed
+  Avro-bytes golden reference.
+
+**Approach:** Generate the Avro output for the interop family. Test: (a) round-
+trip `record → XSpecific → record == original`; (b) serialize a known `XSpecific`
+via `GenericDatumWriter` + `SpecificData` and assert the written bytes equal the
+committed golden (the orange); (c) assert a generated record's classpath has no
+`org.apache.avro` import (a source grep or an import assertion — R25/R22); (d)
+assert Layer A/B output is unchanged (the codec + interop golden bytes still match
+— regress, don't break). Optionally assert the fail-loud path (an unsupported
+type errors).
+
+**Patterns:** the protobuf-interop family's round-trip + `*Proto.bytes` golden-
+bytes oracle (now `*Avro.avro` golden bytes); `output.upToDateWhen { false }` for
+regeneration.
+**Test scenarios (U6):** `AvroInteropTest` - round-trip for a message with nested,
+`repeated`, `map`, `oneof`, an enum (presence/enum default), and a WKT field;
+committed-bytes parity; "record is avro-free" assertion; Layer A/B golden bytes
+unchanged.
+**Verification:** `:recordbuf-fixtures:test` green (round-trip + parity); record
+stays avro-free; Layer A/B regression clean.
+
+## Verification Contract
+
+- `./gradlew build` - full build (compile + test) green across all modules incl.
+  the new `:recordbuf-avro`.
+- `./gradlew :recordbuf-avro:test` - WKT bridge (U3) + any converter-helper tests green.
+- `./gradlew :recordbuf-generator:test` - schema-contract + converter tests (U4/U5) green.
+- `./gradlew :recordbuf-fixtures:test` - the interop + parity oracle (U6) - the orange. Green.
+- `./gradlew spotlessCheck` - Spotless clean across all modules incl. `:recordbuf-avro`
+  + any generated Avro output (the `:recordbuf-fixtures` Avro output is format-clean).
+- `./gradlew :recordbuf-generator:installDist` + `protoc --plugin=protoc-gen-recordbuf=… --avro_out=… <proto>`
+  regenerates a sample; the generated `.avsc` + `SpecificRecord` + `XAvro` compile
+  and round-trip.
+- NullAway clean on `:recordbuf-avro` (the @NullMarked package-info scopes it; the
+  WKT null-paths use `@Nullable`/`[null,T]` correctly).
+
+## Definition of Done
+
+- **P1 shipped** behind the `--avro` toggle: per-type `record ↔ Avro
+  SpecificRecord` converter + generated `SpecificRecord` types + standalone `.avsc`
+  per proto + embedded `SCHEMA` + the WKT bridge (native logicals, structured
+  `Duration`) + schema-driven `GenericDatumReader/Writer` (KTD6/KTD11). All of it
+  additive; a disabled file is a complete no-op (R17/R14).
+- `:recordbuf-fixtures` Avro interop passes the round-trip **and** the committed-
+  Avro-bytes parity oracle (the orange), and a source/import assert that no record
+  class is on the `org.apache.avro` classpath (R25/R22).
+- Layer A/B + the codec/`Encoder`/`Decoder`/`Wire` are **byte-for-byte unchanged**
+  (R25) - proven by the unchanged `*Proto.bytes`/codec goldens.
+- All `./gradlew build` / `spotlessCheck` / the per-module tests above are green;
+  NullAway clean.
+- `README.md` / project docs note the new `:recordbuf-avro` module + the `--avro`/`
+  `recordbuf.avro` toggle + the deferrals (Confluent/SR, dynamic WKTs, `uint64`,
+  map-of-message/enum, per-message toggle); **P2 record-level wire wrappers are
+  recorded as a separate follow-on plan (KTD12)**, not built here.
+- Each KTD's deferred-to-implementation note is resolved or carried explicitly into
+  the follow-on work. **Stop conditions** (Goal Capsule): a failing build or parity
+  mismatch halts the unit on its current diff; any record-on-Avro-classpath or
+  Layer A/B change is an immediate invariant breach. **Tail ownership** passes to
+  the P2 plan once P1's fixtures interop is green and committed.
 
 ---
 
@@ -522,10 +926,14 @@ questions for the next artifact.
   `InteropGenerator` structural converter on an opt-in `recordbuf.protobuf_java`
   option, `:recordbuf-runtime` hosting the framing, `:recordbuf-fixtures` as
   the orange) is the exact analogue the Avro bridge mirrors.
-- **Proto WKT typeUrl → Java record mapping** (from `:recordbuf-runtime`'s
-  `WktFieldMappings`): `Timestamp` → `Instant`, `Duration` →
-  `Duration`, `FieldMask` → `Set<String>`, nulls/wrappers per type. The Avro
-  bridge translates *these* record field types to Avro schema fragments
-  (native logical types, structured duration).
+- **WKT recognition + mapping is net-new for the Avro surface.** Confirmed at
+  ce-plan: the record layer is WKT-agnostic - a WKT field today emits a nested
+  *record* mirroring the WKT's proto structure (e.g. a `Timestamp` record with
+  `seconds`/`nanos`); there is **no** Java-typed `Timestamp → Instant` mapping in
+  `:recordbuf-runtime` today. So the bridge (i) recognizes a WKT field by its
+  proto `typeUrl` FQN (`.google.protobuf.Timestamp`, ...) against a known set, and
+  (ii) translates that nested record to Avro (native logical types, structured
+  `Duration`). *(The brainstorm's "from `:recordbuf-runtime`'s `WktFieldMappings`"
+  was aspirational and is corrected here.)*
 - **recordbuf toggle knobs.** `package_suffix` is the global-param analogue; the
   per-message `recordbuf.protobuf_java` option is the per-file override analogue.
