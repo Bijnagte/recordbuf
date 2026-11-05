@@ -31,8 +31,9 @@ public final class BridgeRegistry {
   }
 
   /** Run every registered bridge over {@code file}; concatenate each enabled bridge's output. */
-  public List<CodeGeneratorResponse.File> emitAll(ProtoFile file, BridgeContext ctx) {
-    List<CodeGeneratorResponse.File> out = new ArrayList<>();
+  public java.util.List<? extends CodeGeneratorResponse.File> emitAll(
+      ProtoFile file, BridgeContext ctx) {
+    java.util.List<CodeGeneratorResponse.File> out = new ArrayList<>();
     for (FormatBridge bridge : bridges) {
       if (bridge.enabledFor(file, ctx)) {
         out.addAll(bridge.emit(file, ctx));

@@ -32,5 +32,5 @@ public interface FormatBridge {
   boolean enabledFor(ProtoFile file, BridgeContext ctx);
 
   /** The this-bridge's output files for a bridge-enabled {@code file}; empty when disabled. */
-  List<CodeGeneratorResponse.File> emit(ProtoFile file, BridgeContext ctx);
+  List<? extends CodeGeneratorResponse.File> emit(ProtoFile file, BridgeContext ctx);
 }
