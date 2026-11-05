@@ -678,7 +678,16 @@ public final class CodeGenerator {
     String src = "x." + f.javaName() + "()";
     if (f.isMap()) return lhs + "new " + ci.use("java.util.HashMap") + "<>(" + src + ");";
     if (f.isRepeated()) return lhs + "new " + ci.use("java.util.ArrayList") + "<>(" + src + ");";
-    if (isByteArrayComponent(f)) return lhs + src + " == null ? null : " + src + ".clone();";
+    if (isByteArrayComponent(f)) {
+      // A byte-array component defaults to an empty array when its source is null, matching the
+      // codec's decode default (CodecDefaults.bytes() is new byte[0]), so a @NonNull component
+      // (the proto3 singular-bytes default) never receives null. A rare @Nullable byte-array field
+      // keeps a null default -- null is a legal present-but-absent value -- which stays
+      // null-safe. The null branch is only reachable for @Nullable fields; for the common
+      // @NonNull byte[] it is a defensive no-op that NullAway cannot prove dead but is harmless.
+      String nullDefault = f.isNullable() ? "null" : "new byte[0]";
+      return lhs + src + " == null ? " + nullDefault + " : " + src + ".clone();";
+    }
     return lhs + src + ";";
   }
 

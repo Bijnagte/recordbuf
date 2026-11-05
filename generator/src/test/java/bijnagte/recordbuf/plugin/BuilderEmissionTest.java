@@ -123,9 +123,11 @@ class BuilderEmissionTest {
     String src = generatedSource(file(), FILE);
 
     // R3: byte[] cloned null-safely; scalars copied by value (containers exercised by
-    // the map/repeated fixtures at the compile layer).
+    // the map/repeated fixtures at the compile layer). A @NonNull byte[] component (the
+    // proto3 singular-bytes default) defaults its null branch to an empty array so it
+    // never receives null; a rare @Nullable byte-array keeps a null default.
     assertTrue(src.contains("this.a = x.a();"), src);
-    assertTrue(src.contains("this.b = x.b() == null ? null : x.b().clone();"), src);
+    assertTrue(src.contains("this.b = x.b() == null ? new byte[0] : x.b().clone();"), src);
     assertTrue(src.contains("this.items = new ArrayList<>(x.items());"), src);
   }
 
