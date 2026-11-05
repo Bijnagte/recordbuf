@@ -149,8 +149,10 @@ public static byte[] encode(Sample v) throws IOException {
 ### Scope Boundaries
 
 - Wire encoding, decoding, and any codec/runtime behavior — source text only.
-- Import organizing or enforcement via a formatting tool — Spotless is not wired
-  into this project and is not part of this work.
+- Import organizing or enforcement via a formatting tool — Spotless was not wired
+  into this project when this plan was written and was out of scope for it.
+  (Superseded: Spotless + Google Java Format are now wired and run in `./gradlew build`;
+  see the "Formatting" note in AGENTS.md.)
 - Wildcard imports.
 - Migrating or hand-patching already-generated output files.
 

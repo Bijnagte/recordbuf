@@ -7,7 +7,7 @@ error-prone       = "2.51.0"
 nullaway          = "0.14.3"
 gradle-errorprone = "5.1.1"   # net.ltgt.errorprone Gradle plugin
 spotless          = "8.11.0"   # diffplug Spotless Gradle plugin (latest, 2026-10)
-google-java-format = "2.0.0"   # latest: bug-fixing major that stabilizes the Style
+google-java-format = "2.0.0"   # latest (pulled from the catalog by build.gradle.kts)
                                 # enum; its default cleanups (redundant semicolons,
                                 # empty annotation parens, single-lambda parens) are ON
                                 # -- the `.cleanup(false)` opt-out is NOT set here.

@@ -36,9 +36,8 @@ subprojects {
 // Spotless: format every Java file with Google Java Format, configured once and
 // inherited by each subproject that carries a `java` source set (runtime,
 // generator, fixtures). `options/` has no `java` source set and is skipped. The
-// version catalog pins both the plugin (com.diffplug.spotless) and the formatter
-// (google-java-format 1.36.1 -- the last 1.x, standard Google style, whitespace-
-// only; 2.0.0+ adds non-whitespace cleanups this build deliberately avoids).
+// version catalog pins both the plugin (com.diffplug.spotless) and the
+// formatter (google-java-format); the pin lives in gradle/libs.versions.toml.
 subprojects {
     pluginManager.withPlugin("java") {
         pluginManager.apply("com.diffplug.spotless")
