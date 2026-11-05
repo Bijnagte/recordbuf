@@ -49,12 +49,16 @@ public final class ModelLoader {
   private static final int MESSAGE_INTERFACE_TAG = 50000;
   private static final int ENUM_INTERFACE_TAG = 50001;
   private static final int MESSAGE_PROTobuf_java_TAG = 50002;
+  // (recordbuf.avro) -- per-file enablement of the Avro bridge, an enum-typed FileOptions
+  // extension; a resolved extension reaches us as a varint unknown field at this tag.
+  private static final int FILE_AVRO_TAG = 50003;
   // Uninterpreted-option fallback names. This path is unreachable from a real protoc run for
   // these extensions (protoc errors on an unknown extension option it cannot resolve); it only
   // serves hand-constructed descriptors, so a matching name suffices.
   private static final String MESSAGE_INTERFACE_NAME = "recordbuf.java_interface";
   private static final String ENUM_INTERFACE_NAME = "recordbuf.java_enum_interface";
   private static final String MESSAGE_PROTobuf_java_NAME = "recordbuf.protobuf_java";
+  private static final String FILE_AVRO_NAME = "recordbuf.avro";
   private static final String EMPTY_PROTobuf_java = "";
 
   public ModelLoader(FileTable table, String javaPackageForThisFile) {
@@ -84,7 +88,9 @@ public final class ModelLoader {
         List.copyOf(topMsgs),
         List.copyOf(topEnums),
         /* javaMultipleFiles= */ false,
-        /* comment= */ null);
+        /* comment= */ null,
+        /* avroToggle= */ avroToggleFor(
+            fdp.getOptions().getUnknownFields(), fdp.getOptions().getUninterpretedOptionList()));
   }
 
   /** The two-element source_code_info path to a top-level message/enum by (fieldNumber, index). */
@@ -526,5 +532,41 @@ public final class ModelLoader {
       }
     }
     return EMPTY_PROTobuf_java;
+  }
+
+  /**
+   * Read this file's {@code recordbuf.avro} control into the model's {@link AvroToggle}, or {@link
+   * AvroToggle#NEUTRAL} when neither path carries it. Prefers the COMPILED path (a resolved
+   * enum-typed file-option extension reaches us as a varint unknown field at {@code 50003}); falls
+   * back to an uninterpreted option whose dotted name equals {@link #FILE_AVRO_NAME} (the only path
+   * for a hand-constructed descriptor). An enum value of {@code RECORDBUF_AVRO_NONE}(0) -- or any
+   * absent/unrecognized value -- maps to {@link AvroToggle#NEUTRAL} (the per-file option is unset,
+   * so the global flag / built-in default decide); {@code RECORDBUF_AVRO_ON}(1) → {@link
+   * AvroToggle#ON}, {@code RECORDBUF_AVRO_OFF}(2) → {@link AvroToggle#OFF}.
+   */
+  private static AvroToggle avroToggleFor(
+      UnknownFieldSet unknownFields, List<UninterpretedOption> uninterpreted) {
+    UnknownFieldSet.Field f = unknownFields.getField(FILE_AVRO_TAG);
+    if (f != null && !f.getVarintList().isEmpty()) {
+      return avroFromInt(f.getVarintList().get(0));
+    }
+    for (UninterpretedOption opt : uninterpreted) {
+      if (optionName(opt).equals(FILE_AVRO_NAME) && opt.hasPositiveIntValue()) {
+        return avroFromInt(opt.getPositiveIntValue());
+      }
+    }
+    return AvroToggle.NEUTRAL;
+  }
+
+  /** Map an {@code AvroControl} wire value to the model's {@link AvroToggle}. */
+  private static AvroToggle avroFromInt(long v) {
+    int w = (int) v;
+    return switch (w) {
+      case 1 -> AvroToggle.ON;
+      case 2 -> AvroToggle.OFF;
+      // RECORDBUF_AVRO_NONE(0) and any unrecognized value both mean "unset per-file": fall through
+      // to the global flag / default.
+      default -> AvroToggle.NEUTRAL;
+    };
   }
 }

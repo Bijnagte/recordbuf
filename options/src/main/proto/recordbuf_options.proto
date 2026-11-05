@@ -27,3 +27,21 @@ extend google.protobuf.MessageOptions {
 extend google.protobuf.EnumOptions {
     repeated string java_enum_interface = 50001;
 };
+// (recordbuf.avro) -- per-file enablement of the Avro bridge (FEAT). The bridge is ON by
+// default; this FILE-level option OVERRIDES both the global --avro plugin flag and the built-in
+// default, so a single file can opt out (RECORDBUF_AVRO_OFF / RECORDBUF_AVRO_NONE) or a single
+// file can opt in when the global flag is off. When absent, resolution is
+// `--avro flag > built-in default (on)`. The value is an `AvroControl` enum; it rides the
+// FileDescriptorProto's unknown-fields as a varint at its assigned tag, which the plugin reads
+// by tag without linking this .proto (mirroring how protobuf_java / java_interface are read).
+extend google.protobuf.FileOptions {
+    optional recordbuf.AvroControl avro = 50003;
+};
+// The tri-state for the recordbuf.avro file option. RECORDBUF_AVRO_NONE is the declared-but-neutral
+// state (equivalent to "no per-file option": fall through to the global flag / default).
+// RECORDBUF_AVRO_ON forces generation on for this file; RECORDBUF_AVRO_OFF forces it off.
+enum AvroControl {
+    RECORDBUF_AVRO_NONE = 0;
+    RECORDBUF_AVRO_ON = 1;
+    RECORDBUF_AVRO_OFF = 2;
+}

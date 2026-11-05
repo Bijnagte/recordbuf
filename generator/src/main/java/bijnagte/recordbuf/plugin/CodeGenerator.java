@@ -1,5 +1,7 @@
 package bijnagte.recordbuf.plugin;
 
+import bijnagte.recordbuf.plugin.bridge.BridgeContext;
+import bijnagte.recordbuf.plugin.bridge.BridgeRegistry;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.FileTable;
@@ -63,6 +65,13 @@ public final class CodeGenerator {
   // (Main invokes one CodeGenerator per request) stays stateless.
   private java.util.Set<String> emittedPackageInfos = new java.util.LinkedHashSet<>();
 
+  // Per-invocation bridge context (the parsed --avro flag, etc.) + the registered bridge(s) that
+  // add a non-protobuf wire-format conversion alongside every enabled file's record/codec output.
+  // Built fresh in generate() like the other per-request state, so per-call generation (Main
+  // invokes one CodeGenerator per request) stays stateless.
+  private BridgeContext bridgeContext = BridgeContext.empty();
+  private BridgeRegistry bridgeRegistry = BridgeRegistry.defaultRegistry();
+
   /** Run generation; returns a response ready to serialize to the client. */
   public CodeGeneratorResponse generate(CodeGeneratorRequest request) {
     // Pass 1: load ALL files (including dependencies) into the type table.
@@ -77,6 +86,12 @@ public final class CodeGenerator {
     this.oneofRegistry = buildOneofRegistry(request.getProtoFileList());
     // Fresh per request so a package-info is de-duplicated WITHIN this request only.
     this.emittedPackageInfos = new java.util.LinkedHashSet<>();
+    // The bridge context + registry are per-invocation too: the --avro flag is parsed from the
+    // same plugin parameter the run-wide package_suffix is, and a fresh registry keeps generation
+    // stateless across the one CodeGenerator Main gives each request.
+    BridgeContext ctx = BridgeContext.parse(request.getParameter());
+    this.bridgeContext = ctx;
+    this.bridgeRegistry = BridgeRegistry.defaultRegistry();
 
     List<CodeGeneratorResponse.File> outFiles = new ArrayList<>();
     for (String fileName : request.getFileToGenerateList()) {
@@ -129,6 +144,11 @@ public final class CodeGenerator {
               outDir + JavaNames.cap(m.name()) + ".java",
               w -> emitMessage(w, m, javaPkg, fdp.getName(), oneofRegistry)));
     }
+    // The extension slot: every registered FormatBridge runs over this file and emits its
+    // conditional, per-bridge output (e.g. the Avro bridge's XSpecific/XAvro/XSchema + .avsc) only
+    // when the bridge is enabled for this file (R1: file > flag > default-on). A disabled bridge
+    // contributes nothing, exactly as an absent one would.
+    files.addAll(bridgeRegistry.emitAll(pf, bridgeContext));
     return files;
   }
 

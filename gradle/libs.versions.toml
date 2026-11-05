@@ -12,6 +12,7 @@ google-java-format = "2.0.0"   # latest (pulled from the catalog by build.gradle
                                 # empty annotation parens, single-lambda parens) are ON
                                 # -- the `.cleanup(false)` opt-out is NOT set here.
 protobuf          = "4.36.2"
+avro                = "1.12.2"
 # NOTE: the com.google.protobuf (Protobuf-Gradle-plugin) version is pinned inline
 # in fixtures/build.gradle.kts as id("com.google.protobuf") version "0.10.0".
 # It is deliberately NOT a [plugins]-catalog entry: a catalog key named
@@ -35,7 +36,10 @@ nullaway            = { group = "com.uber.nullaway", name = "nullaway", version.
 # Protobuf runtime -- used to parse FileDescriptorProto in the plugin and
 # consumed by GENERATED code (CodedInputStream/CodedOutputStream at user
 # classpath). Pulled here so we can bump in one place.
-protobuf            = { group = "com.google.protobuf", name = "protobuf-java", version.ref = "protobuf" }
+protobuf          = { group = "com.google.protobuf", name = "protobuf-java", version.ref = "protobuf" }
+# Avro (org.apache.avro) -- the alternative-wire-format bridge's runtime dependency.
+# Pulled here so the Avro version is bumped in one place, next to the protobuf pin.
+avro                = { group = "org.apache.avro", name = "avro", version.ref = "avro" }
 junit-jupiter       = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform" }
 

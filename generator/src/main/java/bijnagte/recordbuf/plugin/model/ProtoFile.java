@@ -18,7 +18,8 @@ public record ProtoFile(
     List<Message> messages,
     List<Enum> enums,
     boolean javaMultipleFiles,
-    @Nullable String comment) {
+    @Nullable String comment,
+    AvroToggle avroToggle) {
   public boolean hasJavaPackage() {
     return javaPackage != null && !javaPackage.isBlank();
   }

@@ -9,6 +9,7 @@ include(":recordbuf-options")
 project(":recordbuf-options").projectDir = File(rootDir, "options")
 
 include(":recordbuf-fixtures")
+include(":recordbuf-avro")
 project(":recordbuf-fixtures").projectDir = File(rootDir, "fixtures")
 
 include(":recordbuf-generator")
