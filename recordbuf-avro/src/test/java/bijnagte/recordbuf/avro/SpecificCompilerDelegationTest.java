@@ -89,7 +89,7 @@ class SpecificCompilerDelegationTest {
     // Load the compiled class from the output dir, with core avro on the parent classpath
     // (the test runtime classpath already carries org.apache.avro). Its nested Builder/helper
     // classes are sibling files in the same output dir, so the URLClassLoader resolves them too.
-    ClassLoader base = getClass().getClassLoader();
+    ClassLoader base = SpecificCompilerDelegationTest.class.getClassLoader();
     ClassLoader cl =
         new java.net.URLClassLoader(new java.net.URL[] {compileOut.toURI().toURL()}, base);
     Class<?> person = Class.forName("com.example.Person", true, cl);
@@ -116,5 +116,63 @@ class SpecificCompilerDelegationTest {
           .map(Path::toFile)
           .orElseThrow();
     }
+  }
+
+  /**
+   * U6 lock: the exact shape the Avro schema emitter produces for a real fixture (<Msg>AvroSchema
+   * in the fixtures harness -- the iface.Sample message, id:int) compiles into a specific record
+   * and round-trips a populated value through Avro's schema-driven generic API. This is the "lock
+   * it in the harness" end-to-end for the non-WKT path; the recordhub path (record ↔ converter ↔
+   * specific record) is proven by the generator-level converter test. The WKT composition
+   * (WktAvroBridge fragments) is a follow-up (U7): the schema emitter's WKT fragments do not yet
+   * carry the logical types the bridge's value conversions assume.
+   */
+  @Test
+  void fixtureShapeAvscCompilesAndRoundTrips(@TempDir File dir) throws Exception {
+    // The iface.Sample fixture .avsc shape, verbatim the AvroSchemaGenerator emits for it.
+    String avsc =
+        "{\"namespace\": \"bijnagte.recordbuf.fixture.iface\", \"type\": \"record\", \"name\": \"Sample\", \"fields\": [{\"name\": \"id\", \"type\": \"int\"}]}";
+    File out = compileSpecificRecord(avsc, "Sample", dir);
+    Class<?> sample = loadClass("bijnagte.recordbuf.fixture.iface.Sample", out);
+    Schema schema = (Schema) sample.getField("SCHEMA$").get(null);
+    IndexedRecord in = new GenericData.Record(schema);
+    in.put(0, 42);
+    var outBytes = new ByteArrayOutputStream();
+    var encoder = EncoderFactory.get().binaryEncoder(outBytes, null);
+    new GenericDatumWriter<>(schema).write(in, encoder);
+    encoder.flush();
+    IndexedRecord back = new GenericData.Record(schema);
+    new GenericDatumReader<>(schema, schema)
+        .read(back, DecoderFactory.get().binaryDecoder(outBytes.toByteArray(), null));
+    assertEquals(42, back.get(0));
+  }
+
+  /** Shared helper: delegate a schema to SpecificCompiler, compile it, return the classes dir. */
+  private static File compileSpecificRecord(String avscJson, String recordName, File dir)
+      throws Exception {
+    File avsc = new File(dir, recordName + ".avsc");
+    Files.writeString(avsc.toPath(), avscJson);
+    File generated = new File(dir, "gen");
+    generated.mkdirs();
+    new SpecificCompiler(new Schema.Parser().parse(avsc)).compileToDestination(avsc, generated);
+    File java = findGeneratedJava(generated, recordName + ".java");
+    File outClasses = new File(dir, "classes");
+    outClasses.mkdirs();
+    JavaCompiler c = ToolProvider.getSystemJavaCompiler();
+    DiagnosticCollector<javax.tools.JavaFileObject> dc = new DiagnosticCollector<>();
+    StandardJavaFileManager fm = c.getStandardFileManager(dc, null, null);
+    fm.setLocation(StandardLocation.CLASS_OUTPUT, List.of(outClasses));
+    var sources = fm.getJavaFileObjectsFromFiles(List.of(java));
+    boolean ok = c.getTask(null, fm, dc, List.of(), null, sources).call();
+    fm.close();
+    assertTrue(ok, "compiles: " + dc.getDiagnostics());
+    return outClasses;
+  }
+
+  private static Class<?> loadClass(String fqn, File outClasses) throws Exception {
+    ClassLoader base = SpecificCompilerDelegationTest.class.getClassLoader();
+    ClassLoader cl =
+        new java.net.URLClassLoader(new java.net.URL[] {outClasses.toURI().toURL()}, base);
+    return Class.forName(fqn, true, cl);
   }
 }
