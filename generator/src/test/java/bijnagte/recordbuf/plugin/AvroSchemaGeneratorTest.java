@@ -168,8 +168,12 @@ class AvroSchemaGeneratorTest {
     // Parse with Avro's own parser: a malformed document throws, which is the guard.
     Schema s = new Schema.Parser().parse(schema);
     assertEquals(Schema.Type.RECORD, s.getType(), "root is a record: " + schema);
-    assertEquals("Sample", s.getName());
-    assertEquals("p", s.getNamespace());
+    assertEquals(
+        "SampleAvro",
+        s.getName(),
+        "class name = message name + \"Avro\" (distinct from record + ref)");
+    assertEquals(
+        "p", s.getNamespace(), "namespace IS the proto package (R7 simplified 2026-11-06);");
     assertEquals("int", s.getField("id").schema().getType().getName());
   }
 }

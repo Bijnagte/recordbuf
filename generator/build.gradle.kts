@@ -36,6 +36,15 @@ dependencies {
     // 36.2 that generated PluginProtos.java.
     implementation(libs.protobuf)
 
+    // Avro's specific-record compiler (generation-time only). Per the R5 decision (same output dir,
+    // no gradle task, in-process generation): the plugin runs Avro's SpecificCompiler over the
+    // per-file .avsc it emits, reads back the generated XSpecific.java, and emits it as a
+    // CodeGeneratorResponse.File alongside .avsc + the XAvro converter -- all one protoc
+    // invocation, same output dir. This puts avro-compiler (+ its transitive Velocity+Jackson,
+    // generation-time only) on the plugin's main classpath: a deliberate, one-way coupling the
+    // operator accepted for build-system decoupling. The generated .rec code (R22) stays
+    // dependency-free; core avro remains the sole *runtime* dependency of the consumed types.
+    implementation(libs.avro.compiler)
     // JSpecify nullability annotations. compileOnly because the generated
     // record/codec types (independent modules) pull JSpecify transitively.
     compileOnly(libs.jspecify)

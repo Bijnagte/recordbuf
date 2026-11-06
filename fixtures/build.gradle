@@ -95,6 +95,12 @@ dependencies {
     // The runtime is a compile dependency, not a generated type: generated records
     // are pure Java that only import bijnagte.recordbuf.runtime.*.
     implementation project(':recordbuf-runtime')
+    // R5/option B (2026-11-06): the recordbuf bridge now also emits Avro-specific records
+    // (generated in-process by Avro's own SpecificCompiler into the same output dir). Those
+    // specific records reference org.apache.avro.* on their COMPILE classpath; recordbuf-avro
+    // already api-exposes Avro core, so that transitive provides it. This is a runtime
+    // dependency, not a build task -- the user's steer was "no gradle task", not no dep.
+    implementation project(':recordbuf-avro')
     // Generated records annotate optional/presence fields with @org.jspecify.annotations.Nullable;
     // the annotation is on the compile classpath so the generated code compiles.
     implementation libs.jspecify

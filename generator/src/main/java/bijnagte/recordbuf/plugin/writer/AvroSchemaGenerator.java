@@ -40,6 +40,28 @@ public final class AvroSchemaGenerator {
 
   private AvroSchemaGenerator() {}
 
+  /**
+   * The Avro namespace for a proto file's bridge output. It IS the bare proto package -- the {@code
+   * .avsc} (a free-form Avro schema STRING, not a record dir) lives in the proto package, and the
+   * generated specific record's CLASS NAME (not its package) makes it collision-free: it is
+   * suffixed {@code "Avro"} (see {@link #specificRecordName}) so {@code SampleAvro} is distinct
+   * from both the recordbuf record ({@code .rec}-suffixed package, routed by recordbuf) and the
+   * protobuf-java reference ({@code Sample} in the bare proto package under {@code java/}). An
+   * empty proto package yields no namespace (a top-level Avro record).
+   */
+  public static String avroNamespace(@Nullable String protoPackage) {
+    return protoPackage == null ? "" : protoPackage;
+  }
+
+  /**
+   * The generated specific record's class name: the proto message name, capitalized, with an {@code
+   * "Avro"} suffix so it is distinct from the recordbuf record + the protobuf-java reference that
+   * share the bare name. {@code Sample -&gt; SampleAvro}.
+   */
+  public static String specificRecordName(String messageName) {
+    return cap(messageName) + "Avro";
+  }
+
   /** Build the well-known-type fragment map (the WKT -> native Avro mapping). */
   private static Map<String, String> fragments() {
     var m = new LinkedHashMap<String, String>();
@@ -67,11 +89,12 @@ public final class AvroSchemaGenerator {
       throw new AvroUnsupportedException(root.name(), "oneof groups are not supported in avro v1");
     StringBuilder sb = new StringBuilder();
     sb.append("{");
-    if (pf.protoPackage() != null && !pf.protoPackage().isEmpty()) {
-      sb.append("\"namespace\": ").append(jsonStr(pf.protoPackage()));
+    String avroNs = avroNamespace(pf.protoPackage());
+    if (!avroNs.isEmpty()) {
+      sb.append("\"namespace\": ").append(jsonStr(avroNs));
       sb.append(", "); // separator before the next top-level object field
     }
-    sb.append("\"type\": \"record\", \"name\": ").append(jsonStr(cap(root.name())));
+    sb.append("\"type\": \"record\", \"name\": ").append(jsonStr(specificRecordName(root.name())));
     sb.append(", \"fields\": ").append(recordFields(root)).append('}');
     return sb.toString();
   }
