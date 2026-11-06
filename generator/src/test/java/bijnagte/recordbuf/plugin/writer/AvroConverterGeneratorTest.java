@@ -64,12 +64,12 @@ class AvroConverterGeneratorTest {
   void converterHasBothDirectionsAndRoutesWktThroughBridge() {
     String src =
         AvroConverterGenerator.converter(
-            "com.example", person(), AvroSpecificGenerator.specificName(person()));
+            "com.example", person(), "com.example.Person"); // the SpecificCompiler-generated class
     // The two static directions.
     assertTrue(src.contains("fromRecord("), "fromRecord present: " + src);
     assertTrue(src.contains("toRecord("), "toRecord present: " + src);
-    // The specific class name is used for both.
-    assertTrue(src.contains("PersonSpecific"), "specific class referenced: " + src);
+    // The generated specific record (Avro's output) is targeted by both directions.
+    assertTrue(src.contains("com.example.Person"), "specific class referenced: " + src);
     // A scalar copies directly; the WKT field routes through the bridge.
     assertTrue(src.contains("s.age = r.age()"), "scalar copies directly: " + src);
     assertTrue(

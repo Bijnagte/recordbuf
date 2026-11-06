@@ -16,13 +16,15 @@ import java.util.List;
  * <p>Resolution (R1): enablement is {@code per-file recordbuf.avro option &gt; global --avro flag
  * &gt; built-in default(on)}, via {@link BridgeContext#avroEnabled}.
  *
- * <p><b>Wiring scope:</b> U5 delivers the per-type emitters as generator-tested artifacts: {@link
- * bijnagte.recordbuf.plugin.writer.AvroSpecificGenerator} ({@code XSpecific} + embedded {@code
- * SCHEMA}) and {@link bijnagte.recordbuf.plugin.writer.AvroConverterGenerator} ({@code XAvro} with
- * {@code fromRecord}/{@code toRecord}). They are <em>not yet wired into this per-file emit</em>
- * because emitting the per-type {@code .java} into the live output requires those classes to
- * compile + round-trip — the fixtures harness (U6). Until U6, this bridge emits only the standalone
- * {@code .avsc} (R6), which keeps the whole build green.
+ * <p><b>Wiring scope:</b> U5 delivers the per-type emitters as generator-tested artifacts. The
+ * per-type {@code XSpecific} is NOT hand-emitted: it is produced by Avro's own {@code
+ * org.apache.avro.compiler.specific.SpecificCompiler} from the per-file {@code .avsc} (option B,
+ * KTD6 delegation) - the hand-rolled emitter was replaced by that delegation. The per-type
+ * converter ({@link bijnagte.recordbuf.plugin.writer.AvroConverterGenerator}, {@code XAvro}, with
+ * {@code fromRecord}/{@code toRecord}) targets that generated class. Neither is yet wired into this
+ * per-file emit, because emitting the per-type {@code .java} into the live output requires the
+ * generated classes to compile + round-trip - the fixtures harness (U6). Until U6, this bridge
+ * emits only the standalone {@code .avsc} (R6), keeping the whole build green.
  */
 public final class AvroBridge implements FormatBridge {
 

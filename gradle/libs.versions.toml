@@ -40,6 +40,12 @@ protobuf          = { group = "com.google.protobuf", name = "protobuf-java", ver
 # Avro (org.apache.avro) -- the alternative-wire-format bridge's runtime dependency.
 # Pulled here so the Avro version is bumped in one place, next to the protobuf pin.
 avro                = { group = "org.apache.avro", name = "avro", version.ref = "avro" }
+# Avro's own schema->SpecificRecord generator (org.apache.avro.compiler.specific.SpecificCompiler).
+# A GENERATION/build-time dependency only: the runtime bridge (:recordbuf-avro main + the
+# WktAvroBridge converter) needs just the core `avro` artifact, so this sits on a build/gen
+# classpath, never the runtime. `compiler` is its own sub-artifact (split out of core in 1.12);
+# the specific record we consume compiles against core `avro` alone.
+avro-compiler       = { group = "org.apache.avro", name = "avro-compiler", version.ref = "avro" }
 junit-jupiter       = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform" }
 

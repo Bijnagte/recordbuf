@@ -45,6 +45,11 @@ dependencies {
     // tests (AC3 + the WKT-oracle test) without the generator or a full .rec
     // fixture.
     testImplementation(libs.junit.jupiter)
+    // Avro's own schema->SpecificRecord generator (org.apache.avro.compiler.specific.SpecificCompiler),
+    // on the TEST/generation classpath only: it is how the per-file .avsc is turned into the consumed
+    // specific record (option B, KTD6 delegation) - a generation-time concern, not a runtime one, so it
+    // is NOT an api dependency (:recordbuf-avro main + WktAvroBridge need only core `avro`).
+    testImplementation(libs.avro.compiler)
     testRuntimeOnly(libs.junit.platform.launcher)
 }
 

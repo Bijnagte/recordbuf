@@ -6,12 +6,14 @@ import bijnagte.recordbuf.plugin.model.Message;
 
 /**
  * Emits the generated {@code XAvro} converter for a (bridge-enabled) message: a static {@code
- * fromRecord(X)} that fills the {@code XSpecific} ({@link AvroSpecificGenerator}) and a static
- * {@code toRecord(XSpecific)} that rebuilds the record from it (KTD6 / R20-P1). Scalars and
- * repeated scalars copy directly; the well-known-type fields route through the runtime bridge in
- * {@code bijnagte.recordbuf.avro.wkt.WktAvroBridge} (composed, not re-derived). The generated
- * classes live in the record's java package so the record sibling resolves by its short name (no
- * import, matching {@code Interop}).
+ * fromRecord(X)} that fills the generated {@code XSpecific} — a {@code SpecificRecord} produced by
+ * Avro's {@code org.apache.avro.compiler.specific.SpecificCompiler} from the per-file {@code .avsc}
+ * (KTD6 delegation, not hand-emitted — see U5) — and a static {@code toRecord(XSpecific)} that
+ * rebuilds the record from it (KTD6 / R20-P1). Scalars and repeated scalars copy directly; the
+ * well-known-type fields route through the runtime bridge in {@code
+ * bijnagte.recordbuf.avro.wkt.WktAvroBridge} (composed, not re-derived). The generated classes live
+ * in the record's java package so the record sibling resolves by its short name (no import,
+ * matching {@code Interop}).
  *
  * <p>The record's exact component ordering and its {@code UnknownFields} default are resolved by
  * the {@code .rec} layer; this emitter produces a converter whose <em>shape</em> is pinned by a
@@ -23,11 +25,14 @@ public final class AvroConverterGenerator {
 
   private AvroConverterGenerator() {}
 
-  /** The generated source for {@code <X>Avro}. */
+  /**
+   * The generated source for {@code <X>Avro}: the per-type record<->Avro converter. The specific
+   * record it targets is the one Avro's {@code SpecificCompiler} generates from the per-file {@code
+   * .avsc} (option B), so {@code specificClass} is that generated class's fully-qualified name.
+   */
   public static String converter(String javaPackage, Message message, String specificClass) {
     var recordClass = message.name();
     var fields = message.fields();
-    String specific = specificClass + "Specific";
     StringBuilder sb = new StringBuilder();
     if (!javaPackage.isEmpty()) sb.append("package ").append(javaPackage).append(";\n\n");
     sb.append("/** Generated record\u2194-Avro converter for the ")
@@ -36,8 +41,8 @@ public final class AvroConverterGenerator {
         .append(BRIDGE)
         .append(" (compose, do not re-derive). */\n");
     sb.append("public final class ").append(recordClass).append("Avro {\n\n");
-    sb.append(fromRecord(fields, recordClass, specific)).append('\n');
-    sb.append(toRecord(fields, recordClass, specific)).append('\n');
+    sb.append(fromRecord(fields, recordClass, specificClass)).append('\n');
+    sb.append(toRecord(fields, recordClass, specificClass)).append('\n');
     sb.append("}\n");
     return sb.toString();
   }
