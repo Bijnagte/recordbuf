@@ -206,4 +206,8 @@ tasks.withType(JavaCompile).configureEach {
 test {
     useJUnitPlatform()
     outputs.upToDateWhen { false }
+    // Avro 1.11+ ClassSecurityValidator: generated specific record classes must be
+    // explicitly trusted for binary write/read via SpecificDatumWriter/Reader.
+    // The fixture package is safe to trust in a test environment.
+    jvmArgs '-Dorg.apache.avro.SERIALIZABLE_PACKAGES=bijnagte.recordbuf.fixture'
 }
