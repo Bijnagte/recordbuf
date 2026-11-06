@@ -48,7 +48,7 @@ public final class ModelLoader {
   // by name (the plugin does not link the options .proto itself).
   private static final int MESSAGE_INTERFACE_TAG = 50000;
   private static final int ENUM_INTERFACE_TAG = 50001;
-  private static final int MESSAGE_PROTobuf_java_TAG = 50002;
+  private static final int MESSAGE_PROTOBUF_JAVA_TAG = 50002;
   // (recordbuf.avro) -- per-file enablement of the Avro bridge, an enum-typed FileOptions
   // extension; a resolved extension reaches us as a varint unknown field at this tag.
   private static final int FILE_AVRO_TAG = 50003;
@@ -57,9 +57,9 @@ public final class ModelLoader {
   // serves hand-constructed descriptors, so a matching name suffices.
   private static final String MESSAGE_INTERFACE_NAME = "recordbuf.java_interface";
   private static final String ENUM_INTERFACE_NAME = "recordbuf.java_enum_interface";
-  private static final String MESSAGE_PROTobuf_java_NAME = "recordbuf.protobuf_java";
+  private static final String MESSAGE_PROTOBUF_JAVA_NAME = "recordbuf.protobuf_java";
   private static final String FILE_AVRO_NAME = "recordbuf.avro";
-  private static final String EMPTY_PROTobuf_java = "";
+  private static final String EMPTY_PROTOBUF_JAVA = "";
 
   public ModelLoader(FileTable table, String javaPackageForThisFile) {
     this.table = table;
@@ -517,21 +517,21 @@ public final class ModelLoader {
    * equivalent protobuf-java reference) for a message, or <strong>empty</strong> when neither path
    * carries it. Prefers the COMPILED path (a resolved extension reaches us as an unknown field at
    * {@code 50002}); falls back to an uninterpreted option whose dotted name equals {@link
-   * #MESSAGE_PROTobuf_java_NAME}. Returns {@code ""} on absence so the caller can tell "not opted
+   * #MESSAGE_PROTOBUF_JAVA_NAME}. Returns {@code ""} on absence so the caller can tell "not opted
    * in" from "opted in with a blank package" without a null check.
    */
   private static String protobufJavaFor(
       UnknownFieldSet unknownFields, List<UninterpretedOption> uninterpreted) {
-    UnknownFieldSet.Field f = unknownFields.getField(MESSAGE_PROTobuf_java_TAG);
+    UnknownFieldSet.Field f = unknownFields.getField(MESSAGE_PROTOBUF_JAVA_TAG);
     if (f != null && !f.getLengthDelimitedList().isEmpty()) {
       return f.getLengthDelimitedList().get(0).toStringUtf8();
     }
     for (UninterpretedOption opt : uninterpreted) {
-      if (opt.hasStringValue() && optionName(opt).equals(MESSAGE_PROTobuf_java_NAME)) {
+      if (opt.hasStringValue() && optionName(opt).equals(MESSAGE_PROTOBUF_JAVA_NAME)) {
         return opt.getStringValue().toStringUtf8();
       }
     }
-    return EMPTY_PROTobuf_java;
+    return EMPTY_PROTOBUF_JAVA;
   }
 
   /**

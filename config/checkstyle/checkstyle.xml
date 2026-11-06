@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+<!--
+  recordbuf's shared Checkstyle configuration.
+
+  Scope: the NON-FORMATTING gate. Spotless + google-java-format own source formatting
+  (whitespace, indentation, line length, import ordering, blank lines, braces); this config
+  does NOT re-enforce any of those, so the two tools complement rather than compete. It
+  enforces only the rules a formatter cannot express: utility-class discipline, Javadoc
+  presence, import cleanliness, and naming.
+
+  Location: config/checkstyle/checkstyle.xml — the Gradle `checkstyle` plugin's default
+  `configDirectory`/`config` resolution, resolved relative to the ROOT project, so this
+  single file is inherited by every subproject with a `java` source set. The generator emits
+  `@SuppressWarnings({"checkstyle:HideUtilityClassConstructor","checkstyle:MissingJavadoc"})` on
+  generated XAvroConverter classes. `HideUtilityClassConstructor` below is the matching live check;
+  `MissingJavadoc` below is the modern `MissingJavadocType` (the annotation's legacy string is a
+  harmless no-op). Both sit outside this gate's scope for now, so the annotations are a ready-made
+  guard rather than a live failure.
+
+  The <!DOCTYPE> is required: checkstyle's XmlLoader validates the root element against the
+  DOCTYPE and rejects a bare root module. Its PUBLIC id resolves to a DTD Checkstyle bundles in
+  its own jar, so no network fetch happens at build time even with the plugin's default
+  enableExternalDtdLoad=false.
+-->
+<!DOCTYPE module PUBLIC
+    "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+<module name="Checker">
+  <!-- Fail the build on any violation; mirror the project's "block the build" discipline. -->
+  <property name="severity" value="error"/>
+
+  <module name="TreeWalker">
+    <!--
+      The generator pre-suppresses the Javadoc-family check on generated converters via an
+      @SuppressWarnings "checkstyle:MissingJavadoc" annotation; that string is a legacy no-op
+      (the modern check name is MissingJavadocType), kept for backwards compatibility. The check
+      below is present so that if scope ever reaches generated output, utility classes are already
+      suppressed rather than failing loudly.
+    -->
+    <module name="HideUtilityClassConstructor"/>
+    <module name="MissingJavadocType">
+      <property name="scope" value="public"/>
+    </module>
+
+    <!--
+      Clean imports. UnusedImports and RedundantImport are formatter-agnostic and pass on
+      existing code (a malformed javadoc token that tripped a parse was fixed in place). AvoidStarImport
+      is deferred: the test suites use star imports for JUnit Assertions and the writer package
+      by choice; expanding them is pure churn, so the check is scoped out for this first cut
+      and may be re-enabled later.
+    -->
+    <module name="UnusedImports"/>
+    <module name="RedundantImport"/>
+
+    <!--
+      Naming. The structural checks below pass on existing code and are kept. Three are deferred
+      for this first cut to keep the gate non-churny against deliberate existing style:
+        - MethodName: the fixture interop tests use snake_case method names that mirror the
+          generated fixture types (i32_roundTripsThroughAvro); renaming them changes no behavior.
+        - LocalVariableName: one test uses a deliberate '_'-prefixed sentinel local (_e).
+        - ConstantName is KEPT: three ALL_CAPS offenders were pure internal renames (a wrong
+          case in the identifier, e.g. _java -> _JAVA) with no ripple to generated output.
+    -->
+    <module name="ConstantName"/>
+    <module name="MemberName"/>
+    <module name="ParameterName"/>
+    <module name="TypeName"/>
+  </module>
+</module>

@@ -58,6 +58,49 @@ subprojects {
     }
 }
 
+// Checkstyle: a NON-FORMATTING quality gate, complementary to Spotless (which owns formatting).
+// Applied to every subproject that carries a `java` source set, mirroring the Spotless block
+// above; `options/` (proto only) is skipped exactly as it is for Spotless. The config lives
+// once at config/checkstyle/checkstyle.xml -- the plugin's default `configDirectory`/`config`
+// location, resolved relative to the root project -- and is inherited by every subproject, so
+// rules are defined a single time. The `checkstyle` plugin is a Gradle built-in (no catalog
+// plugin entry), but its tool otherwise defaults to a stale 10.24.0, so its version is pinned
+// to the catalog's `checkstyle` pin (14.4.0, JDK 21+; our Java 25 toolchain satisfies it).
+//
+// Task source is scoped to first-party `src/` to match Spotless: generated output lives under
+// build/generated/** (only :recordbuf-fixtures actually carries generated dirs on its source
+// set) and the com.google.protobuf.compiler protocol shim -- both excluded, so the generator's
+// pre-emitted `@SuppressWarnings("checkstyle:…")` on generated converters stay a harmless
+// no-op guard rather than a live failure. The exclusion is applied uniformly; it is a no-op
+// for the modules without generated dirs.
+subprojects {
+    pluginManager.withPlugin("java") {
+        // Built-in plugin, no catalog entry; `withPlugin("java")` fires for the same
+        // subprojects Spotless does and is skipped for `options/` (no `java` source set).
+        pluginManager.apply("checkstyle")
+        configure<org.gradle.api.plugins.quality.CheckstyleExtension> {
+            // The plugin otherwise defaults its tool to a stale 10.24.0; pin to the catalog.
+            toolVersion = libs.versions.checkstyle.get()
+        }
+        // Scope each task's source to the module's first-party `src/` tree (see the header
+        // block above): a source-root-relative glob cannot see the build/generated prefix of
+        // generated source roots, so scoping to `src/` excludes generated output as a side
+        // effect; the one `src`-tree exclusion is the com.google.protobuf.compiler shim.
+        tasks
+            .withType(org.gradle.api.plugins.quality.Checkstyle::class.java)
+            .configureEach {
+                source =
+                    project.fileTree(
+                        mapOf(
+                            "dir" to project.file("src"),
+                            "include" to arrayOf("**/*.java"),
+                            "exclude" to arrayOf("**/com/google/protobuf/compiler/**"),
+                        )
+                    )
+            }
+    }
+}
+
 // KTD7 (accepted at 0.0.1): no build-time plugin<->runtime version guardrail.
 // Generated code references the runtime by fully-qualified name; the generator
 // never links the runtime at build time, so a mismatch is only detectable at

@@ -116,6 +116,36 @@ consult it when orienting to the codebase or discussing domain concepts.
   `java` source set, so skipped). The `:recordbuf-fixtures` module additionally pulls its
   recordbuf-generated `.rec` output into the formatted set, so generated records are
   expected to be format-clean.
+- **Checkstyle: WIRED (non-formatting quality gate, complementary to Spotless).** The root
+  `build.gradle.kts` applies Gradle's built-in `checkstyle` plugin to **every** Java
+  subproject via the same `subprojects { withPlugin("java") { … } }` block that owns
+  Spotless; `:recordbuf-options` (proto only) is skipped. A single shared config lives once at
+  `config/checkstyle/checkstyle.xml` (the plugin's default location, resolved root-relative, so
+  it is inherited everywhere — there is no per-module config). The plugin *defaults* its tool to a
+  stale `10.24.0`, so the wiring MUST pin `checkstyle { toolVersion = libs.versions.checkstyle.get() }`
+  to the catalog (`checkstyle = "14.4.0"`; checkstyle 14.x needs JDK 21+, satisfied by the
+  project's Java 25 toolchain — no separate `javaLauncher`). It runs as part of
+  `./gradlew check`/`build` via `checkstyleMain`/`checkstyleTest`.
+  - **Scope is first-party `src/` only.** Generated protobuf/recordbuf/avro output under
+    `build/generated/**` is out of scope: because Gradle adds that output as its **own source
+    root**, the source-root-relative `exclude("**/build/generated/**")` cannot see the prefix —
+    the wiring instead sets each task's `source` to the module's `src/` tree
+    (`project.fileTree(dir="src", include="**/*.java", exclude="**/com/google/protobuf/compiler/**")`),
+    which excludes generated output as a side effect and is the one in-`src` exclusion (the
+    `com.google.protobuf.compiler` shim). The generator emits `@SuppressWarnings("checkstyle:MissingJavadoc")` on
+    generated converters, but `MissingJavadoc` is **not** a checkstyle 14 module name (the live check is
+    `MissingJavadocType`), so that annotation is a **legacy no-op** while scope is first-party only.
+  - **Curated non-formatting set (chosen to pass the current codebase with zero churn):**
+    `HideUtilityClassConstructor`, `MissingJavadocType(scope=public)`, `UnusedImports`,
+    `RedundantImport`, `ConstantName`, `MemberName`, `ParameterName`, `TypeName`. **Deliberately
+    *not* enforced** for now (existing test-suite style; re-enable as a small tracked
+    follow-up): `AvoidStarImport` (JUnit `Assertions.*` etc.), `MethodName` (snake_case test-method
+    names), `LocalVariableName` (`_e` sentinel).
+  - **Config gotchas:** the XML config must carry its `<!DOCTYPE …>` (checkstyle's `XmlLoader`
+    validates the root module against it; a bare root throws "Unable to create Root Module" — the
+    PUBLIC DTD id resolves to a copy bundled in the checkstyle jar, so no network fetch even with
+    `enableExternalDtdLoad=false`), and a `<!-- comment -->` body **cannot contain `--`** (a SAX
+    parse error); use "—" or a colon instead.
 - **Logging: NOT WIRED.** No SLF4J / logging framework is on any module's classpath;
   generated code stays dependency-free. The *only* `System.out`/`System.err` usage in the
   codebase is in `Main.java`, where they **are** the protoc plugin's stdio protocol
@@ -172,8 +202,10 @@ consult it when orienting to the codebase or discussing domain concepts.
 `java-design-review` from `~/.pi/agent/skills/` are in scope here. They carry
 the cross-project defaults; the overrides above win where they conflict. The
 former divergences — Spotless and Error Prone/NullAway — are now wired to those
-same defaults, so the **only** remaining one is the **not-yet-wired** SLF4J-only
-logging rule: no logging framework is present, and `Main.java`'s `System.out`/
+same defaults; this session additionally wired a **first-party Checkstyle quality gate**
+(a non-formatting layer complementary to Spotless — see the **Checkstyle** bullet above).
+So the **only** remaining aspirational cross-project default that is not yet wired is the
+SLF4J-only logging rule: no logging framework is present, and `Main.java`'s `System.out`/
 `System.err` are the sanctioned protoc-plugin stdio exception.
 
 <!-- BEGIN COMPOUND PI TOOL MAP -->

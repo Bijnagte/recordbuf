@@ -320,8 +320,8 @@ public final class CodecGenerator {
   // --- map fields ---
 
   /**
-   * The nested record name for a proto3 map field's entry: <Cap(field)>Entry (a sibling of the
-   * record's own Codec), mirroring protobuf-java's entry type.
+   * The nested record name for a proto3 map field's entry: {@code Cap(field)}Entry (a sibling of
+   * the record's own Codec), mirroring protobuf-java's entry type.
    */
   private static String entryName(Field f) {
     return JavaNames.cap(f.javaName()) + "Entry";
