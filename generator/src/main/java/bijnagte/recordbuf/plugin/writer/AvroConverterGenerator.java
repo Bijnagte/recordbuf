@@ -96,7 +96,7 @@ public final class AvroConverterGenerator {
       if (isWkt(f)) {
         sb.append(BRIDGE).append(".fromAvro(").append("s.").append(f.javaName()).append(')');
       } else {
-        sb.append("s.").append(f.javaName()).append(')');
+        sb.append("s.").append(f.javaName());
       }
     }
     sb.append(')');
