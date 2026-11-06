@@ -11,8 +11,10 @@ import com.google.protobuf.DescriptorProtos.SourceCodeInfo;
 import com.google.protobuf.DescriptorProtos.UninterpretedOption;
 import com.google.protobuf.UnknownFieldSet;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
@@ -321,7 +323,7 @@ public final class ModelLoader {
     String[] parts = protoScope.split("\\.");
     scopes.add(protoScope);
     for (int i = parts.length; i > 0; i--) {
-      scopes.add(String.join(".", java.util.Arrays.copyOfRange(parts, 0, i)));
+      scopes.add(String.join(".", Arrays.copyOfRange(parts, 0, i)));
     }
     scopes.add("");
     for (String sc : scopes) {
@@ -428,7 +430,7 @@ public final class ModelLoader {
     // prefix to get the wire-level name.
     String n = t.name();
     if (n.startsWith("TYPE_")) n = n.substring(5);
-    return n.toLowerCase(java.util.Locale.ROOT);
+    return n.toLowerCase(Locale.ROOT);
   }
 
   static boolean isScalar(Type t) {

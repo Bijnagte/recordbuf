@@ -13,6 +13,7 @@ import bijnagte.recordbuf.plugin.model.ProtoFile;
 import bijnagte.recordbuf.plugin.types.TypeResolver;
 import bijnagte.recordbuf.plugin.writer.CodecGenerator;
 import bijnagte.recordbuf.plugin.writer.EnumGenerator;
+import bijnagte.recordbuf.plugin.writer.InteropGenerator;
 import bijnagte.recordbuf.plugin.writer.JavaWriter;
 import bijnagte.recordbuf.plugin.writer.OneofGenerator;
 import bijnagte.recordbuf.plugin.writer.RecordGenerator;
@@ -22,7 +23,11 @@ import com.google.protobuf.compiler.PluginProtos.CodeGeneratorRequest;
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse;
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse.Feature;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import org.jspecify.annotations.Nullable;
 
@@ -55,15 +60,14 @@ public final class CodeGenerator {
    * enclosing interface's shared {@code Scalar} wrapper rather than being identity subtypes. An
    * absent key means "not a oneof member" and the record implements only the marker.
    */
-  private java.util.Map<String, java.util.Set<String>> oneofRegistry =
-      new java.util.LinkedHashMap<>();
+  private Map<String, Set<String>> oneofRegistry = new LinkedHashMap<>();
 
   // Per-request de-dup for the generated @NullMarked package-info.java: several .proto
   // files can map to ONE java package, so that package-level marker is emitted once per
   // package, not once per producer file (unlike the per-file record/enum/codec files).
   // Built fresh in generate() like the table + oneof registry, so per-call generation
   // (Main invokes one CodeGenerator per request) stays stateless.
-  private java.util.Set<String> emittedPackageInfos = new java.util.LinkedHashSet<>();
+  private Set<String> emittedPackageInfos = new LinkedHashSet<>();
 
   // Per-invocation bridge context (the parsed --avro flag, etc.) + the registered bridge(s) that
   // add a non-protobuf wire-format conversion alongside every enabled file's record/codec output.
@@ -85,7 +89,7 @@ public final class CodeGenerator {
     // message member of another file's oneof belongs to (K6, cross-file).
     this.oneofRegistry = buildOneofRegistry(request.getProtoFileList());
     // Fresh per request so a package-info is de-duplicated WITHIN this request only.
-    this.emittedPackageInfos = new java.util.LinkedHashSet<>();
+    this.emittedPackageInfos = new LinkedHashSet<>();
     // The bridge context + registry are per-invocation too: the --avro flag is parsed from the
     // same plugin parameter the run-wide package_suffix is, and a fresh registry keeps generation
     // stateless across the one CodeGenerator Main gives each request.
@@ -160,9 +164,8 @@ public final class CodeGenerator {
    * Scalar} wrapper). A member type whose Java FQN is unresolved (e.g. an external type)
    * contributes no entry, so its record implements no oneof interface.
    */
-  private java.util.Map<String, java.util.Set<String>> buildOneofRegistry(
-      java.util.List<FileDescriptorProto> files) {
-    var registry = new java.util.LinkedHashMap<String, java.util.Set<String>>();
+  private Map<String, Set<String>> buildOneofRegistry(List<FileDescriptorProto> files) {
+    var registry = new LinkedHashMap<String, Set<String>>();
     for (FileDescriptorProto fdp : files) {
       String javaPkg = table.javaPackage(fdp);
       ProtoFile pf = new ModelLoader(table, javaPkg).load(fdp);
@@ -177,8 +180,7 @@ public final class CodeGenerator {
    * declared on a nested message registers too. A member whose Java FQN is unresolved contributes
    * nothing.
    */
-  private void collectOneofInterfaces(
-      Message m, java.util.Map<String, java.util.Set<String>> registry) {
+  private void collectOneofInterfaces(Message m, Map<String, Set<String>> registry) {
     String ifaceBase = m.fullName();
     for (Oneof oneof : m.oneofs()) {
       String ifaceFqn = ifaceBase + "." + oneof.ifaceName();
@@ -189,7 +191,7 @@ public final class CodeGenerator {
         // member record's own fullName() at its emission site.
         String memberFqn = table.javaFqn(member.typeUrl());
         if (memberFqn == null) continue; // unresolved external type: no interface to implement
-        registry.computeIfAbsent(memberFqn, k -> new java.util.LinkedHashSet<>()).add(ifaceFqn);
+        registry.computeIfAbsent(memberFqn, k -> new LinkedHashSet<>()).add(ifaceFqn);
       }
     }
     for (Message nested : m.nestedMessages()) collectOneofInterfaces(nested, registry);
@@ -271,7 +273,7 @@ public final class CodeGenerator {
       Message m,
       String javaPkg,
       String sourceProto,
-      java.util.Map<String, java.util.Set<String>> oneofRegistry) {
+      Map<String, Set<String>> oneofRegistry) {
     TypeImports ci = w.imports();
     TypeResolver types = new TypeResolver(table, ci);
     CodecGenerator codec = new CodecGenerator(types, ci, sourceProto);
@@ -342,7 +344,7 @@ public final class CodeGenerator {
       Message m,
       String javaPkg,
       String sourceProto,
-      java.util.Map<String, java.util.Set<String>> oneofRegistry) {
+      Map<String, Set<String>> oneofRegistry) {
     TypeImports ci = w.imports();
     // Class-level Javadoc = the record's type-level summary (if any) plus one @param entry per
     // documented component, in declaration order (fields, oneofs, then the always-on carrier).
@@ -395,7 +397,7 @@ public final class CodeGenerator {
     // nested interface. Resolved per-invocation from the registry built over every
     // requested file, keyed by this record's own JVM FQN. Option-declared
     // interfaces precede this; the runtime marker is last.
-    java.util.Set<String> oneofInterfaces = oneofRegistry.get(m.fullName());
+    Set<String> oneofInterfaces = oneofRegistry.get(m.fullName());
     if (oneofInterfaces != null) impls.addAll(oneofInterfaces);
     impls.add(RT + ".ProtobufMessage");
     w.line(")" + RecordGenerator.implementsClause(ci, impls));
@@ -435,8 +437,7 @@ public final class CodeGenerator {
     // the equivalent protobuf-java reference, emitted only when recordbuf.protobuf_java
     // was declared on this message. It stays off for every other message.
     if (m.protobufJava() != null) {
-      new bijnagte.recordbuf.plugin.writer.InteropGenerator(types, ci, sourceProto)
-          .writeInterop(w, m);
+      new InteropGenerator(types, ci, sourceProto).writeInterop(w, m);
     }
     // Codec as last member so the type can reference itself.
     codec.writeCodec(w, m);
@@ -800,7 +801,7 @@ public final class CodeGenerator {
   }
 
   /** A record component whose Java type is {@code byte[]} (a non-repeated bytes scalar). */
-  private static boolean isByteArrayComponent(bijnagte.recordbuf.plugin.model.Field f) {
+  private static boolean isByteArrayComponent(Field f) {
     return "bytes".equals(f.typeUrl()) && !f.isRepeated();
   }
 

@@ -5,6 +5,7 @@ import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.ProtoFile;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
@@ -13,6 +14,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -42,7 +44,7 @@ public final class AvroSchemaGenerator {
   // WKT mapping — the single source (R8) of how every well-known type maps to Avro, held as a
   // Jackson tree per type. The fragment string a type maps to is its serialized node.
   private static final Map<String, JsonNode> WKT_SCHEMA = wktSchema();
-  private static final java.util.Set<String> WKT = WKT_SCHEMA.keySet();
+  private static final Set<String> WKT = WKT_SCHEMA.keySet();
 
   private AvroSchemaGenerator() {}
 
@@ -211,7 +213,7 @@ public final class AvroSchemaGenerator {
   private static String compact(JsonNode node) {
     try {
       return MAPPER.writeValueAsString(node);
-    } catch (com.fasterxml.jackson.core.JsonProcessingException impossible) {
+    } catch (JsonProcessingException impossible) {
       // Our own in-memory tree never fails to serialize; the checked exception is unreachable.
       throw new IllegalStateException("failed to serialize schema tree", impossible);
     }
@@ -220,7 +222,7 @@ public final class AvroSchemaGenerator {
   private static String serialize(JsonNode node, ObjectWriter writer) {
     try {
       return writer.writeValueAsString(node);
-    } catch (com.fasterxml.jackson.core.JsonProcessingException impossible) {
+    } catch (JsonProcessingException impossible) {
       // Our own in-memory tree never fails to serialize; the checked exception is unreachable.
       throw new IllegalStateException("failed to serialize schema tree", impossible);
     }

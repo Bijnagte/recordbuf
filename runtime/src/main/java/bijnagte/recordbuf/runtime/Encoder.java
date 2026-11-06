@@ -2,6 +2,7 @@ package bijnagte.recordbuf.runtime;
 
 import com.google.protobuf.CodedOutputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 
 /**
  * Owns the encode-side I/O scaffolding a generated codec used to spell by hand: a fresh {@link
@@ -31,7 +32,7 @@ public final class Encoder {
   }
 
   /** Flush the stream and return the encoded bytes. */
-  public byte[] finish() throws java.io.IOException {
+  public byte[] finish() throws IOException {
     out.flush();
     return buffer.toByteArray();
   }

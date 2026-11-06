@@ -121,6 +121,7 @@ tasks.withType<JavaCompile>().configureEach {
         // scope per the "warnings are OK, fix later" decision), then re-enable
         // NullAway at error severity so a real null violation blocks the build.
         disableAllChecks = true
+        error("UnnecessarilyFullyQualified")
         error("NullAway")
         // `OnlyNullMarked=true` restricts NullAway to our `@NullMarked` packages. 0.14.x
         // auto-detects JSpecify; `JSpecifyMode` is NOT set.

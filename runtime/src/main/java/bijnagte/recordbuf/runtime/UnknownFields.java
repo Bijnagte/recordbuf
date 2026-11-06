@@ -40,6 +40,8 @@ public final class UnknownFields {
   }
 
   /**
+   * Whether this carrier holds nothing to re-emit.
+   *
    * @return {@code true} when this carrier holds nothing to re-emit.
    */
   public boolean isEmpty() {
@@ -66,7 +68,7 @@ public final class UnknownFields {
    * carrier that saw nothing is equal only to {@link #empty()}.
    */
   @Override
-  public boolean equals(java.lang.Object o) {
+  public boolean equals(Object o) {
     if (this == o) return true;
     if (!(o instanceof UnknownFields that)) return false;
     return fields.equals(that.fields);
@@ -78,7 +80,7 @@ public final class UnknownFields {
   }
 
   @Override
-  public java.lang.String toString() {
+  public String toString() {
     return "UnknownFields" + fields;
   }
 

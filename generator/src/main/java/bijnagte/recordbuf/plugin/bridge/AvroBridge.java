@@ -7,7 +7,9 @@ import bijnagte.recordbuf.plugin.writer.AvroSchemaGenerator;
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.avro.compiler.specific.SpecificCompiler;
@@ -122,20 +124,20 @@ public final class AvroBridge implements FormatBridge {
    * namespace; returning its source lets the caller emit it as a plain response file into the same
    * output dir.
    */
-  private static String generateSpecific(String avscJson, Message root) throws java.io.IOException {
+  private static String generateSpecific(String avscJson, Message root) throws IOException {
     String recName = AvroSchemaGenerator.specificRecordName(root.name());
-    java.nio.file.Path tmp = Files.createTempDirectory("recordbuf-avro-bridge");
+    Path tmp = Files.createTempDirectory("recordbuf-avro-bridge");
     try {
-      java.nio.file.Path avscPath = tmp.resolve(recName + ".avsc");
+      Path avscPath = tmp.resolve(recName + ".avsc");
       Files.writeString(avscPath, avscJson);
       Schema parsed = new Schema.Parser().parse(avscJson);
-      java.nio.file.Path outDir = tmp.resolve("generated");
+      Path outDir = tmp.resolve("generated");
       Files.createDirectories(outDir);
       new SpecificCompiler(parsed).compileToDestination(avscPath.toFile(), outDir.toFile());
       // SpecificCompiler writes <namespace-as-path>/<RecName>.java. Locate the single generated
       // record source (the top-level record named after root). Its siblings (none, for a single
       // top-level record) are not emitted.
-      java.nio.file.Path matched =
+      Path matched =
           Files.walk(outDir)
               .filter(p -> p.getFileName().toString().equals(recName + ".java"))
               .findFirst()
@@ -145,11 +147,11 @@ public final class AvroBridge implements FormatBridge {
       return source;
     } finally {
       try {
-        java.nio.file.Files.walk(tmp)
-            .sorted(java.util.Comparator.reverseOrder())
+        Files.walk(tmp)
+            .sorted(Comparator.reverseOrder())
             .forEach(p -> {
               try {
-                java.nio.file.Files.deleteIfExists(p);
+                Files.deleteIfExists(p);
               } catch (IOException ignoredCleanup) {
                 // best-effort temp cleanup
               }

@@ -6,11 +6,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import javax.tools.DiagnosticCollector;
 import javax.tools.JavaCompiler;
+import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
 import javax.tools.StandardLocation;
 import javax.tools.ToolProvider;
@@ -40,15 +43,17 @@ class SpecificCompilerDelegationTest {
 
   // A minimal .avsc: the kind of standalone schema U4 emits for a message with two scalar fields.
   private static final String AVSC =
-      "{\n"
-          + "  \"type\": \"record\",\n"
-          + "  \"name\": \"Person\",\n"
-          + "  \"namespace\": \"com.example\",\n"
-          + "  \"fields\": [\n"
-          + "    { \"name\": \"age\", \"type\": \"int\" },\n"
-          + "    { \"name\": \"name\", \"type\": [\"null\", \"string\"] }\n"
-          + "  ]\n"
-          + "}\n";
+      """
+      {
+        "type": "record",
+        "name": "Person",
+        "namespace": "com.example",
+        "fields": [
+          { "name": "age", "type": "int" },
+          { "name": "name", "type": ["null", "string"] }
+        ]
+      }
+      """;
 
   /**
    * Avro's {@code SpecificCompiler} turns the {@code .avsc} into a {@code SpecificRecordBase}
@@ -60,7 +65,7 @@ class SpecificCompilerDelegationTest {
     File avsc = new File(dir, "Person.avsc");
     Files.writeString(avsc.toPath(), AVSC);
 
-    // Delegate the schema -\u003e specific-record generation to Avro (our one dependency on this
+    // Delegate the schema -> specific-record generation to Avro (our one dependency on this
     // step).
     File generated = new File(dir, "gen");
     generated.mkdirs();
@@ -74,7 +79,7 @@ class SpecificCompilerDelegationTest {
     // Compile the generated class against the test classpath (which carries core avro).
     JavaCompiler c = ToolProvider.getSystemJavaCompiler();
     assertNotNull(c, "a system Java compiler is available (JDK)");
-    DiagnosticCollector<javax.tools.JavaFileObject> dc = new DiagnosticCollector<>();
+    DiagnosticCollector<JavaFileObject> dc = new DiagnosticCollector<>();
     File compileOut = new File(dir, "classes");
     compileOut.mkdirs();
     StandardJavaFileManager fm = c.getStandardFileManager(dc, null, null);
@@ -90,8 +95,7 @@ class SpecificCompilerDelegationTest {
     // (the test runtime classpath already carries org.apache.avro). Its nested Builder/helper
     // classes are sibling files in the same output dir, so the URLClassLoader resolves them too.
     ClassLoader base = SpecificCompilerDelegationTest.class.getClassLoader();
-    ClassLoader cl =
-        new java.net.URLClassLoader(new java.net.URL[] {compileOut.toURI().toURL()}, base);
+    ClassLoader cl = new URLClassLoader(new URL[] {compileOut.toURI().toURL()}, base);
     Class<?> person = Class.forName("com.example.Person", true, cl);
     Schema schema = (Schema) person.getField("SCHEMA$").get(null);
     IndexedRecord in = new GenericData.Record(schema);
@@ -159,7 +163,7 @@ class SpecificCompilerDelegationTest {
     File outClasses = new File(dir, "classes");
     outClasses.mkdirs();
     JavaCompiler c = ToolProvider.getSystemJavaCompiler();
-    DiagnosticCollector<javax.tools.JavaFileObject> dc = new DiagnosticCollector<>();
+    DiagnosticCollector<JavaFileObject> dc = new DiagnosticCollector<>();
     StandardJavaFileManager fm = c.getStandardFileManager(dc, null, null);
     fm.setLocation(StandardLocation.CLASS_OUTPUT, List.of(outClasses));
     var sources = fm.getJavaFileObjectsFromFiles(List.of(java));
@@ -171,8 +175,7 @@ class SpecificCompilerDelegationTest {
 
   private static Class<?> loadClass(String fqn, File outClasses) throws Exception {
     ClassLoader base = SpecificCompilerDelegationTest.class.getClassLoader();
-    ClassLoader cl =
-        new java.net.URLClassLoader(new java.net.URL[] {outClasses.toURI().toURL()}, base);
+    ClassLoader cl = new URLClassLoader(new URL[] {outClasses.toURI().toURL()}, base);
     return Class.forName(fqn, true, cl);
   }
 }

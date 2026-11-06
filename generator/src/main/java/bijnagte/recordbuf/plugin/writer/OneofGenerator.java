@@ -4,6 +4,7 @@ import bijnagte.recordbuf.plugin.model.JavaNames;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.Oneof;
 import bijnagte.recordbuf.plugin.types.TypeResolver;
+import java.util.ArrayList;
 
 /**
  * Emits a oneof's nested sealed interface family inside its enclosing record.
@@ -54,7 +55,7 @@ public final class OneofGenerator {
     // Build the permits clause: one per-member record for every non-message
     // member, plus every message member's element type (short + imported for
     // cross-file via the TypeResolver).
-    var permits = new java.util.ArrayList<String>();
+    var permits = new ArrayList<String>();
     for (var member : oneof.members()) {
       if (member.isMessage()) {
         permits.add(ci.use(types.resolveElement(member)));

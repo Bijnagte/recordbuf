@@ -64,7 +64,7 @@ tasks.test {
 // exclude). JSpecifyMode is NOT set (0.14.x auto-detects JSpecify on JDK 22+).
 tasks.withType<JavaCompile>().configureEach {
     options.errorprone {
-        disableAllChecks = true
+        error("UnnecessarilyFullyQualified")
         error("NullAway")
         option("NullAway:OnlyNullMarked", "true")
     }

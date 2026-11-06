@@ -2,6 +2,7 @@ package bijnagte.recordbuf.runtime;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * One unknown field captured from the wire during a decode under a schema that predates it: the
@@ -18,6 +19,7 @@ import java.util.Arrays;
  * they are honest read-shapes, so a mis-shaped call throws {@link IllegalStateException} rather
  * than silently coercing a wrong value.
  */
+@SuppressWarnings("ArrayRecordComponent")
 public record UnknownField(int fieldNumber, WireType wireType, byte[] value) {
 
   public UnknownField {
@@ -117,16 +119,16 @@ public record UnknownField(int fieldNumber, WireType wireType, byte[] value) {
    * it is overridden here.
    */
   @Override
-  public boolean equals(java.lang.Object o) {
+  public boolean equals(Object o) {
     if (this == o) return true;
     if (!(o instanceof UnknownField that)) return false;
     return fieldNumber == that.fieldNumber
         && wireType == that.wireType
-        && java.util.Arrays.equals(value, that.value);
+        && Arrays.equals(value, that.value);
   }
 
   @Override
   public int hashCode() {
-    return java.util.Objects.hash(fieldNumber, wireType, Arrays.hashCode(value));
+    return Objects.hash(fieldNumber, wireType, Arrays.hashCode(value));
   }
 }

@@ -6,6 +6,7 @@ import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.Oneof;
 import bijnagte.recordbuf.plugin.types.TypeResolver;
 import bijnagte.recordbuf.plugin.types.TypeResolver.WireScalar;
+import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import java.util.Comparator;
 
 /**
@@ -638,8 +639,7 @@ public final class CodecGenerator {
    * The raw {@code FieldDescriptorProto} for this oneof member, looked up by its wire tag among the
    * enclosing message's raw fields.
    */
-  private static com.google.protobuf.DescriptorProtos.FieldDescriptorProto rawMemberField(
-      Oneof o, int number) {
+  private static FieldDescriptorProto rawMemberField(Oneof o, int number) {
     var parent = o.parentDescriptor();
     for (int i = 0; i < parent.getFieldCount(); i++) {
       var f = parent.getField(i);

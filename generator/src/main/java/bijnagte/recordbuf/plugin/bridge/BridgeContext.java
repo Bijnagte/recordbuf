@@ -3,6 +3,7 @@ package bijnagte.recordbuf.plugin.bridge;
 import bijnagte.recordbuf.plugin.model.AvroToggle;
 import bijnagte.recordbuf.plugin.model.ProtoFile;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
@@ -81,7 +82,7 @@ public final class BridgeContext {
   private boolean bridgeFlagOn(String key) {
     String v = params.get(key);
     if (v == null) return true; // absent → built-in default on
-    switch (v.toLowerCase(java.util.Locale.ROOT)) {
+    switch (v.toLowerCase(Locale.ROOT)) {
       case "off":
       case "false":
       case "0":

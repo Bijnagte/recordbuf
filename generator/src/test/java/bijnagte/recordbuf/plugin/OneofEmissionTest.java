@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import bijnagte.recordbuf.plugin.writer.*;
 import com.google.protobuf.ByteString;
+import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Label;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
@@ -11,6 +12,7 @@ import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
 import com.google.protobuf.DescriptorProtos.MessageOptions;
 import com.google.protobuf.DescriptorProtos.OneofDescriptorProto;
 import com.google.protobuf.DescriptorProtos.UninterpretedOption;
+import com.google.protobuf.compiler.PluginProtos.CodeGeneratorRequest;
 import org.junit.jupiter.api.Test;
 
 // Emission-level unit tests for the oneof sealed-hierarchy feature.
@@ -35,7 +37,7 @@ class OneofEmissionTest {
 
   private static FileDescriptorProto simpleFile() {
     var compat =
-        com.google.protobuf.DescriptorProtos.DescriptorProto.newBuilder()
+        DescriptorProto.newBuilder()
             .setName("Compat")
             .addField(
                 FieldDescriptorProto.newBuilder()
@@ -60,11 +62,8 @@ class OneofEmissionTest {
 
   private static String generatedSource(FileDescriptorProto file) {
     var request =
-        com.google.protobuf.compiler.PluginProtos.CodeGeneratorRequest.newBuilder()
-            .addProtoFile(file)
-            .addFileToGenerate(FILE)
-            .build();
-    var resp = new bijnagte.recordbuf.plugin.CodeGenerator().generate(request);
+        CodeGeneratorRequest.newBuilder().addProtoFile(file).addFileToGenerate(FILE).build();
+    var resp = new CodeGenerator().generate(request);
     var all = new StringBuilder();
     for (var f : resp.getFileList()) {
       all.append(f.getContent()).append('\n');
@@ -155,7 +154,7 @@ class OneofEmissionTest {
   // the enum+message arms are locked end-to-end by the fixture round-trip test.
   private static FileDescriptorProto interopFile() {
     var compat =
-        com.google.protobuf.DescriptorProtos.DescriptorProto.newBuilder()
+        DescriptorProto.newBuilder()
             .setName("Compat")
             .addField(
                 FieldDescriptorProto.newBuilder()

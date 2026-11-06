@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
 import org.apache.avro.Schema;
-import org.apache.avro.Schema.Type;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -24,7 +24,7 @@ class WktAvroBridgeTest {
   @Test
   void timestampIsTimestampMicrosLogicalType() {
     Schema s = frag(WktAvroBridge.TIMESTAMP);
-    assertEquals(Type.LONG, s.getType());
+    assertEquals(Schema.Type.LONG, s.getType());
     assertEquals("timestamp-micros", s.getLogicalType().getName());
   }
 
@@ -66,9 +66,9 @@ class WktAvroBridgeTest {
   @Test
   void durationIsStructuredRecordWithSecondsAndNanos() {
     Schema s = frag(WktAvroBridge.DURATION);
-    assertEquals(Type.RECORD, s.getType());
-    assertEquals(Type.LONG, s.getField("seconds").schema().getType());
-    assertEquals(Type.INT, s.getField("nanos").schema().getType());
+    assertEquals(Schema.Type.RECORD, s.getType());
+    assertEquals(Schema.Type.LONG, s.getField("seconds").schema().getType());
+    assertEquals(Schema.Type.INT, s.getField("nanos").schema().getType());
   }
 
   /** AE2: a Duration whose nanos exceed 1 s survive the structured pair exactly. */
@@ -82,14 +82,14 @@ class WktAvroBridgeTest {
   @Test
   void fieldMaskIsNullableStringUnion() {
     Schema s = frag(WktAvroBridge.FIELD_MASK);
-    assertEquals(Type.UNION, s.getType());
-    assertEquals(Type.NULL, s.getTypes().get(0).getType());
-    assertEquals(Type.STRING, s.getTypes().get(1).getType());
+    assertEquals(Schema.Type.UNION, s.getType());
+    assertEquals(Schema.Type.NULL, s.getTypes().get(0).getType());
+    assertEquals(Schema.Type.STRING, s.getTypes().get(1).getType());
   }
 
   @Test
   void fieldMaskEmptyAndNullRoundTrip() {
-    assertNull(WktAvroBridge.fieldMaskToAvro(java.util.List.of()));
+    assertNull(WktAvroBridge.fieldMaskToAvro(List.of()));
     assertNull(WktAvroBridge.fieldMaskToAvro(null));
     assertTrue(WktAvroBridge.fieldMaskFromAvro(null).isEmpty());
     assertTrue(WktAvroBridge.fieldMaskFromAvro("").isEmpty());
@@ -98,20 +98,20 @@ class WktAvroBridgeTest {
   @Test
   void nullValueIsNullableEnumUnion() {
     Schema s = frag(WktAvroBridge.NULL_VALUE);
-    assertEquals(Type.UNION, s.getType());
-    assertEquals(Type.NULL, s.getTypes().get(0).getType());
-    assertEquals(Type.ENUM, s.getTypes().get(1).getType());
+    assertEquals(Schema.Type.UNION, s.getType());
+    assertEquals(Schema.Type.NULL, s.getTypes().get(0).getType());
+    assertEquals(Schema.Type.ENUM, s.getTypes().get(1).getType());
     assertEquals(3, s.getTypes().get(1).getEnumSymbols().size());
   }
 
   @Test
   void emptyAndWrapperFragments() {
-    assertEquals(Type.RECORD, frag(WktAvroBridge.EMPTY).getType());
+    assertEquals(Schema.Type.RECORD, frag(WktAvroBridge.EMPTY).getType());
     Schema i32 = frag(WktAvroBridge.INT32_VALUE);
-    assertEquals(Type.UNION, i32.getType());
-    assertEquals(Type.INT, i32.getTypes().get(1).getType());
+    assertEquals(Schema.Type.UNION, i32.getType());
+    assertEquals(Schema.Type.INT, i32.getTypes().get(1).getType());
     Schema d = frag(WktAvroBridge.DOUBLE_VALUE);
-    assertEquals(Type.DOUBLE, d.getTypes().get(1).getType());
+    assertEquals(Schema.Type.DOUBLE, d.getTypes().get(1).getType());
   }
 
   @Test

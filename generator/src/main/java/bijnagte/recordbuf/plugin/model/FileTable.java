@@ -4,6 +4,7 @@ import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.EnumDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
@@ -32,7 +33,7 @@ public final class FileTable {
     this.packageSuffix = (packageSuffix == null) ? "" : packageSuffix;
   }
 
-  public void addAll(java.util.List<FileDescriptorProto> files) {
+  public void addAll(List<FileDescriptorProto> files) {
     // Pass 1: java package resolution (in case it depends on relative proto
     // package, which it normally doesn't, but be safe).
     for (FileDescriptorProto f : files) {

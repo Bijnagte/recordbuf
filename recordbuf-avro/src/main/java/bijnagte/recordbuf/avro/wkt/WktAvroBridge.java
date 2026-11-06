@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.avro.Schema;
 import org.jspecify.annotations.Nullable;
 
@@ -28,7 +29,7 @@ import org.jspecify.annotations.Nullable;
  * </ul>
  *
  * <p>The dynamic WKTs ({@code Struct}, {@code Value}, {@code ListValue}, {@code Any}) are
- * recognized as <em>not-yet-supported</em> ({@link #isUnrecognizedDynamic(Object)}) so the
+ * recognized as <em>not-yet-supported</em> ({@link #isUnrecognizedDynamic(String)}) so the
  * generator fails loud (R11/R17) rather than silently coercing them.
  */
 public final class WktAvroBridge {
@@ -50,8 +51,8 @@ public final class WktAvroBridge {
   public static final String BYTES_VALUE = "google.protobuf.BytesValue";
 
   // The dynamic WKTs out of scope for v1 (R11): a field carrying one is a generation error.
-  private static final java.util.Set<String> DYNAMIC_WKTS =
-      java.util.Set.of(
+  private static final Set<String> DYNAMIC_WKTS =
+      Set.of(
           "google.protobuf.Struct",
           "google.protobuf.Value",
           "google.protobuf.ListValue",
@@ -64,7 +65,7 @@ public final class WktAvroBridge {
   /**
    * Whether the WKT type-URL ({@code google.protobuf.X}) is a WKT the bridge recognizes (its schema
    * fragment and any conversion exist). A recognized-but-dynamic WKT ({@code Struct}/...) is NOT
-   * here — it is reported via {@link #isUnrecognizedDynamic(Object)}.
+   * here — it is reported via {@link #isUnrecognizedDynamic(String)}.
    */
   public static boolean isRecognized(@Nullable String typeUrl) {
     return typeUrl != null && FRAGMENTS.containsKey(normalize(typeUrl));
