@@ -26,9 +26,11 @@ public final class AvroConverterGenerator {
   private AvroConverterGenerator() {}
 
   /**
-   * The generated source for {@code <X>Avro}: the per-type record<->Avro converter. The specific
-   * record it targets is the one Avro's {@code SpecificCompiler} generates from the per-file {@code
-   * .avsc} (option B), so {@code specificClass} is that generated class's fully-qualified name.
+   * The generated source for {@code <X>AvroConverter}: the per-type record<->Avro converter. The
+   * specific record it targets is the one Avro's {@code SpecificCompiler} generates from the
+   * per-file {@code .avsc} (option B), so {@code specificClass} is that generated class's
+   * fully-qualified name. The converter class name appends {@code Converter} (so {@code Sample ->
+   * SampleAvroConverter}) to stay distinct from the {@code <X>Avro} specific record class.
    */
   public static String converter(String javaPackage, Message message, String specificClass) {
     var recordClass = message.name();
@@ -40,7 +42,7 @@ public final class AvroConverterGenerator {
         .append(" message. Well-known-type fields route through ")
         .append(BRIDGE)
         .append(" (compose, do not re-derive). */\n");
-    sb.append("public final class ").append(recordClass).append("Avro {\n\n");
+    sb.append("public final class ").append(recordClass).append("AvroConverter {\n\n");
     sb.append(fromRecord(fields, recordClass, specificClass)).append('\n');
     sb.append(toRecord(fields, recordClass, specificClass)).append('\n');
     sb.append("}\n");
