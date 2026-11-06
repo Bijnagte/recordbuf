@@ -20,6 +20,12 @@ avro                = "1.12.2"
 # the `libs.versions.protobuf` accessor.
 junit-jupiter     = "5.11.3"
 junit-platform    = "1.11.3"   # junit-platform-* modules are versioned 1.x, paired with jupiter 5.11.x
+# Jackson (com.fasterxml.jackson) -- the generator's .avsc schema is BUILT as a Jackson JSON tree
+# (ObjectNode/TextNode) and serialized via writerWithDefaultPrettyPrinter(); tests parse it back with
+# the same ObjectMapper and assert structurally (no brittle string matching). The version tracks the
+# jackson-databind already pulled transitively by avro-compiler (1.12.2 -> 2.22.1), so pinning it
+# explicit changes nothing on the classpath -- it just declares the generator's direct use.
+jackson           = "2.22.1"
 
 [libraries]
 # io.soabase.record-builder does not publish a Gradle plugin as of v53; wire
@@ -46,6 +52,10 @@ avro                = { group = "org.apache.avro", name = "avro", version.ref = 
 # classpath, never the runtime. `compiler` is its own sub-artifact (split out of core in 1.12);
 # the specific record we consume compiles against core `avro` alone.
 avro-compiler       = { group = "org.apache.avro", name = "avro-compiler", version.ref = "avro" }
+# Jackson data binding -- explicit because the generator's .avsc emitter builds/serializes a Jackson
+# JSON tree (see the `jackson` version above). Transitive of avro-compiler; declared direct to name
+# the generator's direct dependency rather than lean on a transitive.
+jackson-databind    = { group = "com.fasterxml.jackson.core", name = "jackson-databind", version.ref = "jackson" }
 junit-jupiter       = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform" }
 

@@ -45,6 +45,12 @@ dependencies {
     // operator accepted for build-system decoupling. The generated .rec code (R22) stays
     // dependency-free; core avro remains the sole *runtime* dependency of the consumed types.
     implementation(libs.avro.compiler)
+    // Jackson: the .avsc schema is built as a Jackson JSON tree and serialized via its pretty
+    // printer in AvroSchemaGenerator; tests parse the emitted .avsc back with the same ObjectMapper
+    // and assert structurally rather than by brittle string matching. It is already on the plugin's
+    // classpath transitively via avro-compiler (2.22.1); declared explicit to name the generator's
+    // direct use. The generated .rec output (R22) stays dependency-free -- this is a generator concern.
+    implementation(libs.jackson.databind)
     // JSpecify nullability annotations. compileOnly because the generated
     // record/codec types (independent modules) pull JSpecify transitively.
     compileOnly(libs.jspecify)
