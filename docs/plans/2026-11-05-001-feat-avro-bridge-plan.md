@@ -139,6 +139,20 @@ shaped effort.
   recordhub design, at the cost of `avro-compiler` (+ Velocity+Jackson, generation-time only)
   landing on the *plugin's* classpath -- the deliberate, one-way coupling the operator accepted
   for build-system decoupling.
+
+  **Status (landed 2026-11-06, commit 79b7ec5).** The `XSpecific` record IS now produced in
+  this invocation: `AvroBridge.emit` runs `SpecificCompiler` over the per-file `.avsc`, reads
+  back the source, and emits it as a response file -- into the **same** `--recordbuf_out` dir,
+  no Gradle task (operator steer: "no gradle task, just the protoc invocation"). Naming per a
+  later operator steer -- NOT a `.avro` sub-package (R7, simplified) but the bare proto package
+  **plus a `\"Avro\"` class-name suffix** (`Sample -> SampleAvro`), which is collision-free with
+  both the record (`Sample`, `.rec`-suffixed sibling) and the protobuf-java reference
+  (`Sample`, bare package under `java/`); routed as a slashed proto-package path. `avro-compiler`
+  moved to the generator main (generation time). `:recordbuf-fixtures` gained
+  `implementation project(':recordbuf-avro')` so the specific records' `org.apache.avro.*`
+  resolve at compile time (a runtime dep, not a task). Remaining: the in-process `XAvro`
+  converter wiring -- it needs a cross-package reference between the `.rec` record and the
+  bare-package specific record, which is a generator change deferred behind this slice.
 - **Specific, not generic.** `SpecificRecord` classes are the v1 target, not
   `GenericRecord`/`Map`. Specific gives a concrete, IDE-navigable type, a
   compile-time schema, and the cleanest generated converter; generic is a
