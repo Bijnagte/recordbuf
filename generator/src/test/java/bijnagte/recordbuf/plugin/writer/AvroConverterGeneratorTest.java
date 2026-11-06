@@ -9,73 +9,133 @@ import bijnagte.recordbuf.plugin.model.Message;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/**
- * Pins the shape of the generated {@code XAvro} converter (KTD6 / R20-P1): a static {@code
- * fromRecord} that fills the {@code XSpecific} and a static {@code toRecord} that rebuilds the
- * record, with a well-known-type field routed through {@code WktAvroBridge} rather than copied. The
- * converter components compile + round-trip at the fixtures level (U6); this test pins the shape at
- * the generator level.
- */
 class AvroConverterGeneratorTest {
 
-  private static Message person() {
-    var age =
+  private static Field scalar(String name, String typeUrl) {
+    return new Field(
+        name,
+        name,
+        1,
+        FieldLabel.OPTIONAL,
+        FieldKind.SCALAR,
+        typeUrl,
+        null,
+        null,
+        false,
+        null,
+        null,
+        false);
+  }
+
+  private static Field wktField(String name) {
+    return new Field(
+        name,
+        name,
+        2,
+        FieldLabel.OPTIONAL,
+        FieldKind.MESSAGE,
+        "google.protobuf.Timestamp",
+        null,
+        null,
+        true,
+        null,
+        null,
+        false);
+  }
+
+  @Test
+  void generatesConverterWithBothDirections() {
+    Message m =
+        new Message(
+            "Sample",
+            "bijnagte.recordbuf.fixture.Sample",
+            List.of(scalar("a", "int32"), wktField("ts")),
+            List.of(),
+            List.of(),
+            List.of(),
+            false,
+            null,
+            List.of(),
+            null);
+
+    String out =
+        AvroConverterGenerator.generate(
+            "Sample",
+            "sample.proto",
+            m,
+            "bijnagte.recordbuf.fixture",
+            "bijnagte.recordbuf.fixture.rec");
+
+    // Class name is XAvroConverter; specific record is XAvro; converter lives in .rec package.
+    assertTrue(
+        out.contains("public final class SampleAvroConverter"),
+        "converter class named <protoRoot>AvroConverter (distinct from specific record SampleAvro)");
+    assertTrue(
+        out.contains("package bijnagte.recordbuf.fixture.rec;"), "converter in .rec package");
+    assertTrue(
+        out.contains("import bijnagte.recordbuf.fixture.SampleAvro;"), "specific record imported");
+    assertTrue(
+        out.contains("import bijnagte.recordbuf.avro.WktAvroBridge;"), "WktAvroBridge imported");
+    assertTrue(
+        out.contains("import bijnagte.recordbuf.runtime.UnknownFields;"), "UnknownFields imported");
+
+    // toRecord: builder pattern + getters + UnknownFields.empty()
+    assertTrue(out.contains("public static Sample toRecord"), "toRecord direction emitted");
+    assertTrue(out.contains("Sample.Builder b = Sample.builder()"), "builder used for toRecord");
+    assertTrue(out.contains("s.getA("), "Avro getter used for scalar");
+    assertTrue(out.contains("WktAvroBridge.fromAvro(s.getTs())"), "WKT routed through fromAvro");
+    assertTrue(out.contains("UnknownFields.empty()"), "UnknownFields defaulted in toRecord");
+    assertTrue(out.contains("return b.build()"), "build() called in toRecord");
+
+    // fromRecord: no-arg ctor + setters
+    assertTrue(out.contains("public static SampleAvro fromRecord"), "fromRecord direction emitted");
+    assertTrue(out.contains("SampleAvro s = new SampleAvro()"), "no-arg ctor used");
+    assertTrue(out.contains("s.setA(r.a())"), "scalar set directly");
+    assertTrue(out.contains("WktAvroBridge.toAvro(r.ts())"), "WKT routed through toAvro");
+  }
+
+  @Test
+  void bytesFieldUsesByteBufferConversion() {
+    Field bytesField =
         new Field(
-            "age",
-            "age",
+            "a",
+            "a",
             1,
             FieldLabel.OPTIONAL,
             FieldKind.SCALAR,
-            "int32",
+            "bytes",
             null,
             null,
             false,
             null,
             null,
             false);
-    var whenCreated =
-        new Field(
-            "when_created",
-            "whenCreated",
-            3,
-            FieldLabel.OPTIONAL,
-            FieldKind.MESSAGE,
-            "google.protobuf.Timestamp",
+    Message m =
+        new Message(
+            "Sample",
+            "bijnagte.recordbuf.fixture.Sample",
+            List.of(bytesField),
+            List.of(),
+            List.of(),
+            List.of(),
+            false,
             null,
-            null,
-            true,
-            null,
-            null,
-            false);
-    return new Message(
-        "Person",
-        "Person",
-        List.of(age, whenCreated),
-        java.util.List.<bijnagte.recordbuf.plugin.model.Message>of(),
-        java.util.List.<bijnagte.recordbuf.plugin.model.Enum>of(),
-        java.util.List.<bijnagte.recordbuf.plugin.model.Oneof>of(),
-        false,
-        null,
-        List.of(),
-        null);
-  }
+            List.of(),
+            null);
 
-  @Test
-  void converterHasBothDirectionsAndRoutesWktThroughBridge() {
-    String src =
-        AvroConverterGenerator.converter(
-            "com.example", person(), "com.example.Person"); // the SpecificCompiler-generated class
-    // The two static directions.
-    assertTrue(src.contains("fromRecord("), "fromRecord present: " + src);
-    assertTrue(src.contains("toRecord("), "toRecord present: " + src);
-    // The generated specific record (Avro's output) is targeted by both directions.
-    assertTrue(src.contains("com.example.Person"), "specific class referenced: " + src);
-    // A scalar copies directly; the WKT field routes through the bridge.
-    assertTrue(src.contains("s.age = r.age()"), "scalar copies directly: " + src);
+    String out =
+        AvroConverterGenerator.generate(
+            "Sample",
+            "sample.proto",
+            m,
+            "bijnagte.recordbuf.fixture",
+            "bijnagte.recordbuf.fixture.rec");
+
     assertTrue(
-        src.contains("bijnagte.recordbuf.avro.wkt.WktAvroBridge"),
-        "WKT field routed via the bridge: " + src);
-    // The generated classes live in the record's package.
-    assertTrue(src.contains("package com.example;"), src);
+        out.contains("java.nio.ByteBuffer.wrap(r.a())"),
+        "fromRecord wraps record byte[] in ByteBuffer");
+    assertTrue(
+        out.contains("java.util.Arrays.copyOf(s.getA().array()"),
+        "toRecord copies ByteBuffer to byte[]");
   }
 }

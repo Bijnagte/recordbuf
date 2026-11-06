@@ -178,7 +178,7 @@ public final class AvroSchemaGenerator {
   }
 
   /** The WKT protoFqn a field names, or null if the field is not a well-known type. */
-  private static @Nullable String typeUrlIfWkt(Field f) {
+  public static @Nullable String typeUrlIfWkt(Field f) {
     return f.kind() == FieldKind.MESSAGE && WKT.contains(f.typeUrl()) ? f.typeUrl() : null;
   }
 
