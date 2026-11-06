@@ -67,8 +67,10 @@ public final class AvroSchemaGenerator {
       throw new AvroUnsupportedException(root.name(), "oneof groups are not supported in avro v1");
     StringBuilder sb = new StringBuilder();
     sb.append("{");
-    if (pf.protoPackage() != null && !pf.protoPackage().isEmpty())
+    if (pf.protoPackage() != null && !pf.protoPackage().isEmpty()) {
       sb.append("\"namespace\": ").append(jsonStr(pf.protoPackage()));
+      sb.append(", "); // separator before the next top-level object field
+    }
     sb.append("\"type\": \"record\", \"name\": ").append(jsonStr(cap(root.name())));
     sb.append(", \"fields\": ").append(recordFields(root)).append('}');
     return sb.toString();

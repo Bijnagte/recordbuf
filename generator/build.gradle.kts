@@ -59,6 +59,13 @@ dependencies {
     errorprone(libs.error.prone.core)
 
     // JUnit Jupiter + plain assertions only (the plugin/model tests).
+    // Avro is a test-only dependency here: the Avro bridge's schema emitter
+    // (AvroSchemaGenerator) is unit-tested against Avro's own parser so a generated
+    // .avsc is guaranteed to be valid schema JSON the runtime bridge + SpecificCompiler
+    // (option B) can consume. The generator's MAIN classpath stays avro-free (R22):
+    // the dependency is generated types' concern, not the plugin's.
+    testImplementation(libs.avro)
+
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
 }

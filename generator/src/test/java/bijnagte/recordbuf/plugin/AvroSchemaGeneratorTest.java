@@ -1,13 +1,19 @@
 package bijnagte.recordbuf.plugin;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import bijnagte.recordbuf.plugin.bridge.AvroUnsupportedException;
+import bijnagte.recordbuf.plugin.model.AvroToggle;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
+import bijnagte.recordbuf.plugin.model.Message;
+import bijnagte.recordbuf.plugin.model.ProtoFile;
 import bijnagte.recordbuf.plugin.writer.AvroSchemaGenerator;
+import java.util.List;
+import org.apache.avro.Schema;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -66,5 +72,50 @@ class AvroSchemaGeneratorTest {
     Field v = field("v", FieldKind.SCALAR, "uint64", OPTIONAL);
     assertThrows(AvroUnsupportedException.class, () -> AvroSchemaGenerator.avroType(v));
     assertThrows(AvroUnsupportedException.class, () -> AvroSchemaGenerator.scalarAvro("uint64"));
+  }
+
+  /**
+   * Regression: the schema emitter once dropped the comma between the {@code namespace} and {@code
+   * type} fields when a proto package was present, producing invalid JSON (two adjacent string
+   * members) that Avro's parser rejects. A packaged schema must be valid, parseable Avro schema --
+   * the exact shape option B's SpecificCompiler consumes.
+   */
+  @Test
+  void packagedSchemaIsValidParseableAvro() throws Exception {
+    Field id =
+        new Field(
+            "id",
+            "id",
+            1,
+            OPTIONAL,
+            FieldKind.SCALAR,
+            "int32",
+            null,
+            null,
+            false,
+            null,
+            null,
+            false);
+    Message m =
+        new Message(
+            "Sample",
+            "p.Sample",
+            List.of(id),
+            List.of(),
+            List.of(),
+            List.of(),
+            false,
+            null,
+            List.of(),
+            null);
+    ProtoFile pf =
+        new ProtoFile("p.proto", "p", "p", List.of(m), List.of(), false, null, AvroToggle.ON);
+    String schema = AvroSchemaGenerator.schema(pf);
+    // Parse with Avro's own parser: a malformed document throws, which is the guard.
+    Schema s = new Schema.Parser().parse(schema);
+    assertEquals(Schema.Type.RECORD, s.getType(), "root is a record: " + schema);
+    assertEquals("Sample", s.getName());
+    assertEquals("p", s.getNamespace());
+    assertEquals("int", s.getField("id").schema().getType().getName());
   }
 }
