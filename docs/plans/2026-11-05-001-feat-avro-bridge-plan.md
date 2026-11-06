@@ -126,6 +126,19 @@ shaped effort.
   `XSpecific`. Proven by `SpecificCompilerDelegationTest` (`.avsc` -> `SpecificCompiler`
   -> a compilable `SpecificRecordBase` that round-trips through the
   `GenericDatumReader`/`GenericDatumWriter` schema-driven API).
+- **R5 output + integration shape (decided 2026-11-06, operator, KTD1 refinement).** No
+  build-system coupling: everything the bridge produces comes from the single
+  `protoc --recordbuf_out=...` invocation -- **no** build-time Gradle task that compiles
+  the `.avsc`, which would couple the plugin's output to the build. Avro types land in
+  the **same** generated source dir the proto files already go to (the `--recordbuf_out`
+  dir, the `.rec` package family) -- not a separate dir, not a second invocation. Consequence:
+  the `XSpecific` must be produced **in-process by the plugin itself** -- the `AvroBridge`
+  runs Avro's `SpecificCompiler` over the per-file `.avsc` it emits, reads back the generated
+  `XSpecific.java`, and emits it as a `CodeGeneratorResponse.File` alongside the `.avsc` + the
+  `XAvro` converter. This preserves R22 (generated `*.rec` code stays dependency-free) and the
+  recordhub design, at the cost of `avro-compiler` (+ Velocity+Jackson, generation-time only)
+  landing on the *plugin's* classpath -- the deliberate, one-way coupling the operator accepted
+  for build-system decoupling.
 - **Specific, not generic.** `SpecificRecord` classes are the v1 target, not
   `GenericRecord`/`Map`. Specific gives a concrete, IDE-navigable type, a
   compile-time schema, and the cleanest generated converter; generic is a
