@@ -147,7 +147,10 @@ public final class AvroSchemaGenerator {
       case "bool" -> "\"boolean\"";
       case "string" -> "\"string\"";
       case "bytes" -> "\"bytes\"";
-      default -> "\"string\"";
+      default ->
+          throw new AvroUnsupportedException(
+              protoScalar == null ? "<null>" : protoScalar,
+              "unknown proto scalar type (proto has a closed scalar set); the Avro bridge fails loud (R17) rather than emit a wrong type");
     };
   }
 

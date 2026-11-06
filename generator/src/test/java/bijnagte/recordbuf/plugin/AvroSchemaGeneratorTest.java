@@ -74,6 +74,60 @@ class AvroSchemaGeneratorTest {
     assertThrows(AvroUnsupportedException.class, () -> AvroSchemaGenerator.scalarAvro("uint64"));
   }
 
+  // ---- U7 fail-loud coverage (R11/R17): out-of-scope shapes abort, never a wrong type ----
+
+  @Test
+  void mapFieldFailsLoud() {
+    Field m =
+        new Field(
+            "m",
+            "m",
+            7,
+            REPEATED,
+            FieldKind.MAP,
+            "", // typeUrl is null for a map (semantics come from mapKey/mapValue); "" avoids a null
+            // @NonNull arg
+            "string",
+            "int32",
+            false,
+            null,
+            null,
+            false);
+    assertTrue(m.isMap());
+    assertThrows(AvroUnsupportedException.class, () -> AvroSchemaGenerator.avroType(m));
+  }
+
+  @Test
+  void repeatedNestedMessageFailsLoud() {
+    Field m = field("list", FieldKind.MESSAGE, "com.example.P", REPEATED);
+    assertThrows(AvroUnsupportedException.class, () -> AvroSchemaGenerator.avroType(m));
+  }
+
+  @Test
+  void unknownScalarFailsLoud() {
+    Field x = field("x", FieldKind.SCALAR, "not_areal_proto_type", OPTIONAL);
+    assertThrows(AvroUnsupportedException.class, () -> AvroSchemaGenerator.avroType(x));
+  }
+
+  @Test
+  void unrecognizedWktOrNestedMessageFailsLoud() {
+    // A message-typed field the bridge neither maps (WKT fragment) nor supports (nested message),
+    // including the dynamic WKTs R11 scopes out of v1: Struct/Value/Any/ListValue/NullValue.
+    for (String t : List.of("com.example.P", "google.protobuf.Struct", "google.protobuf.Any")) {
+      Field m = field("x", FieldKind.MESSAGE, t, FieldLabel.OPTIONAL);
+      assertThrows(
+          AvroUnsupportedException.class,
+          () -> AvroSchemaGenerator.avroType(m),
+          "unrecognized/dynamic type must fail loud: " + t);
+    }
+  }
+
+  /**
+   * R11 dynamic-WKT fail-loud lives in the avro module's WktAvroBridgeTest, not here: the generator
+   * is avro-free in main (R22) and must not reference :recordbuf-avro. The generator-side proof
+   * that an out-of-scope shape aborts is unrecognizedWktOrNestedMessageFailsLoud above.
+   */
+
   /**
    * Regression: the schema emitter once dropped the comma between the {@code namespace} and {@code
    * type} fields when a proto package was present, producing invalid JSON (two adjacent string

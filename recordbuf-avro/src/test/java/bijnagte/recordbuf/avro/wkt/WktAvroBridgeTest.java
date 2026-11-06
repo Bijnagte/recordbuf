@@ -28,6 +28,18 @@ class WktAvroBridgeTest {
     assertEquals("timestamp-micros", s.getLogicalType().getName());
   }
 
+  /** R11: the dynamic WKTs are explicitly out of v1 scope and are flagged unrecognized. */
+  @Test
+  void dynamicWktsAreFlaggedUnrecognizedDynamic() {
+    assertTrue(WktAvroBridge.isUnrecognizedDynamic("google.protobuf.Struct"));
+    assertTrue(WktAvroBridge.isUnrecognizedDynamic("google.protobuf.Value"));
+    assertTrue(WktAvroBridge.isUnrecognizedDynamic("google.protobuf.Any"));
+    assertTrue(WktAvroBridge.isUnrecognizedDynamic("google.protobuf.ListValue"));
+    // A plain WKT that IS mapped (Timestamp) is recognized, NOT unrecognized-dynamic.
+    assertTrue(WktAvroBridge.isRecognized("google.protobuf.Timestamp"));
+    assertFalse(WktAvroBridge.isUnrecognizedDynamic("google.protobuf.Timestamp"));
+  }
+
   /** AE1: a Timestamp round-trips through epoch micros across whole-second + sub-second. */
   @Test
   void timestampRoundTripsMicrosAcrossSecondsAndSubsecond() {
