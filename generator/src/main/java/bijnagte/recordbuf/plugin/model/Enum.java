@@ -16,6 +16,11 @@ import org.jspecify.annotations.Nullable;
  *     implements} clause, in declaration order and de-duplicated (never {@code null}); empty when
  *     none are declared. The FQNs are opaque to the generator.
  */
+// The record is deliberately named `Enum` because it is the first-class, 1:1 model of a protobuf
+// `enum` keyword; the clash with `java.lang.Enum` is accepted rather than rename-rippling it
+// through
+// the whole model + generators.
+@SuppressWarnings("AvoidCommonTypeNames")
 @RecordBuilder
 public record Enum(
     String name,

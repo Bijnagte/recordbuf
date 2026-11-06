@@ -22,8 +22,8 @@ import org.apache.avro.compiler.specific.SpecificCompiler;
  * record/codec output. Protobuf remains the only wire format: a message's {@code Codec} is never
  * touched; the bridge only adds the conversion.
  *
- * <p>Resolution (R1): enablement is {@code per-file recordbuf.avro option &gt; global --avro flag
- * &gt; built-in default(on)}, via {@link BridgeContext#avroEnabled}.
+ * <p>Resolution (R1): enablement is {@code per-file recordbuf.avro option > global --avro flag >
+ * built-in default(on)}, via {@link BridgeContext#avroEnabled}.
  *
  * <p><b>Wiring (R5, ref'd 2026-11-06):</b> for an enabled file the bridge emits, into the SAME
  * output dir as the record/codec, a per-file {@code .avsc} (R6) AND a per-root-message {@code
@@ -137,18 +137,19 @@ public final class AvroBridge implements FormatBridge {
       // SpecificCompiler writes <namespace-as-path>/<RecName>.java. Locate the single generated
       // record source (the top-level record named after root). Its siblings (none, for a single
       // top-level record) are not emitted.
-      Path matched =
-          Files.walk(outDir)
-              .filter(p -> p.getFileName().toString().equals(recName + ".java"))
-              .findFirst()
-              .orElseThrow(() ->
-                  new IllegalStateException("SpecificCompiler produced no " + recName + ".java"));
+      Path matched;
+      try (var walk = Files.walk(outDir)) {
+        matched =
+            walk.filter(p -> p.getFileName().toString().equals(recName + ".java"))
+                .findFirst()
+                .orElseThrow(() ->
+                    new IllegalStateException("SpecificCompiler produced no " + recName + ".java"));
+      }
       String source = Files.readString(matched);
       return source;
     } finally {
-      try {
-        Files.walk(tmp)
-            .sorted(Comparator.reverseOrder())
+      try (var walk = Files.walk(tmp)) {
+        walk.sorted(Comparator.reverseOrder())
             .forEach(p -> {
               try {
                 Files.deleteIfExists(p);
@@ -156,7 +157,7 @@ public final class AvroBridge implements FormatBridge {
                 // best-effort temp cleanup
               }
             });
-      } catch (IOException ignoredCleanup) {
+      } catch (IOException ignoredWalk) {
         // best-effort temp cleanup
       }
     }

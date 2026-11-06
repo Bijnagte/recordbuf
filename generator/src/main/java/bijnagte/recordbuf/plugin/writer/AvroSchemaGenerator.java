@@ -64,7 +64,7 @@ public final class AvroSchemaGenerator {
   /**
    * The generated specific record's class name: the proto message name, capitalized, with an {@code
    * "Avro"} suffix so it is distinct from the recordbuf record + the protobuf-java reference that
-   * share the bare name. {@code Sample -&gt; SampleAvro}.
+   * share the bare name. {@code Sample -> SampleAvro}.
    */
   public static String specificRecordName(String messageName) {
     return cap(messageName) + "Avro";

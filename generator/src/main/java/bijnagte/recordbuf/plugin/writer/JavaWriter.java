@@ -96,7 +96,7 @@ public final class JavaWriter {
   public JavaWriter javadoc(int level, @Nullable String rawText) {
     if (rawText == null || rawText.isBlank()) return this;
     boolean first = true;
-    for (String raw : rawText.strip().split("\n")) {
+    for (String raw : rawText.strip().lines().toArray(String[]::new)) {
       for (int i = 0; i < level; i++) sb.append("    ");
       sb.append(first ? "/**" : " *");
       first = false;

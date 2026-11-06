@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
  * test} confirm the emitted package-info is well-formed and scopes the check, which a JVM unit test
  * cannot reach alone.
  */
+@SuppressWarnings("BadImport")
 class PackageInfoEmissionTest {
 
   private static FileDescriptorProto file(String name, String pkg, DescriptorProto... messages) {

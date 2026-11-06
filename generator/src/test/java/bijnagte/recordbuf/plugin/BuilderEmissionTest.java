@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
  * compile + round-trip the generated builders end to end, which is the runtime-level confirmation
  * this unit test can't reach alone.
  */
+@SuppressWarnings("BadImport")
 class BuilderEmissionTest {
 
   private static final String PKG = "bijnagte.recordbuf.fixture.builder";

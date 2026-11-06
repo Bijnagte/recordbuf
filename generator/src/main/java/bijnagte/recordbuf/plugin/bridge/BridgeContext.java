@@ -40,6 +40,9 @@ public final class BridgeContext {
    * comma-separated; a bare {@code key} (no {@code =}) maps to an empty string. Whitespace is
    * trimmed from each key and value. An absent/blank string yields an empty map.
    */
+  // The comma-split keeps its default (drop trailing empty) behavior; the per-pair `key.isEmpty()`
+  // guard below makes that intent explicit, so the `StringSplitter` surprise is a non-issue here.
+  @SuppressWarnings("StringSplitter")
   public static BridgeContext parse(@Nullable String parameter) {
     Map<String, String> params = new LinkedHashMap<>();
     if (parameter == null || parameter.isBlank()) return new BridgeContext(params);

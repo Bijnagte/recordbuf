@@ -32,10 +32,9 @@ public final class AvroConverterGenerator {
    *     and converter class base name
    * @param protoFile the {@code recordbuf.proto} filename
    * @param message the top-level message (one-per-file invariant)
-   * @param specificRecordPkg the package of the Avro specific record (the {@code recordbuf.proto}'s
-   *     natural package — {@link
-   *     bijnagte.recordbuf.plugin.bridge.AvroBridge#specificRecordPackage}); the specific record
-   *     class name is {@code <protoRoot.name>Avro}
+   * @param specificRecordPkg the package of the Avro specific record -- the {@code
+   *     recordbuf.proto}'s natural (un-suffixed) package, computed by the Avro bridge's
+   *     record-package helper; the specific record class name is {@code <protoRoot.name>Avro}
    * @param converterPkg the package of the generated converter — the recordbuf record's own package
    *     (the {@code .rec}-suffixed package where {@code Sample.java} lives). Keeps the record type
    *     resolvable as a short name.

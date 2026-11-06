@@ -7,7 +7,7 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Resolves a {@link Field} to its Java static type name (e.g. {@code
- * "java.util.List\u003cjava.lang.String\u003e"}).
+ * "java.util.List<java.lang.String>"})).
  *
  * <p>For nested types inside the same file, we return the bare short name so generated code stays
  * readable. Cross-file types are fully-qualified.

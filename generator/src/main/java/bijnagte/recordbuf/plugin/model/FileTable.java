@@ -102,7 +102,7 @@ public final class FileTable {
     String protoPkg = f.getPackage();
     String scope = protoPkg.isBlank() ? "" : protoPkg;
     for (DescriptorProto m : f.getMessageTypeList()) {
-      registerMessageTree(m, scope, javaPkg, "0");
+      registerMessageTree(m, scope, javaPkg);
     }
     for (EnumDescriptorProto e : f.getEnumTypeList()) {
       String protoFqn = join(scope, e.getName());
@@ -111,8 +111,7 @@ public final class FileTable {
     }
   }
 
-  private void registerMessageTree(
-      DescriptorProto m, String protoScope, String javaScope, /*ignored*/ String depth) {
+  private void registerMessageTree(DescriptorProto m, String protoScope, String javaScope) {
     String protoFqn = join(protoScope, m.getName());
     String javaShort = JavaNames.cap(m.getName());
     String javaFqn = join(javaScope, javaShort);
@@ -124,7 +123,7 @@ public final class FileTable {
     String nestedProtoScope = protoFqn;
     String nestedJavaScope = javaFqn;
     for (DescriptorProto nested : m.getNestedTypeList()) {
-      registerMessageTree(nested, nestedProtoScope, nestedJavaScope, "");
+      registerMessageTree(nested, nestedProtoScope, nestedJavaScope);
     }
     for (EnumDescriptorProto nested : m.getEnumTypeList()) {
       String pe = join(nestedProtoScope, nested.getName());

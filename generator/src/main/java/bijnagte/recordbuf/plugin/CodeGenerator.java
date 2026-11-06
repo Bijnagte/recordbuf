@@ -295,7 +295,7 @@ public final class CodeGenerator {
       lines.add("");
     }
     for (String[] p : params) {
-      String[] desc = p[1].strip().split("\n");
+      String[] desc = p[1].strip().lines().toArray(String[]::new);
       lines.add("@param " + p[0] + " " + desc[0]);
       for (int i = 1; i < desc.length; i++) {
         lines.add(desc[i]);
@@ -328,7 +328,7 @@ public final class CodeGenerator {
         + "means the oneof was absent off the wire.";
   }
 
-  /** The fixed description emitted for the always-on {@code unknownFields} carrier component. */
+  /** The fixed description emitted for the always-on unknown-fields carrier component. */
   private static String carrierComponentDoc(String unknownFieldsFqn) {
     return "Unknown fields seen during this record's decode that its schema does not model, captured "
         + "so they survive a round-trip: re-emitted byte-for-byte on encode. An empty decode carries "
@@ -832,6 +832,9 @@ public final class CodeGenerator {
    * pairs — of which only {@code package_suffix} is honored. An absent value leaves every file's
    * java package byte-for-byte unchanged (R5).
    */
+  @SuppressWarnings("StringSplitter")
+  // The comma-split drops trailing empty segments (its "surprising" behavior), which is harmless
+  // here: an empty key simply fails the `!key.equals("package_suffix")` guard and is skipped.
   private static String parsePackageSuffix(String parameter) {
     if (parameter == null || parameter.isBlank()) return "";
     String suffix = "";

@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
  * matching custom option is declared, and emits the header unchanged (no {@code implements}) when
  * it is not — the marker path that keeps every existing type byte-for-byte identical.
  */
+@SuppressWarnings({"BadImport", "StringSplitter"})
 class ImplementsClauseEmissionTest {
 
   private static String generatedSource(FileDescriptorProto fd, String fileToGenerate) {

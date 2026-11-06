@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
  * plus a static {@code fromBytes(byte[])} so the record can cross a gRPC / protobuf-java boundary
  * with no structural conversion.
  */
+@SuppressWarnings("BadImport")
 class RecordHookEmissionTest {
 
   private static String generatedSource(FileDescriptorProto fd, String fileToGenerate) {

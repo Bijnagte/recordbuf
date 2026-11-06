@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test;
 //   - the per-member records listed in the sealed interface's permits clause
 //   - a record component of the same name as the oneof, of the sealed interface type
 //   - a codec that dispatches on the concrete per-member record type in both encode/decode
+@SuppressWarnings({"BadImport", "StringSplitter"})
 class OneofEmissionTest {
 
   private static final String FILE = "bijnagte.recordbuf.fixture.oneof.oneof_test.proto";

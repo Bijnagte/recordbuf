@@ -5,7 +5,6 @@ import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.EnumDescriptorProto;
 import com.google.protobuf.DescriptorProtos.EnumValueDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
-import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
 import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
 import com.google.protobuf.DescriptorProtos.SourceCodeInfo;
 import com.google.protobuf.DescriptorProtos.UninterpretedOption;
@@ -81,7 +80,7 @@ public final class ModelLoader {
     List<Enum> topEnums = new ArrayList<>();
     for (int i = 0; i < fdp.getEnumTypeCount(); i++) {
       EnumDescriptorProto e = fdp.getEnumType(i);
-      topEnums.add(loadEnum(e, /* protoScope= */ scopeRoot(fdp), /* basePath= */ path(5, i)));
+      topEnums.add(loadEnum(e, /* basePath= */ path(5, i)));
     }
     return new ProtoFile(
         fdp.getName(),
@@ -119,7 +118,7 @@ public final class ModelLoader {
     for (SourceCodeInfo.Location loc : fdp.getSourceCodeInfo().getLocationList()) {
       if (!loc.hasLeadingComments()) continue;
       String c = loc.getLeadingComments();
-      if (c == null || c.isBlank()) continue;
+      if (c.isBlank()) continue;
       map.put(List.copyOf(loc.getPathList()), c);
     }
     return map;
@@ -156,7 +155,7 @@ public final class ModelLoader {
         continue;
       }
       FieldDescriptorProto raw = m.getField(i);
-      Field f = loadField(raw, m, protoScope, child(basePath, 2, i));
+      Field f = loadField(raw, protoScope, child(basePath, 2, i));
       if (raw.hasOneofIndex() && !raw.getProto3Optional()) {
         // A real oneof member: group it on its oneofIndex (a top-level field is
         // not routed here, so its flat field list keeps its declaration order).
@@ -190,7 +189,7 @@ public final class ModelLoader {
     List<Enum> nestedEnums = new ArrayList<>();
     for (int j = 0; j < m.getEnumTypeCount(); j++) {
       EnumDescriptorProto nested = m.getEnumType(j); // raw index: source_code_info keys on it
-      nestedEnums.add(loadEnum(nested, protoScopeForNested(m, protoScope), child(basePath, 4, j)));
+      nestedEnums.add(loadEnum(nested, child(basePath, 4, j)));
     }
 
     String javaScope = join(javaPkgOf, JavaNames.cap(m.getName()));
@@ -336,7 +335,7 @@ public final class ModelLoader {
 
   // --- enums ---
 
-  private Enum loadEnum(EnumDescriptorProto e, String protoScope, List<Integer> basePath) {
+  private Enum loadEnum(EnumDescriptorProto e, List<Integer> basePath) {
     List<Enum.EnumConstant> cs = new ArrayList<>();
     for (int i = 0; i < e.getValueCount(); i++) {
       EnumValueDescriptorProto v = e.getValue(i);
@@ -365,8 +364,7 @@ public final class ModelLoader {
 
   // --- fields ---
 
-  private Field loadField(
-      FieldDescriptorProto f, DescriptorProto parent, String protoScope, List<Integer> path) {
+  private Field loadField(FieldDescriptorProto f, String protoScope, List<Integer> path) {
     String javaName = JavaNames.camel(f.getName());
     FieldLabel label = label(f.getLabel());
 
@@ -433,7 +431,7 @@ public final class ModelLoader {
     return n.toLowerCase(Locale.ROOT);
   }
 
-  static boolean isScalar(Type t) {
+  static boolean isScalar(FieldDescriptorProto.Type t) {
     return switch (t) {
       case TYPE_DOUBLE,
           TYPE_FLOAT,
@@ -456,9 +454,11 @@ public final class ModelLoader {
   }
 
   private static @Nullable Object extractDefault(FieldDescriptorProto f) {
-    if (f.getType() == Type.TYPE_STRING) return f.hasDefaultValue() ? f.getDefaultValue() : "";
-    if (f.getType() == Type.TYPE_BYTES) return f.hasDefaultValue() ? f.getDefaultValue() : "";
-    if (f.getType() == Type.TYPE_BOOL)
+    if (f.getType() == FieldDescriptorProto.Type.TYPE_STRING)
+      return f.hasDefaultValue() ? f.getDefaultValue() : "";
+    if (f.getType() == FieldDescriptorProto.Type.TYPE_BYTES)
+      return f.hasDefaultValue() ? f.getDefaultValue() : "";
+    if (f.getType() == FieldDescriptorProto.Type.TYPE_BOOL)
       return f.hasDefaultValue() ? Boolean.parseBoolean(f.getDefaultValue()) : false;
     return null;
   }
@@ -488,10 +488,8 @@ public final class ModelLoader {
     LinkedHashMap<String, Boolean> ordered = new LinkedHashMap<>();
     // Compiled path: one length-delimited entry per declaration, in order (duplicates kept).
     UnknownFieldSet.Field f = unknownFields.getField(tag);
-    if (f != null) {
-      for (ByteString value : f.getLengthDelimitedList()) {
-        ordered.put(value.toStringUtf8(), Boolean.TRUE);
-      }
+    for (ByteString value : f.getLengthDelimitedList()) {
+      ordered.put(value.toStringUtf8(), Boolean.TRUE);
     }
     // Fallback path: only reachable from hand-constructed descriptors.
     for (UninterpretedOption opt : uninterpreted) {
@@ -525,7 +523,7 @@ public final class ModelLoader {
   private static String protobufJavaFor(
       UnknownFieldSet unknownFields, List<UninterpretedOption> uninterpreted) {
     UnknownFieldSet.Field f = unknownFields.getField(MESSAGE_PROTOBUF_JAVA_TAG);
-    if (f != null && !f.getLengthDelimitedList().isEmpty()) {
+    if (!f.getLengthDelimitedList().isEmpty()) {
       return f.getLengthDelimitedList().get(0).toStringUtf8();
     }
     for (UninterpretedOption opt : uninterpreted) {
@@ -549,7 +547,7 @@ public final class ModelLoader {
   private static AvroToggle avroToggleFor(
       UnknownFieldSet unknownFields, List<UninterpretedOption> uninterpreted) {
     UnknownFieldSet.Field f = unknownFields.getField(FILE_AVRO_TAG);
-    if (f != null && !f.getVarintList().isEmpty()) {
+    if (!f.getVarintList().isEmpty()) {
       return avroFromInt(f.getVarintList().get(0));
     }
     for (UninterpretedOption opt : uninterpreted) {

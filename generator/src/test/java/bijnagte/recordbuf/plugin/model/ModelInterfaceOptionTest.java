@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
  * only path reachable without invoking {@code protoc} (a real protoc run resolves the extension and
  * delivers it as a compiled unknown field instead).
  */
+@SuppressWarnings("StringSplitter")
 class ModelInterfaceOptionTest {
 
   private static final String JAVA_PACKAGE = "bijnagte.recordbuf.fixture.iface";

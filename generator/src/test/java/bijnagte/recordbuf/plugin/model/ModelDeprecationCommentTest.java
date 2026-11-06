@@ -36,6 +36,7 @@ import org.junit.jupiter.api.Test;
  * annotations.proto}): its {@code @Deprecated Map<String, Integer> tags} component proves {@code
  * buildMapField} carries the user's deprecation through to the synthesized map field.
  */
+@SuppressWarnings("BadImport")
 class ModelDeprecationCommentTest {
 
   private static final String JAVA_PACKAGE = "com.example";

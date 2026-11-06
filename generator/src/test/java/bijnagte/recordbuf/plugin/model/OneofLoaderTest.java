@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
  * skip are the two behaviors that make "no oneof machinery fires when a oneof is absent" hold for
  * every existing proto.
  */
+@SuppressWarnings("BadImport")
 class OneofLoaderTest {
 
   private static Message loadMessage(String pkg, String name, DescriptorProto msg) {

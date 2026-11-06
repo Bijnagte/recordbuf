@@ -110,7 +110,7 @@ public final class InteropGenerator {
 
     out.line();
     out.javadoc(
-        "Structural X\u003c-\u003eR converter between "
+        "Structural X <-> R converter between "
             + recordFqn(m.name())
             + " (record) and "
             + refFqn(refPkg, refType)

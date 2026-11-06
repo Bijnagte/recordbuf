@@ -15,15 +15,18 @@ class InterfaceImplementationTest {
 
   @Test
   void sampleImplementsMarker() {
-    Sample sample = Sample.builder().id(7).build();
+    // Cast to Object so the instanceof is a genuine runtime check; static typing
+    // would make EP report BadInstanceof (trivially true for a subtype).
+    Object sample = Sample.builder().id(7).build();
     assertTrue(sample instanceof Marker);
-    Marker marker = sample;
+    Marker marker = (Marker) sample;
     assertTrue(marker instanceof Sample);
   }
 
   @Test
   void colorImplementsNamed() {
-    assertTrue(Color.RED instanceof Named);
+    Object color = Color.RED;
+    assertTrue(color instanceof Named);
     Named named = Color.GREEN;
     assertTrue(named instanceof Color);
   }

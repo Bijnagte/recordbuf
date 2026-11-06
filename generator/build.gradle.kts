@@ -110,17 +110,12 @@ tasks.test {
 // `@Nullable`; NullAway would flag ~25 lines of *generator output*, so
 // `excludedPaths` excludes `.*build/generated/.*`.
 //
-// `disableAllChecks = true` + `error("NullAway")` turns on ONLY NullAway, at
-// error severity: a real null violation blocks the build, while the ~15 first-
-// party Error Prone default-check findings (UnusedVariable, etc.) stay deferred
-// to a separate "cleanup" scope.
+// The full Error Prone default check set runs (no `disableAllChecks`); both
+// `error("NullAway")` and `error("UnnecessarilyFullyQualified")` promote
+// their respective checks to build-failing severity, and all remaining default
+// checks run at their natural severity.
 tasks.withType<JavaCompile>().configureEach {
     options.errorprone {
-        // NullAway only: turn off the default check set (its other
-        // first-party findings are style/cleanup, deferred to a separate
-        // scope per the "warnings are OK, fix later" decision), then re-enable
-        // NullAway at error severity so a real null violation blocks the build.
-        disableAllChecks = true
         error("UnnecessarilyFullyQualified")
         error("NullAway")
         // `OnlyNullMarked=true` restricts NullAway to our `@NullMarked` packages. 0.14.x

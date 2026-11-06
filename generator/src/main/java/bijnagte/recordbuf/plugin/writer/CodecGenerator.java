@@ -102,13 +102,13 @@ public final class CodecGenerator {
     w.line("var enc = " + ci.use(RT + ".Encoder") + ".start();");
     w.line("var out = enc.out();");
     for (Field f : m.fields().stream().sorted(Comparator.comparingInt(Field::number)).toList()) {
-      emitEncodeField(w, m, f);
+      emitEncodeField(w, f);
     }
     // Oneof members: one wire field each, written only when the oneof's interface
     // component is set (the message subtype or the shared Scalar wrapper). The
     // wrapper carries the member's wire field number so the codec can dispatch on it.
     for (Oneof o : m.oneofs()) {
-      emitOneofEncode(w, m, o);
+      emitOneofEncode(w, o);
     }
     // Re-emit the fields captured on the decode as not modeled by this schema,
     // in the wire order they were seen, so a record read through an older schema
@@ -131,7 +131,7 @@ public final class CodecGenerator {
    * or the shared {@code Scalar} wrapper carrying a scalar/enum value plus a wire field number tag;
    * the latter dispatches on the tag to pick the wire primitive.
    */
-  private void emitOneofEncode(JavaWriter w, Message m, Oneof o) {
+  private void emitOneofEncode(JavaWriter w, Oneof o) {
     String iface = o.ifaceName();
     String cmp = o.componentName();
     String getter = "v." + cmp + "()";
@@ -179,31 +179,19 @@ public final class CodecGenerator {
    */
   private String oneofScalarEncode(Oneof o, Field f, String scalarBinding, String out) {
     var raw = rawMemberField(o, f.number());
-    switch (raw.getType()) {
-      case TYPE_STRING -> {
-        return out + ".writeString(" + f.number() + ", " + scalarBinding + ".value());";
-      }
-      case TYPE_BYTES -> {
-        return out + ".writeByteArray(" + f.number() + ", " + scalarBinding + ".value());";
-      }
-      case TYPE_BOOL -> {
-        return out + ".writeBool(" + f.number() + ", " + scalarBinding + ".value());";
-      }
-      case TYPE_DOUBLE -> {
-        return out + ".writeDouble(" + f.number() + ", " + scalarBinding + ".value());";
-      }
-      case TYPE_FLOAT -> {
-        return out + ".writeFloat(" + f.number() + ", " + scalarBinding + ".value());";
-      }
-      case TYPE_INT32, TYPE_SINT32, TYPE_SFIXED32, TYPE_UINT32, TYPE_FIXED32 -> {
-        return out + ".writeInt32(" + f.number() + ", " + scalarBinding + ".value());";
-      }
-      case TYPE_INT64, TYPE_SINT64, TYPE_SFIXED64, TYPE_UINT64, TYPE_FIXED64 -> {
-        return out + ".writeInt64(" + f.number() + ", " + scalarBinding + ".value());";
-      }
-      case TYPE_ENUM -> {
-        return out + ".writeEnum(" + f.number() + ", " + scalarBinding + ".value().getNumber());";
-      }
+    return switch (raw.getType()) {
+      case TYPE_STRING -> out + ".writeString(" + f.number() + ", " + scalarBinding + ".value());";
+      case TYPE_BYTES ->
+          out + ".writeByteArray(" + f.number() + ", " + scalarBinding + ".value());";
+      case TYPE_BOOL -> out + ".writeBool(" + f.number() + ", " + scalarBinding + ".value());";
+      case TYPE_DOUBLE -> out + ".writeDouble(" + f.number() + ", " + scalarBinding + ".value());";
+      case TYPE_FLOAT -> out + ".writeFloat(" + f.number() + ", " + scalarBinding + ".value());";
+      case TYPE_INT32, TYPE_SINT32, TYPE_SFIXED32, TYPE_UINT32, TYPE_FIXED32 ->
+          out + ".writeInt32(" + f.number() + ", " + scalarBinding + ".value());";
+      case TYPE_INT64, TYPE_SINT64, TYPE_SFIXED64, TYPE_UINT64, TYPE_FIXED64 ->
+          out + ".writeInt64(" + f.number() + ", " + scalarBinding + ".value());";
+      case TYPE_ENUM ->
+          out + ".writeEnum(" + f.number() + ", " + scalarBinding + ".value().getNumber());";
       case TYPE_MESSAGE, TYPE_GROUP -> {
         // Message members are routed through the identity-subtype path in
         // emitOneofEncode, not through this method; if they ever land
@@ -212,31 +200,31 @@ public final class CodecGenerator {
             "oneof scalar encode: unexpected TYPE_MESSAGE member tag " + f.number());
       }
       default -> throw new IllegalStateException("unsupported oneof scalar type: " + raw.getType());
-    }
+    };
   }
 
-  private void emitEncodeField(JavaWriter w, Message m, Field f) {
+  private void emitEncodeField(JavaWriter w, Field f) {
     String getter = "v." + f.javaName() + "()";
     int num = f.number();
 
     if (f.isRepeated()) {
       switch (f.kind()) {
         case SCALAR -> emitRepeatedScalar(w, f, num, getter);
-        case ENUM -> emitRepeatedEnum(w, f, num, getter);
+        case ENUM -> emitRepeatedEnum(w, num, getter);
         case MESSAGE -> emitRepeatedMessage(w, f, num, getter);
         default -> w.line("// unsupported repeated kind: " + f.kind());
       }
       return;
     }
     if (f.isMap()) {
-      emitMapField(w, m, f);
+      emitMapField(w, f);
       return;
     }
     boolean nullable = f.isNullable();
     switch (f.kind()) {
       case SCALAR -> emitScalar(w, f, num, getter, nullable);
-      case ENUM -> emitEnum(w, f, num, getter, nullable);
-      case MESSAGE -> emitMessage(w, f, num, getter, nullable);
+      case ENUM -> emitEnum(w, num, getter, nullable);
+      case MESSAGE -> emitMessage(w, f, num, getter);
       default -> {}
     }
   }
@@ -287,7 +275,7 @@ public final class CodecGenerator {
     }
   }
 
-  private void emitEnum(JavaWriter w, Field f, int num, String getter, boolean nullable) {
+  private void emitEnum(JavaWriter w, int num, String getter, boolean nullable) {
     if (nullable) {
       w.line("if (" + getter + " != null) out.writeEnum(" + num + ", " + getter + ".getNumber());");
       return;
@@ -304,7 +292,7 @@ public final class CodecGenerator {
             + ".getNumber());");
   }
 
-  private void emitMessage(JavaWriter w, Field f, int num, String getter, boolean nullable) {
+  private void emitMessage(JavaWriter w, Field f, int num, String getter) {
     // A singular message is always present-able (@Nullable): skip it on the
     // wire when null (proto3 absent). Otherwise encode the child bytes via
     // its own Codec and frame them as one length-delimited byte array
@@ -332,7 +320,7 @@ public final class CodecGenerator {
    * Encode: one length-delimited entry per map put, framed like a repeated nested message --
    * writeByteArray(tag, entryBytes).
    */
-  private void emitMapField(JavaWriter w, Message m, Field f) {
+  private void emitMapField(JavaWriter w, Field f) {
     String getter = "v." + f.javaName() + "()";
     String entry = entryName(f);
     w.line("for (var _e : " + getter + ".entrySet()) {");
@@ -354,7 +342,7 @@ public final class CodecGenerator {
    * Decode: each occurrence of the map's tag is one length-delimited entry; decode it via the entry
    * Codec and fold key/value into the map. Repeated tags accumulate across the decode loop.
    */
-  private void emitMapDecode(JavaWriter w, Message m, Field f, int num) {
+  private void emitMapDecode(JavaWriter w, Field f) {
     String entry = entryName(f);
     String tmp = "_" + f.javaName();
     w.line("var " + tmp + " = " + entry + ".Codec.decode(in.readByteArray());");
@@ -480,7 +468,7 @@ public final class CodecGenerator {
     w.line("}");
   }
 
-  private void emitRepeatedEnum(JavaWriter w, Field f, int num, String getter) {
+  private void emitRepeatedEnum(JavaWriter w, int num, String getter) {
     w.line("for (var _e : " + getter + ") out.writeEnum(" + num + ", _e.getNumber());");
   }
 
@@ -525,10 +513,10 @@ public final class CodecGenerator {
     int inner = outer + 1;
     w.indent(inner);
     for (Field f : m.fields()) {
-      emitDecodeCase(w, m, f);
+      emitDecodeCase(w, f);
     }
     for (Oneof o : m.oneofs()) {
-      emitOneofDecodeCases(w, m, o);
+      emitOneofDecodeCases(w, o);
     }
     // A field the schema does not model: capture its raw bytes on demand so it rides
     // back out on encode and can be inspected without the newer schema. Replaces the
@@ -562,7 +550,7 @@ public final class CodecGenerator {
    * {@code Scalar} wrapper. Multiple members of one oneof share the local, so proto3's "last seen
    * wins" semantics fall out of a normal switch.
    */
-  private void emitOneofDecodeCases(JavaWriter w, Message m, Oneof o) {
+  private void emitOneofDecodeCases(JavaWriter w, Oneof o) {
     String iface = o.ifaceName();
     String cmp = o.componentName();
     for (Field f : o.members()) {
@@ -598,32 +586,18 @@ public final class CodecGenerator {
    */
   private String oneofMemberDecodeValue(Oneof o, Field f) {
     var raw = rawMemberField(o, f.number());
-    switch (raw.getType()) {
-      case TYPE_STRING -> {
-        return "in.readString()";
-      }
-      case TYPE_BYTES -> {
-        return "in.readByteArray()";
-      }
-      case TYPE_BOOL -> {
-        return "in.readBool()";
-      }
-      case TYPE_DOUBLE -> {
-        return "in.readDouble()";
-      }
-      case TYPE_FLOAT -> {
-        return "in.readFloat()";
-      }
-      case TYPE_INT32, TYPE_SINT32, TYPE_SFIXED32, TYPE_UINT32, TYPE_FIXED32 -> {
-        return "in.readInt32()";
-      }
-      case TYPE_INT64, TYPE_SINT64, TYPE_SFIXED64, TYPE_UINT64, TYPE_FIXED64 -> {
-        return "in.readInt64()";
-      }
+    return switch (raw.getType()) {
+      case TYPE_STRING -> "in.readString()";
+      case TYPE_BYTES -> "in.readByteArray()";
+      case TYPE_BOOL -> "in.readBool()";
+      case TYPE_DOUBLE -> "in.readDouble()";
+      case TYPE_FLOAT -> "in.readFloat()";
+      case TYPE_INT32, TYPE_SINT32, TYPE_SFIXED32, TYPE_UINT32, TYPE_FIXED32 -> "in.readInt32()";
+      case TYPE_INT64, TYPE_SINT64, TYPE_SFIXED64, TYPE_UINT64, TYPE_FIXED64 -> "in.readInt64()";
       case TYPE_ENUM -> {
         String enumName = types.resolveElement(f);
         // readEnum() already yields an int and forNumber takes an int, so no (int) cast.
-        return enumName + ".forNumber(in.readEnum())";
+        yield enumName + ".forNumber(in.readEnum())";
       }
       case TYPE_MESSAGE, TYPE_GROUP -> {
         // Message members are routed through the message-branch in
@@ -632,7 +606,7 @@ public final class CodecGenerator {
             "oneof decode: unexpected TYPE_MESSAGE member tag " + f.number());
       }
       default -> throw new IllegalStateException("unsupported oneof scalar type: " + raw.getType());
-    }
+    };
   }
 
   /**
@@ -649,23 +623,23 @@ public final class CodecGenerator {
         "no oneof member with tag " + number + " in raw descriptor for oneof " + o.name());
   }
 
-  private void emitDecodeCase(JavaWriter w, Message m, Field f) {
+  private void emitDecodeCase(JavaWriter w, Field f) {
     int num = f.number();
     w.line("case " + num + " -> {");
     int ind = w.indent() + 1;
     w.indent(ind);
     if (f.isMap()) {
-      emitMapDecode(w, m, f, num);
+      emitMapDecode(w, f);
     } else if (f.isRepeated()) {
-      emitRepeatedDecode(w, m, f, num);
+      emitRepeatedDecode(w, f);
     } else {
-      emitSingularDecode(w, m, f, num);
+      emitSingularDecode(w, f);
     }
     w.indent(ind - 1);
     w.line("}");
   }
 
-  private void emitSingularDecode(JavaWriter w, Message m, Field f, int num) {
+  private void emitSingularDecode(JavaWriter w, Field f) {
     switch (f.kind()) {
       case SCALAR -> {
         w.line(f.javaName() + " = " + decodeCall(types.wireScalar(f)) + ";");
@@ -685,7 +659,7 @@ public final class CodecGenerator {
     }
   }
 
-  private void emitRepeatedDecode(JavaWriter w, Message m, Field f, int num) {
+  private void emitRepeatedDecode(JavaWriter w, Field f) {
     switch (f.kind()) {
       case SCALAR -> {
         // Packed: the length-delimited tag is already consumed; read its varint length,
