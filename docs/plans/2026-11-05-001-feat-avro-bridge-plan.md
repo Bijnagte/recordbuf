@@ -111,6 +111,21 @@ shaped effort.
   layer and the protobuf-java interop are unchanged; Avro handling is a pure
   Avro-layer concern. Chosen over a record-as-`SpecificRecord` approach, which
   would couple the record to Avro and force Avro semantics onto the central type.
+- **Delegated specific-record generation (decided 2026-11-06, KTD6).** The v1
+  per-type `XSpecific` is produced by **Avro's own
+  `org.apache.avro.compiler.specific.SpecificCompiler`** (added 2026), running on the
+  per-file `.avsc` U4 emits -- not hand-emitted by recordbuf. Rationale: KTD6 says
+  compose/reuse Avro's own code rather than re-implement it; a ~300-line hand-rolled
+  emitter would duplicate Avro's exact API (which 1.12's own `SpecificCompiler`
+  template produces) and have to track Avro version drift. Cost: the delegation runs
+  on a *generation/build-time* classpath via the `org.apache.avro:avro-compiler`:
+  `1.12.2` sub-artifact, which transitively pulls Apache Velocity + Jackson; the
+  *consumed* `XSpecific` still compiles against core `avro` alone. `AvroConverterGenerator`
+  (KTD6 delegation: the only recordbuf-owned generated piece) now targets the
+  `SpecificCompiler`-emitted class by its fully-qualified name, not our own
+  `XSpecific`. Proven by `SpecificCompilerDelegationTest` (`.avsc` -> `SpecificCompiler`
+  -> a compilable `SpecificRecordBase` that round-trips through the
+  `GenericDatumReader`/`GenericDatumWriter` schema-driven API).
 - **Specific, not generic.** `SpecificRecord` classes are the v1 target, not
   `GenericRecord`/`Map`. Specific gives a concrete, IDE-navigable type, a
   compile-time schema, and the cleanest generated converter; generic is a
