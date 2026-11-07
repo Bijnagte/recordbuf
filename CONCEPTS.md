@@ -27,3 +27,15 @@ The rule that an un-modeled field is stored as its exact on-wire bytes read by
 its wire shape — never by a guessed proto type — and inspected the same way, so
 a wrong-shape read fails loudly rather than silently coercing. It is what keeps
 the carrier a faithful copy of the wire instead of a typed guess about it.
+
+## Well-known types
+
+### Native WKT mapping
+The generator's rule that a `google.protobuf.*` well-known type is generated as a
+*native* Java type rather than an opaque nested record — `Timestamp` → `Instant`,
+`Duration` → `Duration`, the scalar wrappers → boxed primitives, `BytesValue` →
+`runtime.Bytes`, `FieldMask`/`Empty` → their `runtime` holders. A `Wkt` helper
+surface bridges each native type to and from the WKT wire shape so the record
+stays wire-compatible with a protoc reference. *Fail-loud* miss path: a WKT with
+no canonical native encoding (e.g. `Struct`, `Any`, `Value`) is rejected at
+generation rather than silently emitted as an opaque record.
