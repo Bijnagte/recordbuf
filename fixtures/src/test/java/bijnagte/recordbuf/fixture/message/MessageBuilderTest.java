@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import bijnagte.recordbuf.fixture.message.rec.Sample.SampleCodec;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -37,10 +38,7 @@ class MessageBuilderTest {
     assertEquals(List.of(aItem(1, "one"), aItem(2, "two")), v.items());
 
     // A builder-built value round-trips through the codec.
-    assertEquals(
-        v,
-        bijnagte.recordbuf.fixture.message.rec.Sample.SampleCodec.decode(
-            bijnagte.recordbuf.fixture.message.rec.Sample.SampleCodec.encode(v)));
+    assertEquals(v, SampleCodec.decode(SampleCodec.encode(v)));
   }
 
   @Test

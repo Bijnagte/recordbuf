@@ -3,6 +3,7 @@ package bijnagte.recordbuf.fixture.map;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import bijnagte.recordbuf.fixture.map.rec.Sample.SampleCodec;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -51,11 +52,11 @@ class MapTest {
   @Test
   void byteEqual() throws Exception {
     byte[] theirs = newBuilder().build().toByteArray();
-    byte[] ours = bijnagte.recordbuf.fixture.map.rec.Sample.SampleCodec.encode(sample());
+    byte[] ours = SampleCodec.encode(sample());
     assertArrayEquals(theirs, ours, "record encode must equal protobuf-java toByteArray");
 
     byte[] theirsDefault = Sample.newBuilder().build().toByteArray();
-    byte[] oursDefault = bijnagte.recordbuf.fixture.map.rec.Sample.SampleCodec.encode(empty());
+    byte[] oursDefault = SampleCodec.encode(empty());
     assertArrayEquals(theirsDefault, oursDefault, "default sample must be empty on the wire");
     assertArrayEquals(new byte[0], oursDefault, "all-empty maps must encode to zero bytes");
   }
@@ -64,8 +65,7 @@ class MapTest {
   @Test
   void interopDecodesProtobuf() throws Exception {
     byte[] theirs = newBuilder().build().toByteArray();
-    bijnagte.recordbuf.fixture.map.rec.Sample parsed =
-        bijnagte.recordbuf.fixture.map.rec.Sample.SampleCodec.decode(theirs);
+    bijnagte.recordbuf.fixture.map.rec.Sample parsed = SampleCodec.decode(theirs);
     assertEquals(sample(), parsed);
     // The int map key (field b) round-trips as a boxed Integer, not a primitive int.
     assertEquals("one", parsed.b().get(1));
@@ -76,14 +76,9 @@ class MapTest {
   @Test
   void roundTrip() throws Exception {
     bijnagte.recordbuf.fixture.map.rec.Sample v = sample();
-    assertEquals(
-        v,
-        bijnagte.recordbuf.fixture.map.rec.Sample.SampleCodec.decode(
-            bijnagte.recordbuf.fixture.map.rec.Sample.SampleCodec.encode(v)));
+    assertEquals(v, SampleCodec.decode(SampleCodec.encode(v)));
 
-    bijnagte.recordbuf.fixture.map.rec.Sample d =
-        bijnagte.recordbuf.fixture.map.rec.Sample.SampleCodec.decode(
-            bijnagte.recordbuf.fixture.map.rec.Sample.SampleCodec.encode(empty()));
+    bijnagte.recordbuf.fixture.map.rec.Sample d = SampleCodec.decode(SampleCodec.encode(empty()));
     assertEquals(Map.of(), d.a());
     assertEquals(Map.of(), d.b());
     assertEquals(Map.of(), d.c());

@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import bijnagte.recordbuf.fixture.optional.rec.Sample.Fixed;
+import bijnagte.recordbuf.fixture.optional.rec.Sample.SampleCodec;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -30,8 +32,8 @@ class OptionalTest {
   private static final String B = "hello";
   private static final boolean C = true;
 
-  private static bijnagte.recordbuf.fixture.optional.rec.Sample.Fixed aFixed(long value) {
-    return bijnagte.recordbuf.fixture.optional.rec.Sample.Fixed.builder().value(value).build();
+  private static Fixed aFixed(long value) {
+    return Fixed.builder().value(value).build();
   }
 
   /** A fully-populated sample: a non-default, non-null value for every field. */
@@ -56,11 +58,11 @@ class OptionalTest {
   @Test
   void byteEqual() throws Exception {
     byte[] theirs = newBuilder().build().toByteArray();
-    byte[] ours = bijnagte.recordbuf.fixture.optional.rec.Sample.SampleCodec.encode(sample());
+    byte[] ours = SampleCodec.encode(sample());
     assertArrayEquals(theirs, ours, "present record encode must equal protobuf-java toByteArray");
 
     byte[] theirsDefault = Sample.newBuilder().build().toByteArray();
-    byte[] oursDefault = bijnagte.recordbuf.fixture.optional.rec.Sample.SampleCodec.encode(empty());
+    byte[] oursDefault = SampleCodec.encode(empty());
     assertArrayEquals(
         theirsDefault, oursDefault, "absent sample must be empty on the wire like protobuf-java");
     assertArrayEquals(
@@ -74,8 +76,7 @@ class OptionalTest {
   @Test
   void interopDecodesProtobuf() throws Exception {
     byte[] theirs = newBuilder().build().toByteArray();
-    bijnagte.recordbuf.fixture.optional.rec.Sample parsed =
-        bijnagte.recordbuf.fixture.optional.rec.Sample.SampleCodec.decode(theirs);
+    bijnagte.recordbuf.fixture.optional.rec.Sample parsed = SampleCodec.decode(theirs);
     assertEquals(sample(), parsed);
   }
 
@@ -83,14 +84,10 @@ class OptionalTest {
   @Test
   void roundTrip() throws Exception {
     bijnagte.recordbuf.fixture.optional.rec.Sample v = sample();
-    assertEquals(
-        v,
-        bijnagte.recordbuf.fixture.optional.rec.Sample.SampleCodec.decode(
-            bijnagte.recordbuf.fixture.optional.rec.Sample.SampleCodec.encode(v)));
+    assertEquals(v, SampleCodec.decode(SampleCodec.encode(v)));
 
     bijnagte.recordbuf.fixture.optional.rec.Sample d =
-        bijnagte.recordbuf.fixture.optional.rec.Sample.SampleCodec.decode(
-            bijnagte.recordbuf.fixture.optional.rec.Sample.SampleCodec.encode(empty()));
+        SampleCodec.decode(SampleCodec.encode(empty()));
     assertNull(d.a(), "absent optional int32 must decode to null, not 0");
     assertNull(d.b(), "absent optional string must decode to null, not \"\"");
     assertNull(d.c(), "absent optional bool must decode to null, not false");

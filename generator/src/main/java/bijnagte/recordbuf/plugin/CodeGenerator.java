@@ -11,6 +11,7 @@ import bijnagte.recordbuf.plugin.model.ModelLoader;
 import bijnagte.recordbuf.plugin.model.Oneof;
 import bijnagte.recordbuf.plugin.model.ProtoFile;
 import bijnagte.recordbuf.plugin.types.TypeResolver;
+import bijnagte.recordbuf.plugin.types.WellKnownTypes;
 import bijnagte.recordbuf.plugin.writer.CodecGenerator;
 import bijnagte.recordbuf.plugin.writer.EnumGenerator;
 import bijnagte.recordbuf.plugin.writer.InteropGenerator;
@@ -379,7 +380,7 @@ public final class CodeGenerator {
     // meaningful and is NEVER normalized to empty; every component carries a trailing comma so the
     // always-present carrier is the record's last component.
     for (var f : m.fields()) {
-      String type = f.isNullable() ? types.resolveNullable(f) : types.resolve(f);
+      String type = componentType(f, types);
       // @Deprecated before @Nullable when a component is deprecated; bare
       // (java.lang.Deprecated is never imported, matching recordbuf's style).
       String prefix = f.deprecated() ? "@Deprecated " : "";
@@ -624,6 +625,9 @@ public final class CodeGenerator {
 
   /** The component's Java static type, matching the record's own component. */
   private static String componentType(Field f, TypeResolver types) {
+    // A structured / empty WKT is non-null with a zero default, so it is NOT @Nullable.
+    var wkt = WellKnownTypes.resolve(f.typeUrl());
+    if (wkt != null && wkt.hasZeroDefault()) return types.resolve(f);
     return f.isNullable() ? types.resolveNullable(f) : types.resolve(f);
   }
 
@@ -681,16 +685,23 @@ public final class CodeGenerator {
    * containers, codec-default scalars/enum, null for present-able fields).
    */
   private static String freshDefault(Field f, TypeResolver types, TypeImports ci) {
+    var wkt = WellKnownTypes.resolve(f.typeUrl());
+    if (wkt != null) {
+      if (f.isRepeated()) return "new " + ci.use("java.util.ArrayList") + "<>()";
+      String z = wkt.zeroDefault();
+      if (z != null) return z;
+      return "null";
+    }
     if (f.isMap()) return "new " + ci.use("java.util.HashMap") + "<>()";
     if (f.isRepeated()) return "new " + ci.use("java.util.ArrayList") + "<>()";
     if (f.isNullable()) return "null";
     // Not nullable, not a container: a singular scalar or enum (a singular message
     // is always present-able, so it reached the null branch above).
     if (f.kind() == FieldKind.ENUM) return types.resolveElement(f) + ".forNumber(0)";
-    return freshScalarDefault(types.wireScalarForType(f.typeUrl()));
+    return freshScalarDefault(types.wireScalarForType(f.typeUrl()), ci);
   }
 
-  private static String freshScalarDefault(TypeResolver.WireScalar wire) {
+  private static String freshScalarDefault(TypeResolver.WireScalar wire, TypeImports ci) {
     return switch (wire) {
       case INT32, UINT32, SINT_32, FIXED32 -> "0";
       case INT64, UINT64, SINT_64, FIXED64 -> "0L";
@@ -698,7 +709,7 @@ public final class CodeGenerator {
       case DOUBLE -> "0.0";
       case BOOL -> "false";
       case STRING -> "\"\"";
-      case BYTES -> "bijnagte.recordbuf.runtime.Bytes.empty()";
+      case BYTES -> ci.use("bijnagte.recordbuf.runtime.Bytes") + ".empty()";
     };
   }
 

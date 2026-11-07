@@ -3,6 +3,7 @@ package bijnagte.recordbuf.fixture.order;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import bijnagte.recordbuf.fixture.order.rec.Sample.SampleCodec;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -32,24 +33,20 @@ class OrderTest {
   void byteEqual() throws Exception {
     assertArrayEquals(
         refBytes(),
-        bijnagte.recordbuf.fixture.order.rec.Sample.SampleCodec.encode(sample()),
+        SampleCodec.encode(sample()),
         "non-ascending field numbers must still byte-match protobuf-java");
   }
 
   /** Semantics: decode(protobuf-java bytes) == record. */
   @Test
   void interopDecodesProtobuf() throws Exception {
-    assertEquals(
-        sample(), bijnagte.recordbuf.fixture.order.rec.Sample.SampleCodec.decode(refBytes()));
+    assertEquals(sample(), SampleCodec.decode(refBytes()));
   }
 
   /** Invariant: decode(encode(x)) == x. */
   @Test
   void roundTrip() throws Exception {
     bijnagte.recordbuf.fixture.order.rec.Sample x = sample();
-    assertEquals(
-        x,
-        bijnagte.recordbuf.fixture.order.rec.Sample.SampleCodec.decode(
-            bijnagte.recordbuf.fixture.order.rec.Sample.SampleCodec.encode(x)));
+    assertEquals(x, SampleCodec.decode(SampleCodec.encode(x)));
   }
 }

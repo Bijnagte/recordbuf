@@ -115,7 +115,7 @@ class BuilderEmissionTest {
     // R4: fresh builder initializes each component to the codec default (short names,
     // matching the generated record's own components).
     assertTrue(src.contains("private int a = 0;"), src);
-    assertTrue(src.contains("private Bytes b = bijnagte.recordbuf.runtime.Bytes.empty();"), src);
+    assertTrue(src.contains("private Bytes b = Bytes.empty();"), src);
     assertTrue(src.contains("private List<Item> items = new ArrayList<>();"), src);
   }
 

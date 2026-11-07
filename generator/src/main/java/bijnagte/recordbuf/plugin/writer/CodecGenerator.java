@@ -6,6 +6,7 @@ import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.Oneof;
 import bijnagte.recordbuf.plugin.types.TypeResolver;
 import bijnagte.recordbuf.plugin.types.TypeResolver.WireScalar;
+import bijnagte.recordbuf.plugin.types.WellKnownTypes;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import java.util.Comparator;
 
@@ -31,12 +32,8 @@ import java.util.Comparator;
 public final class CodecGenerator {
 
   // The runtime package a generated codec calls into. Resolved to short imported
-  // names per-file via TypeImports (CodecDefaults/Decoder/Encoder/Wire).
+  // names per-file via TypeImports (CodecDefaults/Decoder/Encoder/Wire/Bytes).
   private static final String RT = "bijnagte.recordbuf.runtime";
-  // A bytes field's Java component type. Generated records hold the runtime's immutable Bytes
-  // wrapper (not a raw byte[]) so value equality is content-aware without a byte[] record
-  // component.
-  private static final String BYTES_TYPE = RT + ".Bytes";
 
   private final TypeResolver types;
   private final TypeImports ci;
@@ -210,6 +207,12 @@ public final class CodecGenerator {
   private void emitEncodeField(JavaWriter w, Field f) {
     String getter = "v." + f.javaName() + "()";
     int num = f.number();
+
+    var wkt = WellKnownTypes.resolve(f.typeUrl());
+    if (wkt != null) {
+      emitWktEncode(w, f, wkt);
+      return;
+    }
 
     if (f.isRepeated()) {
       switch (f.kind()) {
@@ -683,6 +686,11 @@ public final class CodecGenerator {
   }
 
   private void emitSingularDecode(JavaWriter w, Field f) {
+    var wkt = WellKnownTypes.resolve(f.typeUrl());
+    if (wkt != null) {
+      emitWktDecode(w, f, wkt, false);
+      return;
+    }
     switch (f.kind()) {
       case SCALAR -> {
         w.line(f.javaName() + " = " + decodeCall(types.wireScalar(f)) + ";");
@@ -703,6 +711,11 @@ public final class CodecGenerator {
   }
 
   private void emitRepeatedDecode(JavaWriter w, Field f) {
+    var wkt = WellKnownTypes.resolve(f.typeUrl());
+    if (wkt != null) {
+      emitWktDecode(w, f, wkt, true);
+      return;
+    }
     switch (f.kind()) {
       case SCALAR -> {
         // Packed: the length-delimited tag is already consumed; read its varint length,
@@ -726,10 +739,158 @@ public final class CodecGenerator {
     }
   }
 
+  // --- well-known types ---
+
+  private static final String TS = "google.protobuf.Timestamp";
+  private static final String DUR = "google.protobuf.Duration";
+  private static final String MASK = "google.protobuf.FieldMask";
+
+  /**
+   * Encode a well-known-type field as a nested-message frame on the wire. Every WKT writes one
+   * length-delimited field carrying the inner content that {@code Wkt} produces. A wrapper / bytes
+   * WKT is present iff its value is non-null; a structured / empty WKT is written only when it
+   * differs from its zero default.
+   */
+  private void emitWktEncode(JavaWriter w, Field f, WellKnownTypes.Entry wkt) {
+    String wkr = ci.use(RT + ".wkt.Wkt");
+    int num = f.number();
+    String getter = "v." + f.javaName() + "()";
+    boolean skipZero = wkt.hasZeroDefault();
+    if (f.isRepeated()) {
+      if (skipZero) {
+        w.line("for (var e : " + getter + ") {");
+        int ind = w.indent() + 1;
+        w.indent(ind);
+        w.line(
+            "if (!e.equals("
+                + wkt.zeroDefault()
+                + ")) out.writeByteArray("
+                + num
+                + ", "
+                + wktContent(wkr, wkt, "e")
+                + ");");
+        w.indent(ind - 1);
+        w.line("}");
+      } else {
+        w.line(
+            "for (var e : "
+                + getter
+                + ") out.writeByteArray("
+                + num
+                + ", "
+                + wktContent(wkr, wkt, "e")
+                + ");");
+      }
+      return;
+    }
+    if (skipZero) {
+      w.line(
+          "if (!"
+              + getter
+              + ".equals("
+              + wkt.zeroDefault()
+              + ")) out.writeByteArray("
+              + num
+              + ", "
+              + wktContent(wkr, wkt, getter)
+              + ");");
+    } else {
+      w.line(
+          "if ("
+              + getter
+              + " != null) out.writeByteArray("
+              + num
+              + ", "
+              + wktContent(wkr, wkt, getter)
+              + ");");
+    }
+  }
+
+  /**
+   * Decode a well-known-type field from its read length-delimited bytes by delegating to {@code
+   * Wkt}. A wrapper / bytes WKT defaults to {@code null}; a structured / empty WKT keeps its zero
+   * default and is simply overwritten when the wire carries it. A repeated WKT accumulates one
+   * element per occurrence.
+   */
+  private void emitWktDecode(JavaWriter w, Field f, WellKnownTypes.Entry wkt, boolean repeated) {
+    String wkr = ci.use(RT + ".wkt.Wkt");
+    String cast =
+        (wkt.kind() == WellKnownTypes.Kind.WRAPPER
+                || wkt.kind() == WellKnownTypes.Kind.BYTES_WRAPPER)
+            ? "(" + lastSeg(types.resolve(f)) + ") "
+            : "";
+    String parsed = cast + wktParse(wkr, wkt, "in.readByteArray()");
+    if (repeated) {
+      w.line(f.javaName() + ".add(" + parsed + ");");
+    } else {
+      w.line(f.javaName() + " = " + parsed + ";");
+    }
+  }
+
+  /**
+   * The {@code Wkt} inner-frame expression that turns a Java value into its nested-message bytes.
+   */
+  private static String wktContent(String wkr, WellKnownTypes.Entry wkt, String valueExpr) {
+    return switch (wkt.kind()) {
+      case STRUCTURED ->
+          switch (wkt.fqn()) {
+            case TS -> wkr + ".timestamp(" + valueExpr + ")";
+            case DUR -> wkr + ".duration(" + valueExpr + ")";
+            case MASK -> wkr + ".fieldMask(" + valueExpr + ")";
+            default -> wkr + ".empty(" + valueExpr + ")";
+          };
+      case WRAPPER, BYTES_WRAPPER -> {
+        WireScalar wire = wkt.wire();
+        if (wire == null) throw new IllegalStateException("wrapper WKT has no wire scalar");
+        yield wkr + ".wrap(" + wkr + ".Wrap." + wire.name() + ", " + valueExpr + ")";
+      }
+      default -> throw new IllegalStateException("unsupported WKT to encode: " + wkt.fqn());
+    };
+  }
+
+  /** The {@code Wkt} expression that parses nested-message bytes into a Java value. */
+  private static String wktParse(String wkr, WellKnownTypes.Entry wkt, String bytesExpr) {
+    return switch (wkt.kind()) {
+      case STRUCTURED ->
+          switch (wkt.fqn()) {
+            case TS -> wkr + ".parseTimestamp(" + bytesExpr + ")";
+            case DUR -> wkr + ".parseDuration(" + bytesExpr + ")";
+            case MASK -> wkr + ".parseFieldMask(" + bytesExpr + ")";
+            default -> wkr + ".parseEmpty(" + bytesExpr + ")";
+          };
+      case WRAPPER, BYTES_WRAPPER -> {
+        WireScalar wire = wkt.wire();
+        if (wire == null) throw new IllegalStateException("wrapper WKT has no wire scalar");
+        yield wkr + ".parse(" + wkr + ".Wrap." + wire.name() + ", " + bytesExpr + ")";
+      }
+      default -> throw new IllegalStateException("unsupported WKT to decode: " + wkt.fqn());
+    };
+  }
+
+  private static String lastSeg(String type) {
+    int dot = type.lastIndexOf('.');
+    return dot < 0 ? type : type.substring(dot + 1);
+  }
+
   // --- helpers ---
 
   /** The local-declaration line for a decoded field. */
   private String initDecl(Field f) {
+    // A well-known type: a structured/empty WKT holds its non-null zero default; a
+    // wrapper/bytes WKT is present-iff-set (a nullable value); a repeated WKT is a list.
+    var wkt = WellKnownTypes.resolve(f.typeUrl());
+    if (wkt != null) {
+      if (f.isRepeated())
+        return types.resolve(f)
+            + " "
+            + f.javaName()
+            + " = new "
+            + ci.use("java.util.ArrayList")
+            + "<>();";
+      if (wkt.hasZeroDefault())
+        return types.resolve(f) + " " + f.javaName() + " = " + wkt.zeroDefault() + ";";
+      return types.resolve(f) + " " + f.javaName() + " = null;";
+    }
     // A present-able field is declared with its boxed/reference type and
     // starts null; every other field keeps a default value.
     if (f.isNullable()) return types.resolve(f) + " " + f.javaName() + " = null;";
@@ -809,7 +970,7 @@ public final class CodecGenerator {
       case DOUBLE -> "in.readDouble()";
       case BOOL -> "in.readBool()";
       case STRING -> "in.readString()";
-      case BYTES -> BYTES_TYPE + ".of(in.readByteArray())";
+      case BYTES -> ci.use(RT + ".Bytes") + ".of(in.readByteArray())";
     };
   }
 

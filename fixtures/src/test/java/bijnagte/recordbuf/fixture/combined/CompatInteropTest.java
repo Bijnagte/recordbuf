@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import bijnagte.recordbuf.runtime.Bytes;
 import com.google.protobuf.ByteString;
 import java.util.List;
 import java.util.Map;
@@ -185,7 +186,7 @@ class CompatInteropTest {
         .i(I)
         .fx(FX)
         .s(S)
-        .b(bijnagte.recordbuf.runtime.Bytes.of(B))
+        .b(Bytes.of(B))
         .packed(PACKED)
         .nested(NESTED)
         .subs(SUBS)

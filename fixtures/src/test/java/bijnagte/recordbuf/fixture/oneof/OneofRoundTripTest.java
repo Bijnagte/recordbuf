@@ -2,6 +2,10 @@ package bijnagte.recordbuf.fixture.oneof;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.ColorValue;
+import bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.CountValue;
+import bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.NameValue;
+import bijnagte.recordbuf.fixture.oneof.rec.Compat.Interop;
 import java.io.IOException;
 import org.junit.jupiter.api.Test;
 
@@ -31,47 +35,35 @@ class OneofRoundTripTest {
   void stringMemberRoundTrips() throws IOException {
     var rec =
         bijnagte.recordbuf.fixture.oneof.rec.Compat.builder()
-            .choice(new bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.NameValue("hello"))
+            .choice(new NameValue("hello"))
             .build();
     var back = bijnagte.recordbuf.fixture.oneof.rec.Compat.fromBytes(rec.toByteArray());
     assertNotNull(back.choice(), "choice must be set after encoding a string member");
-    assertTrue(
-        back.choice() instanceof bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.NameValue);
-    assertEquals(
-        "hello",
-        ((bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.NameValue) back.choice()).value());
+    assertTrue(back.choice() instanceof NameValue);
+    assertEquals("hello", ((NameValue) back.choice()).value());
   }
 
   @Test
   void intMemberRoundTrips() throws IOException {
     var rec =
-        bijnagte.recordbuf.fixture.oneof.rec.Compat.builder()
-            .choice(new bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.CountValue(42))
-            .build();
+        bijnagte.recordbuf.fixture.oneof.rec.Compat.builder().choice(new CountValue(42)).build();
     var back = bijnagte.recordbuf.fixture.oneof.rec.Compat.fromBytes(rec.toByteArray());
     assertNotNull(back.choice());
-    assertTrue(
-        back.choice() instanceof bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.CountValue);
-    assertEquals(
-        42,
-        ((bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.CountValue) back.choice()).value());
+    assertTrue(back.choice() instanceof CountValue);
+    assertEquals(42, ((CountValue) back.choice()).value());
   }
 
   @Test
   void enumMemberRoundTrips() throws IOException {
     var rec =
         bijnagte.recordbuf.fixture.oneof.rec.Compat.builder()
-            .choice(
-                new bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.ColorValue(
-                    bijnagte.recordbuf.fixture.oneof.rec.Color.GREEN))
+            .choice(new ColorValue(bijnagte.recordbuf.fixture.oneof.rec.Color.GREEN))
             .build();
     var back = bijnagte.recordbuf.fixture.oneof.rec.Compat.fromBytes(rec.toByteArray());
     assertNotNull(back.choice(), "choice must be set after encoding an enum member");
-    assertTrue(
-        back.choice() instanceof bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.ColorValue);
+    assertTrue(back.choice() instanceof ColorValue);
     assertEquals(
-        bijnagte.recordbuf.fixture.oneof.rec.Color.GREEN,
-        ((bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.ColorValue) back.choice()).value());
+        bijnagte.recordbuf.fixture.oneof.rec.Color.GREEN, ((ColorValue) back.choice()).value());
   }
 
   @Test
@@ -88,7 +80,7 @@ class OneofRoundTripTest {
   void unwrapableValueForScalar() {
     var rec =
         bijnagte.recordbuf.fixture.oneof.rec.Compat.builder()
-            .choice(new bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.NameValue("hello"))
+            .choice(new NameValue("hello"))
             .build();
     assertEquals("hello", rec.choice().value());
   }
@@ -110,7 +102,7 @@ class OneofRoundTripTest {
     // Through the converter as well: a zero-byte message is a null-component
     // record and vice versa. `to` is record->reference; `from` is
     // reference->record.
-    var interopProto = bijnagte.recordbuf.fixture.oneof.rec.Compat.Interop.to(rec);
+    var interopProto = Interop.to(rec);
     assertEquals(
         Compat.ChoiceCase.CHOICE_NOT_SET,
         interopProto.getChoiceCase(),
@@ -118,16 +110,14 @@ class OneofRoundTripTest {
     assertArrayEquals(
         new byte[0], interopProto.toByteArray(), "an all-absent record must convert to zero bytes");
     assertNull(
-        bijnagte.recordbuf.fixture.oneof.rec.Compat.Interop.from(interopProto).choice(),
+        Interop.from(interopProto).choice(),
         "a CHOICE_NOT_SET reference must convert to a null-component record");
   }
 
   @Test
   void encodeIsByteStable() throws IOException {
     var rec =
-        bijnagte.recordbuf.fixture.oneof.rec.Compat.builder()
-            .choice(new bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.NameValue("x"))
-            .build();
+        bijnagte.recordbuf.fixture.oneof.rec.Compat.builder().choice(new NameValue("x")).build();
     var decoded = bijnagte.recordbuf.fixture.oneof.rec.Compat.fromBytes(rec.toByteArray());
     assertArrayEquals(
         rec.toByteArray(),
@@ -144,7 +134,7 @@ class OneofRoundTripTest {
   void stringMemberIsByteCompatibleWithProtobufJava() throws IOException {
     var rec =
         bijnagte.recordbuf.fixture.oneof.rec.Compat.builder()
-            .choice(new bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.NameValue("hello"))
+            .choice(new NameValue("hello"))
             .build();
     var ref = Compat.newBuilder().setName("hello").build();
     assertArrayEquals(
@@ -157,9 +147,7 @@ class OneofRoundTripTest {
   @Test
   void intMemberIsByteCompatibleWithProtobufJava() throws IOException {
     var rec =
-        bijnagte.recordbuf.fixture.oneof.rec.Compat.builder()
-            .choice(new bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.CountValue(999))
-            .build();
+        bijnagte.recordbuf.fixture.oneof.rec.Compat.builder().choice(new CountValue(999)).build();
     var ref = Compat.newBuilder().setCount(999).build();
     assertArrayEquals(
         rec.toByteArray(),
@@ -172,9 +160,7 @@ class OneofRoundTripTest {
   void enumMemberIsByteCompatibleAndRecoversKnownConstant() throws IOException {
     var rec =
         bijnagte.recordbuf.fixture.oneof.rec.Compat.builder()
-            .choice(
-                new bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.ColorValue(
-                    bijnagte.recordbuf.fixture.oneof.rec.Color.GREEN))
+            .choice(new ColorValue(bijnagte.recordbuf.fixture.oneof.rec.Color.GREEN))
             .build();
     var ref = Compat.newBuilder().setColor(Color.GREEN).build();
     assertArrayEquals(
@@ -185,7 +171,7 @@ class OneofRoundTripTest {
     // The record-side forNumber is total (an unknown number maps to the first
     // constant), so a KNOWN value must map to the matching protobuf-java constant
     // on the reference side.
-    var reference = bijnagte.recordbuf.fixture.oneof.rec.Compat.Interop.to(rec);
+    var reference = Interop.to(rec);
     assertEquals(
         Color.GREEN,
         reference.getColor(),
@@ -217,14 +203,14 @@ class OneofRoundTripTest {
       throws IOException {
     // record -> reference: the converter's output must serialize identically
     // to protobuf-java.
-    var interopReference = bijnagte.recordbuf.fixture.oneof.rec.Compat.Interop.to(record);
+    var interopReference = Interop.to(record);
     assertArrayEquals(
         ref.toByteArray(),
         interopReference.toByteArray(),
         "Interop.to(record) must serialize byte-identically to the protobuf-java reference " + tag);
 
     // reference -> record: the converter must recover the record's codec bytes.
-    var interopRecord = bijnagte.recordbuf.fixture.oneof.rec.Compat.Interop.from(ref);
+    var interopRecord = Interop.from(ref);
     assertArrayEquals(
         record.toByteArray(),
         interopRecord.toByteArray(),

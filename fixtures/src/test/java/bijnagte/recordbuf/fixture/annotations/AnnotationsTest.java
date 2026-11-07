@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import bijnagte.recordbuf.fixture.annotations.rec.Sample.Payload;
+import bijnagte.recordbuf.fixture.annotations.rec.Sample.SampleCodec;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -42,10 +44,7 @@ class AnnotationsTest {
     return bijnagte.recordbuf.fixture.annotations.rec.Sample.builder()
         .id(7) // id (int32, non-deprecated)
         .note("hello <tag> & friends") // note (string, @Deprecated @Nullable)
-        .payload(
-            bijnagte.recordbuf.fixture.annotations.rec.Sample.Payload.builder()
-                .body("body")
-                .build()) // payload (@Nullable)
+        .payload(Payload.builder().body("body").build()) // payload (@Nullable)
         .tags(Map.of("k", 1, "j", -2)) // tags (Map, @Deprecated)
         .build();
   }
@@ -71,13 +70,12 @@ class AnnotationsTest {
    */
   @Test
   void byteEqual() throws Exception {
-    byte[] ours = bijnagte.recordbuf.fixture.annotations.rec.Sample.SampleCodec.encode(populated());
+    byte[] ours = SampleCodec.encode(populated());
     byte[] theirs = refBuilder().build().toByteArray();
     assertArrayEquals(
         theirs, ours, "populated sample: record.encode must equal protobuf-java toByteArray");
 
-    byte[] oursEmpty =
-        bijnagte.recordbuf.fixture.annotations.rec.Sample.SampleCodec.encode(empty());
+    byte[] oursEmpty = SampleCodec.encode(empty());
     assertArrayEquals(new byte[0], oursEmpty, "all-default sample must encode to zero bytes");
   }
 
@@ -88,8 +86,7 @@ class AnnotationsTest {
   @Test
   void interopDecodesProtobuf() throws Exception {
     byte[] theirs = refBuilder().build().toByteArray();
-    bijnagte.recordbuf.fixture.annotations.rec.Sample parsed =
-        bijnagte.recordbuf.fixture.annotations.rec.Sample.SampleCodec.decode(theirs);
+    bijnagte.recordbuf.fixture.annotations.rec.Sample parsed = SampleCodec.decode(theirs);
     assertEquals(7, parsed.id());
     assertEquals("hello <tag> & friends", parsed.note());
     assertEquals("body", parsed.payload().body());
@@ -99,14 +96,10 @@ class AnnotationsTest {
   /** Round-trip: encode then decode of both samples is identity. */
   @Test
   void roundTrip() throws Exception {
-    var back =
-        bijnagte.recordbuf.fixture.annotations.rec.Sample.SampleCodec.decode(
-            bijnagte.recordbuf.fixture.annotations.rec.Sample.SampleCodec.encode(populated()));
+    var back = SampleCodec.decode(SampleCodec.encode(populated()));
     assertEquals(populated(), back);
 
-    var emptyBack =
-        bijnagte.recordbuf.fixture.annotations.rec.Sample.SampleCodec.decode(
-            bijnagte.recordbuf.fixture.annotations.rec.Sample.SampleCodec.encode(empty()));
+    var emptyBack = SampleCodec.decode(SampleCodec.encode(empty()));
     assertEquals(0, emptyBack.id());
     assertNull(emptyBack.note());
     assertNull(emptyBack.payload());

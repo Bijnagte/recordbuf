@@ -1,0 +1,50 @@
+// Per-family interop fixture for the well-known types (feat-well-known-types-native): a single
+// .proto drives both halves at generation time -- recordbuf generates the record into the `.rec`
+// sibling package (package_suffix=.rec) and protobuf-java generates the reference into the natural
+// package, so an interop test can drive recordbuf-generated WKTs against the protobuf-java 4.36.2
+// oracle and assert byte-equivalence across the boundary.
+//
+// One top-level message per family (the record's public type name must match its source filename).
+// `Sample` exercises every supported WKT classification: structured (Timestamp/Duration/FieldMask/
+// Empty), the scalar wrappers (Int32/Int64/Double/Float/Bool/String Value) that collapse to their
+// Java primitive/wrapper, and the bytes wrapper (BytesValue, -> runtime Bytes). A repeated WKT
+// (whens) exercises the repeated-WKT code path.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.wellknown;
+option java_package = "bijnagte.recordbuf.fixture.wellknown";
+option java_multiple_files = true;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/wrappers.proto";
+import "google/protobuf/empty.proto";
+
+message Sample {
+  // Structured WKT -> java.time.Instant, non-null with a zero default (Epoch).
+  google.protobuf.Timestamp at = 1;
+
+  // Structured WKT -> java.time.Duration, non-null with a zero default (zero).
+  google.protobuf.Duration span = 2;
+
+  // Structured WKT -> runtime FieldMask, non-null with a zero default (empty).
+  google.protobuf.FieldMask mask = 3;
+
+  // Wrapper WKTs -> the boxed Java primitive, present iff set (a null when absent).
+  google.protobuf.Int32Value i32 = 4;
+  google.protobuf.Int64Value i64 = 5;
+  google.protobuf.DoubleValue dbl = 6;
+  google.protobuf.FloatValue flt = 7;
+  google.protobuf.BoolValue flag = 8;
+  google.protobuf.StringValue text = 9;
+
+  // bytes wrapper -> runtime Bytes, present iff set.
+  google.protobuf.BytesValue blob = 10;
+
+  // Empty WKT -> runtime Empty singleton, non-null.
+  google.protobuf.Empty empty = 11;
+
+  // Repeated structured WKT (a List of Instant).
+  repeated google.protobuf.Timestamp whens = 12;
+}

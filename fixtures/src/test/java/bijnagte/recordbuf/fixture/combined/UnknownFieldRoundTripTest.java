@@ -8,7 +8,10 @@ import bijnagte.recordbuf.fixture.combined.rec.Compat;
 import bijnagte.recordbuf.runtime.UnknownField;
 import bijnagte.recordbuf.runtime.UnknownFields;
 import bijnagte.recordbuf.runtime.WireType;
+import com.google.protobuf.ByteString;
+import com.google.protobuf.CodedOutputStream;
 import java.io.ByteArrayOutputStream;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -33,7 +36,7 @@ class UnknownFieldRoundTripTest {
   private static byte[] appendVarintField(byte[] prefix, int fieldNumber, long value)
       throws Exception {
     var baos = new ByteArrayOutputStream();
-    var out = com.google.protobuf.CodedOutputStream.newInstance(baos);
+    var out = CodedOutputStream.newInstance(baos);
     out.writeTag(fieldNumber, 0); // wire type 0 == varint
     out.writeRawVarint64(value);
     out.flush(); // flush the view's buffer into baos
@@ -43,9 +46,9 @@ class UnknownFieldRoundTripTest {
   private static byte[] appendLengthDelimitedStringField(
       byte[] prefix, int fieldNumber, String value) throws Exception {
     var baos = new ByteArrayOutputStream();
-    var out = com.google.protobuf.CodedOutputStream.newInstance(baos);
+    var out = CodedOutputStream.newInstance(baos);
     out.writeTag(fieldNumber, 2); // wire type 2 == length-delimited
-    out.writeByteArrayNoTag(com.google.protobuf.ByteString.copyFromUtf8(value).toByteArray());
+    out.writeByteArrayNoTag(ByteString.copyFromUtf8(value).toByteArray());
     out.flush();
     return concat(prefix, baos.toByteArray());
   }
@@ -154,7 +157,7 @@ class UnknownFieldRoundTripTest {
     return Compat.builder().i(42).build();
   }
 
-  private static Compat compatWith(java.util.function.Consumer<Compat.Builder> mutate) {
+  private static Compat compatWith(Consumer<Compat.Builder> mutate) {
     var b = Compat.builder();
     mutate.accept(b);
     return b.build();

@@ -3,6 +3,7 @@ package bijnagte.recordbuf.fixture.string;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import bijnagte.recordbuf.fixture.string.rec.Sample.SampleCodec;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -31,7 +32,7 @@ class StringTest {
   @Test
   void byteEqual() throws Exception {
     byte[] theirs = newBuilder().build().toByteArray();
-    byte[] ours = bijnagte.recordbuf.fixture.string.rec.Sample.SampleCodec.encode(sample());
+    byte[] ours = SampleCodec.encode(sample());
     assertArrayEquals(theirs, ours, "record encode must equal protobuf-java toByteArray");
   }
 
@@ -39,18 +40,14 @@ class StringTest {
   @Test
   void interopDecodesProtobuf() throws Exception {
     byte[] theirs = newBuilder().build().toByteArray();
-    bijnagte.recordbuf.fixture.string.rec.Sample parsed =
-        bijnagte.recordbuf.fixture.string.rec.Sample.SampleCodec.decode(theirs);
+    bijnagte.recordbuf.fixture.string.rec.Sample parsed = SampleCodec.decode(theirs);
     assertEquals(sample(), parsed);
   }
 
   @Test
   void roundTrip() throws Exception {
     bijnagte.recordbuf.fixture.string.rec.Sample v = sample();
-    assertEquals(
-        v,
-        bijnagte.recordbuf.fixture.string.rec.Sample.SampleCodec.decode(
-            bijnagte.recordbuf.fixture.string.rec.Sample.SampleCodec.encode(v)));
+    assertEquals(v, SampleCodec.decode(SampleCodec.encode(v)));
   }
 
   private static bijnagte.recordbuf.fixture.string.rec.Sample sample() {

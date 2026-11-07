@@ -34,9 +34,13 @@ public final class EnumGenerator {
     w.line();
     w.line("// Reverse lookup used by the codec when decoding from wire.");
     w.line(
-        "private static final java.util.Map<Integer, "
+        "private static final "
+            + ci.use("java.util.Map")
+            + "<Integer, "
             + name
-            + "> BY_NUMBER = new java.util.HashMap<>();");
+            + "> BY_NUMBER = new "
+            + ci.use("java.util.HashMap")
+            + "<>();");
     w.block(
         "static {",
         "}",

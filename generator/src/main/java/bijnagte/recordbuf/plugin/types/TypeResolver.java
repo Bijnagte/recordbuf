@@ -2,6 +2,7 @@ package bijnagte.recordbuf.plugin.types;
 
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FileTable;
+import bijnagte.recordbuf.plugin.types.WellKnownTypes.Entry;
 import bijnagte.recordbuf.plugin.writer.TypeImports;
 import org.jspecify.annotations.Nullable;
 
@@ -104,6 +105,15 @@ public final class TypeResolver {
     };
   }
 
+  /**
+   * Resolve the native WKT entry for a field/oneof case, or {@code null} when it is not a
+   * well-known type. The generated codec routes a recognized WKT's wire framing here rather than
+   * emitting a protobuf record for it (R1).
+   */
+  public @Nullable Entry wktFor(Field f) {
+    return WellKnownTypes.resolve(f.typeUrl());
+  }
+
   /** For repeated fields, just the element type — used when generating loops. */
   public String resolveElement(Field f) {
     return switch (f.kind()) {
@@ -120,6 +130,21 @@ public final class TypeResolver {
 
   private String resolveType(String protoFqn) {
     if (protoFqn == null) return ci.use("java.lang.Object");
+    // U8 / R11: a well-known type resolves to its native Java type, never to its protobuf record.
+    // A dynamic WKT (Struct/Value/ListValue/Any) has no canonical wire shape, so fail loud.
+    var wkt = WellKnownTypes.resolve(protoFqn);
+    if (wkt != null) {
+      if (wkt.isDynamic()) {
+        throw new IllegalStateException(
+            "references dynamic WKT '"
+                + protoFqn
+                + "' (no canonical wire shape; unsupported in v1)");
+      }
+      String javaType = wkt.javaType();
+      if (javaType == null)
+        throw new IllegalStateException("WKT '" + protoFqn + "' has no java type");
+      return ci.use(javaType);
+    }
     String javaFqn = table.javaFqn(protoFqn);
     if (javaFqn == null) return ci.use(lastSegment(protoFqn));
     // The collector applies the same-package (import-free) rule and collision

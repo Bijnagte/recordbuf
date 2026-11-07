@@ -246,7 +246,13 @@ public final class InteropGenerator {
     String type = types.resolve(f);
     if ("bytes".equals(f.typeUrl())) {
       w.line(
-          "var _" + f.javaName() + " = bijnagte.recordbuf.runtime.Bytes.of(" + fromExpr(f) + ");");
+          "var _"
+              + f.javaName()
+              + " = "
+              + ci.use("bijnagte.recordbuf.runtime.Bytes")
+              + ".of("
+              + fromExpr(f)
+              + ");");
     } else if (f.isNullable()) {
       w.line(type + " _" + f.javaName() + " = x.has" + cap + "() ? x.get" + cap + "() : null;");
     } else {

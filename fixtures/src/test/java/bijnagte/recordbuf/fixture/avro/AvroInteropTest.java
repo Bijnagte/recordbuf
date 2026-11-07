@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import bijnagte.recordbuf.runtime.Bytes;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.apache.avro.util.ClassSecurityValidator;
@@ -104,10 +106,7 @@ class AvroInteropTest {
     byte[] b = new byte[] {(byte) 0x80, (byte) 0x81, -1};
 
     bijnagte.recordbuf.fixture.bytes.rec.Sample original =
-        bijnagte.recordbuf.fixture.bytes.rec.Sample.builder()
-            .a(bijnagte.recordbuf.runtime.Bytes.of(a))
-            .b(bijnagte.recordbuf.runtime.Bytes.of(b))
-            .build();
+        bijnagte.recordbuf.fixture.bytes.rec.Sample.builder().a(Bytes.of(a)).b(Bytes.of(b)).build();
 
     bijnagte.recordbuf.fixture.bytes.SampleAvro s =
         bijnagte.recordbuf.fixture.bytes.rec.SampleAvroConverter.fromRecord(original);
@@ -144,7 +143,7 @@ class AvroInteropTest {
 
     // toByteBuffer()/fromByteBuffer() use BinaryMessageEncoder/Decoder;
     // @BeforeAll's addTrustedClassesFromCurrentPackages() permits the generated class.
-    java.nio.ByteBuffer encoded = original.toByteBuffer();
+    ByteBuffer encoded = original.toByteBuffer();
     bijnagte.recordbuf.fixture.i32.SampleAvro decoded =
         bijnagte.recordbuf.fixture.i32.SampleAvro.fromByteBuffer(encoded);
     assertEquals(original, decoded, "i32 SampleAvro must round-trip through Avro binary encoding");

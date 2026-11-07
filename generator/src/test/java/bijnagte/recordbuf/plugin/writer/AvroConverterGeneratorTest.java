@@ -132,10 +132,10 @@ class AvroConverterGeneratorTest {
             "bijnagte.recordbuf.fixture.rec");
 
     assertTrue(
-        out.contains("java.nio.ByteBuffer.wrap(r.a().toByteArray())"),
+        out.contains("ByteBuffer.wrap(r.a().toByteArray())"),
         "fromRecord wraps a record's Bytes' raw array in a ByteBuffer");
     assertTrue(
-        out.contains("Bytes.of(java.util.Arrays.copyOf(s.getA().array()"),
+        out.contains("Bytes.of(Arrays.copyOf(s.getA().array()"),
         "toRecord wraps a ByteBuffer's raw array into a Bytes");
   }
 }

@@ -67,6 +67,16 @@ public final class AvroConverterGenerator {
     if (hasWkt) {
       sb.append("import bijnagte.recordbuf.avro.WktAvroBridge;\n");
     }
+    // A bytes-scalar field maps Avro's ByteBuffer to the runtime's Bytes; import both plus
+    // java.util.Arrays (used by Arrays.copyOf) when such a field is present.
+    boolean hasByteField =
+        message.fields().stream()
+            .anyMatch(f -> f.kind() == FieldKind.SCALAR && "bytes".equals(f.typeUrl()));
+    if (hasByteField) {
+      sb.append("import bijnagte.recordbuf.runtime.Bytes;\n");
+      sb.append("import java.nio.ByteBuffer;\n");
+      sb.append("import java.util.Arrays;\n");
+    }
     sb.append("import bijnagte.recordbuf.runtime.UnknownFields;\n\n");
     sb.append(
         "@SuppressWarnings({\"checkstyle:HideUtilityClassConstructor\", \"checkstyle:MissingJavadoc\"})\n");
@@ -102,14 +112,14 @@ public final class AvroConverterGenerator {
             .append("()));\n");
       } else if (f.kind() == FieldKind.SCALAR && "bytes".equals(f.typeUrl())) {
         // Avro's specific record stores bytes as a ByteBuffer; produce the runtime's Bytes.
-        String bytesType = "bijnagte.recordbuf.runtime.Bytes";
+        String bytesType = "Bytes";
         sb.append("        b.")
             .append(f.javaName())
             .append("(")
             .append(getter)
             .append("() != null ? ")
             .append(bytesType)
-            .append(".of(java.util.Arrays.copyOf(")
+            .append(".of(Arrays.copyOf(")
             .append(getter)
             .append("().array(), ")
             .append(getter)
@@ -158,7 +168,7 @@ public final class AvroConverterGenerator {
         // Record's Bytes → Avro's ByteBuffer; unwrap the raw array first.
         sb.append("        ")
             .append(setter)
-            .append("(java.nio.ByteBuffer.wrap(")
+            .append("(ByteBuffer.wrap(")
             .append(accessor)
             .append(".toByteArray()));\n");
       } else {

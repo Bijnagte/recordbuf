@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import bijnagte.recordbuf.fixture.combined.rec.Compat.CompatCodec;
+import bijnagte.recordbuf.runtime.Bytes;
+import com.google.protobuf.ByteString;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -76,7 +79,7 @@ class CompatTest {
         .i(I)
         .fx(FX)
         .s(S)
-        .b(bijnagte.recordbuf.runtime.Bytes.of(B))
+        .b(Bytes.of(B))
         .packed(PACKED)
         .nested(NESTED)
         .subs(SUBS)
@@ -99,11 +102,11 @@ class CompatTest {
   @Test
   void byteEqual() throws Exception {
     byte[] theirs = newBuilder().build().toByteArray();
-    byte[] ours = bijnagte.recordbuf.fixture.combined.rec.Compat.CompatCodec.encode(sample());
+    byte[] ours = CompatCodec.encode(sample());
     assertArrayEquals(theirs, ours, "record encode must equal protobuf-java toByteArray");
 
     byte[] theirsDefault = Compat.newBuilder().build().toByteArray();
-    byte[] oursDefault = bijnagte.recordbuf.fixture.combined.rec.Compat.CompatCodec.encode(empty());
+    byte[] oursDefault = CompatCodec.encode(empty());
     assertArrayEquals(theirsDefault, oursDefault, "default sample must be empty on the wire");
     assertArrayEquals(new byte[0], oursDefault, "all-default fields must encode to zero bytes");
   }
@@ -115,8 +118,7 @@ class CompatTest {
   @Test
   void interopDecodesProtobuf() throws Exception {
     byte[] theirs = newBuilder().build().toByteArray();
-    bijnagte.recordbuf.fixture.combined.rec.Compat parsed =
-        bijnagte.recordbuf.fixture.combined.rec.Compat.CompatCodec.decode(theirs);
+    bijnagte.recordbuf.fixture.combined.rec.Compat parsed = CompatCodec.decode(theirs);
     assertEquals(sample(), parsed);
     // Spot-check distinct families decoded by tag number, in any wire order.
     assertEquals("seven", parsed.nested().label());
@@ -130,14 +132,10 @@ class CompatTest {
   @Test
   void roundTrip() throws Exception {
     bijnagte.recordbuf.fixture.combined.rec.Compat v = sample();
-    assertEquals(
-        v,
-        bijnagte.recordbuf.fixture.combined.rec.Compat.CompatCodec.decode(
-            bijnagte.recordbuf.fixture.combined.rec.Compat.CompatCodec.encode(v)));
+    assertEquals(v, CompatCodec.decode(CompatCodec.encode(v)));
 
     bijnagte.recordbuf.fixture.combined.rec.Compat d =
-        bijnagte.recordbuf.fixture.combined.rec.Compat.CompatCodec.decode(
-            bijnagte.recordbuf.fixture.combined.rec.Compat.CompatCodec.encode(empty()));
+        CompatCodec.decode(CompatCodec.encode(empty()));
     assertEquals(
         List.of(),
         d.subs(),
@@ -154,7 +152,7 @@ class CompatTest {
         .setI(I)
         .setFx(FX)
         .setS(S)
-        .setB(com.google.protobuf.ByteString.copyFrom(B))
+        .setB(ByteString.copyFrom(B))
         .addAllPacked(PACKED)
         .setNested(Sub.newBuilder().setId(NESTED.id()).setLabel(NESTED.label()).build())
         .addSubs(Sub.newBuilder().setId(1).setLabel("one").build())
