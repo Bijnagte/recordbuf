@@ -60,11 +60,11 @@ class MessageTest {
   @Test
   void byteEqual() throws Exception {
     byte[] theirs = newBuilder().build().toByteArray();
-    byte[] ours = bijnagte.recordbuf.fixture.message.rec.Sample.Codec.encode(sample());
+    byte[] ours = bijnagte.recordbuf.fixture.message.rec.Sample.SampleCodec.encode(sample());
     assertArrayEquals(theirs, ours, "record encode must equal protobuf-java toByteArray");
 
     byte[] theirsDefault = Sample.newBuilder().build().toByteArray();
-    byte[] oursDefault = bijnagte.recordbuf.fixture.message.rec.Sample.Codec.encode(empty());
+    byte[] oursDefault = bijnagte.recordbuf.fixture.message.rec.Sample.SampleCodec.encode(empty());
     assertArrayEquals(theirsDefault, oursDefault, "default sample must be empty on the wire");
     assertArrayEquals(
         new byte[0], oursDefault, "a null single + empty items must encode to zero bytes");
@@ -75,7 +75,7 @@ class MessageTest {
   void interopDecodesProtobuf() throws Exception {
     byte[] theirs = newBuilder().build().toByteArray();
     bijnagte.recordbuf.fixture.message.rec.Sample parsed =
-        bijnagte.recordbuf.fixture.message.rec.Sample.Codec.decode(theirs);
+        bijnagte.recordbuf.fixture.message.rec.Sample.SampleCodec.decode(theirs);
     assertEquals(sample(), parsed);
   }
 
@@ -85,12 +85,12 @@ class MessageTest {
     bijnagte.recordbuf.fixture.message.rec.Sample v = sample();
     assertEquals(
         v,
-        bijnagte.recordbuf.fixture.message.rec.Sample.Codec.decode(
-            bijnagte.recordbuf.fixture.message.rec.Sample.Codec.encode(v)));
+        bijnagte.recordbuf.fixture.message.rec.Sample.SampleCodec.decode(
+            bijnagte.recordbuf.fixture.message.rec.Sample.SampleCodec.encode(v)));
 
     bijnagte.recordbuf.fixture.message.rec.Sample d =
-        bijnagte.recordbuf.fixture.message.rec.Sample.Codec.decode(
-            bijnagte.recordbuf.fixture.message.rec.Sample.Codec.encode(empty()));
+        bijnagte.recordbuf.fixture.message.rec.Sample.SampleCodec.decode(
+            bijnagte.recordbuf.fixture.message.rec.Sample.SampleCodec.encode(empty()));
     assertNull(d.single(), "decode of wire-absent singular message must be null");
     assertEquals(List.of(), d.items());
   }

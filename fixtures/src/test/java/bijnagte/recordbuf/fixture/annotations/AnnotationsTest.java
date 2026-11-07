@@ -71,12 +71,13 @@ class AnnotationsTest {
    */
   @Test
   void byteEqual() throws Exception {
-    byte[] ours = bijnagte.recordbuf.fixture.annotations.rec.Sample.Codec.encode(populated());
+    byte[] ours = bijnagte.recordbuf.fixture.annotations.rec.Sample.SampleCodec.encode(populated());
     byte[] theirs = refBuilder().build().toByteArray();
     assertArrayEquals(
         theirs, ours, "populated sample: record.encode must equal protobuf-java toByteArray");
 
-    byte[] oursEmpty = bijnagte.recordbuf.fixture.annotations.rec.Sample.Codec.encode(empty());
+    byte[] oursEmpty =
+        bijnagte.recordbuf.fixture.annotations.rec.Sample.SampleCodec.encode(empty());
     assertArrayEquals(new byte[0], oursEmpty, "all-default sample must encode to zero bytes");
   }
 
@@ -88,7 +89,7 @@ class AnnotationsTest {
   void interopDecodesProtobuf() throws Exception {
     byte[] theirs = refBuilder().build().toByteArray();
     bijnagte.recordbuf.fixture.annotations.rec.Sample parsed =
-        bijnagte.recordbuf.fixture.annotations.rec.Sample.Codec.decode(theirs);
+        bijnagte.recordbuf.fixture.annotations.rec.Sample.SampleCodec.decode(theirs);
     assertEquals(7, parsed.id());
     assertEquals("hello <tag> & friends", parsed.note());
     assertEquals("body", parsed.payload().body());
@@ -99,13 +100,13 @@ class AnnotationsTest {
   @Test
   void roundTrip() throws Exception {
     var back =
-        bijnagte.recordbuf.fixture.annotations.rec.Sample.Codec.decode(
-            bijnagte.recordbuf.fixture.annotations.rec.Sample.Codec.encode(populated()));
+        bijnagte.recordbuf.fixture.annotations.rec.Sample.SampleCodec.decode(
+            bijnagte.recordbuf.fixture.annotations.rec.Sample.SampleCodec.encode(populated()));
     assertEquals(populated(), back);
 
     var emptyBack =
-        bijnagte.recordbuf.fixture.annotations.rec.Sample.Codec.decode(
-            bijnagte.recordbuf.fixture.annotations.rec.Sample.Codec.encode(empty()));
+        bijnagte.recordbuf.fixture.annotations.rec.Sample.SampleCodec.decode(
+            bijnagte.recordbuf.fixture.annotations.rec.Sample.SampleCodec.encode(empty()));
     assertEquals(0, emptyBack.id());
     assertNull(emptyBack.note());
     assertNull(emptyBack.payload());

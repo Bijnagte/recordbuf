@@ -115,7 +115,7 @@ class BuilderEmissionTest {
     // R4: fresh builder initializes each component to the codec default (short names,
     // matching the generated record's own components).
     assertTrue(src.contains("private int a = 0;"), src);
-    assertTrue(src.contains("private byte[] b = new byte[0];"), src);
+    assertTrue(src.contains("private Bytes b = bijnagte.recordbuf.runtime.Bytes.empty();"), src);
     assertTrue(src.contains("private List<Item> items = new ArrayList<>();"), src);
   }
 
@@ -123,12 +123,10 @@ class BuilderEmissionTest {
   void copyConstructorDefensivelyCopiesContainersAndByteArrays() {
     String src = generatedSource(file(), FILE);
 
-    // R3: byte[] cloned null-safely; scalars copied by value (containers exercised by
-    // the map/repeated fixtures at the compile layer). A @NonNull byte[] component (the
-    // proto3 singular-bytes default) defaults its null branch to an empty array so it
-    // never receives null; a rare @Nullable byte-array keeps a null default.
+    // R3: a bytes component is the immutable runtime Bytes, so it copies by value; containers
+    // (List/Map) still copy defensively so toBuilder() never aliases the source's containers.
     assertTrue(src.contains("this.a = x.a();"), src);
-    assertTrue(src.contains("this.b = x.b() == null ? new byte[0] : x.b().clone();"), src);
+    assertTrue(src.contains("this.b = x.b();"), src);
     assertTrue(src.contains("this.items = new ArrayList<>(x.items());"), src);
   }
 
@@ -138,7 +136,7 @@ class BuilderEmissionTest {
 
     // R2: one fluent, chaining, component-named setter per field.
     assertTrue(src.contains("public Builder a(int a)"), src);
-    assertTrue(src.contains("public Builder b(byte[] b)"), src);
+    assertTrue(src.contains("public Builder b(Bytes b)"), src);
     assertTrue(src.contains("public Builder items(List<Item> items)"), src);
     assertTrue(src.contains("return this;"), src);
   }

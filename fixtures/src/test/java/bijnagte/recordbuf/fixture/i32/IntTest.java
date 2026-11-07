@@ -23,7 +23,7 @@ class IntTest {
   void byteEqual() throws Exception {
     byte[] theirs = Sample.newBuilder().setA(0x8000_0000).build().toByteArray();
     byte[] ours =
-        bijnagte.recordbuf.fixture.i32.rec.Sample.Codec.encode(
+        bijnagte.recordbuf.fixture.i32.rec.Sample.SampleCodec.encode(
             bijnagte.recordbuf.fixture.i32.rec.Sample.builder().a(0x8000_0000).build());
     assertArrayEquals(theirs, ours, "record encode must equal protobuf-java toByteArray");
   }
@@ -33,7 +33,7 @@ class IntTest {
   void interopDecodesProtobuf() throws Exception {
     byte[] theirs = Sample.newBuilder().setA(0x8000_0000).build().toByteArray();
     bijnagte.recordbuf.fixture.i32.rec.Sample parsed =
-        bijnagte.recordbuf.fixture.i32.rec.Sample.Codec.decode(theirs);
+        bijnagte.recordbuf.fixture.i32.rec.Sample.SampleCodec.decode(theirs);
     assertEquals(
         bijnagte.recordbuf.fixture.i32.rec.Sample.builder().a(0x8000_0000).build(), parsed);
   }
@@ -44,7 +44,7 @@ class IntTest {
         bijnagte.recordbuf.fixture.i32.rec.Sample.builder().a(0x8000_0000).build();
     assertEquals(
         v,
-        bijnagte.recordbuf.fixture.i32.rec.Sample.Codec.decode(
-            bijnagte.recordbuf.fixture.i32.rec.Sample.Codec.encode(v)));
+        bijnagte.recordbuf.fixture.i32.rec.Sample.SampleCodec.decode(
+            bijnagte.recordbuf.fixture.i32.rec.Sample.SampleCodec.encode(v)));
   }
 }

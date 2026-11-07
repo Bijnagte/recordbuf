@@ -32,14 +32,15 @@ class OrderTest {
   void byteEqual() throws Exception {
     assertArrayEquals(
         refBytes(),
-        bijnagte.recordbuf.fixture.order.rec.Sample.Codec.encode(sample()),
+        bijnagte.recordbuf.fixture.order.rec.Sample.SampleCodec.encode(sample()),
         "non-ascending field numbers must still byte-match protobuf-java");
   }
 
   /** Semantics: decode(protobuf-java bytes) == record. */
   @Test
   void interopDecodesProtobuf() throws Exception {
-    assertEquals(sample(), bijnagte.recordbuf.fixture.order.rec.Sample.Codec.decode(refBytes()));
+    assertEquals(
+        sample(), bijnagte.recordbuf.fixture.order.rec.Sample.SampleCodec.decode(refBytes()));
   }
 
   /** Invariant: decode(encode(x)) == x. */
@@ -48,7 +49,7 @@ class OrderTest {
     bijnagte.recordbuf.fixture.order.rec.Sample x = sample();
     assertEquals(
         x,
-        bijnagte.recordbuf.fixture.order.rec.Sample.Codec.decode(
-            bijnagte.recordbuf.fixture.order.rec.Sample.Codec.encode(x)));
+        bijnagte.recordbuf.fixture.order.rec.Sample.SampleCodec.decode(
+            bijnagte.recordbuf.fixture.order.rec.Sample.SampleCodec.encode(x)));
   }
 }

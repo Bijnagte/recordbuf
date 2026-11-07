@@ -42,8 +42,10 @@ message Sample {
     // A documented singular nested message that is itself @Deprecated.
     //
     // The nested record's own Javadoc and @Deprecated flag must both render;
-    // the component is @Nullable (a singular message is present-tracked) and
-    // @Deprecated — the two annotations compose in @Deprecated @Nullable order.
+    // the component is @Nullable (a singular message is present-tracked). The two
+    // annotations -- @Deprecated and @Nullable -- compose in @Deprecated-then-@Nullable
+    // order. (No comment line may open with a bare @token: the generated Javadoc
+    // would then read it as a block tag, which trips the invalid-block-tag check.)
     Payload payload = 3;
 
     // A documented + deprecated map exercising buildMapField carry-through:

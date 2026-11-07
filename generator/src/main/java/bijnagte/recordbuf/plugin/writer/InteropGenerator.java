@@ -245,7 +245,8 @@ public final class InteropGenerator {
     // Singular scalar / bytes (a oneof member's value record reuses fromExpr).
     String type = types.resolve(f);
     if ("bytes".equals(f.typeUrl())) {
-      w.line("byte[] _" + f.javaName() + " = " + fromExpr(f) + ";");
+      w.line(
+          "var _" + f.javaName() + " = bijnagte.recordbuf.runtime.Bytes.of(" + fromExpr(f) + ");");
     } else if (f.isNullable()) {
       w.line(type + " _" + f.javaName() + " = x.has" + cap + "() ? x.get" + cap + "() : null;");
     } else {
@@ -291,7 +292,7 @@ public final class InteropGenerator {
           + ".getNumber()));";
     }
     if ("bytes".equals(f.typeUrl())) {
-      return "_b.set" + cap + "(" + ci.use(BYTE_STRING) + ".copyFrom(" + src + "));";
+      return "_b.set" + cap + "(" + ci.use(BYTE_STRING) + ".copyFrom(" + src + ".toByteArray()));";
     }
     if (f.isNullable()) {
       return "if (" + src + " != null) _b.set" + cap + "(" + src + ");";

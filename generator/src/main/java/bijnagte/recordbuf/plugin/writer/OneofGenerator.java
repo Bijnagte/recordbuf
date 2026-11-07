@@ -75,7 +75,9 @@ public final class OneofGenerator {
     w.indent(ind);
     // Default value() implementation: message-member subtypes inherit this
     // (returning themselves); per-member scalar records override it via their
-    // own record component (a covariant return).
+    // own record component (a covariant return). It overrides the Unwrapable
+    // interface's value(), so @Override is correct (keeps the EP check set clean).
+    w.line("@Override");
     w.line("default Object value() { return this; }");
     // One nested record per non-message member. Each carries its underlying
     // value and satisfies Unwrapable.value() via its record component.

@@ -76,7 +76,7 @@ class CompatTest {
         .i(I)
         .fx(FX)
         .s(S)
-        .b(B)
+        .b(bijnagte.recordbuf.runtime.Bytes.of(B))
         .packed(PACKED)
         .nested(NESTED)
         .subs(SUBS)
@@ -99,11 +99,11 @@ class CompatTest {
   @Test
   void byteEqual() throws Exception {
     byte[] theirs = newBuilder().build().toByteArray();
-    byte[] ours = bijnagte.recordbuf.fixture.combined.rec.Compat.Codec.encode(sample());
+    byte[] ours = bijnagte.recordbuf.fixture.combined.rec.Compat.CompatCodec.encode(sample());
     assertArrayEquals(theirs, ours, "record encode must equal protobuf-java toByteArray");
 
     byte[] theirsDefault = Compat.newBuilder().build().toByteArray();
-    byte[] oursDefault = bijnagte.recordbuf.fixture.combined.rec.Compat.Codec.encode(empty());
+    byte[] oursDefault = bijnagte.recordbuf.fixture.combined.rec.Compat.CompatCodec.encode(empty());
     assertArrayEquals(theirsDefault, oursDefault, "default sample must be empty on the wire");
     assertArrayEquals(new byte[0], oursDefault, "all-default fields must encode to zero bytes");
   }
@@ -116,7 +116,7 @@ class CompatTest {
   void interopDecodesProtobuf() throws Exception {
     byte[] theirs = newBuilder().build().toByteArray();
     bijnagte.recordbuf.fixture.combined.rec.Compat parsed =
-        bijnagte.recordbuf.fixture.combined.rec.Compat.Codec.decode(theirs);
+        bijnagte.recordbuf.fixture.combined.rec.Compat.CompatCodec.decode(theirs);
     assertEquals(sample(), parsed);
     // Spot-check distinct families decoded by tag number, in any wire order.
     assertEquals("seven", parsed.nested().label());
@@ -132,12 +132,12 @@ class CompatTest {
     bijnagte.recordbuf.fixture.combined.rec.Compat v = sample();
     assertEquals(
         v,
-        bijnagte.recordbuf.fixture.combined.rec.Compat.Codec.decode(
-            bijnagte.recordbuf.fixture.combined.rec.Compat.Codec.encode(v)));
+        bijnagte.recordbuf.fixture.combined.rec.Compat.CompatCodec.decode(
+            bijnagte.recordbuf.fixture.combined.rec.Compat.CompatCodec.encode(v)));
 
     bijnagte.recordbuf.fixture.combined.rec.Compat d =
-        bijnagte.recordbuf.fixture.combined.rec.Compat.Codec.decode(
-            bijnagte.recordbuf.fixture.combined.rec.Compat.Codec.encode(empty()));
+        bijnagte.recordbuf.fixture.combined.rec.Compat.CompatCodec.decode(
+            bijnagte.recordbuf.fixture.combined.rec.Compat.CompatCodec.encode(empty()));
     assertEquals(
         List.of(),
         d.subs(),

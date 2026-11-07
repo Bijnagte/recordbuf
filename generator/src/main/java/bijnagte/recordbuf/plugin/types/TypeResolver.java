@@ -148,7 +148,7 @@ public final class TypeResolver {
       case "uint64" -> "long"; // v1: revisit; sign issue
       case "bool" -> "boolean";
       case "string" -> "java.lang.String";
-      case "bytes" -> "byte[]";
+      case "bytes" -> "bijnagte.recordbuf.runtime.Bytes";
       default -> "java.lang.Object";
     };
   }

@@ -56,11 +56,11 @@ class OptionalTest {
   @Test
   void byteEqual() throws Exception {
     byte[] theirs = newBuilder().build().toByteArray();
-    byte[] ours = bijnagte.recordbuf.fixture.optional.rec.Sample.Codec.encode(sample());
+    byte[] ours = bijnagte.recordbuf.fixture.optional.rec.Sample.SampleCodec.encode(sample());
     assertArrayEquals(theirs, ours, "present record encode must equal protobuf-java toByteArray");
 
     byte[] theirsDefault = Sample.newBuilder().build().toByteArray();
-    byte[] oursDefault = bijnagte.recordbuf.fixture.optional.rec.Sample.Codec.encode(empty());
+    byte[] oursDefault = bijnagte.recordbuf.fixture.optional.rec.Sample.SampleCodec.encode(empty());
     assertArrayEquals(
         theirsDefault, oursDefault, "absent sample must be empty on the wire like protobuf-java");
     assertArrayEquals(
@@ -75,7 +75,7 @@ class OptionalTest {
   void interopDecodesProtobuf() throws Exception {
     byte[] theirs = newBuilder().build().toByteArray();
     bijnagte.recordbuf.fixture.optional.rec.Sample parsed =
-        bijnagte.recordbuf.fixture.optional.rec.Sample.Codec.decode(theirs);
+        bijnagte.recordbuf.fixture.optional.rec.Sample.SampleCodec.decode(theirs);
     assertEquals(sample(), parsed);
   }
 
@@ -85,12 +85,12 @@ class OptionalTest {
     bijnagte.recordbuf.fixture.optional.rec.Sample v = sample();
     assertEquals(
         v,
-        bijnagte.recordbuf.fixture.optional.rec.Sample.Codec.decode(
-            bijnagte.recordbuf.fixture.optional.rec.Sample.Codec.encode(v)));
+        bijnagte.recordbuf.fixture.optional.rec.Sample.SampleCodec.decode(
+            bijnagte.recordbuf.fixture.optional.rec.Sample.SampleCodec.encode(v)));
 
     bijnagte.recordbuf.fixture.optional.rec.Sample d =
-        bijnagte.recordbuf.fixture.optional.rec.Sample.Codec.decode(
-            bijnagte.recordbuf.fixture.optional.rec.Sample.Codec.encode(empty()));
+        bijnagte.recordbuf.fixture.optional.rec.Sample.SampleCodec.decode(
+            bijnagte.recordbuf.fixture.optional.rec.Sample.SampleCodec.encode(empty()));
     assertNull(d.a(), "absent optional int32 must decode to null, not 0");
     assertNull(d.b(), "absent optional string must decode to null, not \"\"");
     assertNull(d.c(), "absent optional bool must decode to null, not false");

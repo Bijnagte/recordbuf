@@ -32,7 +32,7 @@ class BytesTest {
   @Test
   void byteEqual() throws Exception {
     byte[] theirs = newBuilder().build().toByteArray();
-    byte[] ours = bijnagte.recordbuf.fixture.bytes.rec.Sample.Codec.encode(sample());
+    byte[] ours = bijnagte.recordbuf.fixture.bytes.rec.Sample.SampleCodec.encode(sample());
     assertArrayEquals(theirs, ours, "record encode must equal protobuf-java toByteArray");
   }
 
@@ -41,7 +41,7 @@ class BytesTest {
   void interopDecodesProtobuf() throws Exception {
     byte[] theirs = newBuilder().build().toByteArray();
     bijnagte.recordbuf.fixture.bytes.rec.Sample parsed =
-        bijnagte.recordbuf.fixture.bytes.rec.Sample.Codec.decode(theirs);
+        bijnagte.recordbuf.fixture.bytes.rec.Sample.SampleCodec.decode(theirs);
     assertEquals(sample(), parsed);
   }
 
@@ -50,12 +50,15 @@ class BytesTest {
     bijnagte.recordbuf.fixture.bytes.rec.Sample v = sample();
     assertEquals(
         v,
-        bijnagte.recordbuf.fixture.bytes.rec.Sample.Codec.decode(
-            bijnagte.recordbuf.fixture.bytes.rec.Sample.Codec.encode(v)));
+        bijnagte.recordbuf.fixture.bytes.rec.Sample.SampleCodec.decode(
+            bijnagte.recordbuf.fixture.bytes.rec.Sample.SampleCodec.encode(v)));
   }
 
   private static bijnagte.recordbuf.fixture.bytes.rec.Sample sample() {
-    return bijnagte.recordbuf.fixture.bytes.rec.Sample.builder().a(A).b(B).build();
+    return bijnagte.recordbuf.fixture.bytes.rec.Sample.builder()
+        .a(bijnagte.recordbuf.runtime.Bytes.of(A))
+        .b(bijnagte.recordbuf.runtime.Bytes.of(B))
+        .build();
   }
 
   private static Sample.Builder newBuilder() {

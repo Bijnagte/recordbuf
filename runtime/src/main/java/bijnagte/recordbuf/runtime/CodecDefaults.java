@@ -40,8 +40,8 @@ public final class CodecDefaults {
     return "";
   }
 
-  /** bytes default. */
-  public static byte[] bytes() {
-    return new byte[0];
+  /** bytes default (a singular {@code bytes} field decodes to the shared empty {@link Bytes}). */
+  public static Bytes bytes() {
+    return Bytes.empty();
   }
 }

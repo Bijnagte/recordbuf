@@ -68,11 +68,11 @@ class PackedTest {
   @Test
   void byteEqual() throws Exception {
     byte[] theirs = newBuilder().build().toByteArray();
-    byte[] ours = bijnagte.recordbuf.fixture.packed.rec.Sample.Codec.encode(sample());
+    byte[] ours = bijnagte.recordbuf.fixture.packed.rec.Sample.SampleCodec.encode(sample());
     assertArrayEquals(theirs, ours, "record encode must equal protobuf-java toByteArray");
 
     byte[] theirsDefault = Sample.newBuilder().build().toByteArray();
-    byte[] oursDefault = bijnagte.recordbuf.fixture.packed.rec.Sample.Codec.encode(empty());
+    byte[] oursDefault = bijnagte.recordbuf.fixture.packed.rec.Sample.SampleCodec.encode(empty());
     assertArrayEquals(theirsDefault, oursDefault, "default sample must be empty on the wire");
     assertArrayEquals(new byte[0], oursDefault, "all-empty packed lists must encode to zero bytes");
   }
@@ -82,7 +82,7 @@ class PackedTest {
   void interopDecodesProtobuf() throws Exception {
     byte[] theirs = newBuilder().build().toByteArray();
     bijnagte.recordbuf.fixture.packed.rec.Sample parsed =
-        bijnagte.recordbuf.fixture.packed.rec.Sample.Codec.decode(theirs);
+        bijnagte.recordbuf.fixture.packed.rec.Sample.SampleCodec.decode(theirs);
     assertEquals(sample(), parsed);
   }
 
@@ -92,12 +92,12 @@ class PackedTest {
     bijnagte.recordbuf.fixture.packed.rec.Sample v = sample();
     assertEquals(
         v,
-        bijnagte.recordbuf.fixture.packed.rec.Sample.Codec.decode(
-            bijnagte.recordbuf.fixture.packed.rec.Sample.Codec.encode(v)));
+        bijnagte.recordbuf.fixture.packed.rec.Sample.SampleCodec.decode(
+            bijnagte.recordbuf.fixture.packed.rec.Sample.SampleCodec.encode(v)));
 
     bijnagte.recordbuf.fixture.packed.rec.Sample d =
-        bijnagte.recordbuf.fixture.packed.rec.Sample.Codec.decode(
-            bijnagte.recordbuf.fixture.packed.rec.Sample.Codec.encode(empty()));
+        bijnagte.recordbuf.fixture.packed.rec.Sample.SampleCodec.decode(
+            bijnagte.recordbuf.fixture.packed.rec.Sample.SampleCodec.encode(empty()));
     assertEquals(List.of(), d.a());
     assertEquals(List.of(), d.j());
   }

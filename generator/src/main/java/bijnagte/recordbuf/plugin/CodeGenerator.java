@@ -288,10 +288,18 @@ public final class CodeGenerator {
    * separated. Returns {@code null} when nothing is documented, so the writer emits no block.
    */
   private static @Nullable String recordJavadoc(
-      @Nullable String typeComment, List<String[]> params) {
+      @Nullable String typeComment, String typeName, List<String[]> params) {
     List<String> lines = new ArrayList<>();
     if (typeComment != null && !typeComment.isBlank()) {
       lines.add(typeComment.strip());
+      lines.add("");
+    } else if (!params.isEmpty()) {
+      // No user-supplied message comment: the emitted block still carries @param
+      // entries (at least the always-on unknown-field carrier), so open it with a
+      // synthesized summary line. A Javadoc block whose first line is a block tag
+      // (e.g. @param) trips Error Prone's missing-summary check; a summary sentence
+      // keeps the generated record's Javadoc doclint-clean.
+      lines.add("A record of the " + typeName + " protobuf message.");
       lines.add("");
     }
     for (String[] p : params) {
@@ -362,7 +370,7 @@ public final class CodeGenerator {
     }
     addComponentParam(componentParams, "unknownFields", carrierComponentDoc(uf));
 
-    w.javadoc(recordJavadoc(m.comment(), componentParams));
+    w.javadoc(recordJavadoc(m.comment(), m.name(), componentParams));
     // A bare @Deprecated (java.lang, never imported) when the proto marked this message deprecated.
     if (m.deprecated()) w.line("@Deprecated");
     w.line("public record " + m.name() + "(");
@@ -405,8 +413,8 @@ public final class CodeGenerator {
     w.indent(w.indent() + 1);
     // Compact constructor: null-safe for List/Map fields.
     addCompactConstructor(w, m, ci);
-    // Content equality for records carrying a byte[] component.
-    addEqualsHashCode(w, m, ci);
+    // No explicit equals/hashCode: a bytes component is the runtime's content-equal Bytes wrapper,
+    // so the record's implicit (component-wise) equality is already content-correct.
     // Nested messages and enums (share this file's collector + resolver).
     for (var nested : m.nestedMessages()) {
       w.line();
@@ -642,6 +650,9 @@ public final class CodeGenerator {
    */
   private void emitMarshallingHook(JavaWriter w, TypeImports ci, Message m) {
     String io = ci.use("java.io.IOException");
+    // The nested Codec is named after the record (Foo.FooCodec) so a parent and a nested message
+    // never share a codec's simple name; the marshalling hook calls this record's own codec.
+    String codec = m.name() + "Codec";
     w.line();
     w.javadoc(
         w.indent(),
@@ -649,7 +660,7 @@ public final class CodeGenerator {
             + "byte-identical to the equivalent protobuf-java message, so this record can "
             + "cross a gRPC / protobuf-java boundary with no structural conversion.");
     w.line("@Override");
-    w.line("public byte[] toByteArray() throws " + io + " { return Codec.encode(this); }");
+    w.line("public byte[] toByteArray() throws " + io + " { return " + codec + ".encode(this); }");
     w.line();
     w.javadoc(
         w.indent(),
@@ -660,7 +671,9 @@ public final class CodeGenerator {
             + m.name()
             + " fromBytes(byte[] in) throws "
             + io
-            + " { return Codec.decode(in); }");
+            + " { return "
+            + codec
+            + ".decode(in); }");
   }
 
   /**
@@ -685,7 +698,7 @@ public final class CodeGenerator {
       case DOUBLE -> "0.0";
       case BOOL -> "false";
       case STRING -> "\"\"";
-      case BYTES -> "new byte[0]";
+      case BYTES -> "bijnagte.recordbuf.runtime.Bytes.empty()";
     };
   }
 
@@ -699,16 +712,8 @@ public final class CodeGenerator {
     String src = "x." + f.javaName() + "()";
     if (f.isMap()) return lhs + "new " + ci.use("java.util.HashMap") + "<>(" + src + ");";
     if (f.isRepeated()) return lhs + "new " + ci.use("java.util.ArrayList") + "<>(" + src + ");";
-    if (isByteArrayComponent(f)) {
-      // A byte-array component defaults to an empty array when its source is null, matching the
-      // codec's decode default (CodecDefaults.bytes() is new byte[0]), so a @NonNull component
-      // (the proto3 singular-bytes default) never receives null. A rare @Nullable byte-array field
-      // keeps a null default -- null is a legal present-but-absent value -- which stays
-      // null-safe. The null branch is only reachable for @Nullable fields; for the common
-      // @NonNull byte[] it is a defensive no-op that NullAway cannot prove dead but is harmless.
-      String nullDefault = f.isNullable() ? "null" : "new byte[0]";
-      return lhs + src + " == null ? " + nullDefault + " : " + src + ".clone();";
-    }
+    // A bytes component is the immutable Bytes wrapper, a singular scalar is value, and a singular
+    // message/oneof is an immutable reference -- all copy by value (no defensive copy needed).
     return lhs + src + ";";
   }
 
@@ -752,77 +757,6 @@ public final class CodeGenerator {
     }
     w.indent(w.indent() - 1);
     w.line("}");
-  }
-
-  /**
-   * Emit {@code equals}/{@code hashCode} overrides for a record that carries a {@code byte[]}
-   * component. The JDK's implicit record {@code equals} compares components by reference, so a
-   * {@code byte[]} component would compare by array identity — decoding yields a fresh array, so
-   * round-trip/decode comparison would fail. {@code byte[]} components are therefore compared by
-   * content via {@link java.util.Arrays}, while every other component keeps its identity/via-{@code
-   * Objects} semantics.
-   *
-   * <p><b>Known limitation:</b> this only handles a DIRECT {@code byte[]} component. A component
-   * that CONTAINS byte arrays -- e.g. {@code List<byte[]>} (a {@code repeated bytes} field) or
-   * {@code Map<?,byte[]>} (a bytes-valued map) -- is still compared by the JDK's implicit record
-   * {@code equals}, which matches nested {@code byte[]} elements by IDENTITY rather than content,
-   * and {@code Arrays.deepHashCode} does not recurse into a {@code List}/ {@code Map}. Wire
-   * encode/decode of such fields is correct; only value equality of the boxed container is not
-   * content-correct. Fixing this without breaking the {@code equals}/{@code hashCode} contract for
-   * the common cases needs a per-field content hash and is left as a follow-up.
-   */
-  private void addEqualsHashCode(JavaWriter w, Message m, TypeImports ci) {
-    if (m.fields().stream().noneMatch(f -> isByteArrayComponent(f))) return;
-
-    w.line();
-    w.line("@Override");
-    w.line("public boolean equals(Object o) {");
-    w.indent(w.indent() + 1);
-    w.line("if (this == o) return true;");
-    w.line("if (!(o instanceof " + m.name() + " that)) return false;");
-    w.line("return " + equalsExpression(m, ci) + ";");
-    w.indent(w.indent() - 1);
-    w.line("}");
-
-    w.line();
-    w.line("@Override");
-    w.line("public int hashCode() {");
-    w.indent(w.indent() + 1);
-    w.line(
-        "return "
-            + ci.use("java.util.Arrays")
-            + ".deepHashCode(new "
-            + ci.use("java.lang.Object")
-            + "[]{"
-            + components(m, "this.")
-            + "});");
-    w.indent(w.indent() - 1);
-    w.line("}");
-  }
-
-  /** A record component whose Java type is {@code byte[]} (a non-repeated bytes scalar). */
-  private static boolean isByteArrayComponent(Field f) {
-    return "bytes".equals(f.typeUrl()) && !f.isRepeated();
-  }
-
-  /** One {@code cmp(this.c, that.c)} per field, {@code &&}-joined. */
-  private static String equalsExpression(Message m, TypeImports ci) {
-    List<String> parts = new ArrayList<>();
-    for (var f : m.fields()) {
-      String cmp =
-          isByteArrayComponent(f)
-              ? ci.use("java.util.Arrays") + ".equals"
-              : ci.use("java.util.Objects") + ".equals";
-      parts.add(cmp + "(this." + f.javaName() + ", that." + f.javaName() + ")");
-    }
-    return String.join(" && ", parts);
-  }
-
-  /** Comma-joined {@code prefix + name} for every field, used by deepHashCode. */
-  private static String components(Message m, String prefix) {
-    List<String> names = new ArrayList<>();
-    for (var f : m.fields()) names.add(prefix + f.javaName());
-    return String.join(", ", names);
   }
 
   /**

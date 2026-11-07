@@ -55,7 +55,7 @@ class CompatInteropTest {
             .setI(r.i())
             .setFx(r.fx())
             .setS(r.s())
-            .setB(ByteString.copyFrom(r.b()))
+            .setB(ByteString.copyFrom(r.b().toByteArray()))
             .addAllPacked(r.packed());
     if (r.nested() != null) {
       b.setNested(Sub.newBuilder().setId(r.nested().id()).setLabel(r.nested().label()).build());
@@ -185,7 +185,7 @@ class CompatInteropTest {
         .i(I)
         .fx(FX)
         .s(S)
-        .b(B)
+        .b(bijnagte.recordbuf.runtime.Bytes.of(B))
         .packed(PACKED)
         .nested(NESTED)
         .subs(SUBS)

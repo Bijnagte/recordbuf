@@ -67,7 +67,7 @@ class UnknownFieldRoundTripTest {
     byte[] known = compat().toByteArray();
     byte[] withUnknown = appendVarintField(known, UNKNOWN_VARINT_FIELD, UNKNOWN_VARINT_VALUE);
 
-    var parsed = Compat.Codec.decode(withUnknown);
+    var parsed = Compat.CompatCodec.decode(withUnknown);
 
     UnknownFields uf = parsed.unknownFields();
     assertEquals(1, uf.fields().size(), "the unknown varint field must be captured, not dropped");
@@ -99,7 +99,7 @@ class UnknownFieldRoundTripTest {
     byte[] withUnknown =
         appendLengthDelimitedStringField(known, UNKNOWN_LENGTH_FIELD, UNKNOWN_LENGTH_VALUE);
 
-    var parsed = Compat.Codec.decode(withUnknown);
+    var parsed = Compat.CompatCodec.decode(withUnknown);
 
     UnknownField captured = parsed.unknownFields().fields().get(0);
     assertEquals(UNKNOWN_LENGTH_FIELD, captured.fieldNumber());
@@ -120,7 +120,7 @@ class UnknownFieldRoundTripTest {
    */
   @Test
   void decodeWithoutUnknownFieldsCarriesEmptyCarrier() throws Exception {
-    var parsed = Compat.Codec.decode(compat().toByteArray());
+    var parsed = Compat.CompatCodec.decode(compat().toByteArray());
     assertTrue(parsed.unknownFields().isEmpty(), "no unknown fields on the wire => empty carrier");
     assertArrayEquals(
         compat().toByteArray(),
@@ -139,7 +139,7 @@ class UnknownFieldRoundTripTest {
         appendLengthDelimitedStringField(
             appendVarintField(known, UNKNOWN_VARINT_FIELD, 1L), UNKNOWN_LENGTH_FIELD, "second");
 
-    var parsed = Compat.Codec.decode(withUnknown);
+    var parsed = Compat.CompatCodec.decode(withUnknown);
     var fields = parsed.unknownFields().fields();
     assertEquals(2, fields.size());
     assertEquals(UNKNOWN_VARINT_FIELD, fields.get(0).fieldNumber(), "first-seen captures first");

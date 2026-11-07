@@ -42,7 +42,7 @@ class FixedTest {
   @Test
   void byteEqual() throws Exception {
     byte[] theirs = newBuilder().build().toByteArray();
-    byte[] ours = bijnagte.recordbuf.fixture.fixed.rec.Sample.Codec.encode(sample());
+    byte[] ours = bijnagte.recordbuf.fixture.fixed.rec.Sample.SampleCodec.encode(sample());
     assertArrayEquals(theirs, ours, "record encode must equal protobuf-java toByteArray");
   }
 
@@ -51,7 +51,7 @@ class FixedTest {
   void interopDecodesProtobuf() throws Exception {
     byte[] theirs = newBuilder().build().toByteArray();
     bijnagte.recordbuf.fixture.fixed.rec.Sample parsed =
-        bijnagte.recordbuf.fixture.fixed.rec.Sample.Codec.decode(theirs);
+        bijnagte.recordbuf.fixture.fixed.rec.Sample.SampleCodec.decode(theirs);
     assertEquals(sample(), parsed);
   }
 
@@ -60,8 +60,8 @@ class FixedTest {
     bijnagte.recordbuf.fixture.fixed.rec.Sample v = sample();
     assertEquals(
         v,
-        bijnagte.recordbuf.fixture.fixed.rec.Sample.Codec.decode(
-            bijnagte.recordbuf.fixture.fixed.rec.Sample.Codec.encode(v)));
+        bijnagte.recordbuf.fixture.fixed.rec.Sample.SampleCodec.decode(
+            bijnagte.recordbuf.fixture.fixed.rec.Sample.SampleCodec.encode(v)));
   }
 
   private static bijnagte.recordbuf.fixture.fixed.rec.Sample sample() {

@@ -87,6 +87,6 @@ class RuntimeFramingTest {
     assertEquals(0.0, CodecDefaults.double_());
     assertFalse(CodecDefaults.bool());
     assertEquals("", CodecDefaults.string());
-    assertArrayEquals(new byte[0], CodecDefaults.bytes());
+    assertArrayEquals(new byte[0], CodecDefaults.bytes().toByteArray());
   }
 }

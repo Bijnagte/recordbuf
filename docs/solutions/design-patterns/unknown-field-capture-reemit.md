@@ -231,9 +231,9 @@ harness next to `byteEqual`/`interopDecodesProtobuf`/`roundTrip`):
 
 ```java
 @Test void unknownFieldRoundTripsByteForByte() throws Exception {
-    byte[] known = Compat.Codec.encode(Sample.builder().i(42).build());
+    byte[] known = Compat.CompatCodec.encode(Sample.builder().i(42).build());
     byte[] withUnknown = concat(known, appendVarintField(99, 123456)); // a newer field
-    var parsed = Compat.Codec.decode(withUnknown);
+    var parsed = Compat.CompatCodec.decode(withUnknown);
     // The unknown field is captured, inspectable in raw-wire shape:
     var captured = parsed.unknownFields().fields().get(0);
     assertEquals(99, captured.fieldNumber());
@@ -244,7 +244,7 @@ harness next to `byteEqual`/`interopDecodesProtobuf`/`roundTrip`):
 }
 
 // A length-delimited unknown (a newer string/bytes field) inspects as content:
-var s = Compat.Codec.decode(concat(known, appendLengthDelimitedField(98, "future-data")));
+var s = Compat.CompatCodec.decode(concat(known, appendLengthDelimitedField(98, "future-data")));
 assertEquals("future-data", s.unknownFields().fields().get(0).asString());
 ```
 
@@ -252,7 +252,7 @@ The empty path is observably free:
 
 ```java
 @Test void decodeWithoutUnknownFieldsIsByteIdentical() throws Exception {
-    var parsed = Compat.Codec.decode(Sample.builder().i(42).build());
+    var parsed = Compat.CompatCodec.decode(Sample.builder().i(42).build());
     assertTrue(parsed.unknownFields().isEmpty());
     assertArrayEquals(Sample.builder().i(42).build().toByteArray(),
                       parsed.toByteArray());

@@ -101,17 +101,21 @@ public final class AvroConverterGenerator {
             .append(getter)
             .append("()));\n");
       } else if (f.kind() == FieldKind.SCALAR && "bytes".equals(f.typeUrl())) {
-        // Avro's specific record stores bytes as a ByteBuffer; convert to byte[].
+        // Avro's specific record stores bytes as a ByteBuffer; produce the runtime's Bytes.
+        String bytesType = "bijnagte.recordbuf.runtime.Bytes";
         sb.append("        b.")
             .append(f.javaName())
             .append("(")
             .append(getter)
             .append("() != null ? ")
-            .append("java.util.Arrays.copyOf(")
+            .append(bytesType)
+            .append(".of(java.util.Arrays.copyOf(")
             .append(getter)
             .append("().array(), ")
             .append(getter)
-            .append("().remaining()) : new byte[0]);\n");
+            .append("().remaining())) : ")
+            .append(bytesType)
+            .append(".empty());\n");
       } else if (f.kind() == FieldKind.SCALAR && "string".equals(f.typeUrl())) {
         // Avro 1.12 specific records store string fields as CharSequence (Utf8); call toString() so
         // the recordbuilder's String-typed field resolves.
@@ -151,12 +155,12 @@ public final class AvroConverterGenerator {
             .append(accessor)
             .append("));\n");
       } else if (f.kind() == FieldKind.SCALAR && "bytes".equals(f.typeUrl())) {
-        // Record's byte[] → Avro's ByteBuffer via ByteBuffer.wrap.
+        // Record's Bytes → Avro's ByteBuffer; unwrap the raw array first.
         sb.append("        ")
             .append(setter)
             .append("(java.nio.ByteBuffer.wrap(")
             .append(accessor)
-            .append("));\n");
+            .append(".toByteArray()));\n");
       } else {
         sb.append("        ").append(setter).append("(").append(accessor).append(");\n");
       }

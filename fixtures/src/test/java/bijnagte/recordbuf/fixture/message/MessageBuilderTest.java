@@ -39,8 +39,8 @@ class MessageBuilderTest {
     // A builder-built value round-trips through the codec.
     assertEquals(
         v,
-        bijnagte.recordbuf.fixture.message.rec.Sample.Codec.decode(
-            bijnagte.recordbuf.fixture.message.rec.Sample.Codec.encode(v)));
+        bijnagte.recordbuf.fixture.message.rec.Sample.SampleCodec.decode(
+            bijnagte.recordbuf.fixture.message.rec.Sample.SampleCodec.encode(v)));
   }
 
   @Test

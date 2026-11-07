@@ -33,6 +33,10 @@ public final class CodecGenerator {
   // The runtime package a generated codec calls into. Resolved to short imported
   // names per-file via TypeImports (CodecDefaults/Decoder/Encoder/Wire).
   private static final String RT = "bijnagte.recordbuf.runtime";
+  // A bytes field's Java component type. Generated records hold the runtime's immutable Bytes
+  // wrapper (not a raw byte[]) so value equality is content-aware without a byte[] record
+  // component.
+  private static final String BYTES_TYPE = RT + ".Bytes";
 
   private final TypeResolver types;
   private final TypeImports ci;
@@ -61,10 +65,10 @@ public final class CodecGenerator {
 
     w.line();
     w.javadoc(codecDoc(m));
-    w.line("public static final class Codec {");
+    w.line("public static final class " + codecName(m.name()) + " {");
     int prev = w.indent();
     w.indent(prev + 1);
-    w.line("private Codec() {}");
+    w.line("private " + codecName(m.name()) + "() { }");
     w.line();
 
     // --- encode ---
@@ -155,8 +159,8 @@ public final class CodecGenerator {
                 + " -> out.writeByteArray("
                 + f.number()
                 + ", "
-                + elem
-                + ".Codec.encode("
+                + codecRefForType(elem)
+                + ".encode("
                 + bnd
                 + "));");
       } else {
@@ -256,7 +260,16 @@ public final class CodecGenerator {
       case STRING ->
           w.line("if (!" + getter + ".isEmpty()) out." + call + "(" + num + ", " + getter + ");");
       case BYTES ->
-          w.line("if (" + getter + ".length != 0) out." + call + "(" + num + ", " + getter + ");");
+          w.line(
+              "if (!"
+                  + getter
+                  + ".isEmpty()) out."
+                  + call
+                  + "("
+                  + num
+                  + ", "
+                  + getter
+                  + ".toByteArray());");
       default ->
           w.line(
               "if ("
@@ -297,7 +310,7 @@ public final class CodecGenerator {
     // wire when null (proto3 absent). Otherwise encode the child bytes via
     // its own Codec and frame them as one length-delimited byte array
     // (tag + length + raw bytes).
-    String nestedCodec = types.resolveElement(f) + ".Codec";
+    String nestedCodec = elementCodecRef(f);
     w.line("if (" + getter + " != null) {");
     int ind = w.indent() + 1;
     w.indent(ind);
@@ -317,6 +330,33 @@ public final class CodecGenerator {
   }
 
   /**
+   * The message-level codec type name: {@code javaName + "Codec"}. Naming every codec after its own
+   * message keeps each nested {@code Codec} type unique within a generated file, so a parent
+   * message's codec never shares a simple name with a nested message's -- the collision Error Prone
+   * reports as {@code SameNameButDifferent}. The codec stays nested (a file with a {@code public}
+   * record cannot host a second top-level type), so the ref is {@code Foo.FooCodec}; long but
+   * unambiguous.
+   */
+  private static String codecName(String javaName) {
+    return javaName + "Codec";
+  }
+
+  /**
+   * A cross-reference to a type's own nested codec, {@code Type.TypeCodec}: the type expression
+   * plus its own type name's last segment appended as {@code Codec}.
+   */
+  private static String codecRefForType(String typeExpr) {
+    int dot = typeExpr.lastIndexOf('.');
+    String simple = dot < 0 ? typeExpr : typeExpr.substring(dot + 1);
+    return typeExpr + "." + codecName(simple);
+  }
+
+  /** A cross-reference to a non-map message field's own nested codec: {@code Foo.FooCodec}. */
+  private String elementCodecRef(Field f) {
+    return codecRefForType(types.resolveElement(f));
+  }
+
+  /**
    * Encode: one length-delimited entry per map put, framed like a repeated nested message --
    * writeByteArray(tag, entryBytes).
    */
@@ -330,8 +370,8 @@ public final class CodecGenerator {
         "out.writeByteArray("
             + f.number()
             + ", "
-            + entry
-            + ".Codec.encode(new "
+            + codecRefForType(entry)
+            + ".encode(new "
             + entry
             + "(_e.getKey(), _e.getValue())));");
     w.indent(ind - 1);
@@ -345,7 +385,7 @@ public final class CodecGenerator {
   private void emitMapDecode(JavaWriter w, Field f) {
     String entry = entryName(f);
     String tmp = "_" + f.javaName();
-    w.line("var " + tmp + " = " + entry + ".Codec.decode(in.readByteArray());");
+    w.line("var " + tmp + " = " + codecRefForType(entry) + ".decode(in.readByteArray());");
     w.line(f.javaName() + ".put(" + tmp + ".key(), " + tmp + ".value());");
   }
 
@@ -374,10 +414,10 @@ public final class CodecGenerator {
   /** The Codec for a map entry record: the 2-field entry message (key=1, value=2). */
   private void emitEntryCodec(JavaWriter w, String name, WireScalar keyWire, WireScalar valWire) {
     w.line();
-    w.line("public static final class Codec {");
+    w.line("public static final class " + codecName(name) + " {");
     int prev = w.indent();
     w.indent(prev + 1);
-    w.line("private Codec() {}");
+    w.line("private " + codecName(name) + "() { }");
     w.line();
 
     // --- encode ---
@@ -443,7 +483,10 @@ public final class CodecGenerator {
    * singular-scalar default-skipping).
    */
   private void emitEntryScalar(JavaWriter w, WireScalar wire, int num, String getter) {
-    w.line("out." + encodeCall(wire) + "(" + num + ", " + getter + ");");
+    // A bytes-valued map entry component is a Bytes wrapper; unwrap it to the raw array for the
+    // length-delimited write. Every other entry scalar writes through unchanged.
+    String arg = wire == WireScalar.BYTES ? getter + ".toByteArray()" : getter;
+    w.line("out." + encodeCall(wire) + "(" + num + ", " + arg + ");");
   }
 
   private void emitRepeatedScalar(JavaWriter w, Field f, int num, String getter) {
@@ -474,7 +517,7 @@ public final class CodecGenerator {
 
   private void emitRepeatedMessage(JavaWriter w, Field f, int num, String getter) {
     // Each element gets its own length-delimited byte array.
-    String codecRef = types.resolveElement(f) + ".Codec";
+    String codecRef = elementCodecRef(f);
     w.line(
         "for (var _m : "
             + getter
@@ -559,7 +602,7 @@ public final class CodecGenerator {
       int ind = w.indent() + 1;
       w.indent(ind);
       if (f.isMessage()) {
-        w.line(cmp + " = " + types.resolveElement(f) + ".Codec.decode(in.readByteArray());");
+        w.line(cmp + " = " + elementCodecRef(f) + ".decode(in.readByteArray());");
       } else {
         // The per-member nested record carries just the value; no tag needed.
         w.line(
@@ -652,7 +695,7 @@ public final class CodecGenerator {
       case MESSAGE -> {
         // The tag was already consumed by readTag(); read the remaining
         // length-delimited byte array and hand it to the child Codec.
-        String codecRef = types.resolveElement(f) + ".Codec";
+        String codecRef = elementCodecRef(f);
         w.line(f.javaName() + " = " + codecRef + ".decode(in.readByteArray());");
       }
       default -> {}
@@ -676,7 +719,7 @@ public final class CodecGenerator {
         w.line(f.javaName() + ".add(" + enumName + ".forNumber(in.readEnum()));");
       }
       case MESSAGE -> {
-        String codecRef = types.resolveElement(f) + ".Codec";
+        String codecRef = elementCodecRef(f);
         w.line(f.javaName() + ".add(" + codecRef + ".decode(in.readByteArray()));");
       }
       default -> {}
@@ -766,7 +809,7 @@ public final class CodecGenerator {
       case DOUBLE -> "in.readDouble()";
       case BOOL -> "in.readBool()";
       case STRING -> "in.readString()";
-      case BYTES -> "in.readByteArray()";
+      case BYTES -> BYTES_TYPE + ".of(in.readByteArray())";
     };
   }
 

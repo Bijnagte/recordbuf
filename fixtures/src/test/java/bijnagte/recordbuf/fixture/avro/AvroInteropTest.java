@@ -104,7 +104,10 @@ class AvroInteropTest {
     byte[] b = new byte[] {(byte) 0x80, (byte) 0x81, -1};
 
     bijnagte.recordbuf.fixture.bytes.rec.Sample original =
-        bijnagte.recordbuf.fixture.bytes.rec.Sample.builder().a(a).b(b).build();
+        bijnagte.recordbuf.fixture.bytes.rec.Sample.builder()
+            .a(bijnagte.recordbuf.runtime.Bytes.of(a))
+            .b(bijnagte.recordbuf.runtime.Bytes.of(b))
+            .build();
 
     bijnagte.recordbuf.fixture.bytes.SampleAvro s =
         bijnagte.recordbuf.fixture.bytes.rec.SampleAvroConverter.fromRecord(original);

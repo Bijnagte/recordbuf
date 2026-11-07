@@ -67,13 +67,13 @@ class RecordHookEmissionTest {
         src.contains("public byte[] toByteArray() throws IOException"),
         "instance toByteArray must delegate to the codec: " + src);
     assertTrue(
-        src.contains("return Codec.encode(this);"),
+        src.contains("return SampleCodec.encode(this);"),
         "toByteArray must delegate to the generated codec: " + src);
     assertTrue(
         src.contains("public static Sample fromBytes(byte[] in) throws IOException"),
         "static fromBytes must be generated: " + src);
     assertTrue(
-        src.contains("return Codec.decode(in);"),
+        src.contains("return SampleCodec.decode(in);"),
         "fromBytes must delegate to the generated codec: " + src);
     // The marker is imported short, not spelled out inline.
     assertTrue(
