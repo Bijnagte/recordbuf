@@ -39,3 +39,14 @@ surface bridges each native type to and from the WKT wire shape so the record
 stays wire-compatible with a protoc reference. *Fail-loud* miss path: a WKT with
 no canonical native encoding (e.g. `Struct`, `Any`, `Value`) is rejected at
 generation rather than silently emitted as an opaque record.
+
+## Interop adapters
+
+### Avro converter
+The per-message `XAvroConverter` class that bridges a recordbuf record to and
+from a third-party Apache Avro `GenericRecord`, mapping each record field
+field-by-field. A converter is generated for each message record that has the
+Avro convert option set. It pairs the runtime `WktAvroBridge` surface (converting
+protobuf WKTs to/from Avro types) with field-level record↔Avro mapping, enabling
+Avro-native consumers to use message data produced by the recordbuf plugin without
+a protobuf dependency.

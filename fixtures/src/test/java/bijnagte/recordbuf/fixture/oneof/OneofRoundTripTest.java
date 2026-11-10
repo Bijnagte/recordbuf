@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.ColorValue;
 import bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.CountValue;
+import bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.ItemValue;
 import bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.NameValue;
 import bijnagte.recordbuf.fixture.oneof.rec.Compat.Interop;
 import java.io.IOException;
@@ -69,11 +70,12 @@ class OneofRoundTripTest {
   @Test
   void messageMemberRoundTrips() throws IOException {
     var sub = bijnagte.recordbuf.fixture.oneof.rec.Sub.builder().text("seven").build();
-    var rec = bijnagte.recordbuf.fixture.oneof.rec.Compat.builder().choice(sub).build();
+    var rec =
+        bijnagte.recordbuf.fixture.oneof.rec.Compat.builder().choice(new ItemValue(sub)).build();
     var back = bijnagte.recordbuf.fixture.oneof.rec.Compat.fromBytes(rec.toByteArray());
     assertNotNull(back.choice());
-    assertTrue(back.choice() instanceof bijnagte.recordbuf.fixture.oneof.rec.Sub);
-    assertEquals(sub, back.choice());
+    assertTrue(back.choice() instanceof ItemValue);
+    assertEquals(sub, ((ItemValue) back.choice()).value());
   }
 
   @Test
@@ -88,7 +90,8 @@ class OneofRoundTripTest {
   @Test
   void unwrapableValueForMessageMember() {
     var sub = bijnagte.recordbuf.fixture.oneof.rec.Sub.builder().text("seven").build();
-    var rec = bijnagte.recordbuf.fixture.oneof.rec.Compat.builder().choice(sub).build();
+    var rec =
+        bijnagte.recordbuf.fixture.oneof.rec.Compat.builder().choice(new ItemValue(sub)).build();
     var unwrapable = rec.choice();
     assertEquals(sub, unwrapable.value());
   }
@@ -181,7 +184,8 @@ class OneofRoundTripTest {
   @Test
   void messageMemberIsByteCompatibleWithProtobufJava() throws IOException {
     var sub = bijnagte.recordbuf.fixture.oneof.rec.Sub.builder().text("seven").build();
-    var rec = bijnagte.recordbuf.fixture.oneof.rec.Compat.builder().choice(sub).build();
+    var rec =
+        bijnagte.recordbuf.fixture.oneof.rec.Compat.builder().choice(new ItemValue(sub)).build();
     var ref = Compat.newBuilder().setItem(Sub.newBuilder().setText("seven").build()).build();
     assertArrayEquals(
         rec.toByteArray(),

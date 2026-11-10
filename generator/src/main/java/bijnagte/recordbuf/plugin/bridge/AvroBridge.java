@@ -2,7 +2,7 @@ package bijnagte.recordbuf.plugin.bridge;
 
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.ProtoFile;
-import bijnagte.recordbuf.plugin.writer.AvroConverterGenerator;
+import bijnagte.recordbuf.plugin.writer.AvroConverterSourceMapping;
 import bijnagte.recordbuf.plugin.writer.AvroSchemaGenerator;
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse;
 import java.io.IOException;
@@ -34,7 +34,7 @@ import org.apache.avro.compiler.specific.SpecificCompiler;
  * The specific record lives in a distinct {@code <protoPackage>.avro} sub-namespace so it does not
  * collide with the protobuf-java reference {@code --java_out} output in the bare proto package (R7,
  * reopened 2026-11-06). The per-type {@code XAvro} converter ({@link
- * bijnagte.recordbuf.plugin.writer.AvroConverterGenerator}) is delivered as a generator-tested
+ * bijnagte.recordbuf.plugin.writer.AvroConverterSourceMapping}) is delivered as a generator-tested
  * artifact (U5); its in-process wiring (a cross-package reference between the {@code .rec} record
  * and the {@code .avro} specific record) is a follow-up.
  */
@@ -94,7 +94,7 @@ public final class AvroBridge implements FormatBridge {
     // ----
     String recordPkg = recordPkg(file);
     String converterSource =
-        AvroConverterGenerator.generate(root.name(), file.fileName(), root, avroNs, recordPkg);
+        AvroConverterSourceMapping.generate(root.name(), file.fileName(), root, avroNs, recordPkg);
     String converterPkg =
         recordPkg.isEmpty()
             ? root.name() + "AvroConverter"

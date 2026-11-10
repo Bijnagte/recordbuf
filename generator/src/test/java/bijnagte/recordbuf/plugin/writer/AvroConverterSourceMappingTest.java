@@ -9,7 +9,7 @@ import bijnagte.recordbuf.plugin.model.Message;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-class AvroConverterGeneratorTest {
+class AvroConverterSourceMappingTest {
 
   private static Field scalar(String name, String typeUrl) {
     return new Field(
@@ -59,7 +59,7 @@ class AvroConverterGeneratorTest {
             null);
 
     String out =
-        AvroConverterGenerator.generate(
+        AvroConverterSourceMapping.generate(
             "Sample",
             "sample.proto",
             m,
@@ -124,7 +124,7 @@ class AvroConverterGeneratorTest {
             null);
 
     String out =
-        AvroConverterGenerator.generate(
+        AvroConverterSourceMapping.generate(
             "Sample",
             "sample.proto",
             m,

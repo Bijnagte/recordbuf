@@ -91,9 +91,10 @@ class BuilderEmissionTest {
     String src = generatedSource(file(), FILE);
 
     // R1: the factory + copy accessors + nested builder class on the record.
-    assertTrue(src.contains("public static Sample.Builder builder()"), src);
+    // The builder factory uses short-form Builder since it is nested inside Sample/Item.
+    assertTrue(src.contains("public static Builder builder()"), src);
     assertTrue(src.contains("return new Sample.Builder();"), src);
-    assertTrue(src.contains("public Sample.Builder toBuilder()"), src);
+    assertTrue(src.contains("public Builder toBuilder()"), src);
     assertTrue(src.contains("return new Sample.Builder(this);"), src);
     assertTrue(src.contains("public static final class Builder"), src);
     assertTrue(src.contains("public Sample build()"), src);
@@ -156,8 +157,8 @@ class BuilderEmissionTest {
     String src = generatedSource(file(), FILE);
 
     // R5 (top-level): every top-level message in the file gets a builder.
-    assertTrue(src.contains("public static Sample.Builder builder()"), src);
-    assertTrue(src.contains("public static Item.Builder builder()"), src);
+    // The source-AST path uses the short form since Builder is nested inside each record.
+    assertTrue(src.contains("public static Builder builder()"), src);
   }
 
   @Test

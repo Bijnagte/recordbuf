@@ -14,3 +14,6 @@ project(":recordbuf-fixtures").projectDir = File(rootDir, "fixtures")
 
 include(":recordbuf-generator")
 project(":recordbuf-generator").projectDir = File(rootDir, "generator")
+
+include(":recordbuf-codegen")
+project(":recordbuf-codegen").projectDir = File(rootDir, "codegen")

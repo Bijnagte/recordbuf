@@ -36,6 +36,12 @@ dependencies {
     // 36.2 that generated PluginProtos.java.
     implementation(libs.protobuf)
 
+    // The pure-Java, proto-agnostic Java-source AST (M4 cross-module swap): the writer's
+    // string-concatenation emit path is being replaced by bijnagte.recordbuf.codegen.source.
+    // generator-internal only -> implementation (NOT api): the emitted .rec code stays
+    // dependency-free (R22); :recordbuf-codegen is the generator's own concern.
+    implementation(project(":recordbuf-codegen"))
+
     // Avro's specific-record compiler (generation-time only). Per the R5 decision (same output dir,
     // no gradle task, in-process generation): the plugin runs Avro's SpecificCompiler over the
     // per-file .avsc it emits, reads back the generated XSpecific.java, and emits it as a
@@ -81,8 +87,14 @@ dependencies {
     // the dependency is generated types' concern, not the plugin's.
     testImplementation(libs.avro)
 
+    testImplementation(project(":recordbuf-runtime"))
+
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
+    // M4-C2d-1: optional scalar @Nullable support requires JSpecify on the test classpath
+    // so that assertCompilesWithRuntime (which compiles against the test runtime classpath)
+    // resolves the @Nullable annotation emitted in the generated record header.
+    testImplementation(libs.jspecify)
 }
 
 application {

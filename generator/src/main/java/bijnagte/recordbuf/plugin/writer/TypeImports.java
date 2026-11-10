@@ -103,4 +103,21 @@ public final class TypeImports {
     int dot = fqn.lastIndexOf('.');
     return dot < 0 ? fqn : fqn.substring(dot + 1);
   }
+
+  /**
+   * Build a Java {@code implements X, Y} suffix from the declared option values, each resolved
+   * through this collector: an interface in the file's own package is emitted short and
+   * import-free; one in another package is imported and emitted short, or (on a simple-name
+   * collision with another type in the same file) left fully-qualified. Returns an empty string
+   * when the list is empty.
+   */
+  public static String implementsClause(TypeImports ci, List<String> interfaces) {
+    if (interfaces.isEmpty()) return "";
+    var sb = new StringBuilder(" implements ");
+    for (int i = 0; i < interfaces.size(); i++) {
+      if (i > 0) sb.append(", ");
+      sb.append(ci.use(interfaces.get(i)));
+    }
+    return sb.toString();
+  }
 }
