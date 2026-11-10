@@ -2,9 +2,9 @@ package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.JavaFile;
-import bijnagte.recordbuf.codegen.source.Line;
 import bijnagte.recordbuf.codegen.source.Member;
 import bijnagte.recordbuf.codegen.source.SourceRenderer;
+import bijnagte.recordbuf.codegen.source.Statement;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
@@ -119,13 +119,13 @@ public final class AvroConverterSourceMapping {
       String avroSpecific,
       boolean hasWkt,
       boolean hasByteField) {
-    List<Line> body = new ArrayList<>();
-    body.add(Line.of(recordClass + ".Builder b = " + recordClass + ".builder();"));
+    List<Statement> body = new ArrayList<>();
+    body.add(Statement.of(recordClass + ".Builder b = " + recordClass + ".builder();"));
     for (Field f : message.fields()) {
       body.add(toRecordFieldLine(f, "s", hasWkt, hasByteField));
     }
-    body.add(Line.of("b.unknownFields(UnknownFields.empty());"));
-    body.add(Line.of("return b.build();"));
+    body.add(Statement.of("b.unknownFields(UnknownFields.empty());"));
+    body.add(Statement.of("return b.build();"));
 
     return Member.Method.builder()
         .public_()
@@ -137,15 +137,15 @@ public final class AvroConverterSourceMapping {
         .build();
   }
 
-  private static Line toRecordFieldLine(
+  private static Statement toRecordFieldLine(
       Field f, String param, boolean hasWkt, boolean hasByteField) {
     String getter = param + ".get" + cap(f.javaName());
     String var = "b." + f.javaName();
     if (AvroSchemaGenerator.typeUrlIfWkt(f) != null) {
-      return Line.of(var + "(WktAvroBridge.fromAvro(" + getter + "());");
+      return Statement.of(var + "(WktAvroBridge.fromAvro(" + getter + "());");
     }
     if (f.kind() == FieldKind.SCALAR && "bytes".equals(f.typeUrl())) {
-      return Line.of(
+      return Statement.of(
           var
               + "("
               + getter
@@ -156,22 +156,22 @@ public final class AvroConverterSourceMapping {
               + "().remaining())) : Bytes.empty());");
     }
     if (f.kind() == FieldKind.SCALAR && "string".equals(f.typeUrl())) {
-      return Line.of(var + "(" + getter + "().toString());");
+      return Statement.of(var + "(" + getter + "().toString());");
     }
-    return Line.of(var + "(" + getter + "());");
+    return Statement.of(var + "(" + getter + "());");
   }
 
   // --- fromRecord body builder --------------------------------------------------------
 
   private static Member buildFromRecord(
       Message message, String recordClass, String avroSpecific, boolean hasWkt) {
-    List<Line> body = new ArrayList<>();
-    body.add(Line.of(avroSpecific + " s = new " + avroSpecific + "();"));
-    body.add(Line.of("")); // blank line between declaration and setters
+    List<Statement> body = new ArrayList<>();
+    body.add(Statement.of(avroSpecific + " s = new " + avroSpecific + "();"));
+    body.add(Statement.of("")); // blank line between declaration and setters
     for (Field f : message.fields()) {
       body.add(fromRecordFieldLine(f, "s", "r", hasWkt));
     }
-    body.add(Line.of("return s;"));
+    body.add(Statement.of("return s;"));
 
     return Member.Method.builder()
         .public_()
@@ -183,16 +183,17 @@ public final class AvroConverterSourceMapping {
         .build();
   }
 
-  private static Line fromRecordFieldLine(Field f, String param, String record, boolean hasWkt) {
+  private static Statement fromRecordFieldLine(
+      Field f, String param, String record, boolean hasWkt) {
     String setter = param + ".set" + cap(f.javaName());
     String accessor = record + "." + f.javaName() + "()";
     if (AvroSchemaGenerator.typeUrlIfWkt(f) != null) {
-      return Line.of(setter + "(WktAvroBridge.toAvro(" + accessor + "));");
+      return Statement.of(setter + "(WktAvroBridge.toAvro(" + accessor + "));");
     }
     if (f.kind() == FieldKind.SCALAR && "bytes".equals(f.typeUrl())) {
-      return Line.of(setter + "(ByteBuffer.wrap(" + accessor + ".toByteArray()));");
+      return Statement.of(setter + "(ByteBuffer.wrap(" + accessor + ".toByteArray()));");
     }
-    return Line.of(setter + "(" + accessor + ");");
+    return Statement.of(setter + "(" + accessor + ");");
   }
 
   private static String cap(String s) {

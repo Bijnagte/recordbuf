@@ -2,8 +2,8 @@ package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Javadoc;
-import bijnagte.recordbuf.codegen.source.Line;
 import bijnagte.recordbuf.codegen.source.Member;
+import bijnagte.recordbuf.codegen.source.Statement;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.plugin.model.Enum;
 import java.util.ArrayList;
@@ -65,7 +65,7 @@ public final class EnumSourceMapping {
         Member.Constructor.builder()
             .name(name)
             .params("(int number)")
-            .body(List.of(Line.of("this.number = number;")))
+            .body(List.of(Statement.of("this.number = number;")))
             .build());
     members.add(
         Member.Method.builder()
@@ -73,7 +73,7 @@ public final class EnumSourceMapping {
             .returnType("int")
             .name("getNumber")
             .params("()")
-            .body(List.of(Line.of("return number;")))
+            .body(List.of(Statement.of("return number;")))
             .build());
 
     // 3. The reverse-lookup cluster -- M4-C2a-ext's fold-in. ci.use imports java.util.Map/HashMap +
@@ -91,9 +91,9 @@ public final class EnumSourceMapping {
             .initializer("new " + hashMap + "<>()")
             .build());
 
-    List<Line> init = new ArrayList<>();
+    List<Statement> init = new ArrayList<>();
     for (Enum.EnumConstant c : proto.constants()) {
-      init.add(Line.of("BY_NUMBER.put(" + c.number() + ", " + c.name() + ");"));
+      init.add(Statement.of("BY_NUMBER.put(" + c.number() + ", " + c.name() + ");"));
     }
     members.add(new Member.StaticBlock(init));
 
@@ -106,7 +106,7 @@ public final class EnumSourceMapping {
             .params("(int number)")
             .body(
                 List.of(
-                    Line.of(
+                    Statement.of(
                         "return BY_NUMBER.getOrDefault(number, "
                             + firstConstantName(proto)
                             + ");")))

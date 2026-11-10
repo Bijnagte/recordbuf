@@ -20,9 +20,9 @@ import org.junit.jupiter.api.Test;
  * compile that rendered source with the in-process {@code javac}. The program is a top-level record
  * {@code Sample} that owns a nested {@code enum SampleType} (the "fragment"), a {@code private int
  * number} field, its own constructor, and a {@code getNumber} method -- plus two static methods on
- * the record. Every method/constructor/static-block <em>body is a {@link List}&lt;{@link Line}&gt;
- * emitted verbatim</em>; the surrounding structure is the AST. So the test is the proof that the
- * "structural AST, line-emission bodies" hybrid renders compilable Java.
+ * the record. Every method/constructor/static-block <em>body is a {@link List}&lt;{@link
+ * Statement}&gt; emitted verbatim</em>; the surrounding structure is the AST. So the test is the
+ * proof that the "structural AST, line-emission bodies" hybrid renders compilable Java.
  */
 class JavaSourceTest {
 
@@ -39,14 +39,14 @@ class JavaSourceTest {
                 Member.Constructor.builder()
                     .name("SampleType")
                     .params("(int number)")
-                    .body(List.of(Line.of("this.number = number;")))
+                    .body(List.of(Statement.of("this.number = number;")))
                     .build(),
                 Member.Method.builder()
                     .public_()
                     .returnType("int")
                     .name("getNumber")
                     .params("()")
-                    .body(List.of(Line.of("return number;")))
+                    .body(List.of(Statement.of("return number;")))
                     .build()))
         .build();
   }
@@ -68,7 +68,7 @@ class JavaSourceTest {
                     .returnType("byte[]")
                     .name("toByteArray")
                     .params("(Sample s)")
-                    .body(List.of(Line.of("return new byte[] { 0 };")))
+                    .body(List.of(Statement.of("return new byte[] { 0 };")))
                     .build(),
                 Member.Method.builder()
                     .public_()
@@ -76,7 +76,7 @@ class JavaSourceTest {
                     .returnType("Sample")
                     .name("fromBytes")
                     .params("(byte[] b)")
-                    .body(List.of(Line.of("return new Sample(0, new byte[0], SampleType.A);")))
+                    .body(List.of(Statement.of("return new Sample(0, new byte[0], SampleType.A);")))
                     .build()))
         .build();
   }

@@ -9,9 +9,10 @@ import java.util.List;
  * {@link Constructor}, a {@link StaticBlock}) the enclosing {@link Type} owns. The proto logic
  * assembles these from its model; the module never sees a proto.
  *
- * <p>A {@link Method method} or {@link Constructor} carries a body that is just a {@code List} of
- * {@link Line}s -- it does not model a nested expression-statement AST. That is the deliberate
- * hybrid: structure at the type/member level, line-emission at the method-body level.
+ * <p>A {@link Method method} or {@link Constructor} carries a body that is a {@code List} of {@link
+ * Statement}s -- control-flow and statement idioms ({@code If}/{@code For}/.../ {@code Return}/
+ * {@code Throw}) plus the {@link Statement.Fragment} escape -- which the {@link SourceRenderer}
+ * lays out; it is not a flat list of hand-indented strings.
  *
  * <p>Each variant is built via a hand-written, ergonomic nested {@code Builder}: named modifier
  * toggles ({@code public_()}/{@code static_()}/{@code final_()}/...), collection accumulators
@@ -215,7 +216,7 @@ public sealed interface Member {
       String name,
       String params,
       List<String> thrown,
-      List<Line> body,
+      List<Statement> body,
       boolean abstractDecl,
       boolean override)
       implements Member {
@@ -241,7 +242,7 @@ public sealed interface Member {
       private String name;
       private String params;
       private final List<String> thrown = new ArrayList<>();
-      private final List<Line> body = new ArrayList<>();
+      private final List<Statement> body = new ArrayList<>();
       private boolean abstractDecl;
       private boolean override;
 
@@ -283,14 +284,14 @@ public sealed interface Member {
       }
 
       /** Replace the full body. */
-      public Builder body(List<Line> b) {
+      public Builder body(List<Statement> b) {
         this.body.clear();
         if (b != null) body.addAll(b);
         return this;
       }
 
       /** Append one body line. */
-      public Builder body(Line l) {
+      public Builder body(Statement l) {
         this.body.add(l);
         return this;
       }
@@ -360,7 +361,8 @@ public sealed interface Member {
   }
 
   /** A constructor: {@code mods name(params) { body }}. */
-  record Constructor(Javadoc javadoc, Modifiers mods, String name, String params, List<Line> body)
+  record Constructor(
+      Javadoc javadoc, Modifiers mods, String name, String params, List<Statement> body)
       implements Member {
     // Optional fields stay null/empty when a builder leaves them unset; the compact ctor seeds
     // them:
@@ -383,7 +385,7 @@ public sealed interface Member {
       private final Modifiers.Builder mods = Modifiers.builder();
       private String name;
       private String params;
-      private final List<Line> body = new ArrayList<>();
+      private final List<Statement> body = new ArrayList<>();
 
       /** The constructor's Javadoc. */
       public Builder javadoc(Javadoc d) {
@@ -404,14 +406,14 @@ public sealed interface Member {
       }
 
       /** Replace the full body. */
-      public Builder body(List<Line> b) {
+      public Builder body(List<Statement> b) {
         this.body.clear();
         if (b != null) body.addAll(b);
         return this;
       }
 
       /** Append one body line. */
-      public Builder body(Line l) {
+      public Builder body(Statement l) {
         this.body.add(l);
         return this;
       }
@@ -454,7 +456,7 @@ public sealed interface Member {
   }
 
   /** A {@code static { ... }} initializer. */
-  record StaticBlock(List<Line> body) implements Member {}
+  record StaticBlock(List<Statement> body) implements Member {}
 
   /** A nested type -- another {@link Type} owned by this type's body (a "fragment"). */
   record Nested(Type type) implements Member {}

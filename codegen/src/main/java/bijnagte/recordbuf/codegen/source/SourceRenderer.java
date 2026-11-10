@@ -8,7 +8,8 @@ import java.util.List;
  * Renders a {@link Type} tree to Java source, top-down. Import resolution is two-phase (collect the
  * whole tree into a {@link TypeCollector}, {@link TypeCollector#finalizeResolution() finalize},
  * then render). Structure is rendered from the AST; method/constructor/static-block bodies are the
- * {@code List} of {@link Line}s joined verbatim at the body's indent.
+ * {@code List} of {@link Statement}s (idiom nodes + the {@link Statement.Fragment} escape) joined
+ * verbatim at the body's indent via the renderer's {@code renderStatement} layout pass.
  *
  * <p>That split -- structural AST at the type/member level, line-emission at the method-body level
  * -- is the "structural AST, line-emission bodies" hybrid the user specified for M4.
@@ -265,7 +266,7 @@ public final class SourceRenderer {
             return;
           }
           out.append(sig).append(" {\n");
-          for (Line l : m.body()) out.append(indent(body)).append(l.text()).append('\n');
+          for (Statement s : m.body()) renderStatement(body, s, out);
           out.append(indent(indent)).append("}\n");
         }
         case Member.Constructor c -> {
@@ -275,13 +276,13 @@ public final class SourceRenderer {
             out.append(c.mods().withSpace()).append(c.name()).append(c.params()).append(" {}\n");
           } else {
             out.append(c.mods().withSpace()).append(c.name()).append(c.params()).append(" {\n");
-            for (Line l : c.body()) out.append(indent(body)).append(l.text()).append('\n');
+            for (Statement s : c.body()) renderStatement(body, s, out);
             out.append(indent(indent)).append("}\n");
           }
         }
         case Member.StaticBlock s -> {
           out.append(indent(indent)).append("static {\n");
-          for (Line l : s.body()) out.append(indent(body)).append(l.text()).append('\n');
+          for (Statement st : s.body()) renderStatement(body, st, out);
           out.append(indent(indent)).append("}\n");
         }
         case Member.Nested n -> render(n.type(), indent, out);
@@ -290,6 +291,13 @@ public final class SourceRenderer {
     }
 
     /* ---- helpers --------------------------------------------------------- */
+
+    /** Render one body statement at the block's indent -- the idiom layout pass lives here. */
+    private void renderStatement(int body, Statement s, StringBuilder out) {
+      switch (s) {
+        case Statement.Fragment fr -> out.append(indent(body)).append(fr.text()).append('\n');
+      }
+    }
 
     private String joinResolved(List<String> fqns) {
       StringBuilder sb = new StringBuilder();

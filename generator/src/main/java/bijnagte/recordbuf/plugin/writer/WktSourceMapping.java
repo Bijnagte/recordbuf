@@ -1,7 +1,7 @@
 package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
-import bijnagte.recordbuf.codegen.source.Line;
+import bijnagte.recordbuf.codegen.source.Statement;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
 import bijnagte.recordbuf.plugin.types.WellKnownTypes;
@@ -57,7 +57,7 @@ final class WktSourceMapping {
   //            repeated form:      "for (var e : v.field()) out.writeByteArray(n, Wkt.method(e));"
 
   static void emitEncode(
-      Field f, Entry entry, String out, String v, TypeCollector ci, List<Line> body) {
+      Field f, Entry entry, String out, String v, TypeCollector ci, List<Statement> body) {
     String wkt = ci.use(WKT_FQN);
     ci.use(requireType(entry));
     int num = f.number();
@@ -78,7 +78,7 @@ final class WktSourceMapping {
         String def = Objects.requireNonNull(entry.zeroDefault());
         // for (var e : v.field()) { if (!e.equals(def)) out.writeByteArray(n, Wkt.method(e)); }
         body.add(
-            Line.of(
+            Statement.of(
                 "for (var e : "
                     + g
                     + ") { if (!e.equals("
@@ -92,7 +92,7 @@ final class WktSourceMapping {
       } else {
         // for (var e : v.field()) out.writeByteArray(n, Wkt.wrap(Wkt.Wrap.KIND, e));
         body.add(
-            Line.of(
+            Statement.of(
                 "for (var e : "
                     + g
                     + ") "
@@ -109,30 +109,30 @@ final class WktSourceMapping {
       // if (v.field() != null && !def.equals(v.field())) out.writeByteArray(n,
       // Wkt.method(v.field()));
       String call = outExpr + wkt + "." + methodName + "(" + g + "));";
-      body.add(Line.of("if (" + g + " != null && !" + def + ".equals(" + g + ")) " + call));
+      body.add(Statement.of("if (" + g + " != null && !" + def + ".equals(" + g + ")) " + call));
     } else {
       // if (v.field() != null) out.writeByteArray(n, Wkt.wrap(Wkt.Wrap.KIND, v.field()));
       String call =
           outExpr + wkt + ".wrap(" + wkt + ".Wrap." + wrapKind(f.typeUrl()) + ", " + g + "));";
-      body.add(Line.of("if (" + g + " != null) " + call));
+      body.add(Statement.of("if (" + g + " != null) " + call));
     }
   }
 
   // decode case: "case N -> { field = Wkt.parseName(in.readByteArray()); }"
   //             "case N -> { field = (Short) Wkt.parse(Wkt.Wrap.KIND, in.readByteArray()); }"
 
-  static void emitDecodeCase(Field f, Entry entry, String in, String wkt, List<Line> body) {
+  static void emitDecodeCase(Field f, Entry entry, String in, String wkt, List<Statement> body) {
     int num = f.number();
     String name = f.javaName();
     String read = in + ".readByteArray()";
 
-    body.add(Line.of("    case " + num + " -> {"));
+    body.add(Statement.of("    case " + num + " -> {"));
 
     if (f.label() == FieldLabel.REPEATED) {
       if (entry.hasZeroDefault()) {
         // field.add(Wkt.parseName(in.readByteArray()));
         body.add(
-            Line.of(
+            Statement.of(
                 "      "
                     + name
                     + ".add("
@@ -146,7 +146,7 @@ final class WktSourceMapping {
         String javaShort = shortNameOf(requireType(entry));
         // field.add((Short) Wkt.parse(Wkt.Wrap.KIND, in.readByteArray()));
         body.add(
-            Line.of(
+            Statement.of(
                 "      "
                     + name
                     + ".add(("
@@ -164,13 +164,13 @@ final class WktSourceMapping {
     } else if (entry.hasZeroDefault()) {
       // field = Wkt.parseName(in.readByteArray());
       body.add(
-          Line.of(
+          Statement.of(
               "      " + name + " = " + wkt + "." + parseMethod(f.typeUrl()) + "(" + read + ");"));
     } else {
       String javaShort = shortNameOf(requireType(entry));
       // field = (Short) Wkt.parse(Wkt.Wrap.KIND, in.readByteArray());
       body.add(
-          Line.of(
+          Statement.of(
               "      "
                   + name
                   + " = ("
@@ -185,7 +185,7 @@ final class WktSourceMapping {
                   + read
                   + ");"));
     }
-    body.add(Line.of("    }"));
+    body.add(Statement.of("    }"));
   }
 
   private static String requireType(Entry entry) {

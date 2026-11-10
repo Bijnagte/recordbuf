@@ -2,8 +2,8 @@ package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Javadoc;
-import bijnagte.recordbuf.codegen.source.Line;
 import bijnagte.recordbuf.codegen.source.Member;
+import bijnagte.recordbuf.codegen.source.Statement;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.plugin.model.Enum;
 import bijnagte.recordbuf.plugin.model.Field;
@@ -82,9 +82,9 @@ public final class RecordSourceMapping {
 
   /**
    * Map a message model to a source-AST {@link Type.Record} WITH the nested {@code Codec} included.
-   * The codec (encode/decode static methods with real {@code List<Line>} bodies) is appended as a
-   * {@link Member.Nested} to the record's member list, so the rendered source contains both the
-   * record shell and its codec.
+   * The codec (encode/decode static methods with real {@code List<Statement>} bodies) is appended
+   * as a {@link Member.Nested} to the record's member list, so the rendered source contains both
+   * the record shell and its codec.
    */
   public static Type.Record toSourceWithCodec(Message m, TypeCollector ci) {
     return toSourceWithCodec(m, ci, null);
@@ -148,7 +148,7 @@ public final class RecordSourceMapping {
             .returnType("Builder")
             .name("toBuilder")
             .params("()")
-            .body(List.of(Line.of("return new " + m.name() + ".Builder(this);")))
+            .body(List.of(Statement.of("return new " + m.name() + ".Builder(this);")))
             .build());
     allMembers.add(
         Member.Method.builder()
@@ -158,7 +158,7 @@ public final class RecordSourceMapping {
             .name("fromBytes")
             .params("(byte[] in)")
             .thrown(List.of("java.io.IOException"))
-            .body(List.of(Line.of("return " + codecName + ".decode(in);")))
+            .body(List.of(Statement.of("return " + codecName + ".decode(in);")))
             .build());
 
     // M4-C2b-2b-5: the Layer A marshalling hook. Every record implements ProtobufMessage by
@@ -172,7 +172,7 @@ public final class RecordSourceMapping {
             .name("toByteArray")
             .params("()")
             .thrown(List.of("java.io.IOException"))
-            .body(List.of(Line.of("return " + m.name() + "Codec.encode(this);")))
+            .body(List.of(Statement.of("return " + m.name() + "Codec.encode(this);")))
             .override(true)
             .build();
     allMembers.add(toByteArray);
@@ -357,7 +357,7 @@ public final class RecordSourceMapping {
             .returnType("Object")
             .name("value")
             .params("()")
-            .body(List.of(Line.of("return this;")))
+            .body(List.of(Statement.of("return this;")))
             .build();
     ifaceMembers.add(defaultMethod);
 
@@ -464,23 +464,23 @@ public final class RecordSourceMapping {
             .build());
 
     // The toBuilder copy constructor.
-    List<Line> copyBody = new ArrayList<>();
+    List<Statement> copyBody = new ArrayList<>();
     for (Field f : m.fields()) {
       String fn = f.javaName();
       if (f.label() == FieldLabel.REPEATED) {
-        copyBody.add(Line.of("this." + fn + " = new ArrayList<>(x." + fn + "());"));
+        copyBody.add(Statement.of("this." + fn + " = new ArrayList<>(x." + fn + "());"));
       } else if (f.kind() == FieldKind.MAP) {
-        copyBody.add(Line.of("this." + fn + " = new HashMap<>(x." + fn + "());"));
+        copyBody.add(Statement.of("this." + fn + " = new HashMap<>(x." + fn + "());"));
       } else {
-        copyBody.add(Line.of("this." + fn + " = x." + fn + "();"));
+        copyBody.add(Statement.of("this." + fn + " = x." + fn + "();"));
       }
     }
     // M4-C2b-2b-12: oneof component copy.
     for (var oneof : m.oneofs()) {
       copyBody.add(
-          Line.of("this." + oneof.componentName() + " = x." + oneof.componentName() + "();"));
+          Statement.of("this." + oneof.componentName() + " = x." + oneof.componentName() + "();"));
     }
-    copyBody.add(Line.of("this.unknownFields = x.unknownFields();"));
+    copyBody.add(Statement.of("this.unknownFields = x.unknownFields();"));
     builderMembers.add(
         Member.Constructor.builder()
             .private_()
@@ -501,8 +501,8 @@ public final class RecordSourceMapping {
               .params("(" + param + ")")
               .body(
                   List.of(
-                      Line.of("this." + fieldName + " = " + fieldName + ";"),
-                      Line.of("return this;")))
+                      Statement.of("this." + fieldName + " = " + fieldName + ";"),
+                      Statement.of("return this;")))
               .build());
     }
     // M4-C2b-2b-12: oneof fluent setter per component.
@@ -517,8 +517,8 @@ public final class RecordSourceMapping {
               .params("(" + compParam + ")")
               .body(
                   List.of(
-                      Line.of("this." + compName + " = " + compName + ";"),
-                      Line.of("return this;")))
+                      Statement.of("this." + compName + " = " + compName + ";"),
+                      Statement.of("return this;")))
               .build());
     }
     // Carrier setter.
@@ -528,7 +528,10 @@ public final class RecordSourceMapping {
             .returnType("Builder")
             .name("unknownFields")
             .params("(" + ufShort + " unknownFields)")
-            .body(List.of(Line.of("this.unknownFields = unknownFields;"), Line.of("return this;")))
+            .body(
+                List.of(
+                    Statement.of("this.unknownFields = unknownFields;"),
+                    Statement.of("return this;")))
             .build());
 
     // build(): constructs the record.
@@ -550,7 +553,8 @@ public final class RecordSourceMapping {
             .params("()")
             .body(
                 List.of(
-                    Line.of("return new " + recName + "(" + String.join(", ", ctorArgs) + ");")))
+                    Statement.of(
+                        "return new " + recName + "(" + String.join(", ", ctorArgs) + ");")))
             .build());
 
     // The nested Builder class itself — with javadoc matching the old JavaWriter path.
@@ -577,7 +581,7 @@ public final class RecordSourceMapping {
             .returnType("Builder")
             .name("builder")
             .params("()")
-            .body(List.of(Line.of("return new " + recName + ".Builder();")))
+            .body(List.of(Statement.of("return new " + recName + ".Builder();")))
             .build();
 
     return List.of(builderFactory, new Member.Nested(builder));
