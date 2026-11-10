@@ -63,11 +63,17 @@ public final class CodecSourceMapping {
     // M4-C2d-7: map fields need java.util.HashMap; repeated fields need java.util.ArrayList.
     ci.use("java.util.HashMap");
     ci.use("java.util.ArrayList");
-    List<Member> codecMembers = new ArrayList<>();
     String codecName = m.name() + "Codec"; // M4-C2b-2b-8: align with old SampleCodec naming
-    codecMembers.add(Member.Constructor.builder().private_().name(codecName).build());
-
-    codecMembers.add(
+    Type.Class.Builder result =
+        Type.Class.builder()
+            .parent(m.name())
+            .public_()
+            .static_()
+            .final_()
+            .javadoc(Javadoc.builder().text("Wire codec for the ", m.name(), " record.").build())
+            .name(codecName); // M4-C2b-2b-8: <Name>Codec to align with old path
+    result.members(Member.Constructor.builder().private_().name(codecName).build());
+    result.members(
         encode(
             m,
             ci,
@@ -78,7 +84,7 @@ public final class CodecSourceMapping {
             wireShort,
             bytesShort,
             typeResolver));
-    codecMembers.add(
+    result.members(
         decode(
             m,
             ci,
@@ -90,15 +96,7 @@ public final class CodecSourceMapping {
             bytesShort,
             typeResolver));
 
-    return Type.Class.builder()
-        .parent(m.name())
-        .public_()
-        .static_()
-        .final_()
-        .javadoc(Javadoc.builder().text("Wire codec for the ", m.name(), " record.").build())
-        .name(codecName) // M4-C2b-2b-8: <Name>Codec to align with old path
-        .members(codecMembers)
-        .build();
+    return result.build();
   }
 
   /** The {@code byte[] encode(Message v) throws IOException} method body. */
@@ -737,9 +735,9 @@ public final class CodecSourceMapping {
     WireScalar keyWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapKey()));
     WireScalar valWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapValue()));
     String codecName = entryName + "Codec";
-    List<Member> codecMembers = new ArrayList<>();
+    Type.Class.Builder result = Type.Class.builder().public_().static_().final_().name(codecName);
 
-    codecMembers.add(Member.Constructor.builder().private_().name(codecName).build());
+    result.members(Member.Constructor.builder().private_().name(codecName).build());
 
     List<Statement> encBody = new ArrayList<>();
     encBody.add(Statement.of("var enc = " + encoderShort + ".start();"));
@@ -755,7 +753,7 @@ public final class CodecSourceMapping {
     encBody.add(Statement.of("out." + encodeCall(valWire) + "(2, " + valArg + ");"));
     encBody.add(Statement.of("return enc.finish();"));
 
-    codecMembers.add(
+    result.members(
         Member.Method.builder()
             .public_()
             .static_()
@@ -784,7 +782,7 @@ public final class CodecSourceMapping {
     decBody.add(Statement.of("}"));
     decBody.add(Statement.of("return new " + entryName + "(key, value);"));
 
-    codecMembers.add(
+    result.members(
         Member.Method.builder()
             .public_()
             .static_()
@@ -795,13 +793,7 @@ public final class CodecSourceMapping {
             .body(decBody)
             .build());
 
-    return Type.Class.builder()
-        .public_()
-        .static_()
-        .final_()
-        .name(codecName)
-        .members(codecMembers)
-        .build();
+    return result.build();
   }
 
   /** M4-C2d-12: resolve a {@link WireScalar} from a proto scalar type URL string. */

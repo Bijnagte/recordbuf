@@ -47,11 +47,18 @@ public final class EnumSourceMapping {
    */
   public static Type.Enum toSource(Enum proto, TypeCollector ci) {
     String name = proto.name();
-    List<Member> members = new ArrayList<>();
+
+    Type.Enum.Builder result =
+        Type.Enum.builder()
+            .public_()
+            .javadoc(Javadoc.builder().text(proto.comment()).build())
+            .deprecated(proto.deprecated())
+            .name(proto.name())
+            .implementsFqns(proto.interfaces());
 
     // 1. The constants -- each with its number ctor-arg, its own Javadoc, and its own @Deprecated.
     for (Enum.EnumConstant c : proto.constants()) {
-      members.add(
+      result.members(
           Member.EnumConstant.builder()
               .name(c.name())
               .ctorArgs(Integer.toString(c.number()))
@@ -61,8 +68,8 @@ public final class EnumSourceMapping {
     }
 
     // 2. The number field + ctor + accessor -- the core the M4-C2a slice mapped.
-    members.add(Member.Field.builder().private_().final_().type("int").name("number").build());
-    members.add(
+    result.members(Member.Field.builder().private_().final_().type("int").name("number").build());
+    result.members(
         Member.Constructor.builder()
             .name(name)
             .param("int", "number")
@@ -71,7 +78,7 @@ public final class EnumSourceMapping {
                     Expression.assign(
                         Expression.member("this", "number"), Expression.lit("number"))))
             .build());
-    members.add(
+    result.members(
         Member.Method.builder()
             .public_()
             .returnType("int")
@@ -84,7 +91,7 @@ public final class EnumSourceMapping {
     // form and emitted verbatim (TypeCollector.use strips generic args).
     String map = ci.use("java.util.Map");
     String hashMap = ci.use("java.util.HashMap");
-    members.add(
+    result.members(
         Member.Field.builder()
             .private_()
             .static_()
@@ -103,9 +110,9 @@ public final class EnumSourceMapping {
                   Expression.lit(String.valueOf(c.number())),
                   Expression.lit(c.name()))));
     }
-    members.add(new Member.StaticBlock(init));
+    result.members(new Member.StaticBlock(init));
 
-    members.add(
+    result.members(
         Member.Method.builder()
             .public_()
             .static_()
@@ -120,14 +127,7 @@ public final class EnumSourceMapping {
                         Expression.lit(firstConstantName(proto)))))
             .build());
 
-    return Type.Enum.builder()
-        .public_()
-        .javadoc(Javadoc.builder().text(proto.comment()).build())
-        .deprecated(proto.deprecated())
-        .name(name)
-        .implementsFqns(proto.interfaces())
-        .members(List.copyOf(members))
-        .build();
+    return result.build();
   }
 
   /** The first constant's name, or {@code UNRECOGNIZED} when the enum has none. */

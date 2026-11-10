@@ -64,8 +64,6 @@ public final class InteropSourceMapping {
     var fromMethod = emitFrom(m, ci, refPkg, ref, rec);
     var toMethod = emitTo(m, ci, refPkg, ref, rec);
 
-    List<Member> members = new ArrayList<>(List.of(privateCtor, fromMethod, toMethod));
-
     return Type.Class.builder()
         .parent(rec)
         .public_()
@@ -73,7 +71,7 @@ public final class InteropSourceMapping {
         .final_()
         .javadoc(javadoc)
         .name("Interop")
-        .members(members)
+        .members(privateCtor, fromMethod, toMethod)
         .build();
   }
 
