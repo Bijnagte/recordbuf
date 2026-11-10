@@ -28,25 +28,21 @@ class JavaSourceTest {
 
   /** The nested enum, fully specified as an AST. */
   private static Type.Enum sampleType() {
-    return TypeEnumBuilder.builder()
-        .mods(Modifiers.of("public"))
+    return Type.Enum.builder()
+        .public_()
         .name("SampleType")
         .members(
             List.of(
-                MemberEnumConstantBuilder.builder().name("A").ctorArgs("(0)").build(),
-                MemberEnumConstantBuilder.builder().name("B").ctorArgs("(1)").build(),
-                MemberFieldBuilder.builder()
-                    .mods(Modifiers.of("private"))
-                    .type("int")
-                    .name("number")
-                    .build(),
-                MemberConstructorBuilder.builder()
+                Member.EnumConstant.builder().name("A").ctorArgs("(0)").build(),
+                Member.EnumConstant.builder().name("B").ctorArgs("(1)").build(),
+                Member.Field.builder().private_().type("int").name("number").build(),
+                Member.Constructor.builder()
                     .name("SampleType")
                     .params("(int number)")
                     .body(List.of(Line.of("this.number = number;")))
                     .build(),
-                MemberMethodBuilder.builder()
-                    .mods(Modifiers.of("public"))
+                Member.Method.builder()
+                    .public_()
                     .returnType("int")
                     .name("getNumber")
                     .params("()")
@@ -57,24 +53,26 @@ class JavaSourceTest {
 
   /** The top-level record, with its nested type + two static methods as body members. */
   private static Type.Record sample() {
-    return TypeRecordBuilder.builder()
-        .mods(Modifiers.of("public"))
+    return Type.Record.builder()
+        .public_()
         .name("Sample")
         .members(
             List.of(
-                MemberFieldBuilder.builder().type("int").name("value").build(),
-                MemberFieldBuilder.builder().type("byte[]").name("items").build(),
-                MemberFieldBuilder.builder().type("SampleType").name("type").build(),
+                Member.Field.builder().type("int").name("value").build(),
+                Member.Field.builder().type("byte[]").name("items").build(),
+                Member.Field.builder().type("SampleType").name("type").build(),
                 new Member.Nested(sampleType()),
-                MemberMethodBuilder.builder()
-                    .mods(Modifiers.of("public", "static"))
+                Member.Method.builder()
+                    .public_()
+                    .static_()
                     .returnType("byte[]")
                     .name("toByteArray")
                     .params("(Sample s)")
                     .body(List.of(Line.of("return new byte[] { 0 };")))
                     .build(),
-                MemberMethodBuilder.builder()
-                    .mods(Modifiers.of("public", "static"))
+                Member.Method.builder()
+                    .public_()
+                    .static_()
                     .returnType("Sample")
                     .name("fromBytes")
                     .params("(byte[] b)")

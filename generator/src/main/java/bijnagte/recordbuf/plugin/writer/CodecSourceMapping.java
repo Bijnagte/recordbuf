@@ -4,11 +4,7 @@ import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Line;
 import bijnagte.recordbuf.codegen.source.Member;
-import bijnagte.recordbuf.codegen.source.MemberConstructorBuilder;
-import bijnagte.recordbuf.codegen.source.MemberMethodBuilder;
-import bijnagte.recordbuf.codegen.source.Modifiers;
 import bijnagte.recordbuf.codegen.source.Type;
-import bijnagte.recordbuf.codegen.source.TypeClassBuilder;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
@@ -40,8 +36,8 @@ public final class CodecSourceMapping {
   /**
    * Map a message model to a nested {@code Codec} class node. The codec is scoped statically inside
    * the enclosing record (its parent is the record's name, set by the caller via the {@link
-   * TypeClassBuilder#parent}), and has a private constructor + a static {@code encode} + a static
-   * {@code decode}.
+   * Type.Class#parent}), and has a private constructor + a static {@code encode} + a static {@code
+   * decode}.
    *
    * @param m the message model
    * @param ci the type collector (used to pre-register all runtime FQN references so the import
@@ -69,12 +65,7 @@ public final class CodecSourceMapping {
     ci.use("java.util.ArrayList");
     List<Member> codecMembers = new ArrayList<>();
     String codecName = m.name() + "Codec"; // M4-C2b-2b-8: align with old SampleCodec naming
-    codecMembers.add(
-        MemberConstructorBuilder.builder()
-            .mods(Modifiers.of("private"))
-            .name(codecName)
-            .params("()")
-            .build());
+    codecMembers.add(Member.Constructor.builder().private_().name(codecName).params("()").build());
 
     codecMembers.add(
         encode(
@@ -99,9 +90,11 @@ public final class CodecSourceMapping {
             bytesShort,
             typeResolver));
 
-    return TypeClassBuilder.builder()
+    return Type.Class.builder()
         .parent(m.name())
-        .mods(Modifiers.of("public", "static", "final"))
+        .public_()
+        .static_()
+        .final_()
         .javadoc(new Javadoc("Wire codec for the " + m.name() + " record."))
         .name(codecName) // M4-C2b-2b-8: <Name>Codec to align with old path
         .members(codecMembers)
@@ -166,8 +159,9 @@ public final class CodecSourceMapping {
 
     body.add(Line.of("return enc.finish();"));
 
-    return MemberMethodBuilder.builder()
-        .mods(Modifiers.of("public", "static"))
+    return Member.Method.builder()
+        .public_()
+        .static_()
         .returnType("byte[]")
         .name("encode")
         .params("(" + m.name() + " v)")
@@ -299,8 +293,9 @@ public final class CodecSourceMapping {
     allNames.add("unknown.build()");
     body.add(Line.of("return new " + m.name() + "(" + joinCommas(allNames) + ");"));
 
-    return MemberMethodBuilder.builder()
-        .mods(Modifiers.of("public", "static"))
+    return Member.Method.builder()
+        .public_()
+        .static_()
         .returnType(m.name())
         .name("decode")
         .params("(byte[] inBytes)")
@@ -737,12 +732,7 @@ public final class CodecSourceMapping {
     String codecName = entryName + "Codec";
     List<Member> codecMembers = new ArrayList<>();
 
-    codecMembers.add(
-        MemberConstructorBuilder.builder()
-            .mods(Modifiers.of("private"))
-            .name(codecName)
-            .params("()")
-            .build());
+    codecMembers.add(Member.Constructor.builder().private_().name(codecName).params("()").build());
 
     List<Line> encBody = new ArrayList<>();
     encBody.add(Line.of("var enc = " + encoderShort + ".start();"));
@@ -759,8 +749,9 @@ public final class CodecSourceMapping {
     encBody.add(Line.of("return enc.finish();"));
 
     codecMembers.add(
-        MemberMethodBuilder.builder()
-            .mods(Modifiers.of("public", "static"))
+        Member.Method.builder()
+            .public_()
+            .static_()
             .returnType("byte[]")
             .name("encode")
             .params("(" + entryName + " v)")
@@ -787,8 +778,9 @@ public final class CodecSourceMapping {
     decBody.add(Line.of("return new " + entryName + "(key, value);"));
 
     codecMembers.add(
-        MemberMethodBuilder.builder()
-            .mods(Modifiers.of("public", "static"))
+        Member.Method.builder()
+            .public_()
+            .static_()
             .returnType(entryName)
             .name("decode")
             .params("(byte[] inBytes)")
@@ -796,8 +788,10 @@ public final class CodecSourceMapping {
             .body(decBody)
             .build());
 
-    return TypeClassBuilder.builder()
-        .mods(Modifiers.of("public", "static", "final"))
+    return Type.Class.builder()
+        .public_()
+        .static_()
+        .final_()
         .name(codecName)
         .members(codecMembers)
         .build();

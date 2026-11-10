@@ -4,13 +4,7 @@ import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Line;
 import bijnagte.recordbuf.codegen.source.Member;
-import bijnagte.recordbuf.codegen.source.MemberConstructorBuilder;
-import bijnagte.recordbuf.codegen.source.MemberEnumConstantBuilder;
-import bijnagte.recordbuf.codegen.source.MemberFieldBuilder;
-import bijnagte.recordbuf.codegen.source.MemberMethodBuilder;
-import bijnagte.recordbuf.codegen.source.Modifiers;
 import bijnagte.recordbuf.codegen.source.Type;
-import bijnagte.recordbuf.codegen.source.TypeEnumBuilder;
 import bijnagte.recordbuf.plugin.model.Enum;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,7 +51,7 @@ public final class EnumSourceMapping {
     // 1. The constants -- each with its number ctor-arg, its own Javadoc, and its own @Deprecated.
     for (Enum.EnumConstant c : proto.constants()) {
       members.add(
-          MemberEnumConstantBuilder.builder()
+          Member.EnumConstant.builder()
               .name(c.name())
               .ctorArgs("(" + c.number() + ")")
               .javadoc(new Javadoc(c.comment()))
@@ -66,21 +60,16 @@ public final class EnumSourceMapping {
     }
 
     // 2. The number field + ctor + accessor -- the core the M4-C2a slice mapped.
+    members.add(Member.Field.builder().private_().final_().type("int").name("number").build());
     members.add(
-        MemberFieldBuilder.builder()
-            .mods(Modifiers.of("private", "final"))
-            .type("int")
-            .name("number")
-            .build());
-    members.add(
-        MemberConstructorBuilder.builder()
+        Member.Constructor.builder()
             .name(name)
             .params("(int number)")
             .body(List.of(Line.of("this.number = number;")))
             .build());
     members.add(
-        MemberMethodBuilder.builder()
-            .mods(Modifiers.of("public"))
+        Member.Method.builder()
+            .public_()
             .returnType("int")
             .name("getNumber")
             .params("()")
@@ -93,8 +82,10 @@ public final class EnumSourceMapping {
     String map = ci.use("java.util.Map");
     String hashMap = ci.use("java.util.HashMap");
     members.add(
-        MemberFieldBuilder.builder()
-            .mods(Modifiers.of("private", "static", "final"))
+        Member.Field.builder()
+            .private_()
+            .static_()
+            .final_()
             .type(map + "<Integer, " + name + ">")
             .name("BY_NUMBER")
             .initializer("new " + hashMap + "<>()")
@@ -107,8 +98,9 @@ public final class EnumSourceMapping {
     members.add(new Member.StaticBlock(init));
 
     members.add(
-        MemberMethodBuilder.builder()
-            .mods(Modifiers.of("public", "static"))
+        Member.Method.builder()
+            .public_()
+            .static_()
             .returnType(name)
             .name("forNumber")
             .params("(int number)")
@@ -120,8 +112,8 @@ public final class EnumSourceMapping {
                             + ");")))
             .build());
 
-    return TypeEnumBuilder.builder()
-        .mods(Modifiers.of("public"))
+    return Type.Enum.builder()
+        .public_()
         .javadoc(new Javadoc(proto.comment()))
         .deprecated(proto.deprecated())
         .name(name)

@@ -4,11 +4,7 @@ import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Line;
 import bijnagte.recordbuf.codegen.source.Member;
-import bijnagte.recordbuf.codegen.source.MemberConstructorBuilder;
-import bijnagte.recordbuf.codegen.source.MemberMethodBuilder;
-import bijnagte.recordbuf.codegen.source.Modifiers;
 import bijnagte.recordbuf.codegen.source.Type;
-import bijnagte.recordbuf.codegen.source.TypeClassBuilder;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.JavaNames;
@@ -61,21 +57,18 @@ public final class InteropSourceMapping {
                 + sourceName
                 + ". Field-by-field conversion only.");
 
-    var privateCtor =
-        MemberConstructorBuilder.builder()
-            .mods(Modifiers.of("private"))
-            .name("Interop")
-            .params("()")
-            .build();
+    var privateCtor = Member.Constructor.builder().private_().name("Interop").params("()").build();
 
     var fromMethod = emitFrom(m, ci, refPkg, ref, rec);
     var toMethod = emitTo(m, ci, refPkg, ref, rec);
 
     List<Member> members = new ArrayList<>(List.of(privateCtor, fromMethod, toMethod));
 
-    return TypeClassBuilder.builder()
+    return Type.Class.builder()
         .parent(rec)
-        .mods(Modifiers.of("public", "static", "final"))
+        .public_()
+        .static_()
+        .final_()
         .javadoc(javadoc)
         .name("Interop")
         .members(members)
@@ -103,8 +96,9 @@ public final class InteropSourceMapping {
     body.add(Line.of("    " + ci.use(RT + ".UnknownFields") + ".empty()"));
     body.add(Line.of("    );"));
 
-    return MemberMethodBuilder.builder()
-        .mods(Modifiers.of("public", "static"))
+    return Member.Method.builder()
+        .public_()
+        .static_()
         .returnType(rec)
         .name("from")
         .params("(" + ref + " x)")
@@ -248,8 +242,9 @@ public final class InteropSourceMapping {
     }
     body.add(Line.of("return _b.build();"));
 
-    return MemberMethodBuilder.builder()
-        .mods(Modifiers.of("public", "static"))
+    return Member.Method.builder()
+        .public_()
+        .static_()
         .returnType(ref)
         .name("to")
         .params("(" + rec + " r)")

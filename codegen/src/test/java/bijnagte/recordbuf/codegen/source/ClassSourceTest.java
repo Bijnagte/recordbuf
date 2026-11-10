@@ -38,9 +38,11 @@ class ClassSourceTest {
   /** A message shell record with a nested {@code public static final class Codec} skeleton. */
   private static Type.Record messageWithCodec() {
     Type.Class codec =
-        TypeClassBuilder.builder()
+        Type.Class.builder()
             .parent("MessageRec")
-            .mods(Modifiers.of("public", "static", "final"))
+            .public_()
+            .static_()
+            .final_()
             .javadoc(new Javadoc("Wire codec for the MessageRec record."))
             .name("Codec")
             .members(
@@ -51,21 +53,19 @@ class ClassSourceTest {
                     // the
                     // new `thrown` field (M4-C2b's per-message encode/decode are `throws
                     // IOException`).
-                    MemberConstructorBuilder.builder()
-                        .mods(Modifiers.of("private"))
-                        .name("Codec")
-                        .params("()")
-                        .build(),
-                    MemberMethodBuilder.builder()
-                        .mods(Modifiers.of("public", "static"))
+                    Member.Constructor.builder().private_().name("Codec").params("()").build(),
+                    Member.Method.builder()
+                        .public_()
+                        .static_()
                         .returnType("byte[]")
                         .name("encode")
                         .params("(MessageRec v)")
                         .thrown(List.of("java.io.IOException"))
                         .body(List.of(Line.of("return new byte[0];")))
                         .build(),
-                    MemberMethodBuilder.builder()
-                        .mods(Modifiers.of("public", "static"))
+                    Member.Method.builder()
+                        .public_()
+                        .static_()
                         .returnType("MessageRec")
                         .name("decode")
                         .params("(byte[] inBytes)")
@@ -73,13 +73,12 @@ class ClassSourceTest {
                         .body(List.of(Line.of("return new MessageRec(0);")))
                         .build()))
             .build();
-    return TypeRecordBuilder.builder()
-        .mods(Modifiers.of("public"))
+    return Type.Record.builder()
+        .public_()
         .name("MessageRec")
         .members(
             List.of(
-                MemberFieldBuilder.builder().type("int").name("id").build(),
-                new Member.Nested(codec)))
+                Member.Field.builder().type("int").name("id").build(), new Member.Nested(codec)))
         .build();
   }
 
@@ -322,22 +321,21 @@ class ClassSourceTest {
 
   private static Type.Record recordWithRealMultiScalarCodec() {
     Type.Class codec =
-        TypeClassBuilder.builder()
+        Type.Class.builder()
             .parent("RecordWithRealMultiScalar")
-            .mods(Modifiers.of("public", "static", "final"))
+            .public_()
+            .static_()
+            .final_()
             .javadoc(new Javadoc("Wire codec for the RecordWithRealMultiScalar record."))
             .name("Codec")
             .members(
                 List.of(
-                    MemberConstructorBuilder.builder()
-                        .mods(Modifiers.of("private"))
-                        .name("Codec")
-                        .params("()")
-                        .build(),
+                    Member.Constructor.builder().private_().name("Codec").params("()").build(),
                     // M4-C2b-2b-3: the multi-scalar encode body -- three guarded writes for int
                     // (field 1), long (field 2), and String (field 3).
-                    MemberMethodBuilder.builder()
-                        .mods(Modifiers.of("public", "static"))
+                    Member.Method.builder()
+                        .public_()
+                        .static_()
                         .returnType("byte[]")
                         .name("encode")
                         .params("(RecordWithRealMultiScalar v)")
@@ -359,8 +357,9 @@ class ClassSourceTest {
                     // M4-C2b-2b-3: the multi-scalar decode body -- three per-field default-init,
                     // then a tag-loop switch that dispatches to the correct read for each field
                     // number and skips unknown tags.
-                    MemberMethodBuilder.builder()
-                        .mods(Modifiers.of("public", "static"))
+                    Member.Method.builder()
+                        .public_()
+                        .static_()
                         .returnType("RecordWithRealMultiScalar")
                         .name("decode")
                         .params("(byte[] inBytes)")
@@ -392,37 +391,36 @@ class ClassSourceTest {
                                 Line.of("return new RecordWithRealMultiScalar(id, value, text);")))
                         .build()))
             .build();
-    return TypeRecordBuilder.builder()
-        .mods(Modifiers.of("public"))
+    return Type.Record.builder()
+        .public_()
         .name("RecordWithRealMultiScalar")
         .members(
             List.of(
-                MemberFieldBuilder.builder().type("int").name("id").build(),
-                MemberFieldBuilder.builder().type("long").name("value").build(),
-                MemberFieldBuilder.builder().type("String").name("text").build(),
+                Member.Field.builder().type("int").name("id").build(),
+                Member.Field.builder().type("long").name("value").build(),
+                Member.Field.builder().type("String").name("text").build(),
                 new Member.Nested(codec)))
         .build();
   }
 
   private static Type.Record recordWithRealCodec() {
     Type.Class codec =
-        TypeClassBuilder.builder()
+        Type.Class.builder()
             .parent("RecordWithRealCodec")
-            .mods(Modifiers.of("public", "static", "final"))
+            .public_()
+            .static_()
+            .final_()
             .javadoc(new Javadoc("Wire codec for the RecordWithRealCodec record."))
             .name("Codec")
             .members(
                 List.of(
-                    MemberConstructorBuilder.builder()
-                        .mods(Modifiers.of("private"))
-                        .name("Codec")
-                        .params("()")
-                        .build(),
+                    Member.Constructor.builder().private_().name("Codec").params("()").build(),
                     // M4-C2b-2b-2: the codec's encode is the real scalar-encode body -- a fresh
                     // runtime Encoder, a per-field guarded write, and a finish. No oneof / no WKT /
                     // no nested-message / no unknown-field carrier -- deferred to M4-C2b-2b-3+.
-                    MemberMethodBuilder.builder()
-                        .mods(Modifiers.of("public", "static"))
+                    Member.Method.builder()
+                        .public_()
+                        .static_()
                         .returnType("byte[]")
                         .name("encode")
                         .params("(RecordWithRealCodec v)")
@@ -439,8 +437,9 @@ class ClassSourceTest {
                     // The codec's decode is the real tag-loop body: a fresh runtime Decoder, a
                     // per-field default-init, the tag/field-number loop, a switch that dispatches
                     // to the field, and a return built from the locally-decoded values.
-                    MemberMethodBuilder.builder()
-                        .mods(Modifiers.of("public", "static"))
+                    Member.Method.builder()
+                        .public_()
+                        .static_()
                         .returnType("RecordWithRealCodec")
                         .name("decode")
                         .params("(byte[] inBytes)")
@@ -466,13 +465,12 @@ class ClassSourceTest {
                                 Line.of("return new RecordWithRealCodec(id);")))
                         .build()))
             .build();
-    return TypeRecordBuilder.builder()
-        .mods(Modifiers.of("public"))
+    return Type.Record.builder()
+        .public_()
         .name("RecordWithRealCodec")
         .members(
             List.of(
-                MemberFieldBuilder.builder().type("int").name("id").build(),
-                new Member.Nested(codec)))
+                Member.Field.builder().type("int").name("id").build(), new Member.Nested(codec)))
         .build();
   }
 
@@ -484,11 +482,12 @@ class ClassSourceTest {
     TypeCollector ci = new TypeCollector(PKG);
 
     var dataField =
-        MemberFieldBuilder.builder().type("bijnagte.recordbuf.runtime.Bytes").name("data").build();
+        Member.Field.builder().type("bijnagte.recordbuf.runtime.Bytes").name("data").build();
 
     var encode =
-        MemberMethodBuilder.builder()
-            .mods(Modifiers.of("public", "static"))
+        Member.Method.builder()
+            .public_()
+            .static_()
             .returnType("byte[]")
             .name("encode")
             .params("(RecordWithBytes v)")
@@ -502,8 +501,9 @@ class ClassSourceTest {
             .build();
 
     var decode =
-        MemberMethodBuilder.builder()
-            .mods(Modifiers.of("public", "static"))
+        Member.Method.builder()
+            .public_()
+            .static_()
             .returnType("RecordWithBytes")
             .name("decode")
             .params("(byte[] inBytes)")
@@ -527,15 +527,18 @@ class ClassSourceTest {
             .build();
 
     Type.Class codec =
-        TypeClassBuilder.builder()
-            .mods(Modifiers.of("public", "static", "final"))
+        Type.Class.builder()
+            .public_()
+            .static_()
+            .final_()
             .name("Codec")
             .members(List.of(encode, decode))
             .build();
 
     var record =
-        TypeRecordBuilder.builder()
-            .mods(Modifiers.of("public", "final"))
+        Type.Record.builder()
+            .public_()
+            .final_()
             .name("RecordWithBytes")
             .members(List.of(dataField, new Member.Nested(codec)))
             .build();
@@ -549,11 +552,12 @@ class ClassSourceTest {
     TypeCollector ci = new TypeCollector(PKG);
 
     var dataField =
-        MemberFieldBuilder.builder().type("bijnagte.recordbuf.runtime.Bytes").name("data").build();
+        Member.Field.builder().type("bijnagte.recordbuf.runtime.Bytes").name("data").build();
 
     var encode =
-        MemberMethodBuilder.builder()
-            .mods(Modifiers.of("public", "static"))
+        Member.Method.builder()
+            .public_()
+            .static_()
             .returnType("byte[]")
             .name("encode")
             .params("(RecordWithBytes v)")
@@ -567,8 +571,9 @@ class ClassSourceTest {
             .build();
 
     var decode =
-        MemberMethodBuilder.builder()
-            .mods(Modifiers.of("public", "static"))
+        Member.Method.builder()
+            .public_()
+            .static_()
             .returnType("RecordWithBytes")
             .name("decode")
             .params("(byte[] inBytes)")
@@ -592,15 +597,18 @@ class ClassSourceTest {
             .build();
 
     Type.Class codec =
-        TypeClassBuilder.builder()
-            .mods(Modifiers.of("public", "static", "final"))
+        Type.Class.builder()
+            .public_()
+            .static_()
+            .final_()
             .name("Codec")
             .members(List.of(encode, decode))
             .build();
 
     var record =
-        TypeRecordBuilder.builder()
-            .mods(Modifiers.of("public", "final"))
+        Type.Record.builder()
+            .public_()
+            .final_()
             .name("RecordWithBytes")
             .members(List.of(dataField, new Member.Nested(codec)))
             .build();
