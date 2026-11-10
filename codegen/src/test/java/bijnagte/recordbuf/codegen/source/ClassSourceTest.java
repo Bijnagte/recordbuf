@@ -46,39 +46,37 @@ class ClassSourceTest {
             .javadoc(new Javadoc("Wire codec for the MessageRec record."))
             .name("Codec")
             .members(
-                List.of(
-                    // M4-C2b-2b-1: the codec's members are built with @RecordBuilder's fluent
-                    // builders, so
-                    // a caller sets only the elements it needs -- and the `throws` clause rides on
-                    // the
-                    // new `thrown` field (M4-C2b's per-message encode/decode are `throws
-                    // IOException`).
-                    Member.Constructor.builder().private_().name("Codec").params("()").build(),
-                    Member.Method.builder()
-                        .public_()
-                        .static_()
-                        .returnType("byte[]")
-                        .name("encode")
-                        .params("(MessageRec v)")
-                        .thrown(List.of("java.io.IOException"))
-                        .body(List.of(Statement.of("return new byte[0];")))
-                        .build(),
-                    Member.Method.builder()
-                        .public_()
-                        .static_()
-                        .returnType("MessageRec")
-                        .name("decode")
-                        .params("(byte[] inBytes)")
-                        .thrown(List.of("java.io.IOException"))
-                        .body(List.of(Statement.of("return new MessageRec(0);")))
-                        .build()))
+
+                // M4-C2b-2b-1: the codec's members are built with @RecordBuilder's fluent
+                // builders, so
+                // a caller sets only the elements it needs -- and the `throws` clause rides on
+                // the
+                // new `thrown` field (M4-C2b's per-message encode/decode are `throws
+                // IOException`).
+                Member.Constructor.builder().private_().name("Codec").build(),
+                Member.Method.builder()
+                    .public_()
+                    .static_()
+                    .returnType("byte[]")
+                    .name("encode")
+                    .param("MessageRec", "v")
+                    .thrown(List.of("java.io.IOException"))
+                    .body(Statement.of("return new byte[0];"))
+                    .build(),
+                Member.Method.builder()
+                    .public_()
+                    .static_()
+                    .returnType("MessageRec")
+                    .name("decode")
+                    .param("byte[]", "inBytes")
+                    .thrown(List.of("java.io.IOException"))
+                    .body(Statement.of("return new MessageRec(0);"))
+                    .build())
             .build();
     return Type.Record.builder()
         .public_()
         .name("MessageRec")
-        .members(
-            List.of(
-                Member.Field.builder().type("int").name("id").build(), new Member.Nested(codec)))
+        .members(Member.Field.builder().type("int").name("id").build(), new Member.Nested(codec))
         .build();
   }
 
@@ -329,79 +327,70 @@ class ClassSourceTest {
             .javadoc(new Javadoc("Wire codec for the RecordWithRealMultiScalar record."))
             .name("Codec")
             .members(
-                List.of(
-                    Member.Constructor.builder().private_().name("Codec").params("()").build(),
-                    // M4-C2b-2b-3: the multi-scalar encode body -- three guarded writes for int
-                    // (field 1), long (field 2), and String (field 3).
-                    Member.Method.builder()
-                        .public_()
-                        .static_()
-                        .returnType("byte[]")
-                        .name("encode")
-                        .params("(RecordWithRealMultiScalar v)")
-                        .thrown(List.of("java.io.IOException"))
-                        .body(
-                            List.of(
-                                Statement.of(
-                                    "var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
-                                Statement.of("var out = enc.out();"),
-                                Statement.of(
-                                    "if (v.id() != bijnagte.recordbuf.runtime.CodecDefaults.int32()) "
-                                        + "out.writeInt32(1, v.id());"),
-                                Statement.of(
-                                    "if (v.value() != bijnagte.recordbuf.runtime.CodecDefaults.int64()) "
-                                        + "out.writeInt64(2, v.value());"),
-                                Statement.of(
-                                    "if (!v.text().isEmpty()) " + "out.writeString(3, v.text());"),
-                                Statement.of("return enc.finish();")))
-                        .build(),
-                    // M4-C2b-2b-3: the multi-scalar decode body -- three per-field default-init,
-                    // then a tag-loop switch that dispatches to the correct read for each field
-                    // number and skips unknown tags.
-                    Member.Method.builder()
-                        .public_()
-                        .static_()
-                        .returnType("RecordWithRealMultiScalar")
-                        .name("decode")
-                        .params("(byte[] inBytes)")
-                        .thrown(List.of("java.io.IOException"))
-                        .body(
-                            List.of(
-                                Statement.of(
-                                    "var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
-                                Statement.of("var in = dec.in();"),
-                                Statement.of(
-                                    "int id = bijnagte.recordbuf.runtime.CodecDefaults.int32();"),
-                                Statement.of(
-                                    "long value = bijnagte.recordbuf.runtime.CodecDefaults.int64();"),
-                                Statement.of(
-                                    "String text = bijnagte.recordbuf.runtime.CodecDefaults.string();"),
-                                Statement.of("while (true) {"),
-                                Statement.of(
-                                    "    int tag = bijnagte.recordbuf.runtime.Wire.readTag(in);"),
-                                Statement.of("    if (tag == 0) break;"),
-                                Statement.of(
-                                    "    switch (bijnagte.recordbuf.runtime.Wire.tagFieldNumber(tag)) {"),
-                                Statement.of("      case 1 -> id = in.readInt32();"),
-                                Statement.of("      case 2 -> value = in.readInt64();"),
-                                Statement.of("      case 3 -> text = in.readString();"),
-                                Statement.of(
-                                    "      default -> bijnagte.recordbuf.runtime.Wire.skip(in, tag);"),
-                                Statement.of("    }"),
-                                Statement.of("}"),
-                                Statement.of(
-                                    "return new RecordWithRealMultiScalar(id, value, text);")))
-                        .build()))
+                Member.Constructor.builder().private_().name("Codec").build(),
+                // M4-C2b-2b-3: the multi-scalar encode body -- three guarded writes for int
+                // (field 1), long (field 2), and String (field 3).
+                Member.Method.builder()
+                    .public_()
+                    .static_()
+                    .returnType("byte[]")
+                    .name("encode")
+                    .param("RecordWithRealMultiScalar", "v")
+                    .thrown(List.of("java.io.IOException"))
+                    .body(
+                        Statement.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
+                        Statement.of("var out = enc.out();"),
+                        Statement.of(
+                            "if (v.id() != bijnagte.recordbuf.runtime.CodecDefaults.int32()) "
+                                + "out.writeInt32(1, v.id());"),
+                        Statement.of(
+                            "if (v.value() != bijnagte.recordbuf.runtime.CodecDefaults.int64()) "
+                                + "out.writeInt64(2, v.value());"),
+                        Statement.of("if (!v.text().isEmpty()) " + "out.writeString(3, v.text());"),
+                        Statement.of("return enc.finish();"))
+                    .build(),
+                // M4-C2b-2b-3: the multi-scalar decode body -- three per-field default-init,
+                // then a tag-loop switch that dispatches to the correct read for each field
+                // number and skips unknown tags.
+                Member.Method.builder()
+                    .public_()
+                    .static_()
+                    .returnType("RecordWithRealMultiScalar")
+                    .name("decode")
+                    .param("byte[]", "inBytes")
+                    .thrown(List.of("java.io.IOException"))
+                    .body(
+                        Statement.of(
+                            "var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
+                        Statement.of("var in = dec.in();"),
+                        Statement.of("int id = bijnagte.recordbuf.runtime.CodecDefaults.int32();"),
+                        Statement.of(
+                            "long value = bijnagte.recordbuf.runtime.CodecDefaults.int64();"),
+                        Statement.of(
+                            "String text = bijnagte.recordbuf.runtime.CodecDefaults.string();"),
+                        Statement.of("while (true) {"),
+                        Statement.of("    int tag = bijnagte.recordbuf.runtime.Wire.readTag(in);"),
+                        Statement.of("    if (tag == 0) break;"),
+                        Statement.of(
+                            "    switch (bijnagte.recordbuf.runtime.Wire.tagFieldNumber(tag)) {"),
+                        Statement.of("      case 1 -> id = in.readInt32();"),
+                        Statement.of("      case 2 -> value = in.readInt64();"),
+                        Statement.of("      case 3 -> text = in.readString();"),
+                        Statement.of(
+                            "      default -> bijnagte.recordbuf.runtime.Wire.skip(in, tag);"),
+                        Statement.of("    }"),
+                        Statement.of("}"),
+                        Statement.of("return new RecordWithRealMultiScalar(id, value, text);"))
+                    .build())
             .build();
     return Type.Record.builder()
         .public_()
         .name("RecordWithRealMultiScalar")
         .members(
-            List.of(
-                Member.Field.builder().type("int").name("id").build(),
-                Member.Field.builder().type("long").name("value").build(),
-                Member.Field.builder().type("String").name("text").build(),
-                new Member.Nested(codec)))
+            Member.Field.builder().type("int").name("id").build(),
+            Member.Field.builder().type("long").name("value").build(),
+            Member.Field.builder().type("String").name("text").build(),
+            new Member.Nested(codec))
         .build();
   }
 
@@ -415,65 +404,57 @@ class ClassSourceTest {
             .javadoc(new Javadoc("Wire codec for the RecordWithRealCodec record."))
             .name("Codec")
             .members(
-                List.of(
-                    Member.Constructor.builder().private_().name("Codec").params("()").build(),
-                    // M4-C2b-2b-2: the codec's encode is the real scalar-encode body -- a fresh
-                    // runtime Encoder, a per-field guarded write, and a finish. No oneof / no WKT /
-                    // no nested-message / no unknown-field carrier -- deferred to M4-C2b-2b-3+.
-                    Member.Method.builder()
-                        .public_()
-                        .static_()
-                        .returnType("byte[]")
-                        .name("encode")
-                        .params("(RecordWithRealCodec v)")
-                        .thrown(List.of("java.io.IOException"))
-                        .body(
-                            List.of(
-                                Statement.of(
-                                    "var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
-                                Statement.of("var out = enc.out();"),
-                                Statement.of(
-                                    "if (v.id() != bijnagte.recordbuf.runtime.CodecDefaults.int32()) "
-                                        + "out.writeInt32(1, v.id());"),
-                                Statement.of("return enc.finish();")))
-                        .build(),
-                    // The codec's decode is the real tag-loop body: a fresh runtime Decoder, a
-                    // per-field default-init, the tag/field-number loop, a switch that dispatches
-                    // to the field, and a return built from the locally-decoded values.
-                    Member.Method.builder()
-                        .public_()
-                        .static_()
-                        .returnType("RecordWithRealCodec")
-                        .name("decode")
-                        .params("(byte[] inBytes)")
-                        .thrown(List.of("java.io.IOException"))
-                        .body(
-                            List.of(
-                                Statement.of(
-                                    "var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
-                                Statement.of("var in = dec.in();"),
-                                Statement.of(
-                                    "int id = bijnagte.recordbuf.runtime.CodecDefaults.int32();"),
-                                Statement.of("while (true) {"),
-                                Statement.of(
-                                    "    int tag = bijnagte.recordbuf.runtime.Wire.readTag(in);"),
-                                Statement.of("    if (tag == 0) break;"),
-                                Statement.of(
-                                    "    switch (bijnagte.recordbuf.runtime.Wire.tagFieldNumber(tag)) {"),
-                                Statement.of("      case 1 -> id = in.readInt32();"),
-                                Statement.of(
-                                    "      default -> bijnagte.recordbuf.runtime.Wire.skip(in, tag);"),
-                                Statement.of("    }"),
-                                Statement.of("}"),
-                                Statement.of("return new RecordWithRealCodec(id);")))
-                        .build()))
+                Member.Constructor.builder().private_().name("Codec").build(),
+                // M4-C2b-2b-2: the codec's encode is the real scalar-encode body -- a fresh
+                // runtime Encoder, a per-field guarded write, and a finish. No oneof / no WKT /
+                // no nested-message / no unknown-field carrier -- deferred to M4-C2b-2b-3+.
+                Member.Method.builder()
+                    .public_()
+                    .static_()
+                    .returnType("byte[]")
+                    .name("encode")
+                    .param("RecordWithRealCodec", "v")
+                    .thrown(List.of("java.io.IOException"))
+                    .body(
+                        Statement.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
+                        Statement.of("var out = enc.out();"),
+                        Statement.of(
+                            "if (v.id() != bijnagte.recordbuf.runtime.CodecDefaults.int32()) "
+                                + "out.writeInt32(1, v.id());"),
+                        Statement.of("return enc.finish();"))
+                    .build(),
+                // The codec's decode is the real tag-loop body: a fresh runtime Decoder, a
+                // per-field default-init, the tag/field-number loop, a switch that dispatches
+                // to the field, and a return built from the locally-decoded values.
+                Member.Method.builder()
+                    .public_()
+                    .static_()
+                    .returnType("RecordWithRealCodec")
+                    .name("decode")
+                    .param("byte[]", "inBytes")
+                    .thrown(List.of("java.io.IOException"))
+                    .body(
+                        Statement.of(
+                            "var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
+                        Statement.of("var in = dec.in();"),
+                        Statement.of("int id = bijnagte.recordbuf.runtime.CodecDefaults.int32();"),
+                        Statement.of("while (true) {"),
+                        Statement.of("    int tag = bijnagte.recordbuf.runtime.Wire.readTag(in);"),
+                        Statement.of("    if (tag == 0) break;"),
+                        Statement.of(
+                            "    switch (bijnagte.recordbuf.runtime.Wire.tagFieldNumber(tag)) {"),
+                        Statement.of("      case 1 -> id = in.readInt32();"),
+                        Statement.of(
+                            "      default -> bijnagte.recordbuf.runtime.Wire.skip(in, tag);"),
+                        Statement.of("    }"),
+                        Statement.of("}"),
+                        Statement.of("return new RecordWithRealCodec(id);"))
+                    .build())
             .build();
     return Type.Record.builder()
         .public_()
         .name("RecordWithRealCodec")
-        .members(
-            List.of(
-                Member.Field.builder().type("int").name("id").build(), new Member.Nested(codec)))
+        .members(Member.Field.builder().type("int").name("id").build(), new Member.Nested(codec))
         .build();
   }
 
@@ -493,14 +474,13 @@ class ClassSourceTest {
             .static_()
             .returnType("byte[]")
             .name("encode")
-            .params("(RecordWithBytes v)")
+            .param("RecordWithBytes", "v")
             .thrown(List.of("java.io.IOException"))
             .body(
-                List.of(
-                    Statement.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
-                    Statement.of("var out = enc.out();"),
-                    Statement.of("out.writeByteArray(1, v.data().toByteArray());"),
-                    Statement.of("return enc.finish();")))
+                Statement.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
+                Statement.of("var out = enc.out();"),
+                Statement.of("out.writeByteArray(1, v.data().toByteArray());"),
+                Statement.of("return enc.finish();"))
             .build();
 
     var decode =
@@ -509,25 +489,23 @@ class ClassSourceTest {
             .static_()
             .returnType("RecordWithBytes")
             .name("decode")
-            .params("(byte[] inBytes)")
+            .param("byte[]", "inBytes")
             .thrown(List.of("java.io.IOException"))
             .body(
-                List.of(
-                    Statement.of("var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
-                    Statement.of("var in = dec.in();"),
-                    Statement.of(
-                        "bijnagte.recordbuf.runtime.Bytes data = bijnagte.recordbuf.runtime.Bytes.empty();"),
-                    Statement.of("while (true) {"),
-                    Statement.of("    int tag = bijnagte.recordbuf.runtime.Wire.readTag(in);"),
-                    Statement.of("    if (tag == 0) break;"),
-                    Statement.of(
-                        "    switch (bijnagte.recordbuf.runtime.Wire.tagFieldNumber(tag)) {"),
-                    Statement.of(
-                        "      case 1 -> data = bijnagte.recordbuf.runtime.Bytes.of(in.readBytes().toByteArray());"),
-                    Statement.of("      default -> bijnagte.recordbuf.runtime.Wire.skip(in, tag);"),
-                    Statement.of("    }"),
-                    Statement.of("}"),
-                    Statement.of("return new RecordWithBytes(data);")))
+                Statement.of("var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
+                Statement.of("var in = dec.in();"),
+                Statement.of(
+                    "bijnagte.recordbuf.runtime.Bytes data = bijnagte.recordbuf.runtime.Bytes.empty();"),
+                Statement.of("while (true) {"),
+                Statement.of("    int tag = bijnagte.recordbuf.runtime.Wire.readTag(in);"),
+                Statement.of("    if (tag == 0) break;"),
+                Statement.of("    switch (bijnagte.recordbuf.runtime.Wire.tagFieldNumber(tag)) {"),
+                Statement.of(
+                    "      case 1 -> data = bijnagte.recordbuf.runtime.Bytes.of(in.readBytes().toByteArray());"),
+                Statement.of("      default -> bijnagte.recordbuf.runtime.Wire.skip(in, tag);"),
+                Statement.of("    }"),
+                Statement.of("}"),
+                Statement.of("return new RecordWithBytes(data);"))
             .build();
 
     Type.Class codec =
@@ -536,7 +514,7 @@ class ClassSourceTest {
             .static_()
             .final_()
             .name("Codec")
-            .members(List.of(encode, decode))
+            .members(encode, decode)
             .build();
 
     var record =
@@ -544,7 +522,7 @@ class ClassSourceTest {
             .public_()
             .final_()
             .name("RecordWithBytes")
-            .members(List.of(dataField, new Member.Nested(codec)))
+            .members(dataField, new Member.Nested(codec))
             .build();
 
     String src = SourceRenderer.render(new JavaFile(PKG, new Javadoc(""), record, ci));
@@ -564,14 +542,13 @@ class ClassSourceTest {
             .static_()
             .returnType("byte[]")
             .name("encode")
-            .params("(RecordWithBytes v)")
+            .param("RecordWithBytes", "v")
             .thrown(List.of("java.io.IOException"))
             .body(
-                List.of(
-                    Statement.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
-                    Statement.of("var out = enc.out();"),
-                    Statement.of("out.writeByteArray(1, v.data().toByteArray());"),
-                    Statement.of("return enc.finish();")))
+                Statement.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
+                Statement.of("var out = enc.out();"),
+                Statement.of("out.writeByteArray(1, v.data().toByteArray());"),
+                Statement.of("return enc.finish();"))
             .build();
 
     var decode =
@@ -580,25 +557,23 @@ class ClassSourceTest {
             .static_()
             .returnType("RecordWithBytes")
             .name("decode")
-            .params("(byte[] inBytes)")
+            .param("byte[]", "inBytes")
             .thrown(List.of("java.io.IOException"))
             .body(
-                List.of(
-                    Statement.of("var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
-                    Statement.of("var in = dec.in();"),
-                    Statement.of(
-                        "bijnagte.recordbuf.runtime.Bytes data = bijnagte.recordbuf.runtime.Bytes.empty();"),
-                    Statement.of("while (true) {"),
-                    Statement.of("    int tag = bijnagte.recordbuf.runtime.Wire.readTag(in);"),
-                    Statement.of("    if (tag == 0) break;"),
-                    Statement.of(
-                        "    switch (bijnagte.recordbuf.runtime.Wire.tagFieldNumber(tag)) {"),
-                    Statement.of(
-                        "      case 1 -> data = bijnagte.recordbuf.runtime.Bytes.of(in.readBytes().toByteArray());"),
-                    Statement.of("      default -> bijnagte.recordbuf.runtime.Wire.skip(in, tag);"),
-                    Statement.of("    }"),
-                    Statement.of("}"),
-                    Statement.of("return new RecordWithBytes(data);")))
+                Statement.of("var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
+                Statement.of("var in = dec.in();"),
+                Statement.of(
+                    "bijnagte.recordbuf.runtime.Bytes data = bijnagte.recordbuf.runtime.Bytes.empty();"),
+                Statement.of("while (true) {"),
+                Statement.of("    int tag = bijnagte.recordbuf.runtime.Wire.readTag(in);"),
+                Statement.of("    if (tag == 0) break;"),
+                Statement.of("    switch (bijnagte.recordbuf.runtime.Wire.tagFieldNumber(tag)) {"),
+                Statement.of(
+                    "      case 1 -> data = bijnagte.recordbuf.runtime.Bytes.of(in.readBytes().toByteArray());"),
+                Statement.of("      default -> bijnagte.recordbuf.runtime.Wire.skip(in, tag);"),
+                Statement.of("    }"),
+                Statement.of("}"),
+                Statement.of("return new RecordWithBytes(data);"))
             .build();
 
     Type.Class codec =
@@ -607,7 +582,7 @@ class ClassSourceTest {
             .static_()
             .final_()
             .name("Codec")
-            .members(List.of(encode, decode))
+            .members(encode, decode)
             .build();
 
     var record =
@@ -615,7 +590,7 @@ class ClassSourceTest {
             .public_()
             .final_()
             .name("RecordWithBytes")
-            .members(List.of(dataField, new Member.Nested(codec)))
+            .members(dataField, new Member.Nested(codec))
             .build();
 
     String pkg = "bijnagte.recordbuf.codegen.source.roundtrip";

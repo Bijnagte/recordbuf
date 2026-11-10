@@ -72,7 +72,7 @@ public final class RecordSourceMapping {
 
     return Type.Record.builder()
         .public_()
-        .javadoc(new Javadoc(m.comment()))
+        .javadoc(Javadoc.builder().text(m.comment()).build())
         .deprecated(m.deprecated())
         .name(name)
         .implementsFqns(List.copyOf(m.interfaces()))
@@ -147,8 +147,7 @@ public final class RecordSourceMapping {
             .public_()
             .returnType("Builder")
             .name("toBuilder")
-            .params("()")
-            .body(List.of(Statement.of("return new " + m.name() + ".Builder(this);")))
+            .body(Statement.of("return new " + m.name() + ".Builder(this);"))
             .build());
     allMembers.add(
         Member.Method.builder()
@@ -156,9 +155,9 @@ public final class RecordSourceMapping {
             .static_()
             .returnType(m.name())
             .name("fromBytes")
-            .params("(byte[] in)")
+            .param("byte[]", "in")
             .thrown(List.of("java.io.IOException"))
-            .body(List.of(Statement.of("return " + codecName + ".decode(in);")))
+            .body(Statement.of("return " + codecName + ".decode(in);"))
             .build());
 
     // M4-C2b-2b-5: the Layer A marshalling hook. Every record implements ProtobufMessage by
@@ -170,9 +169,8 @@ public final class RecordSourceMapping {
             .public_()
             .returnType("byte[]")
             .name("toByteArray")
-            .params("()")
             .thrown(List.of("java.io.IOException"))
-            .body(List.of(Statement.of("return " + m.name() + "Codec.encode(this);")))
+            .body(Statement.of("return " + m.name() + "Codec.encode(this);"))
             .override(true)
             .build();
     allMembers.add(toByteArray);
@@ -196,7 +194,7 @@ public final class RecordSourceMapping {
 
     return Type.Record.builder()
         .public_()
-        .javadoc(new Javadoc(m.comment()))
+        .javadoc(Javadoc.builder().text(m.comment()).build())
         .deprecated(m.deprecated())
         .name(m.name())
         .implementsFqns(implementsList)
@@ -344,7 +342,7 @@ public final class RecordSourceMapping {
               .public_()
               .name(valName)
               .implementsFqns(List.of(ifaceName))
-              .members(List.of(Member.Field.builder().type(valType).name("value").build()))
+              .members(Member.Field.builder().type(valType).name("value").build())
               .build();
       ifaceMembers.add(new Member.Nested(wr));
     }
@@ -356,8 +354,7 @@ public final class RecordSourceMapping {
             .default_()
             .returnType("Object")
             .name("value")
-            .params("()")
-            .body(List.of(Statement.of("return this;")))
+            .body(Statement.of("return this;"))
             .build();
     ifaceMembers.add(defaultMethod);
 
@@ -455,13 +452,7 @@ public final class RecordSourceMapping {
 
     // The no-arg constructor (Java does not generate an implicit one when a parametered ctor
     // exists).
-    builderMembers.add(
-        Member.Constructor.builder()
-            .private_()
-            .name("Builder")
-            .params("()")
-            .body(List.of())
-            .build());
+    builderMembers.add(Member.Constructor.builder().private_().name("Builder").body().build());
 
     // The toBuilder copy constructor.
     List<Statement> copyBody = new ArrayList<>();
@@ -485,40 +476,36 @@ public final class RecordSourceMapping {
         Member.Constructor.builder()
             .private_()
             .name("Builder")
-            .params("(" + recName + " x)")
+            .param(recName, "x")
             .body(copyBody)
             .build());
 
     // Fluent setter for each field.
     for (Field f : m.fields()) {
       String fieldName = f.javaName();
-      String param = scalarComponentType(f, ci) + " " + fieldName;
       builderMembers.add(
           Member.Method.builder()
               .public_()
               .returnType("Builder")
               .name(fieldName)
-              .params("(" + param + ")")
+              .param(scalarComponentType(f, ci), fieldName)
               .body(
-                  List.of(
-                      Statement.of("this." + fieldName + " = " + fieldName + ";"),
-                      Statement.of("return this;")))
+                  Statement.of("this." + fieldName + " = " + fieldName + ";"),
+                  Statement.of("return this;"))
               .build());
     }
     // M4-C2b-2b-12: oneof fluent setter per component.
     for (var oneof : m.oneofs()) {
       String compName = oneof.componentName();
-      String compParam = "@Nullable " + oneof.ifaceName() + " " + compName;
       builderMembers.add(
           Member.Method.builder()
               .public_()
               .returnType("Builder")
               .name(compName)
-              .params("(" + compParam + ")")
+              .param("@Nullable " + oneof.ifaceName(), compName)
               .body(
-                  List.of(
-                      Statement.of("this." + compName + " = " + compName + ";"),
-                      Statement.of("return this;")))
+                  Statement.of("this." + compName + " = " + compName + ";"),
+                  Statement.of("return this;"))
               .build());
     }
     // Carrier setter.
@@ -527,11 +514,8 @@ public final class RecordSourceMapping {
             .public_()
             .returnType("Builder")
             .name("unknownFields")
-            .params("(" + ufShort + " unknownFields)")
-            .body(
-                List.of(
-                    Statement.of("this.unknownFields = unknownFields;"),
-                    Statement.of("return this;")))
+            .param(ufShort, "unknownFields")
+            .body(Statement.of("this.unknownFields = unknownFields;"), Statement.of("return this;"))
             .build());
 
     // build(): constructs the record.
@@ -546,21 +530,20 @@ public final class RecordSourceMapping {
     ctorArgs.add("unknownFields");
     builderMembers.add(
         Member.Method.builder()
-            .javadoc(new Javadoc("Builds a " + m.name() + " record."))
+            .javadoc(Javadoc.builder().text("Builds a ", m.name(), " record.").build())
             .public_()
             .returnType(recName)
             .name("build")
-            .params("()")
-            .body(
-                List.of(
-                    Statement.of(
-                        "return new " + recName + "(" + String.join(", ", ctorArgs) + ");")))
+            .body(Statement.of("return new " + recName + "(" + String.join(", ", ctorArgs) + ");"))
             .build());
 
     // The nested Builder class itself — with javadoc matching the old JavaWriter path.
     Type.Class builder =
         Type.Class.builder()
-            .javadoc(new Javadoc("Fluent, value-only builder for the " + m.name() + " record."))
+            .javadoc(
+                Javadoc.builder()
+                    .text("Fluent, value-only builder for the ", m.name(), " record.")
+                    .build())
             .name("Builder")
             .public_()
             .static_()
@@ -572,16 +555,17 @@ public final class RecordSourceMapping {
     var builderFactory =
         Member.Method.builder()
             .javadoc(
-                new Javadoc(
-                    "Static factory for a fresh "
-                        + m.name()
-                        + " {@link Builder}. Build it fluently, then call {@link Builder#build()}."))
+                Javadoc.builder()
+                    .text(
+                        "Static factory for a fresh ",
+                        m.name(),
+                        " {@link Builder}. Build it fluently, then call {@link Builder#build()}.")
+                    .build())
             .public_()
             .static_()
             .returnType("Builder")
             .name("builder")
-            .params("()")
-            .body(List.of(Statement.of("return new " + recName + ".Builder();")))
+            .body(Statement.of("return new " + recName + ".Builder();"))
             .build();
 
     return List.of(builderFactory, new Member.Nested(builder));

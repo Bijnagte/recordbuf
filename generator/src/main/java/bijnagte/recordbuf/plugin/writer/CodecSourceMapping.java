@@ -65,7 +65,7 @@ public final class CodecSourceMapping {
     ci.use("java.util.ArrayList");
     List<Member> codecMembers = new ArrayList<>();
     String codecName = m.name() + "Codec"; // M4-C2b-2b-8: align with old SampleCodec naming
-    codecMembers.add(Member.Constructor.builder().private_().name(codecName).params("()").build());
+    codecMembers.add(Member.Constructor.builder().private_().name(codecName).build());
 
     codecMembers.add(
         encode(
@@ -95,7 +95,7 @@ public final class CodecSourceMapping {
         .public_()
         .static_()
         .final_()
-        .javadoc(new Javadoc("Wire codec for the " + m.name() + " record."))
+        .javadoc(Javadoc.builder().text("Wire codec for the ", m.name(), " record.").build())
         .name(codecName) // M4-C2b-2b-8: <Name>Codec to align with old path
         .members(codecMembers)
         .build();
@@ -164,7 +164,7 @@ public final class CodecSourceMapping {
         .static_()
         .returnType("byte[]")
         .name("encode")
-        .params("(" + m.name() + " v)")
+        .param(m.name(), "v")
         .thrown(List.of("java.io.IOException"))
         .body(body)
         .build();
@@ -300,7 +300,7 @@ public final class CodecSourceMapping {
         .static_()
         .returnType(m.name())
         .name("decode")
-        .params("(byte[] inBytes)")
+        .param("byte[]", "inBytes")
         .thrown(List.of("java.io.IOException"))
         .body(body)
         .build();
@@ -739,7 +739,7 @@ public final class CodecSourceMapping {
     String codecName = entryName + "Codec";
     List<Member> codecMembers = new ArrayList<>();
 
-    codecMembers.add(Member.Constructor.builder().private_().name(codecName).params("()").build());
+    codecMembers.add(Member.Constructor.builder().private_().name(codecName).build());
 
     List<Statement> encBody = new ArrayList<>();
     encBody.add(Statement.of("var enc = " + encoderShort + ".start();"));
@@ -761,7 +761,7 @@ public final class CodecSourceMapping {
             .static_()
             .returnType("byte[]")
             .name("encode")
-            .params("(" + entryName + " v)")
+            .param(entryName, "v")
             .thrown(List.of("java.io.IOException"))
             .body(encBody)
             .build());
@@ -790,7 +790,7 @@ public final class CodecSourceMapping {
             .static_()
             .returnType(entryName)
             .name("decode")
-            .params("(byte[] inBytes)")
+            .param("byte[]", "inBytes")
             .thrown(List.of("java.io.IOException"))
             .body(decBody)
             .build());

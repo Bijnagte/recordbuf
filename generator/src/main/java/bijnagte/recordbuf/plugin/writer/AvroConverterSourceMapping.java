@@ -80,12 +80,7 @@ public final class AvroConverterSourceMapping {
 
     // --- class AST ---
     Member privateCtor =
-        Member.Constructor.builder()
-            .name(recordClass + "AvroConverter")
-            .private_()
-            .params("()")
-            .body(List.of())
-            .build();
+        Member.Constructor.builder().name(recordClass + "AvroConverter").private_().body().build();
 
     Member toRecord = buildToRecord(message, recordClass, avroSpecific, hasWkt, hasByteField);
     Member fromRecord = buildFromRecord(message, recordClass, avroSpecific, hasWkt);
@@ -96,7 +91,7 @@ public final class AvroConverterSourceMapping {
             .public_()
             .final_()
             .annotations(ANNOTATIONS)
-            .members(List.of(privateCtor, toRecord, fromRecord))
+            .members(privateCtor, toRecord, fromRecord)
             .build();
 
     JavaFile javaFile = new JavaFile(recordPkg, null, converterClass, ci);
@@ -132,7 +127,7 @@ public final class AvroConverterSourceMapping {
         .static_()
         .returnType(recordClass)
         .name("toRecord")
-        .params("(" + avroSpecific + " s)")
+        .param(avroSpecific, "s")
         .body(body)
         .build();
   }
@@ -178,7 +173,7 @@ public final class AvroConverterSourceMapping {
         .static_()
         .returnType(avroSpecific)
         .name("fromRecord")
-        .params("(" + recordClass + " r)")
+        .param(recordClass, "r")
         .body(body)
         .build();
   }

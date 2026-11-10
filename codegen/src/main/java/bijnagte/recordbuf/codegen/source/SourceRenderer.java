@@ -159,7 +159,8 @@ public final class SourceRenderer {
         out.append(indent(body));
         if (c.deprecated()) out.append('@').append("Deprecated\n").append(indent(body));
         out.append(c.name());
-        if (c.ctorArgs() != null && !c.ctorArgs().isEmpty()) out.append(c.ctorArgs());
+        if (!c.ctorArgs().isEmpty())
+          out.append("(").append(String.join(", ", c.ctorArgs())).append(")");
         out.append(i + 1 == consts.size() ? ";" : ",").append('\n');
       }
       for (int i = 0; i < rest.size(); i++) {
@@ -257,7 +258,12 @@ public final class SourceRenderer {
           if (m.javadoc().present()) out.append(javadoc(m.javadoc().raw(), indent)).append('\n');
           // M4-C2b-2b-5: @Override annotation before the modifier line.
           if (m.override()) out.append("@Override\n").append(indent(indent));
-          String sig = m.mods().withSpace() + ci.use(m.returnType()) + " " + m.name() + m.params();
+          String sig =
+              m.mods().withSpace()
+                  + ci.use(m.returnType())
+                  + " "
+                  + m.name()
+                  + renderParams(m.params());
           if (!m.thrown().isEmpty()) {
             sig = sig + " throws " + String.join(", ", m.thrown().stream().map(ci::use).toList());
           }
@@ -273,9 +279,15 @@ public final class SourceRenderer {
           out.append(indent(indent));
           if (c.javadoc().present()) out.append(javadoc(c.javadoc().raw(), indent)).append('\n');
           if (c.body().isEmpty()) {
-            out.append(c.mods().withSpace()).append(c.name()).append(c.params()).append(" {}\n");
+            out.append(c.mods().withSpace())
+                .append(c.name())
+                .append(renderParams(c.params()))
+                .append(" {}\n");
           } else {
-            out.append(c.mods().withSpace()).append(c.name()).append(c.params()).append(" {\n");
+            out.append(c.mods().withSpace())
+                .append(c.name())
+                .append(renderParams(c.params()))
+                .append(" {\n");
             for (Statement s : c.body()) renderStatement(body, s, out);
             out.append(indent(indent)).append("}\n");
           }
@@ -370,6 +382,23 @@ public final class SourceRenderer {
         sb.append(ci.use(fqns.get(i)));
       }
       return sb.toString();
+    }
+
+    /**
+     * Render a parameter list, owned by the renderer: an empty list renders as {@code ()};
+     * otherwise the {@code (type name)} elements are joined with {@code , } inside the parens. Each
+     * {@link Param} type is a pre-resolved short-form string, emitted verbatim (a second {@code
+     * ci.use} would mangle a generic like {@code List<T>}).
+     */
+    private String renderParams(List<Param> params) {
+      if (params.isEmpty()) return "()";
+      StringBuilder sb = new StringBuilder("(");
+      for (int i = 0; i < params.size(); i++) {
+        Param p = params.get(i);
+        if (i > 0) sb.append(", ");
+        sb.append(p.type()).append(' ').append(p.name());
+      }
+      return sb.append(')').toString();
     }
   }
 

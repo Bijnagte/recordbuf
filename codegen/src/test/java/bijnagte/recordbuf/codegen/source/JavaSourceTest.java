@@ -32,22 +32,20 @@ class JavaSourceTest {
         .public_()
         .name("SampleType")
         .members(
-            List.of(
-                Member.EnumConstant.builder().name("A").ctorArgs("(0)").build(),
-                Member.EnumConstant.builder().name("B").ctorArgs("(1)").build(),
-                Member.Field.builder().private_().type("int").name("number").build(),
-                Member.Constructor.builder()
-                    .name("SampleType")
-                    .params("(int number)")
-                    .body(List.of(Statement.of("this.number = number;")))
-                    .build(),
-                Member.Method.builder()
-                    .public_()
-                    .returnType("int")
-                    .name("getNumber")
-                    .params("()")
-                    .body(List.of(Statement.of("return number;")))
-                    .build()))
+            Member.EnumConstant.builder().name("A").ctorArgs("0").build(),
+            Member.EnumConstant.builder().name("B").ctorArgs("1").build(),
+            Member.Field.builder().private_().type("int").name("number").build(),
+            Member.Constructor.builder()
+                .name("SampleType")
+                .param("int", "number")
+                .body(Statement.of("this.number = number;"))
+                .build(),
+            Member.Method.builder()
+                .public_()
+                .returnType("int")
+                .name("getNumber")
+                .body(Statement.of("return number;"))
+                .build())
         .build();
   }
 
@@ -57,27 +55,26 @@ class JavaSourceTest {
         .public_()
         .name("Sample")
         .members(
-            List.of(
-                Member.Field.builder().type("int").name("value").build(),
-                Member.Field.builder().type("byte[]").name("items").build(),
-                Member.Field.builder().type("SampleType").name("type").build(),
-                new Member.Nested(sampleType()),
-                Member.Method.builder()
-                    .public_()
-                    .static_()
-                    .returnType("byte[]")
-                    .name("toByteArray")
-                    .params("(Sample s)")
-                    .body(List.of(Statement.of("return new byte[] { 0 };")))
-                    .build(),
-                Member.Method.builder()
-                    .public_()
-                    .static_()
-                    .returnType("Sample")
-                    .name("fromBytes")
-                    .params("(byte[] b)")
-                    .body(List.of(Statement.of("return new Sample(0, new byte[0], SampleType.A);")))
-                    .build()))
+            Member.Field.builder().type("int").name("value").build(),
+            Member.Field.builder().type("byte[]").name("items").build(),
+            Member.Field.builder().type("SampleType").name("type").build(),
+            new Member.Nested(sampleType()),
+            Member.Method.builder()
+                .public_()
+                .static_()
+                .returnType("byte[]")
+                .name("toByteArray")
+                .param("Sample", "s")
+                .body(Statement.of("return new byte[] { 0 };"))
+                .build(),
+            Member.Method.builder()
+                .public_()
+                .static_()
+                .returnType("Sample")
+                .name("fromBytes")
+                .param("byte[]", "b")
+                .body(Statement.of("return new Sample(0, new byte[0], SampleType.A);"))
+                .build())
         .build();
   }
 

@@ -54,7 +54,7 @@ class EnumSourceMappingTest {
   void maps_the_proto_enum_through_the_source_ast_and_compiles() throws Exception {
     TypeCollector ci = new TypeCollector(PKG);
     Type.Enum e = EnumSourceMapping.toSource(color(), ci);
-    String src = SourceRenderer.render(new JavaFile(PKG, new Javadoc(""), e, ci));
+    String src = SourceRenderer.render(new JavaFile(PKG, Javadoc.builder().build(), e, ci));
 
     assertTrue(src.contains("public enum Color {"), "enum header: " + src);
     assertTrue(src.contains("RED(0)"), "a constant with its number: " + src);

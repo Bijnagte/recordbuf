@@ -54,8 +54,8 @@ public final class EnumSourceMapping {
       members.add(
           Member.EnumConstant.builder()
               .name(c.name())
-              .ctorArgs("(" + c.number() + ")")
-              .javadoc(new Javadoc(c.comment()))
+              .ctorArgs(Integer.toString(c.number()))
+              .javadoc(Javadoc.builder().text(c.comment()).build())
               .deprecated(c.deprecated())
               .build());
     }
@@ -65,20 +65,18 @@ public final class EnumSourceMapping {
     members.add(
         Member.Constructor.builder()
             .name(name)
-            .params("(int number)")
+            .param("int", "number")
             .body(
-                List.of(
-                    Statement.expr(
-                        Expression.assign(
-                            Expression.member("this", "number"), Expression.lit("number")))))
+                Statement.expr(
+                    Expression.assign(
+                        Expression.member("this", "number"), Expression.lit("number"))))
             .build());
     members.add(
         Member.Method.builder()
             .public_()
             .returnType("int")
             .name("getNumber")
-            .params("()")
-            .body(List.of(Statement.ret(Expression.lit("number"))))
+            .body(Statement.ret(Expression.lit("number")))
             .build());
 
     // 3. The reverse-lookup cluster -- M4-C2a-ext's fold-in. ci.use imports java.util.Map/HashMap +
@@ -113,19 +111,18 @@ public final class EnumSourceMapping {
             .static_()
             .returnType(name)
             .name("forNumber")
-            .params("(int number)")
+            .param("int", "number")
             .body(
-                List.of(
-                    Statement.ret(
-                        Expression.call(
-                            Expression.member("BY_NUMBER", "getOrDefault"),
-                            Expression.lit("number"),
-                            Expression.lit(firstConstantName(proto))))))
+                Statement.ret(
+                    Expression.call(
+                        Expression.member("BY_NUMBER", "getOrDefault"),
+                        Expression.lit("number"),
+                        Expression.lit(firstConstantName(proto)))))
             .build());
 
     return Type.Enum.builder()
         .public_()
-        .javadoc(new Javadoc(proto.comment()))
+        .javadoc(Javadoc.builder().text(proto.comment()).build())
         .deprecated(proto.deprecated())
         .name(name)
         .implementsFqns(proto.interfaces())

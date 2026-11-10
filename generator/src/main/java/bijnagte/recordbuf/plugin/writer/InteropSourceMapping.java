@@ -48,16 +48,18 @@ public final class InteropSourceMapping {
     String rec = m.name();
 
     Javadoc javadoc =
-        new Javadoc(
-            "Structural X <-> R converter between "
-                + rec
-                + " (record) and "
-                + ref
-                + " (protobuf-java), generated from "
-                + sourceName
-                + ". Field-by-field conversion only.");
+        Javadoc.builder()
+            .text(
+                "Structural X <-> R converter between ",
+                rec,
+                " (record) and ",
+                ref,
+                " (protobuf-java), generated from ",
+                sourceName,
+                ". Field-by-field conversion only.")
+            .build();
 
-    var privateCtor = Member.Constructor.builder().private_().name("Interop").params("()").build();
+    var privateCtor = Member.Constructor.builder().private_().name("Interop").build();
 
     var fromMethod = emitFrom(m, ci, refPkg, ref, rec);
     var toMethod = emitTo(m, ci, refPkg, ref, rec);
@@ -101,7 +103,7 @@ public final class InteropSourceMapping {
         .static_()
         .returnType(rec)
         .name("from")
-        .params("(" + ref + " x)")
+        .param(ref, "x")
         .body(body)
         .build();
   }
@@ -248,7 +250,7 @@ public final class InteropSourceMapping {
         .static_()
         .returnType(ref)
         .name("to")
-        .params("(" + rec + " r)")
+        .param(rec, "r")
         .body(body)
         .build();
   }

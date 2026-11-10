@@ -143,17 +143,16 @@ public sealed interface Member {
   }
 
   /**
-   * An {@code enum} constant: {@code NAME} with optional ctor args {@code (ctorArgs)} (the proto
-   * number). A null/blank {@code ctorArgs} renders the bare {@code NAME}.
+   * An {@code enum} constant: {@code NAME} with optional ctor args {@code (…)} (the proto number).
+   * The ctor args are a list of value expressions; the renderer wraps the list in parens, so a
+   * caller supplies the args without parens. An empty list renders the bare {@code NAME}.
    */
-  record EnumConstant(String name, String ctorArgs, Javadoc javadoc, boolean deprecated)
+  record EnumConstant(String name, List<String> ctorArgs, Javadoc javadoc, boolean deprecated)
       implements Member {
-    // Optional fields stay null/empty when a builder leaves them unset; the compact ctor seeds
-    // them:
-    // ctorArgs -> blank (renders the bare NAME when the proto constant has no number), javadoc ->
-    // empty. `deprecated` is a primitive (false by default); `name` is required.
+    // ctorArgs -> empty (renders the bare NAME when the list is empty); javadoc -> empty.
+    // `deprecated` is a primitive (false by default); `name` is required.
     public EnumConstant {
-      ctorArgs = ctorArgs == null ? "" : ctorArgs;
+      ctorArgs = ctorArgs == null ? List.of() : ctorArgs;
       javadoc = javadoc == null ? Javadoc.empty() : javadoc;
     }
 
@@ -165,7 +164,7 @@ public sealed interface Member {
     /** An accumulating, ergonomic {@link EnumConstant} builder. */
     public static final class Builder {
       private String name;
-      private String ctorArgs;
+      private final List<String> ctorArgs = new ArrayList<>();
       private Javadoc javadoc;
       private boolean deprecated;
 
@@ -175,9 +174,15 @@ public sealed interface Member {
         return this;
       }
 
-      /** Set the ctor args (the proto number; blank renders the bare name). */
-      public Builder ctorArgs(String c) {
-        this.ctorArgs = c;
+      /**
+       * Append one or more ctor arg value expressions (e.g. the proto number). Calls accumulate,
+       * and a single call may take several; no args renders the bare name. The renderer supplies
+       * the surrounding parens.
+       */
+      public Builder ctorArgs(String... args) {
+        for (String arg : args) {
+          this.ctorArgs.add(arg);
+        }
         return this;
       }
 
@@ -195,7 +200,7 @@ public sealed interface Member {
 
       /** Construct the {@link EnumConstant}. */
       public Member.EnumConstant build() {
-        return new Member.EnumConstant(name, ctorArgs, javadoc, deprecated);
+        return new Member.EnumConstant(name, List.copyOf(ctorArgs), javadoc, deprecated);
       }
     }
   }
@@ -214,7 +219,7 @@ public sealed interface Member {
       Modifiers mods,
       String returnType,
       String name,
-      String params,
+      List<Param> params,
       List<String> thrown,
       List<Statement> body,
       boolean abstractDecl,
@@ -225,6 +230,7 @@ public sealed interface Member {
     public Method {
       javadoc = javadoc == null ? Javadoc.empty() : javadoc;
       mods = mods == null ? Modifiers.none() : mods;
+      params = params == null ? List.of() : params;
       thrown = thrown == null ? List.of() : thrown;
       body = body == null ? List.of() : body;
     }
@@ -240,7 +246,7 @@ public sealed interface Member {
       private final Modifiers.Builder mods = Modifiers.builder();
       private String returnType;
       private String name;
-      private String params;
+      private final List<Param> params = new ArrayList<>();
       private final List<String> thrown = new ArrayList<>();
       private final List<Statement> body = new ArrayList<>();
       private boolean abstractDecl;
@@ -264,9 +270,16 @@ public sealed interface Member {
         return this;
       }
 
-      /** Set the parameter declaration string. */
-      public Builder params(String p) {
-        this.params = p;
+      /** Append one parameter (type + name); calls accumulate, and no params renders {@code ()}. */
+      public Builder param(String type, String name) {
+        this.params.add(new Param(type, name));
+        return this;
+      }
+
+      /** Replace the full parameter list. */
+      public Builder params(List<Param> ps) {
+        this.params.clear();
+        if (ps != null) params.addAll(ps);
         return this;
       }
 
@@ -283,16 +296,21 @@ public sealed interface Member {
         return this;
       }
 
-      /** Replace the full body. */
-      public Builder body(List<Statement> b) {
-        this.body.clear();
-        if (b != null) body.addAll(b);
+      /** Append one or more body statements; calls accumulate. */
+      public Builder body(Statement... statements) {
+        for (Statement s : statements) {
+          this.body.add(s);
+        }
         return this;
       }
 
-      /** Append one body line. */
-      public Builder body(Statement l) {
-        this.body.add(l);
+      /** Append an existing sequence of body statements; calls accumulate. */
+      public Builder body(Iterable<Statement> statements) {
+        if (statements != null) {
+          for (Statement s : statements) {
+            this.body.add(s);
+          }
+        }
         return this;
       }
 
@@ -351,7 +369,7 @@ public sealed interface Member {
             mods.build(),
             returnType,
             name,
-            params,
+            List.copyOf(params),
             List.copyOf(thrown),
             List.copyOf(body),
             abstractDecl,
@@ -362,7 +380,7 @@ public sealed interface Member {
 
   /** A constructor: {@code mods name(params) { body }}. */
   record Constructor(
-      Javadoc javadoc, Modifiers mods, String name, String params, List<Statement> body)
+      Javadoc javadoc, Modifiers mods, String name, List<Param> params, List<Statement> body)
       implements Member {
     // Optional fields stay null/empty when a builder leaves them unset; the compact ctor seeds
     // them:
@@ -371,6 +389,7 @@ public sealed interface Member {
     public Constructor {
       javadoc = javadoc == null ? Javadoc.empty() : javadoc;
       mods = mods == null ? Modifiers.none() : mods;
+      params = params == null ? List.of() : params;
       body = body == null ? List.of() : body;
     }
 
@@ -384,7 +403,7 @@ public sealed interface Member {
       private Javadoc javadoc;
       private final Modifiers.Builder mods = Modifiers.builder();
       private String name;
-      private String params;
+      private final List<Param> params = new ArrayList<>();
       private final List<Statement> body = new ArrayList<>();
 
       /** The constructor's Javadoc. */
@@ -399,22 +418,34 @@ public sealed interface Member {
         return this;
       }
 
-      /** Set the parameter declaration string. */
-      public Builder params(String p) {
-        this.params = p;
+      /** Append one parameter (type + name); calls accumulate, and no params renders {@code ()}. */
+      public Builder param(String type, String name) {
+        this.params.add(new Param(type, name));
         return this;
       }
 
-      /** Replace the full body. */
-      public Builder body(List<Statement> b) {
-        this.body.clear();
-        if (b != null) body.addAll(b);
+      /** Replace the full parameter list. */
+      public Builder params(List<Param> ps) {
+        this.params.clear();
+        if (ps != null) params.addAll(ps);
         return this;
       }
 
-      /** Append one body line. */
-      public Builder body(Statement l) {
-        this.body.add(l);
+      /** Append one or more body statements; calls accumulate. */
+      public Builder body(Statement... statements) {
+        for (Statement s : statements) {
+          this.body.add(s);
+        }
+        return this;
+      }
+
+      /** Append an existing sequence of body statements; calls accumulate. */
+      public Builder body(Iterable<Statement> statements) {
+        if (statements != null) {
+          for (Statement s : statements) {
+            this.body.add(s);
+          }
+        }
         return this;
       }
 
@@ -450,7 +481,8 @@ public sealed interface Member {
 
       /** Construct the {@link Constructor}. */
       public Member.Constructor build() {
-        return new Member.Constructor(javadoc, mods.build(), name, params, List.copyOf(body));
+        return new Member.Constructor(
+            javadoc, mods.build(), name, List.copyOf(params), List.copyOf(body));
       }
     }
   }

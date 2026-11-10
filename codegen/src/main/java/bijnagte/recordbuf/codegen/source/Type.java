@@ -150,16 +150,21 @@ public sealed interface Type {
         return this;
       }
 
-      /** Replace the full body member list. */
-      public Builder members(List<Member> ms) {
-        this.members.clear();
-        if (ms != null) members.addAll(ms);
+      /** Append one or more members; calls accumulate. */
+      public Builder members(Member... ms) {
+        for (Member m : ms) {
+          this.members.add(m);
+        }
         return this;
       }
 
-      /** Append one body member. */
-      public Builder member(Member m) {
-        this.members.add(m);
+      /** Append an existing sequence of members; calls accumulate. */
+      public Builder members(Iterable<Member> ms) {
+        if (ms != null) {
+          for (Member m : ms) {
+            this.members.add(m);
+          }
+        }
         return this;
       }
 
@@ -329,16 +334,21 @@ public sealed interface Type {
         return this;
       }
 
-      /** Replace the full body member list. */
-      public Builder members(List<Member> ms) {
-        this.members.clear();
-        if (ms != null) members.addAll(ms);
+      /** Append one or more members; calls accumulate. */
+      public Builder members(Member... ms) {
+        for (Member m : ms) {
+          this.members.add(m);
+        }
         return this;
       }
 
-      /** Append one body member. */
-      public Builder member(Member m) {
-        this.members.add(m);
+      /** Append an existing sequence of members; calls accumulate. */
+      public Builder members(Iterable<Member> ms) {
+        if (ms != null) {
+          for (Member m : ms) {
+            this.members.add(m);
+          }
+        }
         return this;
       }
 
@@ -516,16 +526,21 @@ public sealed interface Type {
         return this;
       }
 
-      /** Replace the full body member list. */
-      public Builder members(List<Member> ms) {
-        this.members.clear();
-        if (ms != null) members.addAll(ms);
+      /** Append one or more members; calls accumulate. */
+      public Builder members(Member... ms) {
+        for (Member m : ms) {
+          this.members.add(m);
+        }
         return this;
       }
 
-      /** Append one body member. */
-      public Builder member(Member m) {
-        this.members.add(m);
+      /** Append an existing sequence of members; calls accumulate. */
+      public Builder members(Iterable<Member> ms) {
+        if (ms != null) {
+          for (Member m : ms) {
+            this.members.add(m);
+          }
+        }
         return this;
       }
 
@@ -692,16 +707,21 @@ public sealed interface Type {
         return this;
       }
 
-      /** Replace the full body member list. */
-      public Builder members(List<Member> ms) {
-        this.members.clear();
-        if (ms != null) members.addAll(ms);
+      /** Append one or more members; calls accumulate. */
+      public Builder members(Member... ms) {
+        for (Member m : ms) {
+          this.members.add(m);
+        }
         return this;
       }
 
-      /** Append one body member. */
-      public Builder member(Member m) {
-        this.members.add(m);
+      /** Append an existing sequence of members; calls accumulate. */
+      public Builder members(Iterable<Member> ms) {
+        if (ms != null) {
+          for (Member m : ms) {
+            this.members.add(m);
+          }
+        }
         return this;
       }
 
