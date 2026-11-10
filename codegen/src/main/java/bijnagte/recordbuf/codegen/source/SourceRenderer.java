@@ -296,7 +296,71 @@ public final class SourceRenderer {
     private void renderStatement(int body, Statement s, StringBuilder out) {
       switch (s) {
         case Statement.Fragment fr -> out.append(indent(body)).append(fr.text()).append('\n');
+        case Statement.Return r ->
+            out.append(indent(body))
+                .append(r.expr() == null ? "return;" : "return " + render(r.expr()) + ";")
+                .append('\n');
+        case Statement.Throw t ->
+            out.append(indent(body))
+                .append("throw")
+                .append(' ')
+                .append(render(t.expr()))
+                .append(';')
+                .append('\n');
+        case Statement.ExprStatement e ->
+            out.append(indent(body)).append(render(e.expr())).append(";\n");
+        case Statement.LocalVar lv ->
+            out.append(indent(body))
+                .append(lv.type())
+                .append(' ')
+                .append(lv.name())
+                .append(lv.init() == null ? ";" : " = " + render(lv.init()) + ";")
+                .append('\n');
+        case Statement.Comment c ->
+            out.append(indent(body)).append("// ").append(c.text()).append('\n');
       }
+    }
+
+    /** Render an expression to its one-line textual form (no terminator, no leading indent). */
+    private String render(Expression e) {
+      switch (e) {
+        case Expression.Fragment f -> {
+          return f.text();
+        }
+        case Expression.Literal l -> {
+          return l.text();
+        }
+        case Expression.Member m -> {
+          return m.receiver() + "." + m.name();
+        }
+        case Expression.Call c -> {
+          return render(c.receiver()) + "(" + joinExpr(c.args()) + ")";
+        }
+        case Expression.New n -> {
+          return "new " + n.type() + "(" + joinExpr(n.args()) + ")";
+        }
+        case Expression.Parens p -> {
+          return "(" + render(p.inner()) + ")";
+        }
+        case Expression.Ternary t -> {
+          return render(t.cond()) + " ? " + render(t.a()) + " : " + render(t.b());
+        }
+        case Expression.Binary b -> {
+          return render(b.l()) + " " + b.op() + " " + render(b.r());
+        }
+        case Expression.Assign a -> {
+          return render(a.l()) + " = " + render(a.r());
+        }
+      }
+    }
+
+    private String joinExpr(List<Expression> args) {
+      StringBuilder sb = new StringBuilder();
+      for (int i = 0; i < args.size(); i++) {
+        if (i > 0) sb.append(", ");
+        sb.append(render(args.get(i)));
+      }
+      return sb.toString();
     }
 
     private String joinResolved(List<String> fqns) {

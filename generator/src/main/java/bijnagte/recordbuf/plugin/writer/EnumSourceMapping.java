@@ -1,6 +1,7 @@
 package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
+import bijnagte.recordbuf.codegen.source.Expression;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Member;
 import bijnagte.recordbuf.codegen.source.Statement;
@@ -65,7 +66,11 @@ public final class EnumSourceMapping {
         Member.Constructor.builder()
             .name(name)
             .params("(int number)")
-            .body(List.of(Statement.of("this.number = number;")))
+            .body(
+                List.of(
+                    Statement.expr(
+                        Expression.assign(
+                            Expression.member("this", "number"), Expression.lit("number")))))
             .build());
     members.add(
         Member.Method.builder()
@@ -73,7 +78,7 @@ public final class EnumSourceMapping {
             .returnType("int")
             .name("getNumber")
             .params("()")
-            .body(List.of(Statement.of("return number;")))
+            .body(List.of(Statement.ret(Expression.lit("number"))))
             .build());
 
     // 3. The reverse-lookup cluster -- M4-C2a-ext's fold-in. ci.use imports java.util.Map/HashMap +
@@ -93,7 +98,12 @@ public final class EnumSourceMapping {
 
     List<Statement> init = new ArrayList<>();
     for (Enum.EnumConstant c : proto.constants()) {
-      init.add(Statement.of("BY_NUMBER.put(" + c.number() + ", " + c.name() + ");"));
+      init.add(
+          Statement.expr(
+              Expression.call(
+                  Expression.member("BY_NUMBER", "put"),
+                  Expression.lit(String.valueOf(c.number())),
+                  Expression.lit(c.name()))));
     }
     members.add(new Member.StaticBlock(init));
 
@@ -106,10 +116,11 @@ public final class EnumSourceMapping {
             .params("(int number)")
             .body(
                 List.of(
-                    Statement.of(
-                        "return BY_NUMBER.getOrDefault(number, "
-                            + firstConstantName(proto)
-                            + ");")))
+                    Statement.ret(
+                        Expression.call(
+                            Expression.member("BY_NUMBER", "getOrDefault"),
+                            Expression.lit("number"),
+                            Expression.lit(firstConstantName(proto))))))
             .build());
 
     return Type.Enum.builder()

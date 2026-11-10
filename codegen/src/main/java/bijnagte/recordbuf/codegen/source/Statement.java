@@ -1,21 +1,29 @@
 package bijnagte.recordbuf.codegen.source;
 
+import java.util.List;
+
 /**
  * A single statement inside a method, constructor, or {@code static {}} body. A body is a {@link
  * List List<Statement>}; the {@link SourceRenderer} owns brace, paren, and join layout for the
  * list, not the emitter.
  *
- * <p>This is the closed idiom set the body-lift is building toward (DEC-3): control flow ({@code
- * If/For/Foreach/While/Switch+CaseClause}), statements ({@code
- * Return/Throw/LocalVar/ExprStatement}), and a bare {@link Block} for nested scopes -- plus the
- * {@link Fragment} escape node used while the per-mapping idiom conversion (the body-lift's final
- * unit) works line by line. Fragments may coexist with modeled idioms but are counted, not
- * celebrated: a growing fragment count signals an idiom the closed set has not yet learned.
+ * <p>This is the closed idiom set the body-lift is building toward (DEC-3): recurring statement
+ * shapes ({@code Return/Throw/ExprStatement/LocalVar}, a line {@code Comment}, a nested {@code
+ * Block}) plus the {@link Fragment} escape used for syntax the closed set has not yet modeled --
+ * the control-flow and switch idioms land as the heavier mappings convert. Fragments may coexist
+ * with modeled idioms but are counted, not celebrated: a growing fragment count signals an idiom
+ * the closed set has not yet learned.
  *
- * <p>Today the only emitted node is {@link Fragment}; the idiom nodes land alongside it as the
- * mappings convert, each byte-identical to the line it replaces.
+ * <p>The node set grows incrementally as the mappings convert; each new node renders
+ * byte-identically to the flat {@code Line} it replaced.
  */
-public sealed interface Statement permits Statement.Fragment {
+public sealed interface Statement
+    permits Statement.Fragment,
+        Statement.Return,
+        Statement.Throw,
+        Statement.ExprStatement,
+        Statement.LocalVar,
+        Statement.Comment {
 
   /**
    * A raw body-line fragment whose text the renderer emits verbatim at the block's indent -- the
@@ -25,6 +33,26 @@ public sealed interface Statement permits Statement.Fragment {
    */
   record Fragment(String text) implements Statement {}
 
+  /** {@code return <expr>;} or, when {@code expr} is null, a bare {@code return;}. */
+  record Return(Expression expr) implements Statement {}
+
+  /** {@code throw <expr>;}. */
+  record Throw(Expression expr) implements Statement {}
+
+  /** An expression statement: {@code <expr>;}. */
+  record ExprStatement(Expression expr) implements Statement {}
+
+  /**
+   * A local declaration: {@code <type> <name> = <init>;} or, when {@code init} is null, {@code
+   * <type> <name>;}. {@code type} is a pre-resolved short-form string (the mapping resolved it
+   * through the collector), so the renderer emits it verbatim -- a generic type like {@code
+   * List<T>} would be mangled by a second {@code ci.use}.
+   */
+  record LocalVar(String type, String name, Expression init) implements Statement {}
+
+  /** A line comment: {@code // text}. */
+  record Comment(String text) implements Statement {}
+
   /**
    * Wrap a body-line string as a {@link Fragment}.
    *
@@ -32,5 +60,29 @@ public sealed interface Statement permits Statement.Fragment {
    */
   static Fragment of(String text) {
     return new Fragment(text);
+  }
+
+  static Return ret(Expression expr) {
+    return new Return(expr);
+  }
+
+  static Return ret() {
+    return new Return(null);
+  }
+
+  static Throw throwOf(Expression expr) {
+    return new Throw(expr);
+  }
+
+  static ExprStatement expr(Expression e) {
+    return new ExprStatement(e);
+  }
+
+  static LocalVar local(String type, String name, Expression init) {
+    return new LocalVar(type, name, init);
+  }
+
+  static Comment comment(String text) {
+    return new Comment(text);
   }
 }
