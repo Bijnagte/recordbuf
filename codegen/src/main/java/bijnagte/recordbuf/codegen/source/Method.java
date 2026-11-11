@@ -21,8 +21,7 @@ public record Method(
     List<String> thrown,
     List<Element> body,
     boolean abstractDecl,
-    boolean override)
-    implements Member {
+    boolean override) {
   // The builder leaves the optional fields unset (null); the compact constructor seeds them to
   // their defaults so a caller sets only what it needs and the accessors stay non-null.
   public Method {

@@ -56,7 +56,7 @@ class JavaSourceTest {
             Component.named("int", "value").build(),
             Component.named("byte[]", "items").build(),
             Component.named("SampleType", "type").build())
-        .nested(new Nested(sampleType()))
+        .nested(sampleType())
         .method(
             Method.named("toByteArray")
                 .public_()

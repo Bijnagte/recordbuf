@@ -29,7 +29,7 @@ import org.jspecify.annotations.Nullable;
  * source AST. Handles all field families: scalars, repeated scalars, optional scalars/strings,
  * maps, nested messages, singular/repeated enums, oneofs, and WKT fields.
  *
- * <p>Wires into {@link RecordSourceMapping} by appending {@code new Nested(codec)} to the record's
+ * <p>Wires into {@link RecordSourceMapping} by appending {@code .nested(codec)} to the record's
  * member list.
  */
 public final class CodecSourceMapping {
@@ -71,7 +71,6 @@ public final class CodecSourceMapping {
     String codecName = m.name() + "Codec"; // M4-C2b-2b-8: align with old SampleCodec naming
     Type.Class.Builder result =
         Type.Class.named(codecName)
-            .parent(m.name())
             .public_()
             .static_()
             .final_()

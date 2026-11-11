@@ -18,8 +18,8 @@ import java.util.List;
  * the body AST's fragment escape.
  *
  * <p>Build via {@link #builder()}: the builder's toggles read as intent ({@code
- * Modifiers.builder().public_().static_().build()}). A node builder (see {@link Type}/{@link
- * Member}) exposes the same toggles so a caller sets modifiers without ever naming a string.
+ * Modifiers.builder().public_().static_().build()}). A node builder under {@link Type} exposes the
+ * same toggles so a caller sets modifiers without ever naming a string.
  */
 public record Modifiers(
     Visibility visibility, boolean isStatic, boolean isFinal, boolean isSealed, boolean isDefault) {

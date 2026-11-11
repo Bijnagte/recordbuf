@@ -6,7 +6,6 @@ import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Method;
-import bijnagte.recordbuf.codegen.source.Nested;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.plugin.model.Enum;
 import bijnagte.recordbuf.plugin.model.Field;
@@ -29,8 +28,8 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>{@code toSource} maps the record <em>shell</em>: header (Javadoc, {@code @Deprecated}, {@code
  * implements} clause), components (one {@link Component} per proto {@link Field}), and nested ENUMS
- * as {@link Nested} (reusing {@link EnumSourceMapping} for full enum core + {@code BY_NUMBER}
- * cluster).
+ * as a nested {@link Type} (reusing {@link EnumSourceMapping} for full enum core + {@code
+ * BY_NUMBER} cluster).
  *
  * <p>{@code toSourceWithCodec} extends the shell with a nested {@link Type.Class} codec that
  * dispatches through {@link CodecSourceMapping} (encode/decode for all field families: scalars,
@@ -67,7 +66,7 @@ public final class RecordSourceMapping {
     // its
     // full core + its BY_NUMBER reverse-lookup cluster (with shared java.util.* imports).
     for (Enum e : m.nestedEnums()) {
-      result.nested(new Nested(EnumSourceMapping.toSource(e, ci)));
+      result.nested(EnumSourceMapping.toSource(e, ci));
     }
     // M4-C2b-2b-12: oneof groups.
     for (Oneof oneof : m.oneofs()) {
@@ -80,8 +79,8 @@ public final class RecordSourceMapping {
   /**
    * Map a message model to a source-AST {@link Type.Record} WITH the nested {@code Codec} included.
    * The codec (encode/decode static methods with real {@code List<Element>} bodies) is appended as
-   * a {@link Nested} to the record's member list, so the rendered source contains both the record
-   * shell and its codec.
+   * a nested {@link Type} to the record's nested list, so the rendered source contains both the
+   * record shell and its codec.
    */
   public static Type.Record toSourceWithCodec(Message m, TypeCollector ci) {
     return toSourceWithCodec(m, ci, null);
@@ -105,7 +104,7 @@ public final class RecordSourceMapping {
       result.component(Component.named(scalarComponentType(f, ci), f.javaName()).build());
     }
     for (Enum e : m.nestedEnums()) {
-      result.nested(new Nested(EnumSourceMapping.toSource(e, ci)));
+      result.nested(EnumSourceMapping.toSource(e, ci));
     }
     // M4-C2d-9: nested messages — emit each as an inner record via recursion.
     for (Message nested : m.nestedMessages()) {
@@ -115,7 +114,7 @@ public final class RecordSourceMapping {
               nested, ci, f -> f.kind() == FieldKind.MESSAGE ? f.typeUrl() + ".Codec" : null);
       // The nested type's FQN must be <Parent>.<Nested> — the TypeCollector handles the
       // package qualification, so just ensure the ci knows about it.
-      result.nested(new Nested(nestedRec));
+      result.nested(nestedRec);
     }
     // M4-C2b-2b-12: oneof groups.
     for (Oneof oneof : m.oneofs()) {
@@ -125,7 +124,7 @@ public final class RecordSourceMapping {
     for (Field f : m.fields()) {
       if (f.kind() == FieldKind.MAP) {
         Type.Record entry = mapEntryRecord(f, ci);
-        result.nested(new Nested(entry));
+        result.nested(entry);
       }
     }
 
@@ -174,13 +173,13 @@ public final class RecordSourceMapping {
 
     // M4-C2b-2c: append the nested Codec, built from the same message model.
     Type.Class codec = CodecSourceMapping.toCodec(m, ci, typeResolver);
-    result.nested(new Nested(codec));
+    result.nested(codec);
 
     // M4-C2e: Layer B interop — nested Interop class when recordbuf.protobuf_java is set.
     // useFqn is used for the protobuf-java ref type to avoid a short-name import that
     // would collide with the record's own name in the same compilation unit.
     if (m.protobufJava() != null && !m.protobufJava().isEmpty()) {
-      result.nested(new Nested(InteropSourceMapping.toInterop(m, ci, "")));
+      result.nested(InteropSourceMapping.toInterop(m, ci, ""));
     }
 
     // Build the implements list: user-declared interfaces first, then ProtobufMessage
@@ -335,7 +334,7 @@ public final class RecordSourceMapping {
               .implementsFqn(ifaceName)
               .component(Component.named(valType, "value").build())
               .build();
-      iface.nested(new Nested(wr));
+      iface.nested(wr);
     }
 
     // The default value() method (overrides the Unwrapable.value()). Use `default` keyword in an
@@ -348,7 +347,7 @@ public final class RecordSourceMapping {
             .build();
     iface.method(defaultMethod);
 
-    record.nested(new Nested(iface.build()));
+    record.nested(iface.build());
   }
 
   /**
@@ -532,7 +531,7 @@ public final class RecordSourceMapping {
             .build();
 
     record.method(builderFactory);
-    record.nested(new Nested(nestedBuilder));
+    record.nested(nestedBuilder);
   }
 
   /**
@@ -590,7 +589,7 @@ public final class RecordSourceMapping {
     result.component(Component.named(valueType, "value").build());
 
     Type.Class entryCodec = CodecSourceMapping.emitEntryCodec(entryName, f, ci);
-    result.nested(new Nested(entryCodec));
+    result.nested(entryCodec);
 
     return result.build();
   }

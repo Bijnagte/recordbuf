@@ -69,7 +69,6 @@ public final class InteropSourceMapping {
     var toMethod = emitTo(m, ci, refPkg, ref, rec);
 
     return Type.Class.named("Interop")
-        .parent(rec)
         .public_()
         .static_()
         .final_()

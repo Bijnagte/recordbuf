@@ -8,8 +8,8 @@ import java.util.List;
  * The ctor args are a list of value expressions; the renderer wraps the list in parens, so a caller
  * supplies the args without parens. An empty list renders the bare {@code NAME}.
  */
-public record EnumConstant(String name, List<String> ctorArgs, Javadoc javadoc, boolean deprecated)
-    implements Member {
+public record EnumConstant(
+    String name, List<String> ctorArgs, Javadoc javadoc, boolean deprecated) {
   // ctorArgs -> empty (renders the bare NAME when the list is empty); javadoc -> empty.
   // `deprecated` is a primitive (false by default); `name` is required.
   public EnumConstant {

@@ -39,7 +39,6 @@ class ClassSourceTest {
   private static Type.Record messageWithCodec() {
     Type.Class codec =
         Type.Class.named("Codec")
-            .parent("MessageRec")
             .public_()
             .static_()
             .final_()
@@ -69,7 +68,7 @@ class ClassSourceTest {
     return Type.Record.named("MessageRec")
         .public_()
         .component(Component.named("int", "id").build())
-        .nested(new Nested(codec))
+        .nested(codec)
         .build();
   }
 
@@ -313,7 +312,6 @@ class ClassSourceTest {
   private static Type.Record recordWithRealMultiScalarCodec() {
     Type.Class codec =
         Type.Class.named("Codec")
-            .parent("RecordWithRealMultiScalar")
             .public_()
             .static_()
             .final_()
@@ -378,14 +376,13 @@ class ClassSourceTest {
             Component.named("int", "id").build(),
             Component.named("long", "value").build(),
             Component.named("String", "text").build())
-        .nested(new Nested(codec))
+        .nested(codec)
         .build();
   }
 
   private static Type.Record recordWithRealCodec() {
     Type.Class codec =
         Type.Class.named("Codec")
-            .parent("RecordWithRealCodec")
             .public_()
             .static_()
             .final_()
@@ -438,7 +435,7 @@ class ClassSourceTest {
     return Type.Record.named("RecordWithRealCodec")
         .public_()
         .component(Component.named("int", "id").build())
-        .nested(new Nested(codec))
+        .nested(codec)
         .build();
   }
 
@@ -497,7 +494,7 @@ class ClassSourceTest {
             .public_()
             .final_()
             .component(dataField)
-            .nested(new Nested(codec))
+            .nested(codec)
             .build();
 
     String src = SourceRenderer.render(new JavaFile(PKG, new Javadoc(""), record, ci));
@@ -556,7 +553,7 @@ class ClassSourceTest {
             .public_()
             .final_()
             .component(dataField)
-            .nested(new Nested(codec))
+            .nested(codec)
             .build();
 
     String pkg = "bijnagte.recordbuf.codegen.source.roundtrip";

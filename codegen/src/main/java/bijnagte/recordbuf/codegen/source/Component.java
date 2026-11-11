@@ -15,8 +15,7 @@ public record Component(
     String type,
     String name,
     boolean deprecated,
-    String initializer)
-    implements Member {
+    String initializer) {
   // Optional fields stay null/empty when a builder leaves them unset; the compact ctor seeds
   // them:
   // javadoc -> empty (renders nothing), mods -> none, initializer -> blank. `deprecated` is a

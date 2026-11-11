@@ -1038,6 +1038,6 @@ class RecordSourceMappingTest {
 
   /**
    * M4-C2d-9: nested messages are emitted as inner records of the parent record. Verifies that
-   * {@code toSourceWithCodec} emits nested Message types via {@link Nested}.
+   * {@code toSourceWithCodec} emits nested Message types as a nested member.
    */
 }

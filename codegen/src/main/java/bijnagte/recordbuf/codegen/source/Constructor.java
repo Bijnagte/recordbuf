@@ -7,8 +7,7 @@ import java.util.List;
  * A constructor: {@code mods params { body}} — the name is the enclosing type's name (a Java law),
  * so the renderer supplies it rather than the node storing it.
  */
-public record Constructor(Javadoc javadoc, Modifiers mods, List<Param> params, List<Element> body)
-    implements Member {
+public record Constructor(Javadoc javadoc, Modifiers mods, List<Param> params, List<Element> body) {
   // Optional fields stay null/empty when a builder leaves them unset; the compact ctor seeds
   // them:
   // javadoc -> empty, mods -> none, body -> empty list (an empty ctor body, e.g. a private no-arg
