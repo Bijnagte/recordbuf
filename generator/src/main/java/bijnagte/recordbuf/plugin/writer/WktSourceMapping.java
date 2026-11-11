@@ -1,6 +1,7 @@
 package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
+import bijnagte.recordbuf.codegen.source.For;
 import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.Statement;
 import bijnagte.recordbuf.plugin.model.Field;
@@ -79,31 +80,31 @@ final class WktSourceMapping {
         String def = Objects.requireNonNull(entry.zeroDefault());
         // for (var e : v.field()) { if (!e.equals(def)) out.writeByteArray(n, Wkt.method(e)); }
         body.add(
-            Statement.of(
-                "for (var e : "
-                    + g
-                    + ") { if (!e.equals("
-                    + def
-                    + ")) "
-                    + outExpr
-                    + wkt
-                    + "."
-                    + methodName
-                    + "(e)); }"));
+            For.builder()
+                .pattern("var e")
+                .iterable(g)
+                .body(
+                    If.builder()
+                        .condition("!e.equals(" + def + ")")
+                        .body(Statement.of(outExpr + wkt + "." + methodName + "(e));"))
+                        .build())
+                .build());
       } else {
         // for (var e : v.field()) out.writeByteArray(n, Wkt.wrap(Wkt.Wrap.KIND, e));
         body.add(
-            Statement.of(
-                "for (var e : "
-                    + g
-                    + ") "
-                    + outExpr
-                    + wkt
-                    + ".wrap("
-                    + wkt
-                    + ".Wrap."
-                    + wrapKind(f.typeUrl())
-                    + ", e));"));
+            For.builder()
+                .pattern("var e")
+                .iterable(g)
+                .body(
+                    Statement.of(
+                        outExpr
+                            + wkt
+                            + ".wrap("
+                            + wkt
+                            + ".Wrap."
+                            + wrapKind(f.typeUrl())
+                            + ", e));"))
+                .build());
       }
     } else if (entry.hasZeroDefault()) {
       String def = Objects.requireNonNull(entry.zeroDefault());

@@ -27,6 +27,7 @@ class SourceAstClosednessTest {
             Arrays.asList(
                 "Comment",
                 "ExprStatement",
+                "For",
                 "Fragment",
                 "If",
                 "LocalVar",

@@ -23,7 +23,8 @@ public sealed interface Statement
         Statement.LocalVar,
         Statement.Comment,
         If,
-        While {
+        While,
+        For {
 
   /**
    * A raw body-line fragment whose text the renderer emits verbatim at the block's indent -- the

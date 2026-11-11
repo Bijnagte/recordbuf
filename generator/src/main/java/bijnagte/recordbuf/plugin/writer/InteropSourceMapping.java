@@ -1,6 +1,7 @@
 package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
+import bijnagte.recordbuf.codegen.source.For;
 import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Member;
@@ -128,16 +129,11 @@ public final class InteropSourceMapping {
         String valExpr = mapValueFrom(f, ci);
         out.add(Statement.of("var _" + f.javaName() + " = new " + ci.use(HASH_MAP) + "<>();"));
         out.add(
-            Statement.of(
-                "for (var _e : x.get"
-                    + cap
-                    + "Map().entrySet()) _"
-                    + f.javaName()
-                    + ".put("
-                    + keyExpr
-                    + ", "
-                    + valExpr
-                    + ");"));
+            For.builder()
+                .pattern("var _e")
+                .iterable("x.get" + cap + "Map().entrySet()")
+                .body(Statement.of("_" + f.javaName() + ".put(" + keyExpr + ", " + valExpr + ");"))
+                .build());
       }
       return;
     }
@@ -154,14 +150,11 @@ public final class InteropSourceMapping {
                   + ci.use(ARRAY_LIST)
                   + "<>();"));
       out.add(
-          Statement.of(
-              "for (var _e : x.get"
-                  + cap
-                  + "List()) _"
-                  + f.javaName()
-                  + ".add("
-                  + recSib
-                  + ".Interop.from(_e));"));
+          For.builder()
+              .pattern("var _e")
+              .iterable("x.get" + cap + "List()")
+              .body(Statement.of("_" + f.javaName() + ".add(" + recSib + ".Interop.from(_e));"))
+              .build());
       return;
     }
     if (f.isMessage()) {
@@ -187,12 +180,11 @@ public final class InteropSourceMapping {
       if ("bytes".equals(f.typeUrl())) {
         out.add(Statement.of("var _" + f.javaName() + " = new " + ci.use(ARRAY_LIST) + "<>();"));
         out.add(
-            Statement.of(
-                "for (var _e : x.get"
-                    + cap
-                    + "List()) _"
-                    + f.javaName()
-                    + ".add(_e.toByteArray());"));
+            For.builder()
+                .pattern("var _e")
+                .iterable("x.get" + cap + "List()")
+                .body(Statement.of("_" + f.javaName() + ".add(_e.toByteArray());"))
+                .build());
       } else {
         // For non-bytes repeated fields, use the protobuf-java list directly;
         // var infers the correct element type from x.getList().
@@ -259,29 +251,23 @@ public final class InteropSourceMapping {
     String cap = JavaNames.cap(f.javaName());
     if (f.isMap()) {
       out.add(
-          Statement.of(
-              "for (var _e : r."
-                  + f.javaName()
-                  + "().entrySet()) _b.put"
-                  + cap
-                  + "("
-                  + mapKeyTo(f, ci)
-                  + ", "
-                  + mapValueTo(f, ci)
-                  + ");"));
+          For.builder()
+              .pattern("var _e")
+              .iterable("r." + f.javaName() + "().entrySet()")
+              .body(
+                  Statement.of(
+                      "_b.put" + cap + "(" + mapKeyTo(f, ci) + ", " + mapValueTo(f, ci) + ");"))
+              .build());
       return;
     }
     if (f.isMessage() && f.isRepeated()) {
       String recSib = recordSiblingFqn(f);
       out.add(
-          Statement.of(
-              "for (var _e : r."
-                  + f.javaName()
-                  + "()) _b.add"
-                  + cap
-                  + "("
-                  + recSib
-                  + ".Interop.to(_e));"));
+          For.builder()
+              .pattern("var _e")
+              .iterable("r." + f.javaName() + "()")
+              .body(Statement.of("_b.add" + cap + "(" + recSib + ".Interop.to(_e));"))
+              .build());
       return;
     }
     if (f.isMessage()) {
@@ -301,14 +287,11 @@ public final class InteropSourceMapping {
     if (f.isRepeated()) {
       if ("bytes".equals(f.typeUrl())) {
         out.add(
-            Statement.of(
-                "for (byte[] _e : r."
-                    + f.javaName()
-                    + "()) _b.add"
-                    + cap
-                    + "("
-                    + ci.use(BYTE_STRING)
-                    + ".copyFrom(_e));"));
+            For.builder()
+                .pattern("byte[] _e")
+                .iterable("r." + f.javaName() + "()")
+                .body(Statement.of("_b.add" + cap + "(" + ci.use(BYTE_STRING) + ".copyFrom(_e));"))
+                .build());
       } else {
         out.add(Statement.of("_b.addAll" + cap + "(r." + f.javaName() + "());"));
       }

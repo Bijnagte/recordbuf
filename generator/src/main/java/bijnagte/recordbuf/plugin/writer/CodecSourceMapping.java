@@ -1,6 +1,7 @@
 package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
+import bijnagte.recordbuf.codegen.source.For;
 import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Member;
@@ -383,14 +384,11 @@ public final class CodecSourceMapping {
     int num = f.number();
     String codecRef = typeResolver.apply(f);
     out.add(
-        Statement.of(
-            "for (var _m : "
-                + getter
-                + ") out.writeByteArray("
-                + num
-                + ", "
-                + codecRef
-                + ".encode(_m));"));
+        For.builder()
+            .pattern("var _m")
+            .iterable(getter)
+            .body(Statement.of("out.writeByteArray(" + num + ", " + codecRef + ".encode(_m));"))
+            .build());
   }
 
   // --- Per-field ENUM encode/decode (M4-C2b-2b-9) ---
@@ -421,7 +419,11 @@ public final class CodecSourceMapping {
     String getter = "v." + f.javaName() + "()";
     int num = f.number();
     out.add(
-        Statement.of("for (var _e : " + getter + ") out.writeEnum(" + num + ", _e.getNumber());"));
+        For.builder()
+            .pattern("var _e")
+            .iterable(getter)
+            .body(Statement.of("out.writeEnum(" + num + ", _e.getNumber());"))
+            .build());
   }
 
   /** M4-C2b-2b-9: singular ENUM decode — assign EnumName.forNumber(in.readEnum()). */
@@ -520,19 +522,22 @@ public final class CodecSourceMapping {
   @SuppressWarnings("java:S905")
   private static void emitMapEncode(Field f, TypeCollector ci, List<Statement> out) {
     String entryName = mapEntryName(f);
-    out.add(Statement.of("for (var _e : v." + f.javaName() + "().entrySet()) {"));
     out.add(
-        Statement.of(
-            "  out.writeByteArray("
-                + f.number()
-                + ", "
-                + entryName
-                + "."
-                + entryName
-                + "Codec.encode(new "
-                + entryName
-                + "(_e.getKey(), _e.getValue())));"));
-    out.add(Statement.of("}"));
+        For.builder()
+            .pattern("var _e")
+            .iterable("v." + f.javaName() + "().entrySet()")
+            .body(
+                Statement.of(
+                    "out.writeByteArray("
+                        + f.number()
+                        + ", "
+                        + entryName
+                        + "."
+                        + entryName
+                        + "Codec.encode(new "
+                        + entryName
+                        + "(_e.getKey(), _e.getValue())));"))
+            .build());
   }
 
   // --- Helpers ---
@@ -663,7 +668,11 @@ public final class CodecSourceMapping {
             .body(
                 Statement.of("var body = Encoder.start();"),
                 Statement.of("var _o = body.out();"),
-                Statement.of("for (var _x : " + getter + ") _o." + packedNoTag(wire) + "(_x);"),
+                For.builder()
+                    .pattern("var _x")
+                    .iterable(getter)
+                    .body(Statement.of("_o." + packedNoTag(wire) + "(_x);"))
+                    .build(),
                 Statement.of("out.writeByteArray(" + num + ", body.finish());"))
             .build());
   }

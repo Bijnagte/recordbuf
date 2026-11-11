@@ -348,6 +348,7 @@ public final class SourceRenderer {
             out.append(indent(body)).append("// ").append(c.text()).append('\n');
         case If i -> renderIf(body, i, out);
         case While w -> renderWhile(body, w, out);
+        case For f -> renderFor(body, f, out);
       }
     }
 
@@ -380,6 +381,22 @@ public final class SourceRenderer {
     private void renderWhile(int body, While w, StringBuilder out) {
       out.append(indent(body)).append("while (").append(w.condition()).append(") {\n");
       for (Statement s : w.body()) renderStatement(body + 1, s, out);
+      out.append(indent(body)).append("}\n");
+    }
+
+    /**
+     * Render a for-each loop -- the {@code for (pattern : iterable) {}} header and its statement
+     * body at the next indent, closed by its own brace. A for-each always closes on its own; an
+     * empty body renders the empty-loop case {@code for (p : x) {}}.
+     */
+    private void renderFor(int body, For f, StringBuilder out) {
+      out.append(indent(body))
+          .append("for (")
+          .append(f.pattern())
+          .append(" : ")
+          .append(f.iterable())
+          .append(") {\n");
+      for (Statement s : f.body()) renderStatement(body + 1, s, out);
       out.append(indent(body)).append("}\n");
     }
 
