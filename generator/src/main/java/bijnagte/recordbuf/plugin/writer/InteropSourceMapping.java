@@ -6,6 +6,7 @@ import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Member;
 import bijnagte.recordbuf.codegen.source.Statement;
+import bijnagte.recordbuf.codegen.source.Switch;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
@@ -385,30 +386,21 @@ public final class InteropSourceMapping {
 
   private static void emitOneofTo(List<Statement> out, Oneof o, TypeCollector ci, String refPkg) {
     String iface = o.ifaceName();
-    out.add(Statement.of("switch (r." + o.componentName() + "()) {"));
-    out.add(Statement.of("  case null -> {}"));
+    Switch.Builder sw = Switch.builder().subject("r." + o.componentName() + "()");
+    // The null arm: an empty body auto-braces to `case null -> {}`.
+    sw.caseArm("null");
     for (Field f : o.members()) {
       String cap = JavaNames.cap(f.name());
+      String pattern = iface + "." + cap + "Value v";
       if (f.isMessage()) {
         String recSib = recordSiblingFqn(f);
-        out.add(
-            Statement.of(
-                "  case "
-                    + iface
-                    + "."
-                    + cap
-                    + "Value v -> _b.set"
-                    + cap
-                    + "("
-                    + recSib
-                    + ".Interop.to(v.value()));"));
-        continue;
+        sw.caseArm(
+            pattern, Statement.of("_b.set" + cap + "(" + recSib + ".Interop.to(v.value()));"));
+      } else {
+        sw.caseArm(pattern, Statement.of(toSet(f, "v.value()", ci, refPkg)));
       }
-      out.add(
-          Statement.of(
-              "  case " + iface + "." + cap + "Value v -> " + toSet(f, "v.value()", ci, refPkg)));
     }
-    out.add(Statement.of("}"));
+    out.add(sw.build());
   }
 
   // -- helpers ------------------------------------------------------------------

@@ -349,6 +349,7 @@ public final class SourceRenderer {
         case If i -> renderIf(body, i, out);
         case While w -> renderWhile(body, w, out);
         case For f -> renderFor(body, f, out);
+        case Switch sw -> renderSwitch(body, sw, out);
       }
     }
 
@@ -398,6 +399,66 @@ public final class SourceRenderer {
           .append(") {\n");
       for (Statement s : f.body()) renderStatement(body + 1, s, out);
       out.append(indent(body)).append("}\n");
+    }
+
+    /**
+     * Render a {@code switch} statement -- the {@code switch (subject) {}} header, its {@link Case}
+     * arms and terminal {@code default ->} arm, each at the next indent, closed by its own brace.
+     * Arm braces are decided by arm size (auto-brace): an empty arm renders {@code -> {}}, a
+     * single-statement arm renders un-braced {@code -> stmt;} (required for switch-expression
+     * yields), and a multi-statement arm braces {@code -> { … }}.
+     */
+    private void renderSwitch(int body, Switch sw, StringBuilder out) {
+      int arm = body + 1;
+      out.append(indent(body)).append("switch (").append(sw.subject()).append(") {\n");
+      for (Case c : sw.cases()) renderCase(arm, c, out);
+      // Render the terminal default arm only when it has a body, mirroring If's optional elseBody:
+      // an empty defaultBody omits the default clause entirely.
+      if (!sw.defaultBody().isEmpty()) renderDefaultArm(arm, sw.defaultBody(), out);
+      out.append(indent(body)).append("}\n");
+    }
+
+    private void renderCase(int arm, Case c, StringBuilder out) {
+      out.append(indent(arm))
+          .append("case ")
+          .append(String.join(", ", c.patterns()))
+          .append(" -> ");
+      renderArmBody(arm, c.body(), out);
+    }
+
+    private void renderDefaultArm(int arm, List<Statement> body, StringBuilder out) {
+      out.append(indent(arm)).append("default -> ");
+      renderArmBody(arm, body, out);
+    }
+
+    /**
+     * Render one arm's body -- the auto-brace rule the user chose: empty renders {@code -> {}}, one
+     * statement renders un-braced {@code -> stmt;} (so it can yield as a switch-expression arm),
+     * more than one braces {@code -> { … }}, each body statement at the next inner indent.
+     */
+    private void renderArmBody(int arm, List<Statement> body, StringBuilder out) {
+      if (body.isEmpty()) {
+        out.append("{}\n");
+      } else if (body.size() == 1) {
+        out.append(renderBodyInline(body.get(0))).append('\n');
+      } else {
+        out.append("{\n");
+        for (Statement s : body) renderStatement(arm + 1, s, out);
+        out.append(indent(arm)).append("}\n");
+      }
+    }
+
+    /**
+     * Render a single-statement arm body inline (no leading indent, no trailing newline) so it can
+     * sit on the arm's {@code case … -> } line. For a {@link Statement.Fragment} the leading
+     * whitespace is stripped so the renderer's layout owns the indentation; a structured body is
+     * rendered at zero indent as a best-effort fallback.
+     */
+    private String renderBodyInline(Statement s) {
+      if (s instanceof Statement.Fragment fr) return fr.text().stripLeading();
+      StringBuilder sb = new StringBuilder();
+      renderStatement(0, s, sb);
+      return sb.toString().stripLeading().replaceAll("\\s+$", "");
     }
 
     /** Render an expression to its one-line textual form (no terminator, no leading indent). */

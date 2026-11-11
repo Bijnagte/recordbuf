@@ -32,6 +32,7 @@ class SourceAstClosednessTest {
                 "If",
                 "LocalVar",
                 "Return",
+                "Switch",
                 "Throw",
                 "While")),
         permitted,
