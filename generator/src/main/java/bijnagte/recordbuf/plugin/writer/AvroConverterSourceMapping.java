@@ -79,8 +79,7 @@ public final class AvroConverterSourceMapping {
     ci.use("bijnagte.recordbuf.runtime.UnknownFields");
 
     // --- class AST ---
-    Member.Constructor privateCtor =
-        Member.Constructor.builder().name(recordClass + "AvroConverter").private_().body().build();
+    Member.Constructor privateCtor = Member.Constructor.builder().private_().body().build();
 
     Member.Method toRecord =
         buildToRecord(message, recordClass, avroSpecific, hasWkt, hasByteField);

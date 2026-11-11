@@ -76,7 +76,7 @@ public final class CodecSourceMapping {
             .final_()
             .javadoc(Javadoc.builder().text("Wire codec for the ", m.name(), " record.").build())
             .name(codecName); // M4-C2b-2b-8: <Name>Codec to align with old path
-    result.constructor(Member.Constructor.builder().private_().name(codecName).build());
+    result.constructor(Member.Constructor.builder().private_().build());
     result.method(
         encode(
             m,
@@ -698,7 +698,7 @@ public final class CodecSourceMapping {
     String codecName = entryName + "Codec";
     Type.Class.Builder result = Type.Class.builder().public_().static_().final_().name(codecName);
 
-    result.constructor(Member.Constructor.builder().private_().name(codecName).build());
+    result.constructor(Member.Constructor.builder().private_().build());
 
     List<Statement> encBody = new ArrayList<>();
     encBody.add(Statement.of("var enc = " + encoderShort + ".start();"));

@@ -32,12 +32,11 @@ class JavaSourceTest {
         .public_()
         .name("SampleType")
         .enumConstant(
-            Member.EnumConstant.builder().name("A").ctorArgs("0").build(),
-            Member.EnumConstant.builder().name("B").ctorArgs("1").build())
-        .field(Member.Field.builder().private_().type("int").name("number").build())
+            Member.EnumConstant.named("A").ctorArgs("0").build(),
+            Member.EnumConstant.named("B").ctorArgs("1").build())
+        .field(Member.Field.named("int", "number").private_().build())
         .constructor(
             Member.Constructor.builder()
-                .name("SampleType")
                 .param("int", "number")
                 .body(Statement.of("this.number = number;"))
                 .build())
@@ -56,9 +55,9 @@ class JavaSourceTest {
         .public_()
         .name("Sample")
         .component(
-            Member.Field.builder().type("int").name("value").build(),
-            Member.Field.builder().type("byte[]").name("items").build(),
-            Member.Field.builder().type("SampleType").name("type").build())
+            Member.Field.named("int", "value").build(),
+            Member.Field.named("byte[]", "items").build(),
+            Member.Field.named("SampleType", "type").build())
         .nested(new Member.Nested(sampleType()))
         .method(
             Member.Method.named("toByteArray")

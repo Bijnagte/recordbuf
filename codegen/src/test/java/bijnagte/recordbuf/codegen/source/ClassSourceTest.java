@@ -48,7 +48,7 @@ class ClassSourceTest {
             // M4-C2b-2b-1: the codec's members are built with @RecordBuilder's fluent builders,
             // so a caller sets only the elements it needs -- and the `throws` clause rides on the
             // new `thrown` field (M4-C2b's per-message encode/decode are `throws IOException`).
-            .constructor(Member.Constructor.builder().private_().name("Codec").build())
+            .constructor(Member.Constructor.builder().private_().build())
             .method(
                 Member.Method.named("encode")
                     .public_()
@@ -70,7 +70,7 @@ class ClassSourceTest {
     return Type.Record.builder()
         .public_()
         .name("MessageRec")
-        .component(Member.Field.builder().type("int").name("id").build())
+        .component(Member.Field.named("int", "id").build())
         .nested(new Member.Nested(codec))
         .build();
   }
@@ -321,7 +321,7 @@ class ClassSourceTest {
             .final_()
             .javadoc(new Javadoc("Wire codec for the RecordWithRealMultiScalar record."))
             .name("Codec")
-            .constructor(Member.Constructor.builder().private_().name("Codec").build())
+            .constructor(Member.Constructor.builder().private_().build())
             .method(
                 // M4-C2b-2b-3: the multi-scalar encode body -- three guarded writes for int
                 // (field 1), long (field 2), and String (field 3).
@@ -380,9 +380,9 @@ class ClassSourceTest {
         .public_()
         .name("RecordWithRealMultiScalar")
         .component(
-            Member.Field.builder().type("int").name("id").build(),
-            Member.Field.builder().type("long").name("value").build(),
-            Member.Field.builder().type("String").name("text").build())
+            Member.Field.named("int", "id").build(),
+            Member.Field.named("long", "value").build(),
+            Member.Field.named("String", "text").build())
         .nested(new Member.Nested(codec))
         .build();
   }
@@ -396,7 +396,7 @@ class ClassSourceTest {
             .final_()
             .javadoc(new Javadoc("Wire codec for the RecordWithRealCodec record."))
             .name("Codec")
-            .constructor(Member.Constructor.builder().private_().name("Codec").build())
+            .constructor(Member.Constructor.builder().private_().build())
             .method(
                 // M4-C2b-2b-2: the codec's encode is the real scalar-encode body -- a fresh
                 // runtime Encoder, a per-field guarded write, and a finish. No oneof / no WKT /
@@ -445,7 +445,7 @@ class ClassSourceTest {
     return Type.Record.builder()
         .public_()
         .name("RecordWithRealCodec")
-        .component(Member.Field.builder().type("int").name("id").build())
+        .component(Member.Field.named("int", "id").build())
         .nested(new Member.Nested(codec))
         .build();
   }
@@ -457,8 +457,7 @@ class ClassSourceTest {
   void record_with_bytes_component_renders_and_compiles() throws Exception {
     TypeCollector ci = new TypeCollector(PKG);
 
-    var dataField =
-        Member.Field.builder().type("bijnagte.recordbuf.runtime.Bytes").name("data").build();
+    var dataField = Member.Field.named("bijnagte.recordbuf.runtime.Bytes", "data").build();
 
     var encode =
         Member.Method.named("encode")
@@ -524,8 +523,7 @@ class ClassSourceTest {
   void record_with_bytes_round_trips_via_urlclassloader_and_reflection() throws Exception {
     TypeCollector ci = new TypeCollector(PKG);
 
-    var dataField =
-        Member.Field.builder().type("bijnagte.recordbuf.runtime.Bytes").name("data").build();
+    var dataField = Member.Field.named("bijnagte.recordbuf.runtime.Bytes", "data").build();
 
     var encode =
         Member.Method.named("encode")

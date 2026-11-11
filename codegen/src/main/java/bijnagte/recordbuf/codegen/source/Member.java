@@ -49,35 +49,33 @@ public sealed interface Member {
       initializer = initializer == null ? "" : initializer;
     }
 
-    /** A fresh field builder. */
-    public static Builder builder() {
-      return new Builder();
+    /**
+     * Entry point: a field identified by its {@link #type} and {@link #name} — the two required
+     * elements — taken at construction; the optional ones (Javadoc, modifiers, deprecation,
+     * initializer) accumulate as before.
+     */
+    public static Builder named(String type, String name) {
+      return new Builder(type, name);
     }
 
     /** An accumulating, ergonomic {@link Field} builder. */
     public static final class Builder {
       private Javadoc javadoc;
       private final Modifiers.Builder mods = Modifiers.builder();
-      private String type;
-      private String name;
+      private final String type;
+      private final String name;
       private boolean deprecated;
       private String initializer;
+
+      /** Seed the two required fields ({@link #type}, {@link #name}); the rest accumulate. */
+      public Builder(String type, String name) {
+        this.type = type;
+        this.name = name;
+      }
 
       /** The field's Javadoc. */
       public Builder javadoc(Javadoc d) {
         this.javadoc = d;
-        return this;
-      }
-
-      /** Set the (pre-resolved short-form) type. */
-      public Builder type(String t) {
-        this.type = t;
-        return this;
-      }
-
-      /** Set the name. */
-      public Builder name(String n) {
-        this.name = n;
         return this;
       }
 
@@ -156,22 +154,24 @@ public sealed interface Member {
       javadoc = javadoc == null ? Javadoc.empty() : javadoc;
     }
 
-    /** A fresh enum-constant builder. */
-    public static Builder builder() {
-      return new Builder();
+    /**
+     * Entry point: a constant identified by {@link #name}, the one always-required field; the ctor
+     * args, Javadoc, and deprecation accumulate as before.
+     */
+    public static Builder named(String name) {
+      return new Builder(name);
     }
 
     /** An accumulating, ergonomic {@link EnumConstant} builder. */
     public static final class Builder {
-      private String name;
+      private final String name;
       private final List<String> ctorArgs = new ArrayList<>();
       private Javadoc javadoc;
       private boolean deprecated;
 
-      /** Set the constant name. */
-      public Builder name(String n) {
-        this.name = n;
-        return this;
+      /** Seed the {@link #name} (the one always-required field); the rest accumulate. */
+      public Builder(String name) {
+        this.name = name;
       }
 
       /**
@@ -367,14 +367,16 @@ public sealed interface Member {
     }
   }
 
-  /** A constructor: {@code mods name(params) { body }}. */
-  record Constructor(
-      Javadoc javadoc, Modifiers mods, String name, List<Param> params, List<Statement> body)
+  /**
+   * A constructor: {@code mods params { body}} — the name is the enclosing type's name (a Java
+   * law), so the renderer supplies it rather than the node storing it.
+   */
+  record Constructor(Javadoc javadoc, Modifiers mods, List<Param> params, List<Statement> body)
       implements Member {
     // Optional fields stay null/empty when a builder leaves them unset; the compact ctor seeds
     // them:
     // javadoc -> empty, mods -> none, body -> empty list (an empty ctor body, e.g. a private no-arg
-    // Codec ctor). `name` and `params` are required.
+    // Codec ctor). `params` is required.
     public Constructor {
       javadoc = javadoc == null ? Javadoc.empty() : javadoc;
       mods = mods == null ? Modifiers.none() : mods;
@@ -391,19 +393,12 @@ public sealed interface Member {
     public static final class Builder {
       private Javadoc javadoc;
       private final Modifiers.Builder mods = Modifiers.builder();
-      private String name;
       private final List<Param> params = new ArrayList<>();
       private final List<Statement> body = new ArrayList<>();
 
       /** The constructor's Javadoc. */
       public Builder javadoc(Javadoc d) {
         this.javadoc = d;
-        return this;
-      }
-
-      /** Set the constructor name. */
-      public Builder name(String n) {
-        this.name = n;
         return this;
       }
 
@@ -464,7 +459,7 @@ public sealed interface Member {
       /** Construct the {@link Constructor}. */
       public Member.Constructor build() {
         return new Member.Constructor(
-            javadoc, mods.build(), name, List.copyOf(params), List.copyOf(body));
+            javadoc, mods.build(), List.copyOf(params), List.copyOf(body));
       }
     }
   }

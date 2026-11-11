@@ -62,7 +62,7 @@ public final class InteropSourceMapping {
                 ". Field-by-field conversion only.")
             .build();
 
-    var privateCtor = Member.Constructor.builder().private_().name("Interop").build();
+    var privateCtor = Member.Constructor.builder().private_().build();
 
     var fromMethod = emitFrom(m, ci, refPkg, ref, rec);
     var toMethod = emitTo(m, ci, refPkg, ref, rec);

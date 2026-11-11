@@ -59,8 +59,7 @@ public final class EnumSourceMapping {
     // 1. The constants -- each with its number ctor-arg, its own Javadoc, and its own @Deprecated.
     for (Enum.EnumConstant c : proto.constants()) {
       result.enumConstant(
-          Member.EnumConstant.builder()
-              .name(c.name())
+          Member.EnumConstant.named(c.name())
               .ctorArgs(Integer.toString(c.number()))
               .javadoc(Javadoc.builder().text(c.comment()).build())
               .deprecated(c.deprecated())
@@ -68,10 +67,9 @@ public final class EnumSourceMapping {
     }
 
     // 2. The number field + ctor + accessor -- the core the M4-C2a slice mapped.
-    result.field(Member.Field.builder().private_().final_().type("int").name("number").build());
+    result.field(Member.Field.named("int", "number").private_().final_().build());
     result.constructor(
         Member.Constructor.builder()
-            .name(name)
             .param("int", "number")
             .body(
                 Statement.expr(
@@ -91,12 +89,10 @@ public final class EnumSourceMapping {
     String map = ci.use("java.util.Map");
     String hashMap = ci.use("java.util.HashMap");
     result.field(
-        Member.Field.builder()
+        Member.Field.named(map + "<Integer, " + name + ">", "BY_NUMBER")
             .private_()
             .static_()
             .final_()
-            .type(map + "<Integer, " + name + ">")
-            .name("BY_NUMBER")
             .initializer("new " + hashMap + "<>()")
             .build());
 

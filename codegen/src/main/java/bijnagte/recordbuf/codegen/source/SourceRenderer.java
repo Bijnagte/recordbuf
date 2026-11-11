@@ -125,7 +125,7 @@ public final class SourceRenderer {
       out.append(" {\n");
       for (int i = 0; i < bodyMembers.size(); i++) {
         if (i > 0) out.append('\n');
-        renderMember(bodyMembers.get(i), body, out);
+        renderMember(bodyMembers.get(i), body, r.name(), out);
       }
       out.append(indent(indent)).append('}').append('\n');
     }
@@ -160,7 +160,7 @@ public final class SourceRenderer {
       }
       for (int i = 0; i < bodyMembers.size(); i++) {
         if (i > 0 || !consts.isEmpty()) out.append('\n');
-        renderMember(bodyMembers.get(i), body, out);
+        renderMember(bodyMembers.get(i), body, e.name(), out);
       }
       out.append(indent(indent)).append('}').append('\n');
     }
@@ -195,7 +195,7 @@ public final class SourceRenderer {
       out.append(" {\n");
       for (int i = 0; i < bodyMembers.size(); i++) {
         if (i > 0) out.append('\n');
-        renderMember(bodyMembers.get(i), body, out);
+        renderMember(bodyMembers.get(i), body, c.name(), out);
       }
       out.append(indent(indent)).append('}').append('\n');
     }
@@ -226,7 +226,7 @@ public final class SourceRenderer {
       out.append(" {\n");
       for (int i = 0; i < bodyMembers.size(); i++) {
         if (i > 0) out.append('\n');
-        renderMember(bodyMembers.get(i), body, out);
+        renderMember(bodyMembers.get(i), body, iface.name(), out);
       }
       out.append(indent(indent)).append('}').append('\n');
     }
@@ -250,7 +250,7 @@ public final class SourceRenderer {
     /* ---- body members -------------------------------------------------- */
 
     /** Render one body member. Exhaustive over the {@link Member} sealed hierarchy. */
-    private void renderMember(Member mem, int indent, StringBuilder out) {
+    private void renderMember(Member mem, int indent, String enclosingName, StringBuilder out) {
       int body = indent + 1;
       switch (mem) {
         case Member.Field f -> {
@@ -294,12 +294,12 @@ public final class SourceRenderer {
           if (c.javadoc().present()) out.append(javadoc(c.javadoc().raw(), indent)).append('\n');
           if (c.body().isEmpty()) {
             out.append(c.mods().withSpace())
-                .append(c.name())
+                .append(enclosingName)
                 .append(renderParams(c.params()))
                 .append(" {}\n");
           } else {
             out.append(c.mods().withSpace())
-                .append(c.name())
+                .append(enclosingName)
                 .append(renderParams(c.params()))
                 .append(" {\n");
             for (Statement s : c.body()) renderStatement(body, s, out);

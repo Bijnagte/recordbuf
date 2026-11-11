@@ -39,8 +39,7 @@ class ForRenderingTest {
             Type.Record.builder()
                 .public_()
                 .name("ForLoop")
-                .component(
-                    Member.Field.builder().type("java.util.List<String>").name("value").build())
+                .component(Member.Field.named("java.util.List<String>", "value").build())
                 .method(
                     Member.Method.named("demo")
                         .public_()
@@ -60,8 +59,7 @@ class ForRenderingTest {
             Type.Record.builder()
                 .public_()
                 .name("ForEmpty")
-                .component(
-                    Member.Field.builder().type("java.util.List<String>").name("value").build())
+                .component(Member.Field.named("java.util.List<String>", "value").build())
                 .method(
                     Member.Method.named("demo")
                         .public_()

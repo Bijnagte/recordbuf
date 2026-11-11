@@ -40,7 +40,7 @@ class IfRenderingTest {
             Type.Record.builder()
                 .public_()
                 .name("ThenOnly")
-                .component(Member.Field.builder().type("int").name("value").build())
+                .component(Member.Field.named("int", "value").build())
                 .method(
                     Member.Method.named("demo")
                         .public_()
@@ -62,7 +62,7 @@ class IfRenderingTest {
             Type.Record.builder()
                 .public_()
                 .name("ThenElse")
-                .component(Member.Field.builder().type("int").name("value").build())
+                .component(Member.Field.named("int", "value").build())
                 .method(
                     Member.Method.named("demo")
                         .public_()

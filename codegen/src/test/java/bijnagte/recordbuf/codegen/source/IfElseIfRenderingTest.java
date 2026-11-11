@@ -38,7 +38,7 @@ class IfElseIfRenderingTest {
             Type.Record.builder()
                 .public_()
                 .name("WithElseIf")
-                .component(Member.Field.builder().type("int").name("value").build())
+                .component(Member.Field.named("int", "value").build())
                 .method(
                     Member.Method.named("demo")
                         .public_()
@@ -64,7 +64,7 @@ class IfElseIfRenderingTest {
             Type.Record.builder()
                 .public_()
                 .name("FullChain")
-                .component(Member.Field.builder().type("int").name("value").build())
+                .component(Member.Field.named("int", "value").build())
                 .method(
                     Member.Method.named("demo")
                         .public_()

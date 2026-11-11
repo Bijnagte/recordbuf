@@ -41,7 +41,7 @@ class WhileRenderingTest {
             Type.Record.builder()
                 .public_()
                 .name("WhileLoop")
-                .component(Member.Field.builder().type("int").name("value").build())
+                .component(Member.Field.named("int", "value").build())
                 .method(
                     Member.Method.named("demo")
                         .public_()
@@ -63,7 +63,7 @@ class WhileRenderingTest {
             Type.Record.builder()
                 .public_()
                 .name("WhileEmpty")
-                .component(Member.Field.builder().type("int").name("value").build())
+                .component(Member.Field.named("int", "value").build())
                 .method(
                     Member.Method.named("demo")
                         .public_()
