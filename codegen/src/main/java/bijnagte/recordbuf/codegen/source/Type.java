@@ -60,41 +60,41 @@ public sealed interface Type {
   /**
    * The record components ({@code type name} in the record header). Empty for a non-record type.
    */
-  default List<Member.Field> components() {
+  default List<Component> components() {
     return List.of();
   }
 
   /** The type-body fields ({@code type name} declarations, for a class/enum body). */
-  default List<Member.Field> fields() {
+  default List<Component> fields() {
     return List.of();
   }
 
   /** The {@code static { … }} initializer blocks. */
-  default List<Member.StaticBlock> staticBlocks() {
+  default List<StaticBlock> staticBlocks() {
     return List.of();
   }
 
   /** The constructors. */
-  default List<Member.Constructor> constructors() {
+  default List<Constructor> constructors() {
     return List.of();
   }
 
   /** The methods. */
-  default List<Member.Method> methods() {
+  default List<Method> methods() {
     return List.of();
   }
 
-  /** The nested types (each wraps a {@link Type} via {@link Member.Nested}). */
-  default List<Member.Nested> nested() {
+  /** The nested types (each wraps a {@link Type} via {@link Nested}). */
+  default List<Nested> nested() {
     return List.of();
   }
 
   /** The enum constants (empty for a non-enum type). */
-  default List<Member.EnumConstant> enumConstants() {
+  default List<EnumConstant> enumConstants() {
     return List.of();
   }
 
-  /** A record. Components are {@link Member.Field}s; nested (non-field) members follow. */
+  /** A record. Components are {@link Component}s; nested (non-field) members follow. */
   record Record(
       String parent,
       Modifiers mods,
@@ -103,11 +103,11 @@ public sealed interface Type {
       String name,
       List<String> extendsFqns,
       List<String> implementsFqns,
-      List<Member.Field> components,
-      List<Member.StaticBlock> staticBlocks,
-      List<Member.Constructor> constructors,
-      List<Member.Method> methods,
-      List<Member.Nested> nested)
+      List<Component> components,
+      List<StaticBlock> staticBlocks,
+      List<Constructor> constructors,
+      List<Method> methods,
+      List<Nested> nested)
       implements Type {
     // Optional fields stay null/empty when a builder leaves them unset; the compact ctor seeds
     // them:
@@ -127,8 +127,8 @@ public sealed interface Type {
     }
 
     /** A fresh record builder. */
-    public static Builder builder() {
-      return new Builder();
+    public static Builder named(String name) {
+      return new Builder(name);
     }
 
     @Override
@@ -137,24 +137,28 @@ public sealed interface Type {
     }
 
     @Override
-    public List<Member.Field> components() {
+    public List<Component> components() {
       return components;
     }
 
     /** An accumulating, ergonomic {@link Record} builder. */
     public static final class Builder {
+      public Builder(String name) {
+        this.name = name;
+      }
+
       private String parent;
       private final Modifiers.Builder mods = Modifiers.builder();
       private Javadoc javadoc;
       private boolean deprecated;
-      private String name;
+      private final String name;
       private final List<String> extendsFqns = new ArrayList<>();
       private final List<String> implementsFqns = new ArrayList<>();
-      private final List<Member.Field> components = new ArrayList<>();
-      private final List<Member.StaticBlock> staticBlocks = new ArrayList<>();
-      private final List<Member.Constructor> constructors = new ArrayList<>();
-      private final List<Member.Method> methods = new ArrayList<>();
-      private final List<Member.Nested> nested = new ArrayList<>();
+      private final List<Component> components = new ArrayList<>();
+      private final List<StaticBlock> staticBlocks = new ArrayList<>();
+      private final List<Constructor> constructors = new ArrayList<>();
+      private final List<Method> methods = new ArrayList<>();
+      private final List<Nested> nested = new ArrayList<>();
 
       /** Set the enclosing type name (null for a top-level record). */
       public Builder parent(String p) {
@@ -171,12 +175,6 @@ public sealed interface Type {
       /** Mark the record {@code @Deprecated}. */
       public Builder deprecated(boolean d) {
         this.deprecated = d;
-        return this;
-      }
-
-      /** Set the declared name. */
-      public Builder name(String n) {
-        this.name = n;
         return this;
       }
 
@@ -199,32 +197,32 @@ public sealed interface Type {
       }
 
       /** Append one or more components; calls accumulate. */
-      public Builder component(Member.Field... cs) {
-        for (Member.Field c : cs) this.components.add(c);
+      public Builder component(Component... cs) {
+        for (Component c : cs) this.components.add(c);
         return this;
       }
 
       /** Append one or more static blocks; calls accumulate. */
-      public Builder staticBlock(Member.StaticBlock... blocks) {
-        for (Member.StaticBlock b : blocks) this.staticBlocks.add(b);
+      public Builder staticBlock(StaticBlock... blocks) {
+        for (StaticBlock b : blocks) this.staticBlocks.add(b);
         return this;
       }
 
       /** Append one or more constructors; calls accumulate. */
-      public Builder constructor(Member.Constructor... cs) {
-        for (Member.Constructor c : cs) this.constructors.add(c);
+      public Builder constructor(Constructor... cs) {
+        for (Constructor c : cs) this.constructors.add(c);
         return this;
       }
 
       /** Append one or more methods; calls accumulate. */
-      public Builder method(Member.Method... ms) {
-        for (Member.Method m : ms) this.methods.add(m);
+      public Builder method(Method... ms) {
+        for (Method m : ms) this.methods.add(m);
         return this;
       }
 
       /** Append one or more nested types; calls accumulate. */
-      public Builder nested(Member.Nested... ns) {
-        for (Member.Nested n : ns) this.nested.add(n);
+      public Builder nested(Nested... ns) {
+        for (Nested n : ns) this.nested.add(n);
         return this;
       }
 
@@ -310,11 +308,11 @@ public sealed interface Type {
       String name,
       List<String> extendsFqns,
       List<String> implementsFqns,
-      List<Member.Field> fields,
-      List<Member.StaticBlock> staticBlocks,
-      List<Member.Constructor> constructors,
-      List<Member.Method> methods,
-      List<Member.Nested> nested,
+      List<Component> fields,
+      List<StaticBlock> staticBlocks,
+      List<Constructor> constructors,
+      List<Method> methods,
+      List<Nested> nested,
       List<String> annotations)
       implements Type {
     // Optional fields stay null/empty when a builder leaves them unset; the compact ctor seeds
@@ -336,8 +334,8 @@ public sealed interface Type {
     }
 
     /** A fresh class builder. */
-    public static Builder builder() {
-      return new Builder();
+    public static Builder named(String name) {
+      return new Builder(name);
     }
 
     @Override
@@ -347,18 +345,22 @@ public sealed interface Type {
 
     /** An accumulating, ergonomic {@link Class} builder. */
     public static final class Builder {
+      public Builder(String name) {
+        this.name = name;
+      }
+
       private String parent;
       private final Modifiers.Builder mods = Modifiers.builder();
       private Javadoc javadoc;
       private boolean deprecated;
-      private String name;
+      private final String name;
       private final List<String> extendsFqns = new ArrayList<>();
       private final List<String> implementsFqns = new ArrayList<>();
-      private final List<Member.Field> fields = new ArrayList<>();
-      private final List<Member.StaticBlock> staticBlocks = new ArrayList<>();
-      private final List<Member.Constructor> constructors = new ArrayList<>();
-      private final List<Member.Method> methods = new ArrayList<>();
-      private final List<Member.Nested> nested = new ArrayList<>();
+      private final List<Component> fields = new ArrayList<>();
+      private final List<StaticBlock> staticBlocks = new ArrayList<>();
+      private final List<Constructor> constructors = new ArrayList<>();
+      private final List<Method> methods = new ArrayList<>();
+      private final List<Nested> nested = new ArrayList<>();
       private final List<String> annotations = new ArrayList<>();
 
       /** Set the enclosing type name (null for a top-level class). */
@@ -379,12 +381,6 @@ public sealed interface Type {
         return this;
       }
 
-      /** Set the declared name. */
-      public Builder name(String n) {
-        this.name = n;
-        return this;
-      }
-
       /** Append one {@code extends} FQN. */
       public Builder extendsFqn(String fqn) {
         this.extendsFqns.add(fqn);
@@ -398,32 +394,32 @@ public sealed interface Type {
       }
 
       /** Append one or more fields; calls accumulate. */
-      public Builder field(Member.Field... fs) {
-        for (Member.Field f : fs) this.fields.add(f);
+      public Builder field(Component... fs) {
+        for (Component f : fs) this.fields.add(f);
         return this;
       }
 
       /** Append one or more static blocks; calls accumulate. */
-      public Builder staticBlock(Member.StaticBlock... blocks) {
-        for (Member.StaticBlock b : blocks) this.staticBlocks.add(b);
+      public Builder staticBlock(StaticBlock... blocks) {
+        for (StaticBlock b : blocks) this.staticBlocks.add(b);
         return this;
       }
 
       /** Append one or more constructors; calls accumulate. */
-      public Builder constructor(Member.Constructor... cs) {
-        for (Member.Constructor c : cs) this.constructors.add(c);
+      public Builder constructor(Constructor... cs) {
+        for (Constructor c : cs) this.constructors.add(c);
         return this;
       }
 
       /** Append one or more methods; calls accumulate. */
-      public Builder method(Member.Method... ms) {
-        for (Member.Method m : ms) this.methods.add(m);
+      public Builder method(Method... ms) {
+        for (Method m : ms) this.methods.add(m);
         return this;
       }
 
       /** Append one or more nested types; calls accumulate. */
-      public Builder nested(Member.Nested... ns) {
-        for (Member.Nested n : ns) this.nested.add(n);
+      public Builder nested(Nested... ns) {
+        for (Nested n : ns) this.nested.add(n);
         return this;
       }
 
@@ -509,9 +505,9 @@ public sealed interface Type {
 
   /**
    * A {@code enum Name [implements ...] { constants; body }}. The constant members are {@link
-   * Member.EnumConstant}s (rendered first, comma/semicolon-terminated); the remaining members
-   * (fields, static blocks, constructors, methods, nested) follow the {@code ;} that terminates the
-   * constant list, in canonical order.
+   * EnumConstant}s (rendered first, comma/semicolon-terminated); the remaining members (fields,
+   * static blocks, constructors, methods, nested) follow the {@code ;} that terminates the constant
+   * list, in canonical order.
    */
   record Enum(
       String parent,
@@ -521,12 +517,12 @@ public sealed interface Type {
       String name,
       List<String> extendsFqns,
       List<String> implementsFqns,
-      List<Member.EnumConstant> enumConstants,
-      List<Member.Field> fields,
-      List<Member.StaticBlock> staticBlocks,
-      List<Member.Constructor> constructors,
-      List<Member.Method> methods,
-      List<Member.Nested> nested)
+      List<EnumConstant> enumConstants,
+      List<Component> fields,
+      List<StaticBlock> staticBlocks,
+      List<Constructor> constructors,
+      List<Method> methods,
+      List<Nested> nested)
       implements Type {
     // Optional fields stay null/empty when a builder leaves them unset; the compact ctor seeds
     // them:
@@ -546,8 +542,8 @@ public sealed interface Type {
     }
 
     /** A fresh enum builder. */
-    public static Builder builder() {
-      return new Builder();
+    public static Builder named(String name) {
+      return new Builder(name);
     }
 
     @Override
@@ -557,19 +553,23 @@ public sealed interface Type {
 
     /** An accumulating, ergonomic {@link Enum} builder. */
     public static final class Builder {
+      public Builder(String name) {
+        this.name = name;
+      }
+
       private String parent;
       private final Modifiers.Builder mods = Modifiers.builder();
       private Javadoc javadoc;
       private boolean deprecated;
-      private String name;
+      private final String name;
       private final List<String> extendsFqns = new ArrayList<>();
       private final List<String> implementsFqns = new ArrayList<>();
-      private final List<Member.EnumConstant> enumConstants = new ArrayList<>();
-      private final List<Member.Field> fields = new ArrayList<>();
-      private final List<Member.StaticBlock> staticBlocks = new ArrayList<>();
-      private final List<Member.Constructor> constructors = new ArrayList<>();
-      private final List<Member.Method> methods = new ArrayList<>();
-      private final List<Member.Nested> nested = new ArrayList<>();
+      private final List<EnumConstant> enumConstants = new ArrayList<>();
+      private final List<Component> fields = new ArrayList<>();
+      private final List<StaticBlock> staticBlocks = new ArrayList<>();
+      private final List<Constructor> constructors = new ArrayList<>();
+      private final List<Method> methods = new ArrayList<>();
+      private final List<Nested> nested = new ArrayList<>();
 
       /** Set the enclosing type name (null for a top-level enum). */
       public Builder parent(String p) {
@@ -586,12 +586,6 @@ public sealed interface Type {
       /** Mark the enum {@code @Deprecated}. */
       public Builder deprecated(boolean d) {
         this.deprecated = d;
-        return this;
-      }
-
-      /** Set the declared name. */
-      public Builder name(String n) {
-        this.name = n;
         return this;
       }
 
@@ -615,38 +609,38 @@ public sealed interface Type {
       }
 
       /** Append one or more enum constants; calls accumulate. */
-      public Builder enumConstant(Member.EnumConstant... cs) {
-        for (Member.EnumConstant c : cs) this.enumConstants.add(c);
+      public Builder enumConstant(EnumConstant... cs) {
+        for (EnumConstant c : cs) this.enumConstants.add(c);
         return this;
       }
 
       /** Append one or more fields; calls accumulate. */
-      public Builder field(Member.Field... fs) {
-        for (Member.Field f : fs) this.fields.add(f);
+      public Builder field(Component... fs) {
+        for (Component f : fs) this.fields.add(f);
         return this;
       }
 
       /** Append one or more static blocks; calls accumulate. */
-      public Builder staticBlock(Member.StaticBlock... blocks) {
-        for (Member.StaticBlock b : blocks) this.staticBlocks.add(b);
+      public Builder staticBlock(StaticBlock... blocks) {
+        for (StaticBlock b : blocks) this.staticBlocks.add(b);
         return this;
       }
 
       /** Append one or more constructors; calls accumulate. */
-      public Builder constructor(Member.Constructor... cs) {
-        for (Member.Constructor c : cs) this.constructors.add(c);
+      public Builder constructor(Constructor... cs) {
+        for (Constructor c : cs) this.constructors.add(c);
         return this;
       }
 
       /** Append one or more methods; calls accumulate. */
-      public Builder method(Member.Method... ms) {
-        for (Member.Method m : ms) this.methods.add(m);
+      public Builder method(Method... ms) {
+        for (Method m : ms) this.methods.add(m);
         return this;
       }
 
       /** Append one or more nested types; calls accumulate. */
-      public Builder nested(Member.Nested... ns) {
-        for (Member.Nested n : ns) this.nested.add(n);
+      public Builder nested(Nested... ns) {
+        for (Nested n : ns) this.nested.add(n);
         return this;
       }
 
@@ -732,11 +726,11 @@ public sealed interface Type {
       String name,
       List<String> extendsFqns,
       List<String> permitsFqns,
-      List<Member.Field> fields,
-      List<Member.StaticBlock> staticBlocks,
-      List<Member.Constructor> constructors,
-      List<Member.Method> methods,
-      List<Member.Nested> nested)
+      List<Component> fields,
+      List<StaticBlock> staticBlocks,
+      List<Constructor> constructors,
+      List<Method> methods,
+      List<Nested> nested)
       implements Type {
     public Interface {
       mods = mods == null ? Modifiers.none() : mods;
@@ -751,8 +745,8 @@ public sealed interface Type {
     }
 
     /** A fresh interface builder. */
-    public static Builder builder() {
-      return new Builder();
+    public static Builder named(String name) {
+      return new Builder(name);
     }
 
     @Override
@@ -767,18 +761,22 @@ public sealed interface Type {
 
     /** An accumulating, ergonomic {@link Interface} builder. */
     public static final class Builder {
+      public Builder(String name) {
+        this.name = name;
+      }
+
       private String parent;
       private final Modifiers.Builder mods = Modifiers.builder();
       private Javadoc javadoc;
       private boolean deprecated;
-      private String name;
+      private final String name;
       private final List<String> extendsFqns = new ArrayList<>();
       private final List<String> permitsFqns = new ArrayList<>();
-      private final List<Member.Field> fields = new ArrayList<>();
-      private final List<Member.StaticBlock> staticBlocks = new ArrayList<>();
-      private final List<Member.Constructor> constructors = new ArrayList<>();
-      private final List<Member.Method> methods = new ArrayList<>();
-      private final List<Member.Nested> nested = new ArrayList<>();
+      private final List<Component> fields = new ArrayList<>();
+      private final List<StaticBlock> staticBlocks = new ArrayList<>();
+      private final List<Constructor> constructors = new ArrayList<>();
+      private final List<Method> methods = new ArrayList<>();
+      private final List<Nested> nested = new ArrayList<>();
 
       /** Set the enclosing type name (null for a top-level interface). */
       public Builder parent(String p) {
@@ -798,12 +796,6 @@ public sealed interface Type {
         return this;
       }
 
-      /** Set the declared name. */
-      public Builder name(String n) {
-        this.name = n;
-        return this;
-      }
-
       /** Append one {@code extends} FQN. */
       public Builder extendsFqn(String fqn) {
         this.extendsFqns.add(fqn);
@@ -817,32 +809,32 @@ public sealed interface Type {
       }
 
       /** Append one or more fields; calls accumulate. */
-      public Builder field(Member.Field... fs) {
-        for (Member.Field f : fs) this.fields.add(f);
+      public Builder field(Component... fs) {
+        for (Component f : fs) this.fields.add(f);
         return this;
       }
 
       /** Append one or more static blocks; calls accumulate. */
-      public Builder staticBlock(Member.StaticBlock... blocks) {
-        for (Member.StaticBlock b : blocks) this.staticBlocks.add(b);
+      public Builder staticBlock(StaticBlock... blocks) {
+        for (StaticBlock b : blocks) this.staticBlocks.add(b);
         return this;
       }
 
       /** Append one or more constructors; calls accumulate. */
-      public Builder constructor(Member.Constructor... cs) {
-        for (Member.Constructor c : cs) this.constructors.add(c);
+      public Builder constructor(Constructor... cs) {
+        for (Constructor c : cs) this.constructors.add(c);
         return this;
       }
 
       /** Append one or more methods; calls accumulate. */
-      public Builder method(Member.Method... ms) {
-        for (Member.Method m : ms) this.methods.add(m);
+      public Builder method(Method... ms) {
+        for (Method m : ms) this.methods.add(m);
         return this;
       }
 
       /** Append one or more nested types; calls accumulate. */
-      public Builder nested(Member.Nested... ns) {
-        for (Member.Nested n : ns) this.nested.add(n);
+      public Builder nested(Nested... ns) {
+        for (Nested n : ns) this.nested.add(n);
         return this;
       }
 

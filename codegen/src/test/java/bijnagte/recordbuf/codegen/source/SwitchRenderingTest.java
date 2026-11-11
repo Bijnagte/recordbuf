@@ -38,11 +38,10 @@ class SwitchRenderingTest {
   void empty_arm_renders_empty_block() {
     String src =
         render(
-            Type.Record.builder()
+            Type.Record.named("SwitchEmpty")
                 .public_()
-                .name("SwitchEmpty")
                 .method(
-                    Member.Method.named("demo")
+                    Method.named("demo")
                         .public_()
                         .body(
                             Switch.on("x")
@@ -60,11 +59,10 @@ class SwitchRenderingTest {
   void single_statement_arm_renders_unbraced() {
     String src =
         render(
-            Type.Record.builder()
+            Type.Record.named("SwitchSingle")
                 .public_()
-                .name("SwitchSingle")
                 .method(
-                    Member.Method.named("demo")
+                    Method.named("demo")
                         .public_()
                         .body(
                             Switch.on("Wire.tagFieldNumber(tag)")
@@ -86,11 +84,10 @@ class SwitchRenderingTest {
   void multi_pattern_arm_joins_with_comma_and_braces() {
     String src =
         render(
-            Type.Record.builder()
+            Type.Record.named("SwitchMulti")
                 .public_()
-                .name("SwitchMulti")
                 .method(
-                    Member.Method.named("demo")
+                    Method.named("demo")
                         .public_()
                         .body(
                             Switch.on("x")
@@ -113,11 +110,10 @@ class SwitchRenderingTest {
   void switch_statement_compiles() throws Exception {
     String src =
         render(
-            Type.Record.builder()
+            Type.Record.named("SwitchCompiles")
                 .public_()
-                .name("SwitchCompiles")
                 .method(
-                    Member.Method.named("demo")
+                    Method.named("demo")
                         .public_()
                         .param("Object", "n")
                         .body(

@@ -28,20 +28,19 @@ class JavaSourceTest {
 
   /** The nested enum, fully specified as an AST. */
   private static Type.Enum sampleType() {
-    return Type.Enum.builder()
+    return Type.Enum.named("SampleType")
         .public_()
-        .name("SampleType")
         .enumConstant(
-            Member.EnumConstant.named("A").ctorArgs("0").build(),
-            Member.EnumConstant.named("B").ctorArgs("1").build())
-        .field(Member.Field.named("int", "number").private_().build())
+            EnumConstant.named("A").ctorArgs("0").build(),
+            EnumConstant.named("B").ctorArgs("1").build())
+        .field(Component.named("int", "number").private_().build())
         .constructor(
-            Member.Constructor.builder()
+            Constructor.builder()
                 .param("int", "number")
                 .body(Statement.of("this.number = number;"))
                 .build())
         .method(
-            Member.Method.named("getNumber")
+            Method.named("getNumber")
                 .public_()
                 .returnType("int")
                 .body(Statement.of("return number;"))
@@ -51,23 +50,22 @@ class JavaSourceTest {
 
   /** The top-level record, with its nested type + two static methods as body members. */
   private static Type.Record sample() {
-    return Type.Record.builder()
+    return Type.Record.named("Sample")
         .public_()
-        .name("Sample")
         .component(
-            Member.Field.named("int", "value").build(),
-            Member.Field.named("byte[]", "items").build(),
-            Member.Field.named("SampleType", "type").build())
-        .nested(new Member.Nested(sampleType()))
+            Component.named("int", "value").build(),
+            Component.named("byte[]", "items").build(),
+            Component.named("SampleType", "type").build())
+        .nested(new Nested(sampleType()))
         .method(
-            Member.Method.named("toByteArray")
+            Method.named("toByteArray")
                 .public_()
                 .static_()
                 .returnType("byte[]")
                 .param("Sample", "s")
                 .body(Statement.of("return new byte[] { 0 };"))
                 .build(),
-            Member.Method.named("fromBytes")
+            Method.named("fromBytes")
                 .public_()
                 .static_()
                 .returnType("Sample")

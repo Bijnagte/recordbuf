@@ -1,10 +1,11 @@
 package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
+import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.For;
 import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.Javadoc;
-import bijnagte.recordbuf.codegen.source.Member;
+import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.Statement;
 import bijnagte.recordbuf.codegen.source.Switch;
 import bijnagte.recordbuf.codegen.source.Type;
@@ -28,8 +29,8 @@ import org.jspecify.annotations.Nullable;
  * source AST. Handles all field families: scalars, repeated scalars, optional scalars/strings,
  * maps, nested messages, singular/repeated enums, oneofs, and WKT fields.
  *
- * <p>Wires into {@link RecordSourceMapping} by appending {@code new Member.Nested(codec)} to the
- * record's member list.
+ * <p>Wires into {@link RecordSourceMapping} by appending {@code new Nested(codec)} to the record's
+ * member list.
  */
 public final class CodecSourceMapping {
 
@@ -69,14 +70,16 @@ public final class CodecSourceMapping {
     ci.use("java.util.ArrayList");
     String codecName = m.name() + "Codec"; // M4-C2b-2b-8: align with old SampleCodec naming
     Type.Class.Builder result =
-        Type.Class.builder()
+        Type.Class.named(codecName)
             .parent(m.name())
             .public_()
             .static_()
             .final_()
-            .javadoc(Javadoc.builder().text("Wire codec for the ", m.name(), " record.").build())
-            .name(codecName); // M4-C2b-2b-8: <Name>Codec to align with old path
-    result.constructor(Member.Constructor.builder().private_().build());
+            .javadoc(
+                Javadoc.builder()
+                    .text("Wire codec for the ", m.name(), " record.")
+                    .build()); // M4-C2b-2b-8: <Name>Codec to align with old path
+    result.constructor(Constructor.builder().private_().build());
     result.method(
         encode(
             m,
@@ -104,7 +107,7 @@ public final class CodecSourceMapping {
   }
 
   /** The {@code byte[] encode(Message v) throws IOException} method body. */
-  private static Member.Method encode(
+  private static Method encode(
       Message m,
       TypeCollector ci,
       String encoderShort,
@@ -160,7 +163,7 @@ public final class CodecSourceMapping {
 
     body.add(Statement.of("return enc.finish();"));
 
-    return Member.Method.named("encode")
+    return Method.named("encode")
         .public_()
         .static_()
         .returnType("byte[]")
@@ -171,7 +174,7 @@ public final class CodecSourceMapping {
   }
 
   /** The {@code Message decode(byte[] inBytes) throws IOException} method body. */
-  private static Member.Method decode(
+  private static Method decode(
       Message m,
       TypeCollector ci,
       String encoderShort,
@@ -295,7 +298,7 @@ public final class CodecSourceMapping {
     allNames.add("unknown.build()");
     body.add(Statement.of("return new " + m.name() + "(" + joinCommas(allNames) + ");"));
 
-    return Member.Method.named("decode")
+    return Method.named("decode")
         .public_()
         .static_()
         .returnType(m.name())
@@ -696,9 +699,9 @@ public final class CodecSourceMapping {
     WireScalar keyWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapKey()));
     WireScalar valWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapValue()));
     String codecName = entryName + "Codec";
-    Type.Class.Builder result = Type.Class.builder().public_().static_().final_().name(codecName);
+    Type.Class.Builder result = Type.Class.named(codecName).public_().static_().final_();
 
-    result.constructor(Member.Constructor.builder().private_().build());
+    result.constructor(Constructor.builder().private_().build());
 
     List<Statement> encBody = new ArrayList<>();
     encBody.add(Statement.of("var enc = " + encoderShort + ".start();"));
@@ -715,7 +718,7 @@ public final class CodecSourceMapping {
     encBody.add(Statement.of("return enc.finish();"));
 
     result.method(
-        Member.Method.named("encode")
+        Method.named("encode")
             .public_()
             .static_()
             .returnType("byte[]")
@@ -743,7 +746,7 @@ public final class CodecSourceMapping {
     decBody.add(Statement.of("return new " + entryName + "(key, value);"));
 
     result.method(
-        Member.Method.named("decode")
+        Method.named("decode")
             .public_()
             .static_()
             .returnType(entryName)

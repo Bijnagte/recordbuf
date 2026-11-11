@@ -5,8 +5,7 @@ import bijnagte.recordbuf.codegen.TypeCollector;
 /**
  * A generated Java source file, in its pure form: a package, a header comment, a {@code
  * TypeCollector} that resolves every referenced type to a short name plus an import block, and a
- * single top-level {@link Type} (which may own nested {@link Type}s as {@link Member#Nested}
- * members).
+ * single top-level {@link Type} (which may own nested {@link Type}s as {@link Nested} members).
  *
  * <p>The two-phase import resolution (collect, {@link TypeCollector#finalizeResolution() finalize},
  * render again) that this model inherits is the same contract the hand-written writer used; the

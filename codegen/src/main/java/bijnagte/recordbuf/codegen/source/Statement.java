@@ -36,13 +36,16 @@ public sealed interface Statement
   record Fragment(String text) implements Statement {}
 
   /** {@code return <expr>;} or, when {@code expr} is null, a bare {@code return;}. */
-  record Return(Expression expr) implements Statement {}
+  record Return(String expr) implements Statement {}
 
   /** {@code throw <expr>;} */
-  record Throw(Expression expr) implements Statement {}
+  record Throw(String expr) implements Statement {}
 
-  /** An expression statement: {@code <expr>;}. */
-  record ExprStatement(Expression expr) implements Statement {}
+  /**
+   * An expression statement: {@code <expr>;}. {@code expr} is raw expression text the renderer
+   * emits verbatim.
+   */
+  record ExprStatement(String expr) implements Statement {}
 
   /**
    * A local declaration: {@code <type> <name> = <init>;} or, when {@code init} is null, {@code
@@ -50,7 +53,7 @@ public sealed interface Statement
    * through the collector), so the renderer emits it verbatim -- a generic type like {@code
    * List<T>} would be mangled by a second {@code ci.use}.
    */
-  record LocalVar(String type, String name, Expression init) implements Statement {}
+  record LocalVar(String type, String name, String init) implements Statement {}
 
   /** A line comment: {@code // text}. */
   record Comment(String text) implements Statement {}
@@ -64,7 +67,7 @@ public sealed interface Statement
     return new Fragment(text);
   }
 
-  static Return ret(Expression expr) {
+  static Return ret(String expr) {
     return new Return(expr);
   }
 
@@ -72,15 +75,15 @@ public sealed interface Statement
     return new Return(null);
   }
 
-  static Throw throwOf(Expression expr) {
+  static Throw throwOf(String expr) {
     return new Throw(expr);
   }
 
-  static ExprStatement expr(Expression e) {
+  static ExprStatement expr(String e) {
     return new ExprStatement(e);
   }
 
-  static LocalVar local(String type, String name, Expression init) {
+  static LocalVar local(String type, String name, String init) {
     return new LocalVar(type, name, init);
   }
 

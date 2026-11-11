@@ -1,10 +1,13 @@
 package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
-import bijnagte.recordbuf.codegen.source.Expression;
+import bijnagte.recordbuf.codegen.source.Component;
+import bijnagte.recordbuf.codegen.source.Constructor;
+import bijnagte.recordbuf.codegen.source.EnumConstant;
 import bijnagte.recordbuf.codegen.source.Javadoc;
-import bijnagte.recordbuf.codegen.source.Member;
+import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.Statement;
+import bijnagte.recordbuf.codegen.source.StaticBlock;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.plugin.model.Enum;
 import java.util.ArrayList;
@@ -28,7 +31,7 @@ import java.util.List;
  * run through {@code ci.use} once (to import it and yield its short name) and inlined -- e.g.
  * {@code ci.use("java.util.Map") + "<Integer, " + name + ">"} for the type and {@code "new " +
  * ci.use("java.util.HashMap") + "<>()"} for the initializer. The renderer emits a field's type +
- * initializer verbatim (see {@link Member.Field}).
+ * initializer verbatim (see {@link Component}).
  *
  * <p>The one detail from {@link EnumGenerator} this mirror omits is its leading {@code // Reverse
  * lookup ...} comment: the {@code source} AST has no standalone line-comment member to hold a
@@ -49,17 +52,16 @@ public final class EnumSourceMapping {
     String name = proto.name();
 
     Type.Enum.Builder result =
-        Type.Enum.builder()
+        Type.Enum.named(proto.name())
             .public_()
             .javadoc(Javadoc.builder().text(proto.comment()).build())
             .deprecated(proto.deprecated())
-            .name(proto.name())
             .implementsFqns(proto.interfaces());
 
     // 1. The constants -- each with its number ctor-arg, its own Javadoc, and its own @Deprecated.
     for (Enum.EnumConstant c : proto.constants()) {
       result.enumConstant(
-          Member.EnumConstant.named(c.name())
+          EnumConstant.named(c.name())
               .ctorArgs(Integer.toString(c.number()))
               .javadoc(Javadoc.builder().text(c.comment()).build())
               .deprecated(c.deprecated())
@@ -67,20 +69,17 @@ public final class EnumSourceMapping {
     }
 
     // 2. The number field + ctor + accessor -- the core the M4-C2a slice mapped.
-    result.field(Member.Field.named("int", "number").private_().final_().build());
+    result.field(Component.named("int", "number").private_().final_().build());
     result.constructor(
-        Member.Constructor.builder()
+        Constructor.builder()
             .param("int", "number")
-            .body(
-                Statement.expr(
-                    Expression.assign(
-                        Expression.member("this", "number"), Expression.lit("number"))))
+            .body(Statement.expr("this.number = number"))
             .build());
     result.method(
-        Member.Method.named("getNumber")
+        Method.named("getNumber")
             .public_()
             .returnType("int")
-            .body(Statement.ret(Expression.lit("number")))
+            .body(Statement.ret("number"))
             .build());
 
     // 3. The reverse-lookup cluster -- M4-C2a-ext's fold-in. ci.use imports java.util.Map/HashMap +
@@ -89,7 +88,7 @@ public final class EnumSourceMapping {
     String map = ci.use("java.util.Map");
     String hashMap = ci.use("java.util.HashMap");
     result.field(
-        Member.Field.named(map + "<Integer, " + name + ">", "BY_NUMBER")
+        Component.named(map + "<Integer, " + name + ">", "BY_NUMBER")
             .private_()
             .static_()
             .final_()
@@ -98,27 +97,17 @@ public final class EnumSourceMapping {
 
     List<Statement> init = new ArrayList<>();
     for (Enum.EnumConstant c : proto.constants()) {
-      init.add(
-          Statement.expr(
-              Expression.call(
-                  Expression.member("BY_NUMBER", "put"),
-                  Expression.lit(String.valueOf(c.number())),
-                  Expression.lit(c.name()))));
+      init.add(Statement.expr("BY_NUMBER.put(" + c.number() + ", " + c.name() + ")"));
     }
-    result.staticBlock(new Member.StaticBlock(init));
+    result.staticBlock(new StaticBlock(init));
 
     result.method(
-        Member.Method.named("forNumber")
+        Method.named("forNumber")
             .public_()
             .static_()
             .returnType(name)
             .param("int", "number")
-            .body(
-                Statement.ret(
-                    Expression.call(
-                        Expression.member("BY_NUMBER", "getOrDefault"),
-                        Expression.lit("number"),
-                        Expression.lit(firstConstantName(proto)))))
+            .body(Statement.ret("BY_NUMBER.getOrDefault(number, " + firstConstantName(proto) + ")"))
             .build());
 
     return result.build();

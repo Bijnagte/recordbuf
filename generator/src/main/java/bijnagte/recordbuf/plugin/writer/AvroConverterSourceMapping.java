@@ -1,8 +1,9 @@
 package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
+import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.JavaFile;
-import bijnagte.recordbuf.codegen.source.Member;
+import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.SourceRenderer;
 import bijnagte.recordbuf.codegen.source.Statement;
 import bijnagte.recordbuf.codegen.source.Type;
@@ -79,15 +80,13 @@ public final class AvroConverterSourceMapping {
     ci.use("bijnagte.recordbuf.runtime.UnknownFields");
 
     // --- class AST ---
-    Member.Constructor privateCtor = Member.Constructor.builder().private_().body().build();
+    Constructor privateCtor = Constructor.builder().private_().body().build();
 
-    Member.Method toRecord =
-        buildToRecord(message, recordClass, avroSpecific, hasWkt, hasByteField);
-    Member.Method fromRecord = buildFromRecord(message, recordClass, avroSpecific, hasWkt);
+    Method toRecord = buildToRecord(message, recordClass, avroSpecific, hasWkt, hasByteField);
+    Method fromRecord = buildFromRecord(message, recordClass, avroSpecific, hasWkt);
 
     Type.Class converterClass =
-        Type.Class.builder()
-            .name(recordClass + "AvroConverter")
+        Type.Class.named(recordClass + "AvroConverter")
             .public_()
             .final_()
             .annotations(ANNOTATIONS)
@@ -109,7 +108,7 @@ public final class AvroConverterSourceMapping {
 
   // --- toRecord body builder ----------------------------------------------------------
 
-  private static Member.Method buildToRecord(
+  private static Method buildToRecord(
       Message message,
       String recordClass,
       String avroSpecific,
@@ -123,7 +122,7 @@ public final class AvroConverterSourceMapping {
     body.add(Statement.of("b.unknownFields(UnknownFields.empty());"));
     body.add(Statement.of("return b.build();"));
 
-    return Member.Method.named("toRecord")
+    return Method.named("toRecord")
         .public_()
         .static_()
         .returnType(recordClass)
@@ -158,7 +157,7 @@ public final class AvroConverterSourceMapping {
 
   // --- fromRecord body builder --------------------------------------------------------
 
-  private static Member.Method buildFromRecord(
+  private static Method buildFromRecord(
       Message message, String recordClass, String avroSpecific, boolean hasWkt) {
     List<Statement> body = new ArrayList<>();
     body.add(Statement.of(avroSpecific + " s = new " + avroSpecific + "();"));
@@ -168,7 +167,7 @@ public final class AvroConverterSourceMapping {
     }
     body.add(Statement.of("return s;"));
 
-    return Member.Method.named("fromRecord")
+    return Method.named("fromRecord")
         .public_()
         .static_()
         .returnType(avroSpecific)

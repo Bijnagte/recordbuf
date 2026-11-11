@@ -38,12 +38,11 @@ class WhileRenderingTest {
   void while_with_body_renders_braced_block() throws Exception {
     String src =
         render(
-            Type.Record.builder()
+            Type.Record.named("WhileLoop")
                 .public_()
-                .name("WhileLoop")
-                .component(Member.Field.named("int", "value").build())
+                .component(Component.named("int", "value").build())
                 .method(
-                    Member.Method.named("demo")
+                    Method.named("demo")
                         .public_()
                         .body(While.condition("value > 0").body(Statement.ret()).build())
                         .build())
@@ -60,12 +59,11 @@ class WhileRenderingTest {
   void empty_body_renders_empty_loop() throws Exception {
     String src =
         render(
-            Type.Record.builder()
+            Type.Record.named("WhileEmpty")
                 .public_()
-                .name("WhileEmpty")
-                .component(Member.Field.named("int", "value").build())
+                .component(Component.named("int", "value").build())
                 .method(
-                    Member.Method.named("demo")
+                    Method.named("demo")
                         .public_()
                         .body(While.condition("value > 0").build())
                         .build())

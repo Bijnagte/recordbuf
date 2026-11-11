@@ -1,10 +1,11 @@
 package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
+import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.For;
 import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.Javadoc;
-import bijnagte.recordbuf.codegen.source.Member;
+import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.Statement;
 import bijnagte.recordbuf.codegen.source.Switch;
 import bijnagte.recordbuf.codegen.source.Type;
@@ -62,18 +63,17 @@ public final class InteropSourceMapping {
                 ". Field-by-field conversion only.")
             .build();
 
-    var privateCtor = Member.Constructor.builder().private_().build();
+    var privateCtor = Constructor.builder().private_().build();
 
     var fromMethod = emitFrom(m, ci, refPkg, ref, rec);
     var toMethod = emitTo(m, ci, refPkg, ref, rec);
 
-    return Type.Class.builder()
+    return Type.Class.named("Interop")
         .parent(rec)
         .public_()
         .static_()
         .final_()
         .javadoc(javadoc)
-        .name("Interop")
         .constructor(privateCtor)
         .method(fromMethod, toMethod)
         .build();
@@ -81,7 +81,7 @@ public final class InteropSourceMapping {
 
   // -- from(reference) -> record ------------------------------------------------
 
-  private static Member.Method emitFrom(
+  private static Method emitFrom(
       Message m, TypeCollector ci, String refPkg, String ref, String rec) {
     List<Statement> body = new ArrayList<>();
     for (Field f : m.fields()) {
@@ -100,7 +100,7 @@ public final class InteropSourceMapping {
     body.add(Statement.of("    " + ci.use(RT + ".UnknownFields") + ".empty()"));
     body.add(Statement.of("    );"));
 
-    return Member.Method.named("from")
+    return Method.named("from")
         .public_()
         .static_()
         .returnType(rec)
@@ -219,8 +219,7 @@ public final class InteropSourceMapping {
 
   // -- to(record) -> reference --------------------------------------------------
 
-  private static Member.Method emitTo(
-      Message m, TypeCollector ci, String refPkg, String ref, String rec) {
+  private static Method emitTo(Message m, TypeCollector ci, String refPkg, String ref, String rec) {
     List<Statement> body = new ArrayList<>();
     body.add(Statement.of("var _b = " + ref + ".newBuilder();"));
     for (Field f : m.fields()) {
@@ -231,7 +230,7 @@ public final class InteropSourceMapping {
     }
     body.add(Statement.of("return _b.build();"));
 
-    return Member.Method.named("to")
+    return Method.named("to")
         .public_()
         .static_()
         .returnType(ref)

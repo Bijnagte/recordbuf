@@ -37,12 +37,11 @@ class IfRenderingTest {
   void if_then_only_renders_a_single_braced_block() throws Exception {
     String src =
         render(
-            Type.Record.builder()
+            Type.Record.named("ThenOnly")
                 .public_()
-                .name("ThenOnly")
-                .component(Member.Field.named("int", "value").build())
+                .component(Component.named("int", "value").build())
                 .method(
-                    Member.Method.named("demo")
+                    Method.named("demo")
                         .public_()
                         .body(If.condition("true").body(Statement.ret()).build())
                         .build())
@@ -59,12 +58,11 @@ class IfRenderingTest {
   void if_with_terminal_else_renders_both_braced_blocks() throws Exception {
     String src =
         render(
-            Type.Record.builder()
+            Type.Record.named("ThenElse")
                 .public_()
-                .name("ThenElse")
-                .component(Member.Field.named("int", "value").build())
+                .component(Component.named("int", "value").build())
                 .method(
-                    Member.Method.named("demo")
+                    Method.named("demo")
                         .public_()
                         .body(
                             If.condition("value > 0")

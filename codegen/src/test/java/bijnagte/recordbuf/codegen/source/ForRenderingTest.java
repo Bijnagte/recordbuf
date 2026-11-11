@@ -36,12 +36,11 @@ class ForRenderingTest {
   void for_each_with_body_renders_braced_block() throws Exception {
     String src =
         render(
-            Type.Record.builder()
+            Type.Record.named("ForLoop")
                 .public_()
-                .name("ForLoop")
-                .component(Member.Field.named("java.util.List<String>", "value").build())
+                .component(Component.named("java.util.List<String>", "value").build())
                 .method(
-                    Member.Method.named("demo")
+                    Method.named("demo")
                         .public_()
                         .body(For.enhanced("var _e", "value()").body(Statement.ret()).build())
                         .build())
@@ -56,12 +55,11 @@ class ForRenderingTest {
   void empty_body_renders_empty_loop() throws Exception {
     String src =
         render(
-            Type.Record.builder()
+            Type.Record.named("ForEmpty")
                 .public_()
-                .name("ForEmpty")
-                .component(Member.Field.named("java.util.List<String>", "value").build())
+                .component(Component.named("java.util.List<String>", "value").build())
                 .method(
-                    Member.Method.named("demo")
+                    Method.named("demo")
                         .public_()
                         .body(For.enhanced("var _e", "value()").build())
                         .build())

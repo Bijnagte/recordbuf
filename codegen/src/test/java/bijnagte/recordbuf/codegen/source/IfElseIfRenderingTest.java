@@ -35,12 +35,11 @@ class IfElseIfRenderingTest {
   void if_with_one_else_if_renders_a_two_clauses() throws Exception {
     String src =
         render(
-            Type.Record.builder()
+            Type.Record.named("WithElseIf")
                 .public_()
-                .name("WithElseIf")
-                .component(Member.Field.named("int", "value").build())
+                .component(Component.named("int", "value").build())
                 .method(
-                    Member.Method.named("demo")
+                    Method.named("demo")
                         .public_()
                         .body(
                             If.condition("value > 0")
@@ -61,12 +60,11 @@ class IfElseIfRenderingTest {
   void if_else_if_then_terminal_else_renders_all_three_blocks() throws Exception {
     String src =
         render(
-            Type.Record.builder()
+            Type.Record.named("FullChain")
                 .public_()
-                .name("FullChain")
-                .component(Member.Field.named("int", "value").build())
+                .component(Component.named("int", "value").build())
                 .method(
-                    Member.Method.named("demo")
+                    Method.named("demo")
                         .public_()
                         .body(
                             If.condition("value > 0")

@@ -65,13 +65,13 @@ public final class SourceRenderer {
         // (e.g. "Choice.NameValue") or bare short names; the renderer emits them verbatim
         // because nested types within the interface are not import-eligible.
       }
-      for (Member.Field c : t.components()) ci.use(c.type());
-      for (Member.Field f : t.fields()) ci.use(f.type());
-      for (Member.Method m : t.methods()) {
+      for (Component c : t.components()) ci.use(c.type());
+      for (Component f : t.fields()) ci.use(f.type());
+      for (Method m : t.methods()) {
         ci.use(m.returnType());
         m.thrown().forEach(ci::use);
       }
-      for (Member.Nested n : t.nested()) collect(n.type());
+      for (Nested n : t.nested()) collect(n.type());
     }
 
     void render(Type t, int indent, StringBuilder out) {
@@ -104,7 +104,7 @@ public final class SourceRenderer {
       } else {
         for (int i = 0; i < comps.size(); i++) {
           out.append('\n').append(indent(body));
-          Member.Field f = comps.get(i);
+          Component f = comps.get(i);
           if (f.javadoc().present()) {
             out.append(javadoc(f.javadoc().raw(), body)).append('\n').append(indent(body));
           }
@@ -145,7 +145,7 @@ public final class SourceRenderer {
       out.append(" {\n");
       var consts = e.enumConstants();
       for (int i = 0; i < consts.size(); i++) {
-        Member.EnumConstant c = consts.get(i);
+        EnumConstant c = consts.get(i);
         // The optional per-constant Javadoc first (it renders its own indent); a leading
         // `indent(body)` before it would double-indent the Javadoc's first line.
         if (c.javadoc().present()) {
@@ -253,7 +253,7 @@ public final class SourceRenderer {
     private void renderMember(Member mem, int indent, String enclosingName, StringBuilder out) {
       int body = indent + 1;
       switch (mem) {
-        case Member.Field f -> {
+        case Component f -> {
           out.append(indent(indent));
           if (f.javadoc().present()) out.append(javadoc(f.javadoc().raw(), indent)).append('\n');
           if (f.deprecated()) out.append('@').append("Deprecated\n").append(indent(indent));
@@ -267,7 +267,7 @@ public final class SourceRenderer {
           }
           out.append(";\n");
         }
-        case Member.Method m -> {
+        case Method m -> {
           out.append(indent(indent));
           if (m.javadoc().present()) out.append(javadoc(m.javadoc().raw(), indent)).append('\n');
           // @Override annotation before the modifier line.
@@ -289,7 +289,7 @@ public final class SourceRenderer {
           for (Statement s : m.body()) renderStatement(body, s, out);
           out.append(indent(indent)).append("}\n");
         }
-        case Member.Constructor c -> {
+        case Constructor c -> {
           out.append(indent(indent));
           if (c.javadoc().present()) out.append(javadoc(c.javadoc().raw(), indent)).append('\n');
           if (c.body().isEmpty()) {
@@ -306,15 +306,15 @@ public final class SourceRenderer {
             out.append(indent(indent)).append("}\n");
           }
         }
-        case Member.StaticBlock s -> {
+        case StaticBlock s -> {
           out.append(indent(indent)).append("static {\n");
           for (Statement st : s.body()) renderStatement(body, st, out);
           out.append(indent(indent)).append("}\n");
         }
-        case Member.Nested n -> render(n.type(), indent, out);
+        case Nested n -> render(n.type(), indent, out);
         // Enum constants are heads of an enum body; they are never part of a type body, so this
         // arm is unreachable but keeps the switch exhaustive over the sealed hierarchy.
-        case Member.EnumConstant ignored -> {}
+        case EnumConstant ignored -> {}
       }
     }
 
@@ -326,23 +326,17 @@ public final class SourceRenderer {
         case Statement.Fragment fr -> out.append(indent(body)).append(fr.text()).append('\n');
         case Statement.Return r ->
             out.append(indent(body))
-                .append(r.expr() == null ? "return;" : "return " + render(r.expr()) + ";")
+                .append(r.expr() == null ? "return;" : "return " + r.expr() + ";")
                 .append('\n');
         case Statement.Throw t ->
-            out.append(indent(body))
-                .append("throw")
-                .append(' ')
-                .append(render(t.expr()))
-                .append(';')
-                .append('\n');
-        case Statement.ExprStatement e ->
-            out.append(indent(body)).append(render(e.expr())).append(";\n");
+            out.append(indent(body)).append("throw ").append(t.expr()).append(';').append('\n');
+        case Statement.ExprStatement e -> out.append(indent(body)).append(e.expr()).append(";\n");
         case Statement.LocalVar lv ->
             out.append(indent(body))
                 .append(lv.type())
                 .append(' ')
                 .append(lv.name())
-                .append(lv.init() == null ? ";" : " = " + render(lv.init()) + ";")
+                .append(lv.init() == null ? ";" : " = " + lv.init() + ";")
                 .append('\n');
         case Statement.Comment c ->
             out.append(indent(body)).append("// ").append(c.text()).append('\n');
@@ -459,48 +453,6 @@ public final class SourceRenderer {
       StringBuilder sb = new StringBuilder();
       renderStatement(0, s, sb);
       return sb.toString().stripLeading().replaceAll("\\s+$", "");
-    }
-
-    /** Render an expression to its one-line textual form (no terminator, no leading indent). */
-    private String render(Expression e) {
-      switch (e) {
-        case Expression.Fragment f -> {
-          return f.text();
-        }
-        case Expression.Literal l -> {
-          return l.text();
-        }
-        case Expression.Member m -> {
-          return m.receiver() + "." + m.name();
-        }
-        case Expression.Call c -> {
-          return render(c.receiver()) + "(" + joinExpr(c.args()) + ")";
-        }
-        case Expression.New n -> {
-          return "new " + n.type() + "(" + joinExpr(n.args()) + ")";
-        }
-        case Expression.Parens p -> {
-          return "(" + render(p.inner()) + ")";
-        }
-        case Expression.Ternary t -> {
-          return render(t.cond()) + " ? " + render(t.a()) + " : " + render(t.b());
-        }
-        case Expression.Binary b -> {
-          return render(b.l()) + " " + b.op() + " " + render(b.r());
-        }
-        case Expression.Assign a -> {
-          return render(a.l()) + " = " + render(a.r());
-        }
-      }
-    }
-
-    private String joinExpr(List<Expression> args) {
-      StringBuilder sb = new StringBuilder();
-      for (int i = 0; i < args.size(); i++) {
-        if (i > 0) sb.append(", ");
-        sb.append(render(args.get(i)));
-      }
-      return sb.toString();
     }
 
     private String joinResolved(List<String> fqns) {
