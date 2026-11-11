@@ -347,6 +347,7 @@ public final class SourceRenderer {
         case Statement.Comment c ->
             out.append(indent(body)).append("// ").append(c.text()).append('\n');
         case If i -> renderIf(body, i, out);
+        case While w -> renderWhile(body, w, out);
       }
     }
 
@@ -367,6 +368,18 @@ public final class SourceRenderer {
         out.append(indent(body)).append("} else {\n");
         for (Statement s : ifStmt.elseBody()) renderStatement(body + 1, s, out);
       }
+      out.append(indent(body)).append("}\n");
+    }
+
+    /**
+     * Render a {@link While} loop -- the {@code while (condition) {}} header and its statement body
+     * at the next indent, closed by its own brace. A {@code while} has no branch and no optional
+     * {@code else} clause, so it always closes on its own; an empty body renders the empty-loop
+     * case {@code while (c) {}}.
+     */
+    private void renderWhile(int body, While w, StringBuilder out) {
+      out.append(indent(body)).append("while (").append(w.condition()).append(") {\n");
+      for (Statement s : w.body()) renderStatement(body + 1, s, out);
       out.append(indent(body)).append("}\n");
     }
 

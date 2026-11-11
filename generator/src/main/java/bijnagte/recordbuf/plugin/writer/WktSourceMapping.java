@@ -1,6 +1,7 @@
 package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
+import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.Statement;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
@@ -109,12 +110,16 @@ final class WktSourceMapping {
       // if (v.field() != null && !def.equals(v.field())) out.writeByteArray(n,
       // Wkt.method(v.field()));
       String call = outExpr + wkt + "." + methodName + "(" + g + "));";
-      body.add(Statement.of("if (" + g + " != null && !" + def + ".equals(" + g + ")) " + call));
+      body.add(
+          If.builder()
+              .condition(g + " != null && !" + def + ".equals(" + g + ")")
+              .body(Statement.of(call))
+              .build());
     } else {
       // if (v.field() != null) out.writeByteArray(n, Wkt.wrap(Wkt.Wrap.KIND, v.field()));
       String call =
           outExpr + wkt + ".wrap(" + wkt + ".Wrap." + wrapKind(f.typeUrl()) + ", " + g + "));";
-      body.add(Statement.of("if (" + g + " != null) " + call));
+      body.add(If.builder().condition(g + " != null").body(Statement.of(call)).build());
     }
   }
 

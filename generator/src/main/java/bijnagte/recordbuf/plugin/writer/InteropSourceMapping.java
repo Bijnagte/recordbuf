@@ -1,6 +1,7 @@
 package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
+import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Member;
 import bijnagte.recordbuf.codegen.source.Statement;
@@ -288,10 +289,13 @@ public final class InteropSourceMapping {
       // Use a local variable so NullAway can track the non-null guard
       String src = "r." + f.javaName() + "()";
       String local = "n" + JavaNames.cap(f.javaName());
-      out.add(Statement.of("if (" + src + " != null) {"));
-      out.add(Statement.of("  var " + local + " = " + src + ";"));
-      out.add(Statement.of("  _b.set" + cap + "(" + recSib + ".Interop.to(" + local + "));"));
-      out.add(Statement.of("}"));
+      out.add(
+          If.builder()
+              .condition(src + " != null")
+              .body(
+                  Statement.of("var " + local + " = " + src + ";"),
+                  Statement.of("_b.set" + cap + "(" + recSib + ".Interop.to(" + local + "));"))
+              .build());
       return;
     }
     if (f.isRepeated()) {
@@ -310,7 +314,29 @@ public final class InteropSourceMapping {
       }
       return;
     }
-    out.add(Statement.of(toSet(f, "r." + f.javaName() + "()", ci, refPkg)));
+    out.add(toSetStatement(f, "r." + f.javaName() + "()", ci, refPkg));
+  }
+
+  private static Statement toSetStatement(Field f, String src, TypeCollector ci, String refPkg) {
+    String cap = JavaNames.cap(f.javaName());
+    if (f.kind() == FieldKind.ENUM) {
+      String refEnum =
+          refPkg.isEmpty()
+              ? JavaNames.cap(lastSegment(f.typeUrl()))
+              : refPkg + "." + JavaNames.cap(lastSegment(f.typeUrl()));
+      return Statement.of("_b.set" + cap + "(" + refEnum + ".forNumber(" + src + ".getNumber()));");
+    }
+    if ("bytes".equals(f.typeUrl())) {
+      return Statement.of(
+          "_b.set" + cap + "(" + ci.use(BYTE_STRING) + ".copyFrom(" + src + ".toByteArray()));");
+    }
+    if (f.isNullable()) {
+      return If.builder()
+          .condition(src + " != null")
+          .body(Statement.of("_b.set" + cap + "(" + src + ");"))
+          .build();
+    }
+    return Statement.of("_b.set" + cap + "(" + src + ");");
   }
 
   private static String toSet(Field f, String src, TypeCollector ci, String refPkg) {

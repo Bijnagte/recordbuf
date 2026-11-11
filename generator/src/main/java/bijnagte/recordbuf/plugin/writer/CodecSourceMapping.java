@@ -1,10 +1,12 @@
 package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
+import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Member;
 import bijnagte.recordbuf.codegen.source.Statement;
 import bijnagte.recordbuf.codegen.source.Type;
+import bijnagte.recordbuf.codegen.source.While;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
@@ -150,10 +152,10 @@ public final class CodecSourceMapping {
 
     // M4-C2b-2b-5: re-emit the unknown-fields carrier, if any, preserving wire-order round-trip.
     body.add(
-        Statement.of(
-            "if (!v.unknownFields().isEmpty()) "
-                + wireShort
-                + ".writeUnknown(out, v.unknownFields());"));
+        If.builder()
+            .condition("!v.unknownFields().isEmpty()")
+            .body(Statement.of(wireShort + ".writeUnknown(out, v.unknownFields());"))
+            .build());
 
     body.add(Statement.of("return enc.finish();"));
 
@@ -247,43 +249,43 @@ public final class CodecSourceMapping {
     }
 
     // Tag loop.
-    body.add(Statement.of("while (true) {"));
-    body.add(Statement.of("  int tag = " + wireShort + ".readTag(in);"));
-    body.add(Statement.of("  if (tag == 0) break;"));
-    body.add(Statement.of("  switch (" + wireShort + ".tagFieldNumber(tag)) {"));
+    List<Statement> tagLoop = new ArrayList<>();
+    tagLoop.add(Statement.of("int tag = " + wireShort + ".readTag(in);"));
+    tagLoop.add(If.builder().condition("tag == 0").body(Statement.of("break;")).build());
+    tagLoop.add(Statement.of("switch (" + wireShort + ".tagFieldNumber(tag)) {"));
     for (Field f : m.fields()) {
       Entry wktEntry = WktSourceMapping.resolve(f);
       if (wktEntry != null) {
         var wkt0 = Objects.requireNonNull(wktEntry);
-        WktSourceMapping.emitDecodeCase(f, wkt0, "in", "Wkt", body);
+        WktSourceMapping.emitDecodeCase(f, wkt0, "in", "Wkt", tagLoop);
       } else if (f.kind() == FieldKind.MAP) {
-        emitMapDecodeCase(f, ci, body);
+        emitMapDecodeCase(f, ci, tagLoop);
       } else if (f.kind() == FieldKind.MESSAGE) {
         if (f.label() == FieldLabel.REPEATED) {
-          emitRepeatedMessageDecodeCase(f, typeResolver, body);
+          emitRepeatedMessageDecodeCase(f, typeResolver, tagLoop);
         } else {
-          emitMessageDecodeCase(f, typeResolver, body);
+          emitMessageDecodeCase(f, typeResolver, tagLoop);
         }
       } else if (f.kind() == FieldKind.ENUM) {
         if (f.label() == FieldLabel.REPEATED) {
-          emitRepeatedEnumDecodeCase(f, typeResolver, body);
+          emitRepeatedEnumDecodeCase(f, typeResolver, tagLoop);
         } else {
-          emitEnumDecodeCase(f, typeResolver, body);
+          emitEnumDecodeCase(f, typeResolver, tagLoop);
         }
       } else if (f.label() == FieldLabel.REPEATED) {
-        emitRepeatedScalarDecodeCase(f, body);
+        emitRepeatedScalarDecodeCase(f, tagLoop);
       } else {
-        emitScalarDecodeCase(f, body);
+        emitScalarDecodeCase(f, tagLoop);
       }
     }
     // Oneof decode cases: each member contributes a case that assigns the oneof local.
     for (Oneof o : m.oneofs()) {
-      emitOneofDecodeCase(o, ci, typeResolver, body);
+      emitOneofDecodeCase(o, ci, typeResolver, tagLoop);
     }
     // M4-C2b-2b-5: the default case captures the unknown field into the builder.
-    body.add(Statement.of("    default -> unknown.add(in, tag);"));
-    body.add(Statement.of("  }"));
-    body.add(Statement.of("}"));
+    tagLoop.add(Statement.of("default -> unknown.add(in, tag);"));
+    tagLoop.add(Statement.of("}"));
+    body.add(While.builder().condition("true").body(tagLoop).build());
 
     // Construct the record, passing the carrier as the last argument.
     List<String> allNames = new ArrayList<>();
@@ -320,44 +322,35 @@ public final class CodecSourceMapping {
     int num = f.number();
     WireScalar wire = wireScalar(f);
     String call = encodeCall(wire);
+    String write = "out." + call + "(" + num + ", ";
     if (f.isNullable()) {
       // M4-C2d-1: optional scalar / optional string → @Nullable wrapper → skip if null.
       out.add(
-          Statement.of(
-              "if (" + getter + " != null) out." + call + "(" + num + ", " + getter + ");"));
+          If.builder()
+              .condition(getter + " != null")
+              .body(Statement.of(write + getter + ");"))
+              .build());
       return;
     }
     switch (wire) {
       case STRING ->
           out.add(
-              Statement.of(
-                  "if (!" + getter + ".isEmpty()) out." + call + "(" + num + ", " + getter + ");"));
+              If.builder()
+                  .condition("!" + getter + ".isEmpty()")
+                  .body(Statement.of(write + getter + ");"))
+                  .build());
       case BYTES ->
           out.add(
-              Statement.of(
-                  "if (!"
-                      + getter
-                      + ".isEmpty()) out."
-                      + call
-                      + "("
-                      + num
-                      + ", "
-                      + getter
-                      + ".toByteArray());"));
+              If.builder()
+                  .condition("!" + getter + ".isEmpty()")
+                  .body(Statement.of(write + getter + ".toByteArray());"))
+                  .build());
       default ->
           out.add(
-              Statement.of(
-                  "if ("
-                      + getter
-                      + " != CodecDefaults."
-                      + defaultMethod(f)
-                      + "()) out."
-                      + call
-                      + "("
-                      + num
-                      + ", "
-                      + getter
-                      + ");"));
+              If.builder()
+                  .condition(getter + " != CodecDefaults." + defaultMethod(f) + "()")
+                  .body(Statement.of(write + getter + ");"))
+                  .build());
     }
   }
 
@@ -373,11 +366,10 @@ public final class CodecSourceMapping {
     String getter = "v." + f.javaName() + "()";
     int num = f.number();
     String codecRef = typeResolver.apply(f);
-    out.add(Statement.of("if (" + getter + " != null) {"));
+    // Singular MESSAGE encode: skip when null, else write the nested codec bytes.
+    String writeStmt = "out.writeByteArray(" + num + ", " + codecRef + ".encode(" + getter + "))";
     out.add(
-        Statement.of(
-            "  out.writeByteArray(" + num + ", " + codecRef + ".encode(" + getter + "));"));
-    out.add(Statement.of("}"));
+        If.builder().condition(getter + " != null").body(Statement.of(writeStmt + ";")).build());
   }
 
   /** M4-C2d-5: repeated MESSAGE encode — one writeByteArray per element. */
@@ -413,8 +405,10 @@ public final class CodecSourceMapping {
     String getter = "v." + f.javaName() + "()";
     int num = f.number();
     out.add(
-        Statement.of(
-            "if (" + getter + " != null) out.writeEnum(" + num + ", " + getter + ".getNumber());"));
+        If.builder()
+            .condition(getter + " != null")
+            .body(Statement.of("out.writeEnum(" + num + ", " + getter + ".getNumber());"))
+            .build());
   }
 
   /** M4-C2b-2b-9: repeated ENUM encode — one writeEnum per element. */
@@ -663,12 +657,15 @@ public final class CodecSourceMapping {
     WireScalar wire = wireScalar(f);
     String readOp = decodeCall(wire);
     // Packed scalar: emit one length-delimited group when the list is non-empty.
-    out.add(Statement.of("if (!" + getter + ".isEmpty()) {"));
-    out.add(Statement.of("  var body = Encoder.start();"));
-    out.add(Statement.of("  var _o = body.out();"));
-    out.add(Statement.of("  for (var _x : " + getter + ") _o." + packedNoTag(wire) + "(_x);"));
-    out.add(Statement.of("  out.writeByteArray(" + num + ", body.finish());"));
-    out.add(Statement.of("}"));
+    out.add(
+        If.builder()
+            .condition("!" + getter + ".isEmpty()")
+            .body(
+                Statement.of("var body = Encoder.start();"),
+                Statement.of("var _o = body.out();"),
+                Statement.of("for (var _x : " + getter + ") _o." + packedNoTag(wire) + "(_x);"),
+                Statement.of("out.writeByteArray(" + num + ", body.finish());"))
+            .build());
   }
 
   private static void emitRepeatedScalarDecodeCase(Field f, List<Statement> out) {
@@ -770,16 +767,16 @@ public final class CodecSourceMapping {
     decBody.add(Statement.of("var unknown = " + unknownFieldsShort + ".builder();"));
     emitFieldLocalInit(decBody, "key", keyWire, codecDefaultsShort);
     emitFieldLocalInit(decBody, "value", valWire, codecDefaultsShort);
-    decBody.add(Statement.of("while (true) {"));
-    decBody.add(Statement.of("  int tag = " + wireShort + ".readTag(in);"));
-    decBody.add(Statement.of("  if (tag == 0) break;"));
-    decBody.add(Statement.of("  switch (" + wireShort + ".tagFieldNumber(tag)) {"));
-    emitFieldDecodeCase(decBody, 1, "key", keyWire, wireShort);
-    emitFieldDecodeCase(decBody, 2, "value", valWire, wireShort);
-    decBody.add(Statement.of("  default -> unknown.add(in, tag);"));
-    decBody.add(Statement.of("  }"));
-    decBody.add(Statement.of(""));
-    decBody.add(Statement.of("}"));
+    List<Statement> tagLoop = new ArrayList<>();
+    tagLoop.add(Statement.of("int tag = " + wireShort + ".readTag(in);"));
+    tagLoop.add(If.builder().condition("tag == 0").body(Statement.of("break;")).build());
+    tagLoop.add(Statement.of("switch (" + wireShort + ".tagFieldNumber(tag)) {"));
+    emitFieldDecodeCase(tagLoop, 1, "key", keyWire, wireShort);
+    emitFieldDecodeCase(tagLoop, 2, "value", valWire, wireShort);
+    tagLoop.add(Statement.of("default -> unknown.add(in, tag);"));
+    tagLoop.add(Statement.of("}"));
+    tagLoop.add(Statement.of(""));
+    decBody.add(While.builder().condition("true").body(tagLoop).build());
     decBody.add(Statement.of("return new " + entryName + "(key, value);"));
 
     result.method(
