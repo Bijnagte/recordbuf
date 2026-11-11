@@ -18,7 +18,7 @@ import javax.tools.ToolProvider;
 import org.junit.jupiter.api.Test;
 
 /**
- * The {@code while} control-flow node: a {@link While} statement renders as a braced block ({@code
+ * The {@code while} control-flow node: a {@link While} element renders as a braced block ({@code
  * while (cond) { ... }}), closed by its own brace. The node's own render handler ({@link
  * SourceRenderer}'s {@code renderWhile}) owns the braces -- it is not a nested {@code Block} node;
  * an empty body renders the empty-loop case {@code while (cond) { }}, the only structural
@@ -44,12 +44,12 @@ class WhileRenderingTest {
                 .method(
                     Method.named("demo")
                         .public_()
-                        .body(While.condition("value > 0").body(Statement.ret()).build())
+                        .body(While.condition("value > 0").body(Element.ret()).build())
                         .build())
                 .build());
 
     assertTrue(src.contains("while (value > 0) {"), "the guarded loop renders: " + src);
-    assertTrue(src.contains("return;"), "the loop-body statement renders: " + src);
+    assertTrue(src.contains("return;"), "the loop-body element renders: " + src);
     // A while always closes on its own brace -- no optional trailing clause like if's else.
     assertTrue(!src.contains("else"), "a while has no else clause: " + src);
     assertCompiles(src, "WhileLoop");

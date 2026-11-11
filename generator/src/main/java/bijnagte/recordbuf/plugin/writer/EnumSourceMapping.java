@@ -3,10 +3,10 @@ package bijnagte.recordbuf.plugin.writer;
 import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Component;
 import bijnagte.recordbuf.codegen.source.Constructor;
+import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.EnumConstant;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Method;
-import bijnagte.recordbuf.codegen.source.Statement;
 import bijnagte.recordbuf.codegen.source.StaticBlock;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.plugin.model.Enum;
@@ -73,14 +73,10 @@ public final class EnumSourceMapping {
     result.constructor(
         Constructor.builder()
             .param("int", "number")
-            .body(Statement.expr("this.number = number"))
+            .body(Element.expr("this.number = number"))
             .build());
     result.method(
-        Method.named("getNumber")
-            .public_()
-            .returnType("int")
-            .body(Statement.ret("number"))
-            .build());
+        Method.named("getNumber").public_().returnType("int").body(Element.ret("number")).build());
 
     // 3. The reverse-lookup cluster -- M4-C2a-ext's fold-in. ci.use imports java.util.Map/HashMap +
     // yields each short name; the generic field type + initializer are then spelled out in short
@@ -95,9 +91,9 @@ public final class EnumSourceMapping {
             .initializer("new " + hashMap + "<>()")
             .build());
 
-    List<Statement> init = new ArrayList<>();
+    List<Element> init = new ArrayList<>();
     for (Enum.EnumConstant c : proto.constants()) {
-      init.add(Statement.expr("BY_NUMBER.put(" + c.number() + ", " + c.name() + ")"));
+      init.add(Element.expr("BY_NUMBER.put(" + c.number() + ", " + c.name() + ")"));
     }
     result.staticBlock(new StaticBlock(init));
 
@@ -107,7 +103,7 @@ public final class EnumSourceMapping {
             .static_()
             .returnType(name)
             .param("int", "number")
-            .body(Statement.ret("BY_NUMBER.getOrDefault(number, " + firstConstantName(proto) + ")"))
+            .body(Element.ret("BY_NUMBER.getOrDefault(number, " + firstConstantName(proto) + ")"))
             .build());
 
     return result.build();

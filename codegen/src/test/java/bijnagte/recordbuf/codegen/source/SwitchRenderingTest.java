@@ -18,13 +18,13 @@ import javax.tools.ToolProvider;
 import org.junit.jupiter.api.Test;
 
 /**
- * The {@code switch} control-flow node: a {@link Switch} statement renders as {@code switch
- * (subject) { <cases> default -> ... }}, closed by its own brace. Each {@link Case} arm and the
- * terminal {@code default} arm auto-brace by body size (DEC-3 / B4): an empty arm renders {@code ->
- * {}}, a single-statement arm renders un-braced {@code -> stmt;} (so it can also act as a
- * switch-expression yield arm), and more than one braces {@code -> { ... }}. The node's own render
- * handler (SourceRenderer's {@code renderSwitch}) owns the braces; a {@code While} (or {@code For})
- * arm body nests its loop through the statement layout.
+ * The {@code switch} control-flow node: a {@link Switch} element renders as {@code switch (subject)
+ * { <cases> default -> ... }}, closed by its own brace. Each {@link Case} arm and the terminal
+ * {@code default} arm auto-brace by body size (DEC-3 / B4): an empty arm renders {@code -> {}}, a
+ * single-element arm renders un-braced {@code -> stmt;} (so it can also act as a switch-expression
+ * yield arm), and more than one braces {@code -> { ... }}. The node's own render handler
+ * (SourceRenderer's {@code renderSwitch}) owns the braces; a {@code While} (or {@code For}) arm
+ * body nests its loop through the element layout.
  */
 class SwitchRenderingTest {
 
@@ -66,18 +66,18 @@ class SwitchRenderingTest {
                         .public_()
                         .body(
                             Switch.on("Wire.tagFieldNumber(tag)")
-                                .caseArm("1", Statement.of("value = in.readInt64();"))
-                                .defaultBody(Statement.of("unknown.add(in, tag);"))
+                                .caseArm("1", Element.of("value = in.readInt64();"))
+                                .defaultBody(Element.of("unknown.add(in, tag);"))
                                 .build())
                         .build())
                 .build());
 
     assertTrue(
         src.contains("case 1 -> value = in.readInt64();"),
-        "a single-statement arm renders un-braced: " + src);
+        "a single-element arm renders un-braced: " + src);
     assertTrue(
         src.contains("default -> unknown.add(in, tag);"),
-        "a single-statement default arm renders un-braced: " + src);
+        "a single-element default arm renders un-braced: " + src);
   }
 
   @Test
@@ -92,18 +92,15 @@ class SwitchRenderingTest {
                         .body(
                             Switch.on("x")
                                 .caseArm(
-                                    List.of("1", "2"),
-                                    Statement.of("x = 1;"),
-                                    Statement.of("x = 2;"))
+                                    List.of("1", "2"), Element.of("x = 1;"), Element.of("x = 2;"))
                                 .build())
                         .build())
                 .build());
 
-    // A multi-pattern arm joins its patterns with ", "; a multi-statement body braces.
-    assertTrue(
-        src.contains("case 1, 2 -> {"), "a multi-pattern multi-statement arm braces: " + src);
-    assertTrue(src.contains("x = 1;"), "first body statement renders inside the brace: " + src);
-    assertTrue(src.contains("x = 2;"), "second body statement renders inside the brace: " + src);
+    // A multi-pattern arm joins its patterns with ", "; a multi-element body braces.
+    assertTrue(src.contains("case 1, 2 -> {"), "a multi-pattern multi-element arm braces: " + src);
+    assertTrue(src.contains("x = 1;"), "first body element renders inside the brace: " + src);
+    assertTrue(src.contains("x = 2;"), "second body element renders inside the brace: " + src);
   }
 
   @Test
@@ -118,9 +115,9 @@ class SwitchRenderingTest {
                         .param("Object", "n")
                         .body(
                             Switch.on("n.hashCode()")
-                                .caseArm("1", Statement.of("System.out.println(1);"))
-                                .caseArm("2", Statement.of("System.out.println(2);"))
-                                .defaultBody(Statement.of("System.out.println(0);"))
+                                .caseArm("1", Element.of("System.out.println(1);"))
+                                .caseArm("2", Element.of("System.out.println(2);"))
+                                .defaultBody(Element.of("System.out.println(0);"))
                                 .build())
                         .build())
                 .build());

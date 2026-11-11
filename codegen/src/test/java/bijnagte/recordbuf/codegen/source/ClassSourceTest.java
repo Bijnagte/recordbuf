@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
  * This is the first record/codec shape on the AST: a record (the {@code Message} shell) owning a
  * nested {@code public static final class Codec} whose private constructor + two trivial method
  * bodies prove, through {@link SourceRenderer} + the in-process {@code javac}, that a static class
- * nests inside a record and renders compilable Java. The method BODIES are {@code List<Statement>}s
+ * nests inside a record and renders compilable Java. The method BODIES are {@code List<Element>}s
  * already (the "line-emission for the rest" half), so no further AST node is needed for the codec
  * skeleton; M4-C2b-2b fills {@code encode}/{@code decode}'s bodies with the real per-field wire
  * logic.
@@ -55,7 +55,7 @@ class ClassSourceTest {
                     .returnType("byte[]")
                     .param("MessageRec", "v")
                     .thrown("java.io.IOException")
-                    .body(Statement.of("return new byte[0];"))
+                    .body(Element.of("return new byte[0];"))
                     .build(),
                 Method.named("decode")
                     .public_()
@@ -63,7 +63,7 @@ class ClassSourceTest {
                     .returnType("MessageRec")
                     .param("byte[]", "inBytes")
                     .thrown("java.io.IOException")
-                    .body(Statement.of("return new MessageRec(0);"))
+                    .body(Element.of("return new MessageRec(0);"))
                     .build())
             .build();
     return Type.Record.named("MessageRec")
@@ -137,7 +137,7 @@ class ClassSourceTest {
    * {@code encode}/ {@code decode} bodies are REAL scalar codec bodies -- they call the runtime's
    * {@link bijnagte.recordbuf.runtime.Encoder} / {@link bijnagte.recordbuf.runtime.Decoder} /
    * {@link bijnagte.recordbuf.runtime.Wire} / {@link bijnagte.recordbuf.runtime.CodecDefaults}
-   * helpers just as {@code CodecGenerator} does today, but expressed via {@link Statement}s in the
+   * helpers just as {@code CodecGenerator} does today, but expressed via {@link Element}s in the
    * source AST. The bodies reference the runtime module's classes fully-qualified so the file needs
    * no runtime imports; the compile classpath is the test's own runtime classpath so {@code javac}
    * sees the referenced classes. The first real codec -- singular int fields, no oneof, no WKT, no
@@ -329,16 +329,16 @@ class ClassSourceTest {
                     .param("RecordWithRealMultiScalar", "v")
                     .thrown("java.io.IOException")
                     .body(
-                        Statement.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
-                        Statement.of("var out = enc.out();"),
-                        Statement.of(
+                        Element.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
+                        Element.of("var out = enc.out();"),
+                        Element.of(
                             "if (v.id() != bijnagte.recordbuf.runtime.CodecDefaults.int32()) "
                                 + "out.writeInt32(1, v.id());"),
-                        Statement.of(
+                        Element.of(
                             "if (v.value() != bijnagte.recordbuf.runtime.CodecDefaults.int64()) "
                                 + "out.writeInt64(2, v.value());"),
-                        Statement.of("if (!v.text().isEmpty()) " + "out.writeString(3, v.text());"),
-                        Statement.of("return enc.finish();"))
+                        Element.of("if (!v.text().isEmpty()) " + "out.writeString(3, v.text());"),
+                        Element.of("return enc.finish();"))
                     .build(),
                 // M4-C2b-2b-3: the multi-scalar decode body -- three per-field default-init,
                 // then a tag-loop switch that dispatches to the correct read for each field
@@ -350,27 +350,26 @@ class ClassSourceTest {
                     .param("byte[]", "inBytes")
                     .thrown("java.io.IOException")
                     .body(
-                        Statement.of(
-                            "var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
-                        Statement.of("var in = dec.in();"),
-                        Statement.of("int id = bijnagte.recordbuf.runtime.CodecDefaults.int32();"),
-                        Statement.of(
+                        Element.of("var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
+                        Element.of("var in = dec.in();"),
+                        Element.of("int id = bijnagte.recordbuf.runtime.CodecDefaults.int32();"),
+                        Element.of(
                             "long value = bijnagte.recordbuf.runtime.CodecDefaults.int64();"),
-                        Statement.of(
+                        Element.of(
                             "String text = bijnagte.recordbuf.runtime.CodecDefaults.string();"),
-                        Statement.of("while (true) {"),
-                        Statement.of("    int tag = bijnagte.recordbuf.runtime.Wire.readTag(in);"),
-                        Statement.of("    if (tag == 0) break;"),
-                        Statement.of(
+                        Element.of("while (true) {"),
+                        Element.of("    int tag = bijnagte.recordbuf.runtime.Wire.readTag(in);"),
+                        Element.of("    if (tag == 0) break;"),
+                        Element.of(
                             "    switch (bijnagte.recordbuf.runtime.Wire.tagFieldNumber(tag)) {"),
-                        Statement.of("      case 1 -> id = in.readInt32();"),
-                        Statement.of("      case 2 -> value = in.readInt64();"),
-                        Statement.of("      case 3 -> text = in.readString();"),
-                        Statement.of(
+                        Element.of("      case 1 -> id = in.readInt32();"),
+                        Element.of("      case 2 -> value = in.readInt64();"),
+                        Element.of("      case 3 -> text = in.readString();"),
+                        Element.of(
                             "      default -> bijnagte.recordbuf.runtime.Wire.skip(in, tag);"),
-                        Statement.of("    }"),
-                        Statement.of("}"),
-                        Statement.of("return new RecordWithRealMultiScalar(id, value, text);"))
+                        Element.of("    }"),
+                        Element.of("}"),
+                        Element.of("return new RecordWithRealMultiScalar(id, value, text);"))
                     .build())
             .build();
     return Type.Record.named("RecordWithRealMultiScalar")
@@ -403,12 +402,12 @@ class ClassSourceTest {
                     .param("RecordWithRealCodec", "v")
                     .thrown("java.io.IOException")
                     .body(
-                        Statement.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
-                        Statement.of("var out = enc.out();"),
-                        Statement.of(
+                        Element.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
+                        Element.of("var out = enc.out();"),
+                        Element.of(
                             "if (v.id() != bijnagte.recordbuf.runtime.CodecDefaults.int32()) "
                                 + "out.writeInt32(1, v.id());"),
-                        Statement.of("return enc.finish();"))
+                        Element.of("return enc.finish();"))
                     .build(),
                 // The codec's decode is the real tag-loop body: a fresh runtime Decoder, a
                 // per-field default-init, the tag/field-number loop, a switch that dispatches
@@ -420,21 +419,20 @@ class ClassSourceTest {
                     .param("byte[]", "inBytes")
                     .thrown("java.io.IOException")
                     .body(
-                        Statement.of(
-                            "var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
-                        Statement.of("var in = dec.in();"),
-                        Statement.of("int id = bijnagte.recordbuf.runtime.CodecDefaults.int32();"),
-                        Statement.of("while (true) {"),
-                        Statement.of("    int tag = bijnagte.recordbuf.runtime.Wire.readTag(in);"),
-                        Statement.of("    if (tag == 0) break;"),
-                        Statement.of(
+                        Element.of("var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
+                        Element.of("var in = dec.in();"),
+                        Element.of("int id = bijnagte.recordbuf.runtime.CodecDefaults.int32();"),
+                        Element.of("while (true) {"),
+                        Element.of("    int tag = bijnagte.recordbuf.runtime.Wire.readTag(in);"),
+                        Element.of("    if (tag == 0) break;"),
+                        Element.of(
                             "    switch (bijnagte.recordbuf.runtime.Wire.tagFieldNumber(tag)) {"),
-                        Statement.of("      case 1 -> id = in.readInt32();"),
-                        Statement.of(
+                        Element.of("      case 1 -> id = in.readInt32();"),
+                        Element.of(
                             "      default -> bijnagte.recordbuf.runtime.Wire.skip(in, tag);"),
-                        Statement.of("    }"),
-                        Statement.of("}"),
-                        Statement.of("return new RecordWithRealCodec(id);"))
+                        Element.of("    }"),
+                        Element.of("}"),
+                        Element.of("return new RecordWithRealCodec(id);"))
                     .build())
             .build();
     return Type.Record.named("RecordWithRealCodec")
@@ -461,10 +459,10 @@ class ClassSourceTest {
             .param("RecordWithBytes", "v")
             .thrown("java.io.IOException")
             .body(
-                Statement.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
-                Statement.of("var out = enc.out();"),
-                Statement.of("out.writeByteArray(1, v.data().toByteArray());"),
-                Statement.of("return enc.finish();"))
+                Element.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
+                Element.of("var out = enc.out();"),
+                Element.of("out.writeByteArray(1, v.data().toByteArray());"),
+                Element.of("return enc.finish();"))
             .build();
 
     var decode =
@@ -475,20 +473,20 @@ class ClassSourceTest {
             .param("byte[]", "inBytes")
             .thrown("java.io.IOException")
             .body(
-                Statement.of("var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
-                Statement.of("var in = dec.in();"),
-                Statement.of(
+                Element.of("var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
+                Element.of("var in = dec.in();"),
+                Element.of(
                     "bijnagte.recordbuf.runtime.Bytes data = bijnagte.recordbuf.runtime.Bytes.empty();"),
-                Statement.of("while (true) {"),
-                Statement.of("    int tag = bijnagte.recordbuf.runtime.Wire.readTag(in);"),
-                Statement.of("    if (tag == 0) break;"),
-                Statement.of("    switch (bijnagte.recordbuf.runtime.Wire.tagFieldNumber(tag)) {"),
-                Statement.of(
+                Element.of("while (true) {"),
+                Element.of("    int tag = bijnagte.recordbuf.runtime.Wire.readTag(in);"),
+                Element.of("    if (tag == 0) break;"),
+                Element.of("    switch (bijnagte.recordbuf.runtime.Wire.tagFieldNumber(tag)) {"),
+                Element.of(
                     "      case 1 -> data = bijnagte.recordbuf.runtime.Bytes.of(in.readBytes().toByteArray());"),
-                Statement.of("      default -> bijnagte.recordbuf.runtime.Wire.skip(in, tag);"),
-                Statement.of("    }"),
-                Statement.of("}"),
-                Statement.of("return new RecordWithBytes(data);"))
+                Element.of("      default -> bijnagte.recordbuf.runtime.Wire.skip(in, tag);"),
+                Element.of("    }"),
+                Element.of("}"),
+                Element.of("return new RecordWithBytes(data);"))
             .build();
 
     Type.Class codec =
@@ -520,10 +518,10 @@ class ClassSourceTest {
             .param("RecordWithBytes", "v")
             .thrown("java.io.IOException")
             .body(
-                Statement.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
-                Statement.of("var out = enc.out();"),
-                Statement.of("out.writeByteArray(1, v.data().toByteArray());"),
-                Statement.of("return enc.finish();"))
+                Element.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
+                Element.of("var out = enc.out();"),
+                Element.of("out.writeByteArray(1, v.data().toByteArray());"),
+                Element.of("return enc.finish();"))
             .build();
 
     var decode =
@@ -534,20 +532,20 @@ class ClassSourceTest {
             .param("byte[]", "inBytes")
             .thrown("java.io.IOException")
             .body(
-                Statement.of("var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
-                Statement.of("var in = dec.in();"),
-                Statement.of(
+                Element.of("var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
+                Element.of("var in = dec.in();"),
+                Element.of(
                     "bijnagte.recordbuf.runtime.Bytes data = bijnagte.recordbuf.runtime.Bytes.empty();"),
-                Statement.of("while (true) {"),
-                Statement.of("    int tag = bijnagte.recordbuf.runtime.Wire.readTag(in);"),
-                Statement.of("    if (tag == 0) break;"),
-                Statement.of("    switch (bijnagte.recordbuf.runtime.Wire.tagFieldNumber(tag)) {"),
-                Statement.of(
+                Element.of("while (true) {"),
+                Element.of("    int tag = bijnagte.recordbuf.runtime.Wire.readTag(in);"),
+                Element.of("    if (tag == 0) break;"),
+                Element.of("    switch (bijnagte.recordbuf.runtime.Wire.tagFieldNumber(tag)) {"),
+                Element.of(
                     "      case 1 -> data = bijnagte.recordbuf.runtime.Bytes.of(in.readBytes().toByteArray());"),
-                Statement.of("      default -> bijnagte.recordbuf.runtime.Wire.skip(in, tag);"),
-                Statement.of("    }"),
-                Statement.of("}"),
-                Statement.of("return new RecordWithBytes(data);"))
+                Element.of("      default -> bijnagte.recordbuf.runtime.Wire.skip(in, tag);"),
+                Element.of("    }"),
+                Element.of("}"),
+                Element.of("return new RecordWithBytes(data);"))
             .build();
 
     Type.Class codec =

@@ -202,8 +202,8 @@ public final class CodeGenerator {
    *       only be known after the file is walked in full);
    *   <li>{@link TypeImports#finalizeResolution()} then fixes each name to its short form
    *       (imported) or fully-qualified form (when its short name collides),
-   *   <li>a <i>render</i> pass writes the header, package statement, import block, and body into
-   *       the real writer with those fixed names.
+   *   <li>a <i>render</i> pass writes the header, package element, import block, and body into the
+   *       real writer with those fixed names.
    * </ol>
    *
    * /** Generate a single-enum source file through the {@code bijnagte.recordbuf.codegen.source}
@@ -271,10 +271,10 @@ public final class CodeGenerator {
    * SampleOrBuilder}/…) out of scope.
    *
    * <p>Emitted in the plugin's clean-output style: a {@code @NullMarked} annotation before the
-   * {@code package} statement (JSpecify's module convention, so the usual package/import/body order
-   * a type file uses does not apply to a package-info), then the import, under the generated-file
+   * {@code package} element (JSpecify's module convention, so the usual package/import/body order a
+   * type file uses does not apply to a package-info), then the import, under the generated-file
    * header. Built directly (not through a writer body-emission path) because the annotation
-   * precedes the package statement there.
+   * precedes the package element there.
    */
   private static CodeGeneratorResponse.File emitPackageInfo(String javaPkg) {
     String name = javaPkg.replace('.', '/') + "/package-info.java";
@@ -299,8 +299,8 @@ public final class CodeGenerator {
    * SampleOrBuilder}/…) out of scope.
    *
    * <p>Emitted in the plugin's clean-output style: a {@code @NullMarked} annotation before the
-   * {@code package} statement (JSpecify's module convention, so the usual package/import/body order
-   * a type file uses does not apply to a package-info), then the import, under the generated-file
+   * {@code package} element (JSpecify's module convention, so the usual package/import/body order a
+   * type file uses does not apply to a package-info), then the import, under the generated-file
    * header.
    */
 

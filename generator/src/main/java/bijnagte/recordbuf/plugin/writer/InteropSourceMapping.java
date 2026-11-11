@@ -2,11 +2,11 @@ package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Constructor;
+import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.For;
 import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Method;
-import bijnagte.recordbuf.codegen.source.Statement;
 import bijnagte.recordbuf.codegen.source.Switch;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.plugin.model.Field;
@@ -83,22 +83,22 @@ public final class InteropSourceMapping {
 
   private static Method emitFrom(
       Message m, TypeCollector ci, String refPkg, String ref, String rec) {
-    List<Statement> body = new ArrayList<>();
+    List<Element> body = new ArrayList<>();
     for (Field f : m.fields()) {
       fromLocal(body, f, ci);
     }
     for (Oneof o : m.oneofs()) {
       emitOneofFrom(body, o, ci);
     }
-    body.add(Statement.of("return new " + rec + "("));
+    body.add(Element.of("return new " + rec + "("));
     for (Field f : m.fields()) {
-      body.add(Statement.of("    _" + f.javaName() + ","));
+      body.add(Element.of("    _" + f.javaName() + ","));
     }
     for (Oneof o : m.oneofs()) {
-      body.add(Statement.of("    _" + o.name() + ","));
+      body.add(Element.of("    _" + o.name() + ","));
     }
-    body.add(Statement.of("    " + ci.use(RT + ".UnknownFields") + ".empty()"));
-    body.add(Statement.of("    );"));
+    body.add(Element.of("    " + ci.use(RT + ".UnknownFields") + ".empty()"));
+    body.add(Element.of("    );"));
 
     return Method.named("from")
         .public_()
@@ -109,14 +109,14 @@ public final class InteropSourceMapping {
         .build();
   }
 
-  private static void fromLocal(List<Statement> out, Field f, TypeCollector ci) {
+  private static void fromLocal(List<Element> out, Field f, TypeCollector ci) {
     String cap = JavaNames.cap(f.javaName());
     if (f.isMap()) {
       boolean hasBytes = "bytes".equals(f.mapKey()) || "bytes".equals(f.mapValue());
       if (!hasBytes) {
         // Non-byte maps: copy the protobuf-java map directly (compatible key/value types)
         out.add(
-            Statement.of(
+            Element.of(
                 "var _"
                     + f.javaName()
                     + " = new "
@@ -127,10 +127,10 @@ public final class InteropSourceMapping {
       } else {
         String keyExpr = mapKeyFrom(f);
         String valExpr = mapValueFrom(f, ci);
-        out.add(Statement.of("var _" + f.javaName() + " = new " + ci.use(HASH_MAP) + "<>();"));
+        out.add(Element.of("var _" + f.javaName() + " = new " + ci.use(HASH_MAP) + "<>();"));
         out.add(
             For.enhanced("var _e", "x.get" + cap + "Map().entrySet()")
-                .body(Statement.of("_" + f.javaName() + ".put(" + keyExpr + ", " + valExpr + ");"))
+                .body(Element.of("_" + f.javaName() + ".put(" + keyExpr + ", " + valExpr + ");"))
                 .build());
       }
       return;
@@ -138,7 +138,7 @@ public final class InteropSourceMapping {
     if (f.isMessage() && f.isRepeated()) {
       String recSib = recordSiblingFqn(f);
       out.add(
-          Statement.of(
+          Element.of(
               ci.use(LIST)
                   + "<"
                   + recSib
@@ -149,14 +149,14 @@ public final class InteropSourceMapping {
                   + "<>();"));
       out.add(
           For.enhanced("var _e", "x.get" + cap + "List()")
-              .body(Statement.of("_" + f.javaName() + ".add(" + recSib + ".Interop.from(_e));"))
+              .body(Element.of("_" + f.javaName() + ".add(" + recSib + ".Interop.from(_e));"))
               .build());
       return;
     }
     if (f.isMessage()) {
       String recSib = recordSiblingFqn(f);
       out.add(
-          Statement.of(
+          Element.of(
               "var _"
                   + f.javaName()
                   + " = x.has"
@@ -169,27 +169,27 @@ public final class InteropSourceMapping {
       return;
     }
     if (f.kind() == FieldKind.ENUM) {
-      out.add(Statement.of("var _" + f.javaName() + " = " + fromExpr(f) + ";"));
+      out.add(Element.of("var _" + f.javaName() + " = " + fromExpr(f) + ";"));
       return;
     }
     if (f.isRepeated()) {
       if ("bytes".equals(f.typeUrl())) {
-        out.add(Statement.of("var _" + f.javaName() + " = new " + ci.use(ARRAY_LIST) + "<>();"));
+        out.add(Element.of("var _" + f.javaName() + " = new " + ci.use(ARRAY_LIST) + "<>();"));
         out.add(
             For.enhanced("var _e", "x.get" + cap + "List()")
-                .body(Statement.of("_" + f.javaName() + ".add(_e.toByteArray());"))
+                .body(Element.of("_" + f.javaName() + ".add(_e.toByteArray());"))
                 .build());
       } else {
         // For non-bytes repeated fields, use the protobuf-java list directly;
         // var infers the correct element type from x.getList().
-        out.add(Statement.of("var _" + f.javaName() + " = x.get" + cap + "List();"));
+        out.add(Element.of("var _" + f.javaName() + " = x.get" + cap + "List();"));
       }
       return;
     }
     // Singular scalar / bytes
     if ("bytes".equals(f.typeUrl())) {
       out.add(
-          Statement.of(
+          Element.of(
               "var _"
                   + f.javaName()
                   + " = "
@@ -199,10 +199,10 @@ public final class InteropSourceMapping {
                   + ");"));
     } else if (f.isNullable()) {
       out.add(
-          Statement.of(
+          Element.of(
               "var _" + f.javaName() + " = x.has" + cap + "() ? x.get" + cap + "() : null;"));
     } else {
-      out.add(Statement.of("var _" + f.javaName() + " = " + fromExpr(f) + ";"));
+      out.add(Element.of("var _" + f.javaName() + " = " + fromExpr(f) + ";"));
     }
   }
 
@@ -220,15 +220,15 @@ public final class InteropSourceMapping {
   // -- to(record) -> reference --------------------------------------------------
 
   private static Method emitTo(Message m, TypeCollector ci, String refPkg, String ref, String rec) {
-    List<Statement> body = new ArrayList<>();
-    body.add(Statement.of("var _b = " + ref + ".newBuilder();"));
+    List<Element> body = new ArrayList<>();
+    body.add(Element.of("var _b = " + ref + ".newBuilder();"));
     for (Field f : m.fields()) {
       toStmt(body, f, ci, refPkg);
     }
     for (Oneof o : m.oneofs()) {
       emitOneofTo(body, o, ci, refPkg);
     }
-    body.add(Statement.of("return _b.build();"));
+    body.add(Element.of("return _b.build();"));
 
     return Method.named("to")
         .public_()
@@ -239,13 +239,13 @@ public final class InteropSourceMapping {
         .build();
   }
 
-  private static void toStmt(List<Statement> out, Field f, TypeCollector ci, String refPkg) {
+  private static void toStmt(List<Element> out, Field f, TypeCollector ci, String refPkg) {
     String cap = JavaNames.cap(f.javaName());
     if (f.isMap()) {
       out.add(
           For.enhanced("var _e", "r." + f.javaName() + "().entrySet()")
               .body(
-                  Statement.of(
+                  Element.of(
                       "_b.put" + cap + "(" + mapKeyTo(f, ci) + ", " + mapValueTo(f, ci) + ");"))
               .build());
       return;
@@ -254,7 +254,7 @@ public final class InteropSourceMapping {
       String recSib = recordSiblingFqn(f);
       out.add(
           For.enhanced("var _e", "r." + f.javaName() + "()")
-              .body(Statement.of("_b.add" + cap + "(" + recSib + ".Interop.to(_e));"))
+              .body(Element.of("_b.add" + cap + "(" + recSib + ".Interop.to(_e));"))
               .build());
       return;
     }
@@ -266,8 +266,8 @@ public final class InteropSourceMapping {
       out.add(
           If.condition(src + " != null")
               .body(
-                  Statement.of("var " + local + " = " + src + ";"),
-                  Statement.of("_b.set" + cap + "(" + recSib + ".Interop.to(" + local + "));"))
+                  Element.of("var " + local + " = " + src + ";"),
+                  Element.of("_b.set" + cap + "(" + recSib + ".Interop.to(" + local + "));"))
               .build());
       return;
     }
@@ -275,35 +275,35 @@ public final class InteropSourceMapping {
       if ("bytes".equals(f.typeUrl())) {
         out.add(
             For.enhanced("byte[] _e", "r." + f.javaName() + "()")
-                .body(Statement.of("_b.add" + cap + "(" + ci.use(BYTE_STRING) + ".copyFrom(_e));"))
+                .body(Element.of("_b.add" + cap + "(" + ci.use(BYTE_STRING) + ".copyFrom(_e));"))
                 .build());
       } else {
-        out.add(Statement.of("_b.addAll" + cap + "(r." + f.javaName() + "());"));
+        out.add(Element.of("_b.addAll" + cap + "(r." + f.javaName() + "());"));
       }
       return;
     }
     out.add(toSetStatement(f, "r." + f.javaName() + "()", ci, refPkg));
   }
 
-  private static Statement toSetStatement(Field f, String src, TypeCollector ci, String refPkg) {
+  private static Element toSetStatement(Field f, String src, TypeCollector ci, String refPkg) {
     String cap = JavaNames.cap(f.javaName());
     if (f.kind() == FieldKind.ENUM) {
       String refEnum =
           refPkg.isEmpty()
               ? JavaNames.cap(lastSegment(f.typeUrl()))
               : refPkg + "." + JavaNames.cap(lastSegment(f.typeUrl()));
-      return Statement.of("_b.set" + cap + "(" + refEnum + ".forNumber(" + src + ".getNumber()));");
+      return Element.of("_b.set" + cap + "(" + refEnum + ".forNumber(" + src + ".getNumber()));");
     }
     if ("bytes".equals(f.typeUrl())) {
-      return Statement.of(
+      return Element.of(
           "_b.set" + cap + "(" + ci.use(BYTE_STRING) + ".copyFrom(" + src + ".toByteArray()));");
     }
     if (f.isNullable()) {
       return If.condition(src + " != null")
-          .body(Statement.of("_b.set" + cap + "(" + src + ");"))
+          .body(Element.of("_b.set" + cap + "(" + src + ");"))
           .build();
     }
-    return Statement.of("_b.set" + cap + "(" + src + ");");
+    return Element.of("_b.set" + cap + "(" + src + ");");
   }
 
   private static String toSet(Field f, String src, TypeCollector ci, String refPkg) {
@@ -326,10 +326,10 @@ public final class InteropSourceMapping {
 
   // -- oneof --------------------------------------------------------------------
 
-  private static void emitOneofFrom(List<Statement> out, Oneof o, TypeCollector ci) {
+  private static void emitOneofFrom(List<Element> out, Oneof o, TypeCollector ci) {
     String iface = o.ifaceName();
     out.add(
-        Statement.of(
+        Element.of(
             "@Nullable " + iface + " _" + o.name() + " = switch (x.get" + iface + "Case()) {"));
     for (Field f : o.members()) {
       String cap = JavaNames.cap(f.name());
@@ -337,7 +337,7 @@ public final class InteropSourceMapping {
         String recSib = recordSiblingFqn(f);
         // The message member wraps the actual record in a per-member sealed value record.
         out.add(
-            Statement.of(
+            Element.of(
                 "  case "
                     + JavaNames.snakeUpper(f.name())
                     + " -> new "
@@ -352,7 +352,7 @@ public final class InteropSourceMapping {
         continue;
       }
       out.add(
-          Statement.of(
+          Element.of(
               "  case "
                   + JavaNames.snakeUpper(f.name())
                   + " -> new "
@@ -363,11 +363,11 @@ public final class InteropSourceMapping {
                   + fromExpr(f)
                   + ");"));
     }
-    out.add(Statement.of("  default -> null;"));
-    out.add(Statement.of("};"));
+    out.add(Element.of("  default -> null;"));
+    out.add(Element.of("};"));
   }
 
-  private static void emitOneofTo(List<Statement> out, Oneof o, TypeCollector ci, String refPkg) {
+  private static void emitOneofTo(List<Element> out, Oneof o, TypeCollector ci, String refPkg) {
     String iface = o.ifaceName();
     Switch.Builder sw = Switch.on("r." + o.componentName() + "()");
     // The null arm: an empty body auto-braces to `case null -> {}`.
@@ -377,10 +377,9 @@ public final class InteropSourceMapping {
       String pattern = iface + "." + cap + "Value v";
       if (f.isMessage()) {
         String recSib = recordSiblingFqn(f);
-        sw.caseArm(
-            pattern, Statement.of("_b.set" + cap + "(" + recSib + ".Interop.to(v.value()));"));
+        sw.caseArm(pattern, Element.of("_b.set" + cap + "(" + recSib + ".Interop.to(v.value()));"));
       } else {
-        sw.caseArm(pattern, Statement.of(toSet(f, "v.value()", ci, refPkg)));
+        sw.caseArm(pattern, Element.of(toSet(f, "v.value()", ci, refPkg)));
       }
     }
     out.add(sw.build());

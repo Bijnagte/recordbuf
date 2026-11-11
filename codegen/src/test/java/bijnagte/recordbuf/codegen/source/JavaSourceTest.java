@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
  * {@code Sample} that owns a nested {@code enum SampleType} (the "fragment"), a {@code private int
  * number} field, its own constructor, and a {@code getNumber} method -- plus two static methods on
  * the record. Every method/constructor/static-block <em>body is a {@link List}&lt;{@link
- * Statement}&gt; emitted verbatim</em>; the surrounding structure is the AST. So the test is the
+ * Element}&gt; emitted verbatim</em>; the surrounding structure is the AST. So the test is the
  * proof that the "structural AST, line-emission bodies" hybrid renders compilable Java.
  */
 class JavaSourceTest {
@@ -37,13 +37,13 @@ class JavaSourceTest {
         .constructor(
             Constructor.builder()
                 .param("int", "number")
-                .body(Statement.of("this.number = number;"))
+                .body(Element.of("this.number = number;"))
                 .build())
         .method(
             Method.named("getNumber")
                 .public_()
                 .returnType("int")
-                .body(Statement.of("return number;"))
+                .body(Element.of("return number;"))
                 .build())
         .build();
   }
@@ -63,14 +63,14 @@ class JavaSourceTest {
                 .static_()
                 .returnType("byte[]")
                 .param("Sample", "s")
-                .body(Statement.of("return new byte[] { 0 };"))
+                .body(Element.of("return new byte[] { 0 };"))
                 .build(),
             Method.named("fromBytes")
                 .public_()
                 .static_()
                 .returnType("Sample")
                 .param("byte[]", "b")
-                .body(Statement.of("return new Sample(0, new byte[0], SampleType.A);"))
+                .body(Element.of("return new Sample(0, new byte[0], SampleType.A);"))
                 .build())
         .build();
   }

@@ -18,11 +18,11 @@ import javax.tools.ToolProvider;
 import org.junit.jupiter.api.Test;
 
 /**
- * The {@code if} control-flow node: an {@link If} statement renders as a braced block ({@code if
+ * The {@code if} control-flow node: an {@link If} element renders as a braced block ({@code if
  * (cond) { ... }}), with an optional terminal {@code else} block, and compiles through the
  * in-process {@code javac}. The node's own render handler ({@link SourceRenderer}'s {@code
  * renderIf}) owns the braces -- it is not a nested {@code Block} node; an empty branch renders no
- * clause. Each {@code then}/{@code else} body is a {@code List<Statement>} laid out at the next
+ * clause. Each {@code then}/{@code else} body is a {@code List<Element>} laid out at the next
  * indent.
  */
 class IfRenderingTest {
@@ -43,12 +43,12 @@ class IfRenderingTest {
                 .method(
                     Method.named("demo")
                         .public_()
-                        .body(If.condition("true").body(Statement.ret()).build())
+                        .body(If.condition("true").body(Element.ret()).build())
                         .build())
                 .build());
 
     assertTrue(src.contains("if (true) {"), "the guarded clause renders: " + src);
-    assertTrue(src.contains("return;"), "the then-body statement renders: " + src);
+    assertTrue(src.contains("return;"), "the then-body element renders: " + src);
     // No else clause was set, so the block closes on its own with no trailing clause.
     assertTrue(!src.contains("else"), "no unset else clause renders: " + src);
     assertCompiles(src, "ThenOnly");
@@ -66,8 +66,8 @@ class IfRenderingTest {
                         .public_()
                         .body(
                             If.condition("value > 0")
-                                .body(Statement.ret())
-                                .else_(Statement.ret())
+                                .body(Element.ret())
+                                .else_(Element.ret())
                                 .build())
                         .build())
                 .build());

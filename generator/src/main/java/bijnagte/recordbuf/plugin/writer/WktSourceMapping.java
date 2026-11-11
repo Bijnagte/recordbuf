@@ -1,9 +1,9 @@
 package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
+import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.For;
 import bijnagte.recordbuf.codegen.source.If;
-import bijnagte.recordbuf.codegen.source.Statement;
 import bijnagte.recordbuf.codegen.source.Switch;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
@@ -60,7 +60,7 @@ final class WktSourceMapping {
   //            repeated form:      "for (var e : v.field()) out.writeByteArray(n, Wkt.method(e));"
 
   static void emitEncode(
-      Field f, Entry entry, String out, String v, TypeCollector ci, List<Statement> body) {
+      Field f, Entry entry, String out, String v, TypeCollector ci, List<Element> body) {
     String wkt = ci.use(WKT_FQN);
     ci.use(requireType(entry));
     int num = f.number();
@@ -84,7 +84,7 @@ final class WktSourceMapping {
             For.enhanced("var e", g)
                 .body(
                     If.condition("!e.equals(" + def + ")")
-                        .body(Statement.of(outExpr + wkt + "." + methodName + "(e));"))
+                        .body(Element.of(outExpr + wkt + "." + methodName + "(e));"))
                         .build())
                 .build());
       } else {
@@ -92,7 +92,7 @@ final class WktSourceMapping {
         body.add(
             For.enhanced("var e", g)
                 .body(
-                    Statement.of(
+                    Element.of(
                         outExpr
                             + wkt
                             + ".wrap("
@@ -109,13 +109,13 @@ final class WktSourceMapping {
       String call = outExpr + wkt + "." + methodName + "(" + g + "));";
       body.add(
           If.condition(g + " != null && !" + def + ".equals(" + g + ")")
-              .body(Statement.of(call))
+              .body(Element.of(call))
               .build());
     } else {
       // if (v.field() != null) out.writeByteArray(n, Wkt.wrap(Wkt.Wrap.KIND, v.field()));
       String call =
           outExpr + wkt + ".wrap(" + wkt + ".Wrap." + wrapKind(f.typeUrl()) + ", " + g + "));";
-      body.add(If.condition(g + " != null").body(Statement.of(call)).build());
+      body.add(If.condition(g + " != null").body(Element.of(call)).build());
     }
   }
 
@@ -171,7 +171,7 @@ final class WktSourceMapping {
               + read
               + ");";
     }
-    sw.caseArm(String.valueOf(num), Statement.of(assignment));
+    sw.caseArm(String.valueOf(num), Element.of(assignment));
   }
 
   private static String requireType(Entry entry) {

@@ -19,7 +19,7 @@ public record Method(
     String name,
     List<Param> params,
     List<String> thrown,
-    List<Statement> body,
+    List<Element> body,
     boolean abstractDecl,
     boolean override)
     implements Member {
@@ -50,7 +50,7 @@ public record Method(
     private final String name;
     private final List<Param> params = new ArrayList<>();
     private final List<String> thrown = new ArrayList<>();
-    private final List<Statement> body = new ArrayList<>();
+    private final List<Element> body = new ArrayList<>();
     private boolean abstractDecl;
     private boolean override;
 
@@ -83,18 +83,18 @@ public record Method(
       return this;
     }
 
-    /** Append one or more body statements; calls accumulate. */
-    public Builder body(Statement... statements) {
-      for (Statement s : statements) {
+    /** Append one or more body elements; calls accumulate. */
+    public Builder body(Element... elements) {
+      for (Element s : elements) {
         this.body.add(s);
       }
       return this;
     }
 
-    /** Append an existing sequence of body statements; calls accumulate. */
-    public Builder body(Iterable<Statement> statements) {
-      if (statements != null) {
-        for (Statement s : statements) {
+    /** Append an existing sequence of body elements; calls accumulate. */
+    public Builder body(Iterable<Element> elements) {
+      if (elements != null) {
+        for (Element s : elements) {
           this.body.add(s);
         }
       }

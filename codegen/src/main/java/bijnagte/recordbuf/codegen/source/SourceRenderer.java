@@ -8,8 +8,8 @@ import java.util.List;
  * Renders a {@link Type} tree to Java source, top-down. Import resolution is two-phase (collect the
  * whole tree into a {@link TypeCollector}, {@link TypeCollector#finalizeResolution() finalize},
  * then render). Structure is rendered from the AST; method/constructor/static-block bodies are the
- * {@code List} of {@link Statement}s (idiom nodes + the {@link Statement.Fragment} escape) joined
- * verbatim at the body's indent via the renderer's {@code renderStatement} layout pass.
+ * {@code List} of {@link Element}s (idiom nodes + the {@link Fragment} escape) joined verbatim at
+ * the body's indent via the renderer's {@code renderStatement} layout pass.
  *
  * <p>The renderer never re-partitions a flat member stream: each {@link Type} stores its body in
  * typed component lists, and the renderer reads them directly. It switches exhaustively over the
@@ -286,7 +286,7 @@ public final class SourceRenderer {
             return;
           }
           out.append(sig).append(" {\n");
-          for (Statement s : m.body()) renderStatement(body, s, out);
+          for (Element s : m.body()) renderStatement(body, s, out);
           out.append(indent(indent)).append("}\n");
         }
         case Constructor c -> {
@@ -302,13 +302,13 @@ public final class SourceRenderer {
                 .append(enclosingName)
                 .append(renderParams(c.params()))
                 .append(" {\n");
-            for (Statement s : c.body()) renderStatement(body, s, out);
+            for (Element s : c.body()) renderStatement(body, s, out);
             out.append(indent(indent)).append("}\n");
           }
         }
         case StaticBlock s -> {
           out.append(indent(indent)).append("static {\n");
-          for (Statement st : s.body()) renderStatement(body, st, out);
+          for (Element st : s.body()) renderStatement(body, st, out);
           out.append(indent(indent)).append("}\n");
         }
         case Nested n -> render(n.type(), indent, out);
@@ -320,26 +320,25 @@ public final class SourceRenderer {
 
     /* ---- helpers --------------------------------------------------------- */
 
-    /** Render one body statement at the block's indent -- the idiom layout pass lives here. */
-    private void renderStatement(int body, Statement s, StringBuilder out) {
+    /** Render one body element at the block's indent -- the idiom layout pass lives here. */
+    private void renderStatement(int body, Element s, StringBuilder out) {
       switch (s) {
-        case Statement.Fragment fr -> out.append(indent(body)).append(fr.text()).append('\n');
-        case Statement.Return r ->
+        case Fragment fr -> out.append(indent(body)).append(fr.text()).append('\n');
+        case Return r ->
             out.append(indent(body))
                 .append(r.expr() == null ? "return;" : "return " + r.expr() + ";")
                 .append('\n');
-        case Statement.Throw t ->
+        case Throw t ->
             out.append(indent(body)).append("throw ").append(t.expr()).append(';').append('\n');
-        case Statement.ExprStatement e -> out.append(indent(body)).append(e.expr()).append(";\n");
-        case Statement.LocalVar lv ->
+        case ExprStatement e -> out.append(indent(body)).append(e.expr()).append(";\n");
+        case LocalVar lv ->
             out.append(indent(body))
                 .append(lv.type())
                 .append(' ')
                 .append(lv.name())
                 .append(lv.init() == null ? ";" : " = " + lv.init() + ";")
                 .append('\n');
-        case Statement.Comment c ->
-            out.append(indent(body)).append("// ").append(c.text()).append('\n');
+        case Comment c -> out.append(indent(body)).append("// ").append(c.text()).append('\n');
         case If i -> renderIf(body, i, out);
         case While w -> renderWhile(body, w, out);
         case For f -> renderFor(body, f, out);
@@ -350,39 +349,39 @@ public final class SourceRenderer {
     /**
      * Render an {@link If} control-flow chain -- the {@code if}, its {@code else-if} clauses, and
      * an optional terminal {@code else}. Each clause renders its own braces ({@code } else if
-     * (...)} / {@code } else {}} on the preceding close-brace line) and lays its statement body out
+     * (...)} / {@code } else {}} on the preceding close-brace line) and lays its element body out
      * at the next indent via {@link #renderStatement}; an empty branch list renders no clause.
      */
     private void renderIf(int body, If ifStmt, StringBuilder out) {
       out.append(indent(body)).append("if (").append(ifStmt.condition()).append(") {\n");
-      for (Statement s : ifStmt.body()) renderStatement(body + 1, s, out);
+      for (Element s : ifStmt.body()) renderStatement(body + 1, s, out);
       for (ElseIf ei : ifStmt.elseIf()) {
         out.append(indent(body)).append("} else if (").append(ei.condition()).append(") {\n");
-        for (Statement s : ei.body()) renderStatement(body + 1, s, out);
+        for (Element s : ei.body()) renderStatement(body + 1, s, out);
       }
       if (!ifStmt.elseBody().isEmpty()) {
         out.append(indent(body)).append("} else {\n");
-        for (Statement s : ifStmt.elseBody()) renderStatement(body + 1, s, out);
+        for (Element s : ifStmt.elseBody()) renderStatement(body + 1, s, out);
       }
       out.append(indent(body)).append("}\n");
     }
 
     /**
-     * Render a {@link While} loop -- the {@code while (condition) {}} header and its statement body
+     * Render a {@link While} loop -- the {@code while (condition) {}} header and its element body
      * at the next indent, closed by its own brace. A {@code while} has no branch and no optional
      * {@code else} clause, so it always closes on its own; an empty body renders the empty-loop
      * case {@code while (c) {}}.
      */
     private void renderWhile(int body, While w, StringBuilder out) {
       out.append(indent(body)).append("while (").append(w.condition()).append(") {\n");
-      for (Statement s : w.body()) renderStatement(body + 1, s, out);
+      for (Element s : w.body()) renderStatement(body + 1, s, out);
       out.append(indent(body)).append("}\n");
     }
 
     /**
-     * Render a for-each loop -- the {@code for (pattern : iterable) {}} header and its statement
-     * body at the next indent, closed by its own brace. A for-each always closes on its own; an
-     * empty body renders the empty-loop case {@code for (p : x) {}}.
+     * Render a for-each loop -- the {@code for (pattern : iterable) {}} header and its element body
+     * at the next indent, closed by its own brace. A for-each always closes on its own; an empty
+     * body renders the empty-loop case {@code for (p : x) {}}.
      */
     private void renderFor(int body, For f, StringBuilder out) {
       out.append(indent(body))
@@ -391,16 +390,16 @@ public final class SourceRenderer {
           .append(" : ")
           .append(f.iterable())
           .append(") {\n");
-      for (Statement s : f.body()) renderStatement(body + 1, s, out);
+      for (Element s : f.body()) renderStatement(body + 1, s, out);
       out.append(indent(body)).append("}\n");
     }
 
     /**
-     * Render a {@code switch} statement -- the {@code switch (subject) {}} header, its {@link Case}
+     * Render a {@code switch} element -- the {@code switch (subject) {}} header, its {@link Case}
      * arms and terminal {@code default ->} arm, each at the next indent, closed by its own brace.
      * Arm braces are decided by arm size (auto-brace): an empty arm renders {@code -> {}}, a
-     * single-statement arm renders un-braced {@code -> stmt;} (required for switch-expression
-     * yields), and a multi-statement arm braces {@code -> { … }}.
+     * single-element arm renders un-braced {@code -> stmt;} (required for switch-expression
+     * yields), and a multi-element arm braces {@code -> { … }}.
      */
     private void renderSwitch(int body, Switch sw, StringBuilder out) {
       int arm = body + 1;
@@ -420,36 +419,36 @@ public final class SourceRenderer {
       renderArmBody(arm, c.body(), out);
     }
 
-    private void renderDefaultArm(int arm, List<Statement> body, StringBuilder out) {
+    private void renderDefaultArm(int arm, List<Element> body, StringBuilder out) {
       out.append(indent(arm)).append("default -> ");
       renderArmBody(arm, body, out);
     }
 
     /**
      * Render one arm's body -- the auto-brace rule the user chose: empty renders {@code -> {}}, one
-     * statement renders un-braced {@code -> stmt;} (so it can yield as a switch-expression arm),
-     * more than one braces {@code -> { … }}, each body statement at the next inner indent.
+     * element renders un-braced {@code -> stmt;} (so it can yield as a switch-expression arm), more
+     * than one braces {@code -> { … }}, each body element at the next inner indent.
      */
-    private void renderArmBody(int arm, List<Statement> body, StringBuilder out) {
+    private void renderArmBody(int arm, List<Element> body, StringBuilder out) {
       if (body.isEmpty()) {
         out.append("{}\n");
       } else if (body.size() == 1) {
         out.append(renderBodyInline(body.get(0))).append('\n');
       } else {
         out.append("{\n");
-        for (Statement s : body) renderStatement(arm + 1, s, out);
+        for (Element s : body) renderStatement(arm + 1, s, out);
         out.append(indent(arm)).append("}\n");
       }
     }
 
     /**
-     * Render a single-statement arm body inline (no leading indent, no trailing newline) so it can
-     * sit on the arm's {@code case … -> } line. For a {@link Statement.Fragment} the leading
-     * whitespace is stripped so the renderer's layout owns the indentation; a structured body is
-     * rendered at zero indent as a best-effort fallback.
+     * Render a single-element arm body inline (no leading indent, no trailing newline) so it can
+     * sit on the arm's {@code case … -> } line. For a {@link Fragment} the leading whitespace is
+     * stripped so the renderer's layout owns the indentation; a structured body is rendered at zero
+     * indent as a best-effort fallback.
      */
-    private String renderBodyInline(Statement s) {
-      if (s instanceof Statement.Fragment fr) return fr.text().stripLeading();
+    private String renderBodyInline(Element s) {
+      if (s instanceof Fragment fr) return fr.text().stripLeading();
       StringBuilder sb = new StringBuilder();
       renderStatement(0, s, sb);
       return sb.toString().stripLeading().replaceAll("\\s+$", "");

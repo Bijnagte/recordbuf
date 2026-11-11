@@ -74,7 +74,7 @@ public final class TypeImports {
   }
 
   /**
-   * The file's import statements, each formatted {@code "import x.y.Z;"}, deduplicated and grouped:
+   * The file's import elements, each formatted {@code "import x.y.Z;"}, deduplicated and grouped:
    * the {@code java.*} package first, a single blank line, then every other package; alphabetical
    * within each group. Collided names are omitted (they are emitted in fully-qualified form). Empty
    * when nothing is imported.

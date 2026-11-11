@@ -4,19 +4,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A {@code if ... else if ... else} control-flow statement. The {@link #condition()} guards the
+ * A {@code if ... else if ... else} control-flow element. The {@link #condition()} guards the
  * then-branch; zero or more {@link #elseIf()} clauses chain {@code else if (c) { ... }}, and a
  * terminal {@link #elseBody()} renders the final {@code else { ... }}. Every branch is a {@link
- * List} of {@link Statement}s laid out at the next indent. The {@link #body()} and {@link
+ * List} of {@link Element}s laid out at the next indent. The {@link #body()} and {@link
  * #elseBody()} lists are <em>seeded to empty</em> so a caller sets only the branches it needs; an
  * empty branch renders no clause. The entry point is {@link #condition(String)}, which seeds a
  * {@link Builder} with the guard expression; the builder then offers {@link
- * Builder#body(Statement[])}, {@link Builder#elseIf(String, Statement[])}, and {@link
- * Builder#else_(Statement[])}.
+ * Builder#body(Element[])}, {@link Builder#elseIf(String, Element[])}, and {@link
+ * Builder#else_(Element[])}.
  */
-public record If(
-    String condition, List<Statement> body, List<ElseIf> elseIf, List<Statement> elseBody)
-    implements Statement {
+public record If(String condition, List<Element> body, List<ElseIf> elseIf, List<Element> elseBody)
+    implements Element {
 
   public If {
     condition = condition;
@@ -36,25 +35,25 @@ public record If(
    */
   public static final class Builder {
     private final String condition;
-    private List<Statement> body = List.of();
+    private List<Element> body = List.of();
     private List<ElseIf> elseIf = new ArrayList<>();
-    private List<Statement> elseBody = new ArrayList<>();
+    private List<Element> elseBody = new ArrayList<>();
 
     public Builder(String condition) {
       this.condition = condition;
     }
 
-    /** Append one or more then-body statements; calls accumulate. */
-    public Builder body(Statement... s) {
-      List<Statement> next = new ArrayList<>(this.body);
-      for (Statement st : s) next.add(st);
+    /** Append one or more then-body elements; calls accumulate. */
+    public Builder body(Element... s) {
+      List<Element> next = new ArrayList<>(this.body);
+      for (Element st : s) next.add(st);
       this.body = next;
       return this;
     }
 
-    /** Append an existing sequence of then-body statements; calls accumulate. */
-    public Builder body(List<Statement> s) {
-      List<Statement> next = new ArrayList<>(this.body);
+    /** Append an existing sequence of then-body elements; calls accumulate. */
+    public Builder body(List<Element> s) {
+      List<Element> next = new ArrayList<>(this.body);
       if (s != null) next.addAll(s);
       this.body = next;
       return this;
@@ -64,10 +63,10 @@ public record If(
      * Accumulate a further {@code else if} clause by adding to the chain.
      *
      * @param c the guard expression of the new {@code else if}
-     * @param s the branch statements
+     * @param s the branch elements
      * @return the same builder
      */
-    public Builder elseIf(String c, Statement... s) {
+    public Builder elseIf(String c, Element... s) {
       this.elseIf.add(new ElseIf(c, List.of(s)));
       return this;
     }
@@ -76,25 +75,25 @@ public record If(
      * Accumulate a further {@code else if} clause by adding to the chain.
      *
      * @param c the guard expression of the new {@code else if}
-     * @param s the branch statements (or {@code null} for an empty clause)
+     * @param s the branch elements (or {@code null} for an empty clause)
      * @return the same builder
      */
-    public Builder elseIf(String c, List<Statement> s) {
+    public Builder elseIf(String c, List<Element> s) {
       this.elseIf.add(new ElseIf(c, s));
       return this;
     }
 
-    /** Append one or more terminal-else statements; calls accumulate. */
-    public Builder else_(Statement... s) {
-      List<Statement> next = new ArrayList<>(this.elseBody);
-      for (Statement st : s) next.add(st);
+    /** Append one or more terminal-else elements; calls accumulate. */
+    public Builder else_(Element... s) {
+      List<Element> next = new ArrayList<>(this.elseBody);
+      for (Element st : s) next.add(st);
       this.elseBody = next;
       return this;
     }
 
-    /** Append an existing sequence of terminal-else statements; calls accumulate. */
-    public Builder else_(List<Statement> s) {
-      List<Statement> next = new ArrayList<>(this.elseBody);
+    /** Append an existing sequence of terminal-else elements; calls accumulate. */
+    public Builder else_(List<Element> s) {
+      List<Element> next = new ArrayList<>(this.elseBody);
       if (s != null) next.addAll(s);
       this.elseBody = next;
       return this;

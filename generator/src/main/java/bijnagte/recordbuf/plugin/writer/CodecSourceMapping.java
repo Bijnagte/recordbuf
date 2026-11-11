@@ -2,11 +2,11 @@ package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Constructor;
+import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.For;
 import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Method;
-import bijnagte.recordbuf.codegen.source.Statement;
 import bijnagte.recordbuf.codegen.source.Switch;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.codegen.source.While;
@@ -117,9 +117,9 @@ public final class CodecSourceMapping {
       String wireShort,
       String bytesShort,
       @Nullable Function<Field, String> typeResolver) {
-    List<Statement> body = new ArrayList<>();
-    body.add(Statement.of("var enc = " + encoderShort + ".start();"));
-    body.add(Statement.of("var out = enc.out();"));
+    List<Element> body = new ArrayList<>();
+    body.add(Element.of("var enc = " + encoderShort + ".start();"));
+    body.add(Element.of("var out = enc.out();"));
 
     // Sort by field number for wire-order correctness (OrderTest proves this).
     var sortedFields = m.fields().stream().sorted(Comparator.comparingInt(Field::number)).toList();
@@ -158,10 +158,10 @@ public final class CodecSourceMapping {
     // M4-C2b-2b-5: re-emit the unknown-fields carrier, if any, preserving wire-order round-trip.
     body.add(
         If.condition("!v.unknownFields().isEmpty()")
-            .body(Statement.of(wireShort + ".writeUnknown(out, v.unknownFields());"))
+            .body(Element.of(wireShort + ".writeUnknown(out, v.unknownFields());"))
             .build());
 
-    body.add(Statement.of("return enc.finish();"));
+    body.add(Element.of("return enc.finish();"));
 
     return Method.named("encode")
         .public_()
@@ -184,24 +184,24 @@ public final class CodecSourceMapping {
       String wireShort,
       String bytesShort,
       @Nullable Function<Field, String> typeResolver) {
-    List<Statement> body = new ArrayList<>();
-    body.add(Statement.of("var dec = " + decoderShort + ".start(inBytes);"));
-    body.add(Statement.of("var in = dec.in();"));
+    List<Element> body = new ArrayList<>();
+    body.add(Element.of("var dec = " + decoderShort + ".start(inBytes);"));
+    body.add(Element.of("var in = dec.in();"));
 
     // M4-C2b-2b-5: the unknown-fields accumulator, initialised as a fresh builder.
-    body.add(Statement.of("var unknown = " + unknownFieldsShort + ".builder();"));
+    body.add(Element.of("var unknown = " + unknownFieldsShort + ".builder();"));
 
     // Per-field local default-init.
     for (Field f : m.fields()) {
       Entry wktEntry = WktSourceMapping.resolve(f);
       if (wktEntry != null) {
         var wkt0 = Objects.requireNonNull(wktEntry);
-        body.add(Statement.of(WktSourceMapping.localInit(f, wkt0, ci)));
+        body.add(Element.of(WktSourceMapping.localInit(f, wkt0, ci)));
       } else if (f.kind() == FieldKind.MAP) {
         String keyType = boxedScalarShortName(Objects.requireNonNull(f.mapKey()));
         String valueType = boxedScalarShortName(Objects.requireNonNull(f.mapValue()));
         body.add(
-            Statement.of(
+            Element.of(
                 "Map<" + keyType + ", " + valueType + "> " + f.javaName() + " = new HashMap<>();"));
       } else if (f.kind() == FieldKind.MESSAGE) {
         if (typeResolver != null) {
@@ -209,9 +209,9 @@ public final class CodecSourceMapping {
           String typeShort = f.typeUrl().substring(f.typeUrl().lastIndexOf('.') + 1);
           if (f.label() == FieldLabel.REPEATED) {
             body.add(
-                Statement.of("List<" + typeShort + "> " + f.javaName() + " = new ArrayList<>();"));
+                Element.of("List<" + typeShort + "> " + f.javaName() + " = new ArrayList<>();"));
           } else {
-            body.add(Statement.of(typeShort + " " + f.javaName() + " = null;"));
+            body.add(Element.of(typeShort + " " + f.javaName() + " = null;"));
           }
         }
       } else if (f.kind() == FieldKind.ENUM) {
@@ -221,15 +221,15 @@ public final class CodecSourceMapping {
           String enumShort = typeResolver.apply(f);
           if (f.label() == FieldLabel.REPEATED) {
             body.add(
-                Statement.of("List<" + enumShort + "> " + f.javaName() + " = new ArrayList<>();"));
+                Element.of("List<" + enumShort + "> " + f.javaName() + " = new ArrayList<>();"));
           } else {
-            body.add(Statement.of(enumShort + " " + f.javaName() + " = null;"));
+            body.add(Element.of(enumShort + " " + f.javaName() + " = null;"));
           }
         } else {
           if (f.label() == FieldLabel.REPEATED) {
-            body.add(Statement.of("List<?> " + f.javaName() + " = new ArrayList<>();"));
+            body.add(Element.of("List<?> " + f.javaName() + " = new ArrayList<>();"));
           } else {
-            body.add(Statement.of("Object " + f.javaName() + " = null;"));
+            body.add(Element.of("Object " + f.javaName() + " = null;"));
           }
         }
       } else if (f.label() == FieldLabel.REPEATED) {
@@ -237,24 +237,24 @@ public final class CodecSourceMapping {
       } else if (f.isNullable()) {
         // M4-C2d-1: optional scalar → starts at null, set on tag.
         String localType = boxedScalarShortName(f.typeUrl());
-        body.add(Statement.of(localType + " " + f.javaName() + " = null;"));
+        body.add(Element.of(localType + " " + f.javaName() + " = null;"));
       } else {
         String localType = decodeLocalType(f);
         String defaultExpr = codecDefaultsShort + "." + defaultMethod(f) + "()";
-        body.add(Statement.of(localType + " " + f.javaName() + " = " + defaultExpr + ";"));
+        body.add(Element.of(localType + " " + f.javaName() + " = " + defaultExpr + ";"));
       }
     }
 
     // Oneof locals: each defaults to null (the absent case). Proto3 oneof semantics: last
     // same-tag member seen wins, so a repeated same-tag member overwrites the prior value.
     for (Oneof o : m.oneofs()) {
-      body.add(Statement.of(o.ifaceName() + " " + o.componentName() + " = null;"));
+      body.add(Element.of(o.ifaceName() + " " + o.componentName() + " = null;"));
     }
 
     // Tag loop: a while-loop wrapping a pattern-matching switch of tag-case arms.
-    List<Statement> tagLoop = new ArrayList<>();
-    tagLoop.add(Statement.of("int tag = " + wireShort + ".readTag(in);"));
-    tagLoop.add(If.condition("tag == 0").body(Statement.of("break;")).build());
+    List<Element> tagLoop = new ArrayList<>();
+    tagLoop.add(Element.of("int tag = " + wireShort + ".readTag(in);"));
+    tagLoop.add(If.condition("tag == 0").body(Element.of("break;")).build());
     Switch.Builder switchB = Switch.on(wireShort + ".tagFieldNumber(tag)");
     for (Field f : m.fields()) {
       Entry wktEntry = WktSourceMapping.resolve(f);
@@ -286,7 +286,7 @@ public final class CodecSourceMapping {
       emitOneofDecodeCase(o, ci, typeResolver, switchB);
     }
     // M4-C2b-2b-5: the default case captures the unknown field into the builder.
-    switchB.defaultBody(Statement.of("unknown.add(in, tag);"));
+    switchB.defaultBody(Element.of("unknown.add(in, tag);"));
     tagLoop.add(switchB.build());
     body.add(While.condition("true").body(tagLoop).build());
 
@@ -296,7 +296,7 @@ public final class CodecSourceMapping {
     // M4-C2b-2b-12: oneof components: pass the oneof local (assigned in the tag loop, or null).
     for (var oneof : m.oneofs()) allNames.add(oneof.componentName());
     allNames.add("unknown.build()");
-    body.add(Statement.of("return new " + m.name() + "(" + joinCommas(allNames) + ");"));
+    body.add(Element.of("return new " + m.name() + "(" + joinCommas(allNames) + ");"));
 
     return Method.named("decode")
         .public_()
@@ -310,14 +310,14 @@ public final class CodecSourceMapping {
 
   // --- Per-field encode ---
 
-  private static void emitScalarEncode(Field f, List<Statement> out) {
+  private static void emitScalarEncode(Field f, List<Element> out) {
     // M4-C2b-2b-13: minimal MAP encode (placeholder — full wiring deferred).
     if (f.kind() == FieldKind.MAP) {
-      out.add(Statement.of("// M4-C2b-2b-13: MAP encode for field " + f.javaName() + " deferred"));
+      out.add(Element.of("// M4-C2b-2b-13: MAP encode for field " + f.javaName() + " deferred"));
       return;
     }
     if (f.kind() != FieldKind.SCALAR) {
-      out.add(Statement.of("// unsupported kind " + f.kind() + " for field " + f.javaName()));
+      out.add(Element.of("// unsupported kind " + f.kind() + " for field " + f.javaName()));
       return;
     }
     String getter = "v." + f.javaName() + "()";
@@ -327,24 +327,24 @@ public final class CodecSourceMapping {
     String write = "out." + call + "(" + num + ", ";
     if (f.isNullable()) {
       // M4-C2d-1: optional scalar / optional string → @Nullable wrapper → skip if null.
-      out.add(If.condition(getter + " != null").body(Statement.of(write + getter + ");")).build());
+      out.add(If.condition(getter + " != null").body(Element.of(write + getter + ");")).build());
       return;
     }
     switch (wire) {
       case STRING ->
           out.add(
               If.condition("!" + getter + ".isEmpty()")
-                  .body(Statement.of(write + getter + ");"))
+                  .body(Element.of(write + getter + ");"))
                   .build());
       case BYTES ->
           out.add(
               If.condition("!" + getter + ".isEmpty()")
-                  .body(Statement.of(write + getter + ".toByteArray());"))
+                  .body(Element.of(write + getter + ".toByteArray());"))
                   .build());
       default ->
           out.add(
               If.condition(getter + " != CodecDefaults." + defaultMethod(f) + "()")
-                  .body(Statement.of(write + getter + ");"))
+                  .body(Element.of(write + getter + ");"))
                   .build());
     }
   }
@@ -353,9 +353,9 @@ public final class CodecSourceMapping {
 
   /** M4-C2d-5: singular MESSAGE encode — skip null, else writeByteArray(tag, Codec.encode(v)). */
   private static void emitMessageEncode(
-      Field f, @Nullable Function<Field, String> typeResolver, List<Statement> out) {
+      Field f, @Nullable Function<Field, String> typeResolver, List<Element> out) {
     if (typeResolver == null) {
-      out.add(Statement.of("// M4-C2d-5: typeResolver null; skip " + f.javaName()));
+      out.add(Element.of("// M4-C2d-5: typeResolver null; skip " + f.javaName()));
       return;
     }
     String getter = "v." + f.javaName() + "()";
@@ -363,14 +363,14 @@ public final class CodecSourceMapping {
     String codecRef = typeResolver.apply(f);
     // Singular MESSAGE encode: skip when null, else write the nested codec bytes.
     String writeStmt = "out.writeByteArray(" + num + ", " + codecRef + ".encode(" + getter + "))";
-    out.add(If.condition(getter + " != null").body(Statement.of(writeStmt + ";")).build());
+    out.add(If.condition(getter + " != null").body(Element.of(writeStmt + ";")).build());
   }
 
   /** M4-C2d-5: repeated MESSAGE encode — one writeByteArray per element. */
   private static void emitRepeatedMessageEncode(
-      Field f, @Nullable Function<Field, String> typeResolver, List<Statement> out) {
+      Field f, @Nullable Function<Field, String> typeResolver, List<Element> out) {
     if (typeResolver == null) {
-      out.add(Statement.of("// M4-C2d-5: typeResolver null; skip " + f.javaName()));
+      out.add(Element.of("// M4-C2d-5: typeResolver null; skip " + f.javaName()));
       return;
     }
     String getter = "v." + f.javaName() + "()";
@@ -378,7 +378,7 @@ public final class CodecSourceMapping {
     String codecRef = typeResolver.apply(f);
     out.add(
         For.enhanced("var _m", getter)
-            .body(Statement.of("out.writeByteArray(" + num + ", " + codecRef + ".encode(_m));"))
+            .body(Element.of("out.writeByteArray(" + num + ", " + codecRef + ".encode(_m));"))
             .build());
   }
 
@@ -386,31 +386,31 @@ public final class CodecSourceMapping {
 
   /** M4-C2b-2b-9: singular ENUM encode — skip null, else writeEnum with getNumber(). */
   private static void emitEnumEncode(
-      Field f, @Nullable Function<Field, String> typeResolver, List<Statement> out) {
+      Field f, @Nullable Function<Field, String> typeResolver, List<Element> out) {
     if (typeResolver == null) {
-      out.add(Statement.of("// M4-C2b-2b-9: typeResolver null; skip " + f.javaName()));
+      out.add(Element.of("// M4-C2b-2b-9: typeResolver null; skip " + f.javaName()));
       return;
     }
     String getter = "v." + f.javaName() + "()";
     int num = f.number();
     out.add(
         If.condition(getter + " != null")
-            .body(Statement.of("out.writeEnum(" + num + ", " + getter + ".getNumber());"))
+            .body(Element.of("out.writeEnum(" + num + ", " + getter + ".getNumber());"))
             .build());
   }
 
   /** M4-C2b-2b-9: repeated ENUM encode — one writeEnum per element. */
   private static void emitRepeatedEnumEncode(
-      Field f, @Nullable Function<Field, String> typeResolver, List<Statement> out) {
+      Field f, @Nullable Function<Field, String> typeResolver, List<Element> out) {
     if (typeResolver == null) {
-      out.add(Statement.of("// M4-C2b-2b-9: typeResolver null; skip " + f.javaName()));
+      out.add(Element.of("// M4-C2b-2b-9: typeResolver null; skip " + f.javaName()));
       return;
     }
     String getter = "v." + f.javaName() + "()";
     int num = f.number();
     out.add(
         For.enhanced("var _e", getter)
-            .body(Statement.of("out.writeEnum(" + num + ", _e.getNumber());"))
+            .body(Element.of("out.writeEnum(" + num + ", _e.getNumber());"))
             .build());
   }
 
@@ -424,7 +424,7 @@ public final class CodecSourceMapping {
     String local = f.javaName();
     String enumName = typeResolver.apply(f);
     sw.caseArm(
-        String.valueOf(num), Statement.of(local + " = " + enumName + ".forNumber(in.readEnum());"));
+        String.valueOf(num), Element.of(local + " = " + enumName + ".forNumber(in.readEnum());"));
   }
 
   /** M4-C2b-2b-9: repeated ENUM decode — add EnumName.forNumber(in.readEnum()) to the list. */
@@ -438,7 +438,7 @@ public final class CodecSourceMapping {
     String enumName = typeResolver.apply(f);
     sw.caseArm(
         String.valueOf(num),
-        Statement.of(local + ".add(" + enumName + ".forNumber(in.readEnum()));"));
+        Element.of(local + ".add(" + enumName + ".forNumber(in.readEnum()));"));
   }
 
   // --- Per-field MESSAGE decode case (M4-C2d-5) ---
@@ -453,8 +453,7 @@ public final class CodecSourceMapping {
     String local = f.javaName();
     String codecRef = typeResolver.apply(f);
     sw.caseArm(
-        String.valueOf(num),
-        Statement.of(local + " = " + codecRef + ".decode(in.readByteArray());"));
+        String.valueOf(num), Element.of(local + " = " + codecRef + ".decode(in.readByteArray());"));
   }
 
   /** M4-C2d-5: repeated MESSAGE decode — read length-delimited, add to the list. */
@@ -468,7 +467,7 @@ public final class CodecSourceMapping {
     String codecRef = typeResolver.apply(f);
     sw.caseArm(
         String.valueOf(num),
-        Statement.of(local + ".add(" + codecRef + ".decode(in.readByteArray()));"));
+        Element.of(local + ".add(" + codecRef + ".decode(in.readByteArray()));"));
   }
 
   // --- Per-field decode case ---
@@ -479,21 +478,21 @@ public final class CodecSourceMapping {
     String local = f.javaName();
     String pattern = String.valueOf(num);
     switch (wireScalar(f)) {
-      case STRING -> sw.caseArm(pattern, Statement.of(local + " = in.readString();"));
+      case STRING -> sw.caseArm(pattern, Element.of(local + " = in.readString();"));
       case BYTES ->
-          sw.caseArm(pattern, Statement.of(local + " = Bytes.of(in.readBytes().toByteArray());"));
-      default -> sw.caseArm(pattern, Statement.of(local + " = " + decodeCall(wireScalar(f)) + ";"));
+          sw.caseArm(pattern, Element.of(local + " = Bytes.of(in.readBytes().toByteArray());"));
+      default -> sw.caseArm(pattern, Element.of(local + " = " + decodeCall(wireScalar(f)) + ";"));
     }
   }
 
   /** M4-C2d-7: MAP encode — iterate the map's entry set, encode each entry via its entry codec. */
   @SuppressWarnings("java:S905")
-  private static void emitMapEncode(Field f, TypeCollector ci, List<Statement> out) {
+  private static void emitMapEncode(Field f, TypeCollector ci, List<Element> out) {
     String entryName = mapEntryName(f);
     out.add(
         For.enhanced("var _e", "v." + f.javaName() + "().entrySet()")
             .body(
-                Statement.of(
+                Element.of(
                     "out.writeByteArray("
                         + f.number()
                         + ", "
@@ -622,7 +621,7 @@ public final class CodecSourceMapping {
 
   // --- Repeated scalar encode / decode ---
 
-  private static void emitRepeatedScalarEncode(Field f, List<Statement> out) {
+  private static void emitRepeatedScalarEncode(Field f, List<Element> out) {
     String getter = "v." + f.javaName() + "()";
     int num = f.number();
     WireScalar wire = wireScalar(f);
@@ -631,12 +630,12 @@ public final class CodecSourceMapping {
     out.add(
         If.condition("!" + getter + ".isEmpty()")
             .body(
-                Statement.of("var body = Encoder.start();"),
-                Statement.of("var _o = body.out();"),
+                Element.of("var body = Encoder.start();"),
+                Element.of("var _o = body.out();"),
                 For.enhanced("var _x", getter)
-                    .body(Statement.of("_o." + packedNoTag(wire) + "(_x);"))
+                    .body(Element.of("_o." + packedNoTag(wire) + "(_x);"))
                     .build(),
-                Statement.of("out.writeByteArray(" + num + ", body.finish());"))
+                Element.of("out.writeByteArray(" + num + ", body.finish());"))
             .build());
   }
 
@@ -646,15 +645,15 @@ public final class CodecSourceMapping {
     WireScalar wire = wireScalar(f);
     sw.caseArm(
         String.valueOf(num),
-        Statement.of("int _lim = in.pushLimit(in.readRawVarint32());"),
-        Statement.of(
+        Element.of("int _lim = in.pushLimit(in.readRawVarint32());"),
+        Element.of(
             "while (in.getBytesUntilLimit() > 0) " + local + ".add(" + decodeCall(wire) + ");"),
-        Statement.of("in.popLimit(_lim);"));
+        Element.of("in.popLimit(_lim);"));
   }
 
-  private static void emitRepeatedLocalInit(Field f, List<Statement> out) {
+  private static void emitRepeatedLocalInit(Field f, List<Element> out) {
     out.add(
-        Statement.of(
+        Element.of(
             "List<"
                 + boxedScalarShortName(f.typeUrl())
                 + "> "
@@ -703,19 +702,19 @@ public final class CodecSourceMapping {
 
     result.constructor(Constructor.builder().private_().build());
 
-    List<Statement> encBody = new ArrayList<>();
-    encBody.add(Statement.of("var enc = " + encoderShort + ".start();"));
-    encBody.add(Statement.of("var out = enc.out();"));
+    List<Element> encBody = new ArrayList<>();
+    encBody.add(Element.of("var enc = " + encoderShort + ".start();"));
+    encBody.add(Element.of("var out = enc.out();"));
 
     // key: field 1 — always field 1 in a map entry; written unconditionally.
     // A bytes-valued key unwraps to the raw array (Bytes.toByteArray()); every other writes
     // through.
     String keyArg = keyWire == WireScalar.BYTES ? "v.key().toByteArray()" : "v.key()";
-    encBody.add(Statement.of("out." + encodeCall(keyWire) + "(1, " + keyArg + ");"));
+    encBody.add(Element.of("out." + encodeCall(keyWire) + "(1, " + keyArg + ");"));
     // value: field 2 — always field 2; written unconditionally, same unwrapping rule.
     String valArg = valWire == WireScalar.BYTES ? "v.value().toByteArray()" : "v.value()";
-    encBody.add(Statement.of("out." + encodeCall(valWire) + "(2, " + valArg + ");"));
-    encBody.add(Statement.of("return enc.finish();"));
+    encBody.add(Element.of("out." + encodeCall(valWire) + "(2, " + valArg + ");"));
+    encBody.add(Element.of("return enc.finish();"));
 
     result.method(
         Method.named("encode")
@@ -727,23 +726,23 @@ public final class CodecSourceMapping {
             .body(encBody)
             .build());
 
-    List<Statement> decBody = new ArrayList<>();
-    decBody.add(Statement.of("var dec = " + decoderShort + ".start(inBytes);"));
-    decBody.add(Statement.of("var in = dec.in();"));
-    decBody.add(Statement.of("var unknown = " + unknownFieldsShort + ".builder();"));
+    List<Element> decBody = new ArrayList<>();
+    decBody.add(Element.of("var dec = " + decoderShort + ".start(inBytes);"));
+    decBody.add(Element.of("var in = dec.in();"));
+    decBody.add(Element.of("var unknown = " + unknownFieldsShort + ".builder();"));
     emitFieldLocalInit(decBody, "key", keyWire, codecDefaultsShort);
     emitFieldLocalInit(decBody, "value", valWire, codecDefaultsShort);
-    List<Statement> tagLoop = new ArrayList<>();
-    tagLoop.add(Statement.of("int tag = " + wireShort + ".readTag(in);"));
-    tagLoop.add(If.condition("tag == 0").body(Statement.of("break;")).build());
+    List<Element> tagLoop = new ArrayList<>();
+    tagLoop.add(Element.of("int tag = " + wireShort + ".readTag(in);"));
+    tagLoop.add(If.condition("tag == 0").body(Element.of("break;")).build());
     Switch.Builder switchB = Switch.on(wireShort + ".tagFieldNumber(tag)");
     emitFieldDecodeCase(switchB, 1, "key", keyWire, wireShort);
     emitFieldDecodeCase(switchB, 2, "value", valWire, wireShort);
-    switchB.defaultBody(Statement.of("unknown.add(in, tag);"));
+    switchB.defaultBody(Element.of("unknown.add(in, tag);"));
     tagLoop.add(switchB.build());
-    tagLoop.add(Statement.of(""));
+    tagLoop.add(Element.of(""));
     decBody.add(While.condition("true").body(tagLoop).build());
-    decBody.add(Statement.of("return new " + entryName + "(key, value);"));
+    decBody.add(Element.of("return new " + entryName + "(key, value);"));
 
     result.method(
         Method.named("decode")
@@ -777,13 +776,12 @@ public final class CodecSourceMapping {
   }
 
   /** M4-C2d-12: emit a decode local-initializer line for a map entry's scalar field. */
-  private static void emitFieldLocalInit(
-      List<Statement> out, String name, WireScalar ws, String cd) {
+  private static void emitFieldLocalInit(List<Element> out, String name, WireScalar ws, String cd) {
     if (ws == WireScalar.STRING) {
-      out.add(Statement.of("String " + name + " = \"\";"));
+      out.add(Element.of("String " + name + " = \"\";"));
     } else {
       out.add(
-          Statement.of(
+          Element.of(
               localTypeForWire(ws) + " " + name + " = " + cd + "." + defaultForWire(ws) + "();"));
     }
   }
@@ -792,9 +790,9 @@ public final class CodecSourceMapping {
   private static void emitFieldDecodeCase(
       Switch.Builder sw, int fieldNum, String name, WireScalar ws, String wire) {
     if (ws == WireScalar.STRING) {
-      sw.caseArm(String.valueOf(fieldNum), Statement.of(name + " = in.readString();"));
+      sw.caseArm(String.valueOf(fieldNum), Element.of(name + " = in.readString();"));
     } else {
-      sw.caseArm(String.valueOf(fieldNum), Statement.of(name + " = " + decodeCall(ws) + ";"));
+      sw.caseArm(String.valueOf(fieldNum), Element.of(name + " = " + decodeCall(ws) + ";"));
     }
   }
 
@@ -832,9 +830,9 @@ public final class CodecSourceMapping {
     int num = f.number();
     sw.caseArm(
         String.valueOf(num),
-        Statement.of(
+        Element.of(
             "var _entry = " + entryName + "." + entryName + "Codec.decode(in.readByteArray());"),
-        Statement.of(local + ".put(_entry.key(), _entry.value());"));
+        Element.of(local + ".put(_entry.key(), _entry.value());"));
   }
 
   // --- Oneof encode / decode ---
@@ -848,7 +846,7 @@ public final class CodecSourceMapping {
       Oneof o,
       TypeCollector ci,
       @Nullable Function<Field, String> typeResolver,
-      List<Statement> out) {
+      List<Element> out) {
     String iface = o.ifaceName();
     String cmp = o.componentName();
     String getter = "v." + cmp + "()";
@@ -863,7 +861,7 @@ public final class CodecSourceMapping {
         String codecRef = type + "." + type + "Codec";
         sw.caseArm(
             sealedSub + " " + bnd,
-            Statement.of(
+            Element.of(
                 "out.writeByteArray("
                     + f.number()
                     + ", "
@@ -876,7 +874,7 @@ public final class CodecSourceMapping {
         String recName = iface + "." + JavaNames.cap(f.name()) + "Value";
         sw.caseArm(
             recName + " " + bnd,
-            Statement.of("out.writeEnum(" + f.number() + ", " + bnd + ".value().getNumber());"));
+            Element.of("out.writeEnum(" + f.number() + ", " + bnd + ".value().getNumber());"));
       } else {
         // Scalar oneof member: dispatch on wire type.
         String recName = iface + "." + JavaNames.cap(f.name()) + "Value";
@@ -884,7 +882,7 @@ public final class CodecSourceMapping {
         String call = encodeCall(wire);
         sw.caseArm(
             recName + " " + bnd,
-            Statement.of("out." + call + "(" + f.number() + ", " + bnd + ".value());"));
+            Element.of("out." + call + "(" + f.number() + ", " + bnd + ".value());"));
       }
     }
     out.add(sw.build());
@@ -904,7 +902,7 @@ public final class CodecSourceMapping {
     for (Field f : o.members()) {
       sw.caseArm(
           String.valueOf(f.number()),
-          Statement.of(cmp + " = " + oneofDecodeRhs(o, f, ci, typeResolver) + ";"));
+          Element.of(cmp + " = " + oneofDecodeRhs(o, f, ci, typeResolver) + ";"));
     }
   }
 

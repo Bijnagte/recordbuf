@@ -18,10 +18,10 @@ import javax.tools.ToolProvider;
 import org.junit.jupiter.api.Test;
 
 /**
- * The {@code if} control-flow node's {@code else if} chain: an {@link If} statement renders a
- * guarded {@code if}-clause followed by zero or more {@code else if}-clauses and an optional
- * terminal {@code else}, all sharing the same nesting level. The {@link ElseIf} sub-clause renders
- * its own guard and braces on the closing-brace line ({@code } else if (cond) {}}).
+ * The {@code if} control-flow node's {@code else if} chain: an {@link If} element renders a guarded
+ * {@code if}-clause followed by zero or more {@code else if}-clauses and an optional terminal
+ * {@code else}, all sharing the same nesting level. The {@link ElseIf} sub-clause renders its own
+ * guard and braces on the closing-brace line ({@code } else if (cond) {}}).
  */
 class IfElseIfRenderingTest {
 
@@ -43,8 +43,8 @@ class IfElseIfRenderingTest {
                         .public_()
                         .body(
                             If.condition("value > 0")
-                                .body(Statement.ret())
-                                .elseIf("value == 0", Statement.ret())
+                                .body(Element.ret())
+                                .elseIf("value == 0", Element.ret())
                                 .build())
                         .build())
                 .build());
@@ -68,9 +68,9 @@ class IfElseIfRenderingTest {
                         .public_()
                         .body(
                             If.condition("value > 0")
-                                .body(Statement.ret())
-                                .elseIf("value == 0", Statement.ret())
-                                .else_(Statement.ret())
+                                .body(Element.ret())
+                                .elseIf("value == 0", Element.ret())
+                                .else_(Element.ret())
                                 .build())
                         .build())
                 .build());

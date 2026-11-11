@@ -18,7 +18,7 @@ import javax.tools.ToolProvider;
 import org.junit.jupiter.api.Test;
 
 /**
- * The {@code for-each} control-flow node: a {@link For} statement renders as a braced block ({@code
+ * The {@code for-each} control-flow node: a {@link For} element renders as a braced block ({@code
  * for (pattern : iterable) { ... }}), closed by its own brace. The node's own render handler
  * (SourceRenderer's {@code renderFor}) owns the braces -- it is not a nested {@code Block} node; an
  * empty body renders the empty-loop case {@code for (p : x) { }}. A for-each always closes on its
@@ -42,12 +42,12 @@ class ForRenderingTest {
                 .method(
                     Method.named("demo")
                         .public_()
-                        .body(For.enhanced("var _e", "value()").body(Statement.ret()).build())
+                        .body(For.enhanced("var _e", "value()").body(Element.ret()).build())
                         .build())
                 .build());
 
     assertTrue(src.contains("for (var _e : value()) {"), "the loop renders: " + src);
-    assertTrue(src.contains("return;"), "the loop-body statement renders: " + src);
+    assertTrue(src.contains("return;"), "the loop-body element renders: " + src);
     assertCompiles(src, "ForLoop");
   }
 

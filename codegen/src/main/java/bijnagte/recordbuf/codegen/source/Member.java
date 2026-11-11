@@ -7,9 +7,9 @@ package bijnagte.recordbuf.codegen.source;
  * assembles these from its model; the module never sees a proto.
  *
  * <p>A {@link Method method} or {@link Constructor} carries a body that is a {@code List} of {@link
- * Statement}s -- control-flow and statement idioms ({@code If}/{@code For}/.../ {@code
- * Return}/{@code Throw}) plus the {@link Statement.Fragment} escape -- which the {@link
- * SourceRenderer} lays out; it is not a flat list of hand-indented strings.
+ * Element}s -- control-flow and element idioms ({@code If}/{@code For}/.../ {@code Return}/{@code
+ * Throw}) plus the {@link Fragment} escape -- which the {@link SourceRenderer} lays out; it is not
+ * a flat list of hand-indented strings.
  *
  * <p>Each variant is built via a hand-written, ergonomic nested {@code Builder}: named modifier
  * toggles ({@code public_()}/{@code static_()}/{@code final_()}/...), collection accumulators

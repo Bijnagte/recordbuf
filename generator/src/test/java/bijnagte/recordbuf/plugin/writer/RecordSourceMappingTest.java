@@ -85,7 +85,7 @@ class RecordSourceMappingTest {
    * The M4-C2b-2c gate: map a proto {@link Message} to the source AST with its nested {@code Codec}
    * rendered, and compile the source in-memory against the test's own runtime classpath. This
    * proves the mapping emits a record + its nested codec (encode/decode static methods with real
-   * {@code List<Statement>} bodies), and the rendered source is structurally correct enough for
+   * {@code List<Element>} bodies), and the rendered source is structurally correct enough for
    * javac.
    */
   @Test
