@@ -9,7 +9,9 @@ import java.util.Objects;
  * declaration pattern, e.g. {@code "var _e"} or {@code "byte[] _e"}; {@link #iterable()} is the
  * collection expression; {@link #body()} is the statement list laid out at the next indent. The
  * renderer always braces the body (even a single statement), a functional-equivalent style
- * normalisation built via {@link #builder()}.
+ * normalisation. The entry point is {@link #enhanced(String, String)}, which seeds a {@link
+ * Builder} with the pattern and iterable; the builder then offers {@link
+ * Builder#body(Statement[])}.
  */
 public record For(String pattern, String iterable, List<Statement> body) implements Statement {
 
@@ -19,27 +21,23 @@ public record For(String pattern, String iterable, List<Statement> body) impleme
     body = body == null ? List.of() : List.copyOf(body);
   }
 
-  /** A fresh builder. */
-  public static Builder builder() {
-    return new Builder();
+  /** Entry point: seed a builder with the for-each pattern and iterable. */
+  public static Builder enhanced(String pattern, String iterable) {
+    return new Builder(pattern, iterable);
   }
 
-  /** An accumulating, ergonomic {@link For} builder. */
+  /**
+   * An accumulating, ergonomic {@link For} builder; the pattern and iterable are supplied at
+   * construction.
+   */
   public static final class Builder {
-    private String pattern;
-    private String iterable;
+    private final String pattern;
+    private final String iterable;
     private List<Statement> body = List.of();
 
-    /** Set the loop pattern, e.g. {@code "var _e"}. */
-    public Builder pattern(String p) {
-      this.pattern = p;
-      return this;
-    }
-
-    /** Set the collection expression, e.g. {@code "x.getMap().entrySet()"}. */
-    public Builder iterable(String i) {
-      this.iterable = i;
-      return this;
+    public Builder(String pattern, String iterable) {
+      this.pattern = pattern;
+      this.iterable = iterable;
     }
 
     /** Append one or more body statements; calls accumulate. */
@@ -60,8 +58,6 @@ public record For(String pattern, String iterable, List<Statement> body) impleme
 
     /** Construct the {@link For}. */
     public For build() {
-      Objects.requireNonNull(pattern);
-      Objects.requireNonNull(iterable);
       return new For(pattern, iterable, body);
     }
   }

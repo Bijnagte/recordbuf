@@ -12,7 +12,7 @@ import java.util.Objects;
  * { case p -> {...}}; an empty {@link #cases()} list omits the case arms and an empty {@link
  * #defaultBody()} omits the terminal {@code default} clause. Modelled on {@link If} (where {@link
  * ElseIf} is the per-clause type and {@code elseBody} is the terminal alternative); the {@link
- * Case} arms are built via {@link #builder()}.
+ * Case} arms and the terminal {@code default} clause are attached via {@link #on(String)}.
  */
 public record Switch(String subject, List<Case> cases, List<Statement> defaultBody)
     implements Statement {
@@ -23,22 +23,20 @@ public record Switch(String subject, List<Case> cases, List<Statement> defaultBo
     defaultBody = defaultBody == null ? List.of() : List.copyOf(defaultBody);
   }
 
-  /** A fresh builder. */
-  public static Builder builder() {
-    return new Builder();
+  /** Entry point: seed a builder with the switch subject expression. */
+  public static Builder on(String subject) {
+    return new Builder(subject);
   }
 
-  /** An accumulating, ergonomic {@link Switch} builder. */
+  /** An accumulating, ergonomic {@link Switch} builder; the subject is supplied at construction. */
   public static final class Builder {
-    private String subject;
+    private final String subject;
     private List<Case> cases = new ArrayList<>();
     private List<Statement> defaultBody = List.of();
 
-    /** Set the switch subject expression. */
-    public Builder subject(String s) {
-      Objects.requireNonNull(s);
-      this.subject = s;
-      return this;
+    public Builder(String subject) {
+      Objects.requireNonNull(subject);
+      this.subject = subject;
     }
 
     /** Append a case arm with one pattern and one or more body statements; calls accumulate. */
@@ -81,7 +79,6 @@ public record Switch(String subject, List<Case> cases, List<Statement> defaultBo
 
     /** Construct the {@link Switch}. */
     public Switch build() {
-      Objects.requireNonNull(subject);
       return new Switch(subject, cases, defaultBody);
     }
   }

@@ -9,9 +9,10 @@ import java.util.List;
  * terminal {@link #elseBody()} renders the final {@code else { ... }}. Every branch is a {@link
  * List} of {@link Statement}s laid out at the next indent. The {@link #body()} and {@link
  * #elseBody()} lists are <em>seeded to empty</em> so a caller sets only the branches it needs; an
- * empty branch renders no clause. The builder exposes {@link #builder()}, {@link
- * Builder#condition(String)}, {@link Builder#body(Statement[])}, {@link Builder#elseIf(String,
- * Statement[])}, and {@link Builder#else_(Statement[])}.
+ * empty branch renders no clause. The entry point is {@link #condition(String)}, which seeds a
+ * {@link Builder} with the guard expression; the builder then offers {@link
+ * Builder#body(Statement[])}, {@link Builder#elseIf(String, Statement[])}, and {@link
+ * Builder#else_(Statement[])}.
  */
 public record If(
     String condition, List<Statement> body, List<ElseIf> elseIf, List<Statement> elseBody)
@@ -24,22 +25,23 @@ public record If(
     elseBody = elseBody == null ? List.of() : List.copyOf(elseBody);
   }
 
-  /** A fresh builder. */
-  public static Builder builder() {
-    return new Builder();
+  /** Entry point: seed a builder with the guard expression. */
+  public static Builder condition(String condition) {
+    return new Builder(condition);
   }
 
-  /** An accumulating, ergonomic {@link If} builder. */
+  /**
+   * An accumulating, ergonomic {@link If} builder; the guard expression is supplied at
+   * construction.
+   */
   public static final class Builder {
-    private String condition;
+    private final String condition;
     private List<Statement> body = List.of();
     private List<ElseIf> elseIf = new ArrayList<>();
     private List<Statement> elseBody = new ArrayList<>();
 
-    /** Set the guard expression. */
-    public Builder condition(String c) {
-      this.condition = c;
-      return this;
+    public Builder(String condition) {
+      this.condition = condition;
     }
 
     /** Append one or more then-body statements; calls accumulate. */

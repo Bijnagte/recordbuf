@@ -46,7 +46,7 @@ class WhileRenderingTest {
                     Member.Method.builder()
                         .public_()
                         .name("demo")
-                        .body(While.builder().condition("value > 0").body(Statement.ret()).build())
+                        .body(While.condition("value > 0").body(Statement.ret()).build())
                         .build())
                 .build());
 
@@ -69,7 +69,7 @@ class WhileRenderingTest {
                     Member.Method.builder()
                         .public_()
                         .name("demo")
-                        .body(While.builder().condition("value > 0").build())
+                        .body(While.condition("value > 0").build())
                         .build())
                 .build());
 

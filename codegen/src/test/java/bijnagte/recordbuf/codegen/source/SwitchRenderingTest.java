@@ -46,8 +46,7 @@ class SwitchRenderingTest {
                         .public_()
                         .name("demo")
                         .body(
-                            Switch.builder()
-                                .subject("x")
+                            Switch.on("x")
                                 .caseArm("1") // empty arm: no body.
                                 .build())
                         .build())
@@ -70,8 +69,7 @@ class SwitchRenderingTest {
                         .public_()
                         .name("demo")
                         .body(
-                            Switch.builder()
-                                .subject("Wire.tagFieldNumber(tag)")
+                            Switch.on("Wire.tagFieldNumber(tag)")
                                 .caseArm("1", Statement.of("value = in.readInt64();"))
                                 .defaultBody(Statement.of("unknown.add(in, tag);"))
                                 .build())
@@ -98,8 +96,7 @@ class SwitchRenderingTest {
                         .public_()
                         .name("demo")
                         .body(
-                            Switch.builder()
-                                .subject("x")
+                            Switch.on("x")
                                 .caseArm(
                                     List.of("1", "2"),
                                     Statement.of("x = 1;"),
@@ -128,8 +125,7 @@ class SwitchRenderingTest {
                         .name("demo")
                         .param("Object", "n")
                         .body(
-                            Switch.builder()
-                                .subject("n.hashCode()")
+                            Switch.on("n.hashCode()")
                                 .caseArm("1", Statement.of("System.out.println(1);"))
                                 .caseArm("2", Statement.of("System.out.println(2);"))
                                 .defaultBody(Statement.of("System.out.println(0);"))

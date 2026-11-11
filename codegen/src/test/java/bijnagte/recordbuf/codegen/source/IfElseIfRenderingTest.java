@@ -44,8 +44,7 @@ class IfElseIfRenderingTest {
                         .public_()
                         .name("demo")
                         .body(
-                            If.builder()
-                                .condition("value > 0")
+                            If.condition("value > 0")
                                 .body(Statement.ret())
                                 .elseIf("value == 0", Statement.ret())
                                 .build())
@@ -72,8 +71,7 @@ class IfElseIfRenderingTest {
                         .public_()
                         .name("demo")
                         .body(
-                            If.builder()
-                                .condition("value > 0")
+                            If.condition("value > 0")
                                 .body(Statement.ret())
                                 .elseIf("value == 0", Statement.ret())
                                 .else_(Statement.ret())

@@ -130,9 +130,7 @@ public final class InteropSourceMapping {
         String valExpr = mapValueFrom(f, ci);
         out.add(Statement.of("var _" + f.javaName() + " = new " + ci.use(HASH_MAP) + "<>();"));
         out.add(
-            For.builder()
-                .pattern("var _e")
-                .iterable("x.get" + cap + "Map().entrySet()")
+            For.enhanced("var _e", "x.get" + cap + "Map().entrySet()")
                 .body(Statement.of("_" + f.javaName() + ".put(" + keyExpr + ", " + valExpr + ");"))
                 .build());
       }
@@ -151,9 +149,7 @@ public final class InteropSourceMapping {
                   + ci.use(ARRAY_LIST)
                   + "<>();"));
       out.add(
-          For.builder()
-              .pattern("var _e")
-              .iterable("x.get" + cap + "List()")
+          For.enhanced("var _e", "x.get" + cap + "List()")
               .body(Statement.of("_" + f.javaName() + ".add(" + recSib + ".Interop.from(_e));"))
               .build());
       return;
@@ -181,9 +177,7 @@ public final class InteropSourceMapping {
       if ("bytes".equals(f.typeUrl())) {
         out.add(Statement.of("var _" + f.javaName() + " = new " + ci.use(ARRAY_LIST) + "<>();"));
         out.add(
-            For.builder()
-                .pattern("var _e")
-                .iterable("x.get" + cap + "List()")
+            For.enhanced("var _e", "x.get" + cap + "List()")
                 .body(Statement.of("_" + f.javaName() + ".add(_e.toByteArray());"))
                 .build());
       } else {
@@ -252,9 +246,7 @@ public final class InteropSourceMapping {
     String cap = JavaNames.cap(f.javaName());
     if (f.isMap()) {
       out.add(
-          For.builder()
-              .pattern("var _e")
-              .iterable("r." + f.javaName() + "().entrySet()")
+          For.enhanced("var _e", "r." + f.javaName() + "().entrySet()")
               .body(
                   Statement.of(
                       "_b.put" + cap + "(" + mapKeyTo(f, ci) + ", " + mapValueTo(f, ci) + ");"))
@@ -264,9 +256,7 @@ public final class InteropSourceMapping {
     if (f.isMessage() && f.isRepeated()) {
       String recSib = recordSiblingFqn(f);
       out.add(
-          For.builder()
-              .pattern("var _e")
-              .iterable("r." + f.javaName() + "()")
+          For.enhanced("var _e", "r." + f.javaName() + "()")
               .body(Statement.of("_b.add" + cap + "(" + recSib + ".Interop.to(_e));"))
               .build());
       return;
@@ -277,8 +267,7 @@ public final class InteropSourceMapping {
       String src = "r." + f.javaName() + "()";
       String local = "n" + JavaNames.cap(f.javaName());
       out.add(
-          If.builder()
-              .condition(src + " != null")
+          If.condition(src + " != null")
               .body(
                   Statement.of("var " + local + " = " + src + ";"),
                   Statement.of("_b.set" + cap + "(" + recSib + ".Interop.to(" + local + "));"))
@@ -288,9 +277,7 @@ public final class InteropSourceMapping {
     if (f.isRepeated()) {
       if ("bytes".equals(f.typeUrl())) {
         out.add(
-            For.builder()
-                .pattern("byte[] _e")
-                .iterable("r." + f.javaName() + "()")
+            For.enhanced("byte[] _e", "r." + f.javaName() + "()")
                 .body(Statement.of("_b.add" + cap + "(" + ci.use(BYTE_STRING) + ".copyFrom(_e));"))
                 .build());
       } else {
@@ -315,8 +302,7 @@ public final class InteropSourceMapping {
           "_b.set" + cap + "(" + ci.use(BYTE_STRING) + ".copyFrom(" + src + ".toByteArray()));");
     }
     if (f.isNullable()) {
-      return If.builder()
-          .condition(src + " != null")
+      return If.condition(src + " != null")
           .body(Statement.of("_b.set" + cap + "(" + src + ");"))
           .build();
     }
@@ -386,7 +372,7 @@ public final class InteropSourceMapping {
 
   private static void emitOneofTo(List<Statement> out, Oneof o, TypeCollector ci, String refPkg) {
     String iface = o.ifaceName();
-    Switch.Builder sw = Switch.builder().subject("r." + o.componentName() + "()");
+    Switch.Builder sw = Switch.on("r." + o.componentName() + "()");
     // The null arm: an empty body auto-braces to `case null -> {}`.
     sw.caseArm("null");
     for (Field f : o.members()) {

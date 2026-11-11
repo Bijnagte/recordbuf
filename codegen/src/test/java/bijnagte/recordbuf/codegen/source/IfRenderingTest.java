@@ -45,7 +45,7 @@ class IfRenderingTest {
                     Member.Method.builder()
                         .public_()
                         .name("demo")
-                        .body(If.builder().condition("true").body(Statement.ret()).build())
+                        .body(If.condition("true").body(Statement.ret()).build())
                         .build())
                 .build());
 
@@ -69,8 +69,7 @@ class IfRenderingTest {
                         .public_()
                         .name("demo")
                         .body(
-                            If.builder()
-                                .condition("value > 0")
+                            If.condition("value > 0")
                                 .body(Statement.ret())
                                 .else_(Statement.ret())
                                 .build())

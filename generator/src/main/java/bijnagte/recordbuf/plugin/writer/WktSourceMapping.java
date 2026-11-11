@@ -81,21 +81,16 @@ final class WktSourceMapping {
         String def = Objects.requireNonNull(entry.zeroDefault());
         // for (var e : v.field()) { if (!e.equals(def)) out.writeByteArray(n, Wkt.method(e)); }
         body.add(
-            For.builder()
-                .pattern("var e")
-                .iterable(g)
+            For.enhanced("var e", g)
                 .body(
-                    If.builder()
-                        .condition("!e.equals(" + def + ")")
+                    If.condition("!e.equals(" + def + ")")
                         .body(Statement.of(outExpr + wkt + "." + methodName + "(e));"))
                         .build())
                 .build());
       } else {
         // for (var e : v.field()) out.writeByteArray(n, Wkt.wrap(Wkt.Wrap.KIND, e));
         body.add(
-            For.builder()
-                .pattern("var e")
-                .iterable(g)
+            For.enhanced("var e", g)
                 .body(
                     Statement.of(
                         outExpr
@@ -113,15 +108,14 @@ final class WktSourceMapping {
       // Wkt.method(v.field()));
       String call = outExpr + wkt + "." + methodName + "(" + g + "));";
       body.add(
-          If.builder()
-              .condition(g + " != null && !" + def + ".equals(" + g + ")")
+          If.condition(g + " != null && !" + def + ".equals(" + g + ")")
               .body(Statement.of(call))
               .build());
     } else {
       // if (v.field() != null) out.writeByteArray(n, Wkt.wrap(Wkt.Wrap.KIND, v.field()));
       String call =
           outExpr + wkt + ".wrap(" + wkt + ".Wrap." + wrapKind(f.typeUrl()) + ", " + g + "));";
-      body.add(If.builder().condition(g + " != null").body(Statement.of(call)).build());
+      body.add(If.condition(g + " != null").body(Statement.of(call)).build());
     }
   }
 

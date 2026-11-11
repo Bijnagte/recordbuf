@@ -45,12 +45,7 @@ class ForRenderingTest {
                     Member.Method.builder()
                         .public_()
                         .name("demo")
-                        .body(
-                            For.builder()
-                                .pattern("var _e")
-                                .iterable("value()")
-                                .body(Statement.ret())
-                                .build())
+                        .body(For.enhanced("var _e", "value()").body(Statement.ret()).build())
                         .build())
                 .build());
 
@@ -72,7 +67,7 @@ class ForRenderingTest {
                     Member.Method.builder()
                         .public_()
                         .name("demo")
-                        .body(For.builder().pattern("var _e").iterable("value()").build())
+                        .body(For.enhanced("var _e", "value()").build())
                         .build())
                 .build());
 
