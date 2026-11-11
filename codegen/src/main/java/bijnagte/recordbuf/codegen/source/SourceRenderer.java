@@ -24,6 +24,11 @@ public final class SourceRenderer {
 
   /** Renders a whole file -- the two-phase import pass + the file skeleton. */
   public static String render(JavaFile file) {
+    return render(file, Formatter.IDENTITY);
+  }
+
+  /** Renders a whole file, then post-processes it through {@code formatter}. */
+  public static String render(JavaFile file, Formatter formatter) {
     Pass p = new Pass(file.ci());
     p.collect(file.top());
     file.ci().finalizeResolution();
@@ -36,7 +41,7 @@ public final class SourceRenderer {
     for (String l : imps) out.append(l).append('\n');
     if (!imps.isEmpty()) out.append('\n');
     p.render(file.top(), 0, out);
-    return out.toString();
+    return formatter.format(out.toString());
   }
 
   private static String indent(int level) {
