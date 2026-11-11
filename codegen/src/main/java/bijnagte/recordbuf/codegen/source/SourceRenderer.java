@@ -346,7 +346,28 @@ public final class SourceRenderer {
                 .append('\n');
         case Statement.Comment c ->
             out.append(indent(body)).append("// ").append(c.text()).append('\n');
+        case If i -> renderIf(body, i, out);
       }
+    }
+
+    /**
+     * Render an {@link If} control-flow chain -- the {@code if}, its {@code else-if} clauses, and
+     * an optional terminal {@code else}. Each clause renders its own braces ({@code } else if
+     * (...)} / {@code } else {}} on the preceding close-brace line) and lays its statement body out
+     * at the next indent via {@link #renderStatement}; an empty branch list renders no clause.
+     */
+    private void renderIf(int body, If ifStmt, StringBuilder out) {
+      out.append(indent(body)).append("if (").append(ifStmt.condition()).append(") {\n");
+      for (Statement s : ifStmt.body()) renderStatement(body + 1, s, out);
+      for (ElseIf ei : ifStmt.elseIf()) {
+        out.append(indent(body)).append("} else if (").append(ei.condition()).append(") {\n");
+        for (Statement s : ei.body()) renderStatement(body + 1, s, out);
+      }
+      if (!ifStmt.elseBody().isEmpty()) {
+        out.append(indent(body)).append("} else {\n");
+        for (Statement s : ifStmt.elseBody()) renderStatement(body + 1, s, out);
+      }
+      out.append(indent(body)).append("}\n");
     }
 
     /** Render an expression to its one-line textual form (no terminator, no leading indent). */

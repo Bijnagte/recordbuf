@@ -24,7 +24,8 @@ class SourceAstClosednessTest {
     Set<String> permitted = simpleNames(Statement.class.getPermittedSubclasses());
     assertEquals(
         new TreeSet<>(
-            Arrays.asList("Comment", "ExprStatement", "Fragment", "LocalVar", "Return", "Throw")),
+            Arrays.asList(
+                "Comment", "ExprStatement", "Fragment", "If", "LocalVar", "Return", "Throw")),
         permitted,
         "the Statement idiom set must stay closed; a new node means a new rendered idiom -- "
             + "justified by a mapping need, not drift");

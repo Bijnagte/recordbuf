@@ -56,7 +56,7 @@ class ClassSourceTest {
                     .returnType("byte[]")
                     .name("encode")
                     .param("MessageRec", "v")
-                    .thrown(List.of("java.io.IOException"))
+                    .thrown("java.io.IOException")
                     .body(Statement.of("return new byte[0];"))
                     .build(),
                 Member.Method.builder()
@@ -65,7 +65,7 @@ class ClassSourceTest {
                     .returnType("MessageRec")
                     .name("decode")
                     .param("byte[]", "inBytes")
-                    .thrown(List.of("java.io.IOException"))
+                    .thrown("java.io.IOException")
                     .body(Statement.of("return new MessageRec(0);"))
                     .build())
             .build();
@@ -333,7 +333,7 @@ class ClassSourceTest {
                     .returnType("byte[]")
                     .name("encode")
                     .param("RecordWithRealMultiScalar", "v")
-                    .thrown(List.of("java.io.IOException"))
+                    .thrown("java.io.IOException")
                     .body(
                         Statement.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
                         Statement.of("var out = enc.out();"),
@@ -355,7 +355,7 @@ class ClassSourceTest {
                     .returnType("RecordWithRealMultiScalar")
                     .name("decode")
                     .param("byte[]", "inBytes")
-                    .thrown(List.of("java.io.IOException"))
+                    .thrown("java.io.IOException")
                     .body(
                         Statement.of(
                             "var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
@@ -411,7 +411,7 @@ class ClassSourceTest {
                     .returnType("byte[]")
                     .name("encode")
                     .param("RecordWithRealCodec", "v")
-                    .thrown(List.of("java.io.IOException"))
+                    .thrown("java.io.IOException")
                     .body(
                         Statement.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
                         Statement.of("var out = enc.out();"),
@@ -429,7 +429,7 @@ class ClassSourceTest {
                     .returnType("RecordWithRealCodec")
                     .name("decode")
                     .param("byte[]", "inBytes")
-                    .thrown(List.of("java.io.IOException"))
+                    .thrown("java.io.IOException")
                     .body(
                         Statement.of(
                             "var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
@@ -473,7 +473,7 @@ class ClassSourceTest {
             .returnType("byte[]")
             .name("encode")
             .param("RecordWithBytes", "v")
-            .thrown(List.of("java.io.IOException"))
+            .thrown("java.io.IOException")
             .body(
                 Statement.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
                 Statement.of("var out = enc.out();"),
@@ -488,7 +488,7 @@ class ClassSourceTest {
             .returnType("RecordWithBytes")
             .name("decode")
             .param("byte[]", "inBytes")
-            .thrown(List.of("java.io.IOException"))
+            .thrown("java.io.IOException")
             .body(
                 Statement.of("var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
                 Statement.of("var in = dec.in();"),
@@ -542,7 +542,7 @@ class ClassSourceTest {
             .returnType("byte[]")
             .name("encode")
             .param("RecordWithBytes", "v")
-            .thrown(List.of("java.io.IOException"))
+            .thrown("java.io.IOException")
             .body(
                 Statement.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
                 Statement.of("var out = enc.out();"),
@@ -557,7 +557,7 @@ class ClassSourceTest {
             .returnType("RecordWithBytes")
             .name("decode")
             .param("byte[]", "inBytes")
-            .thrown(List.of("java.io.IOException"))
+            .thrown("java.io.IOException")
             .body(
                 Statement.of("var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
                 Statement.of("var in = dec.in();"),

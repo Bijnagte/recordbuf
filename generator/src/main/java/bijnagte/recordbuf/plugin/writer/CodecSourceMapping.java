@@ -163,7 +163,7 @@ public final class CodecSourceMapping {
         .returnType("byte[]")
         .name("encode")
         .param(m.name(), "v")
-        .thrown(List.of("java.io.IOException"))
+        .thrown("java.io.IOException")
         .body(body)
         .build();
   }
@@ -299,7 +299,7 @@ public final class CodecSourceMapping {
         .returnType(m.name())
         .name("decode")
         .param("byte[]", "inBytes")
-        .thrown(List.of("java.io.IOException"))
+        .thrown("java.io.IOException")
         .body(body)
         .build();
   }
@@ -760,7 +760,7 @@ public final class CodecSourceMapping {
             .returnType("byte[]")
             .name("encode")
             .param(entryName, "v")
-            .thrown(List.of("java.io.IOException"))
+            .thrown("java.io.IOException")
             .body(encBody)
             .build());
 
@@ -789,7 +789,7 @@ public final class CodecSourceMapping {
             .returnType(entryName)
             .name("decode")
             .param("byte[]", "inBytes")
-            .thrown(List.of("java.io.IOException"))
+            .thrown("java.io.IOException")
             .body(decBody)
             .build());
 

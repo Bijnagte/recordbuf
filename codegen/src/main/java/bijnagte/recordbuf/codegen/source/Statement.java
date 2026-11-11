@@ -1,18 +1,16 @@
 package bijnagte.recordbuf.codegen.source;
 
-import java.util.List;
-
 /**
  * A single statement inside a method, constructor, or {@code static {}} body. A body is a {@link
- * List List<Statement>}; the {@link SourceRenderer} owns brace, paren, and join layout for the
- * list, not the emitter.
+ * java.util.List List<Statement>}; the {@link SourceRenderer} owns brace, paren, and join layout
+ * for the list, not the emitter.
  *
  * <p>This is the closed idiom set the body-lift is building toward (DEC-3): recurring statement
- * shapes ({@code Return/Throw/ExprStatement/LocalVar}, a line {@code Comment}, a nested {@code
- * Block}) plus the {@link Fragment} escape used for syntax the closed set has not yet modeled --
- * the control-flow and switch idioms land as the heavier mappings convert. Fragments may coexist
- * with modeled idioms but are counted, not celebrated: a growing fragment count signals an idiom
- * the closed set has not yet learned.
+ * shapes ({@code Return/Throw/ExprStatement/LocalVar}, a line {@code Comment}, an {@link If}
+ * control-flow chain) plus the {@link Fragment} escape used for syntax the closed set has not yet
+ * modeled -- the control-flow and switch idioms land as the heavier mappings convert. Fragments may
+ * coexist with modeled idioms but are counted, not celebrated: a growing fragment count signals an
+ * idiom the closed set has not yet learned.
  *
  * <p>The node set grows incrementally as the mappings convert; each new node renders
  * byte-identically to the flat {@code Line} it replaced.
@@ -23,7 +21,8 @@ public sealed interface Statement
         Statement.Throw,
         Statement.ExprStatement,
         Statement.LocalVar,
-        Statement.Comment {
+        Statement.Comment,
+        If {
 
   /**
    * A raw body-line fragment whose text the renderer emits verbatim at the block's indent -- the
@@ -36,7 +35,7 @@ public sealed interface Statement
   /** {@code return <expr>;} or, when {@code expr} is null, a bare {@code return;}. */
   record Return(Expression expr) implements Statement {}
 
-  /** {@code throw <expr>;}. */
+  /** {@code throw <expr>;} */
   record Throw(Expression expr) implements Statement {}
 
   /** An expression statement: {@code <expr>;}. */

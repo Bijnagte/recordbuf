@@ -233,6 +233,7 @@ public sealed interface Member {
       params = params == null ? List.of() : params;
       thrown = thrown == null ? List.of() : thrown;
       body = body == null ? List.of() : body;
+      returnType = returnType == null ? "void" : returnType;
     }
 
     /** A fresh method builder. */
@@ -273,20 +274,6 @@ public sealed interface Member {
       /** Append one parameter (type + name); calls accumulate, and no params renders {@code ()}. */
       public Builder param(String type, String name) {
         this.params.add(new Param(type, name));
-        return this;
-      }
-
-      /** Replace the full parameter list. */
-      public Builder params(List<Param> ps) {
-        this.params.clear();
-        if (ps != null) params.addAll(ps);
-        return this;
-      }
-
-      /** Replace the full {@code throws} list. */
-      public Builder thrown(List<String> t) {
-        this.thrown.clear();
-        if (t != null) thrown.addAll(t);
         return this;
       }
 
@@ -421,13 +408,6 @@ public sealed interface Member {
       /** Append one parameter (type + name); calls accumulate, and no params renders {@code ()}. */
       public Builder param(String type, String name) {
         this.params.add(new Param(type, name));
-        return this;
-      }
-
-      /** Replace the full parameter list. */
-      public Builder params(List<Param> ps) {
-        this.params.clear();
-        if (ps != null) params.addAll(ps);
         return this;
       }
 

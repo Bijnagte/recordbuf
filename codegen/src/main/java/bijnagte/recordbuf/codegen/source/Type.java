@@ -180,29 +180,21 @@ public sealed interface Type {
         return this;
       }
 
-      /** Replace the full {@code extends} FQN list. */
-      public Builder extendsFqns(List<String> fqns) {
-        this.extendsFqns.clear();
-        if (fqns != null) extendsFqns.addAll(fqns);
-        return this;
-      }
-
       /** Append one {@code extends} FQN. */
       public Builder extendsFqn(String fqn) {
         this.extendsFqns.add(fqn);
         return this;
       }
 
-      /** Replace the full {@code implements} FQN list. */
-      public Builder implementsFqns(List<String> fqns) {
-        this.implementsFqns.clear();
-        if (fqns != null) implementsFqns.addAll(fqns);
-        return this;
-      }
-
       /** Append one {@code implements} FQN. */
       public Builder implementsFqn(String fqn) {
         this.implementsFqns.add(fqn);
+        return this;
+      }
+
+      /** Append all {@code implements} FQNs from a list; calls accumulate. */
+      public Builder implementsFqns(List<String> fqns) {
+        if (fqns != null) this.implementsFqns.addAll(fqns);
         return this;
       }
 
@@ -393,23 +385,9 @@ public sealed interface Type {
         return this;
       }
 
-      /** Replace the full {@code extends} FQN list. */
-      public Builder extendsFqns(List<String> fqns) {
-        this.extendsFqns.clear();
-        if (fqns != null) extendsFqns.addAll(fqns);
-        return this;
-      }
-
       /** Append one {@code extends} FQN. */
       public Builder extendsFqn(String fqn) {
         this.extendsFqns.add(fqn);
-        return this;
-      }
-
-      /** Replace the full {@code implements} FQN list. */
-      public Builder implementsFqns(List<String> fqns) {
-        this.implementsFqns.clear();
-        if (fqns != null) implementsFqns.addAll(fqns);
         return this;
       }
 
@@ -449,9 +427,8 @@ public sealed interface Type {
         return this;
       }
 
-      /** Replace the full annotation list. */
+      /** Append an annotation list. */
       public Builder annotations(List<String> anns) {
-        this.annotations.clear();
         if (anns != null) annotations.addAll(anns);
         return this;
       }
@@ -618,22 +595,15 @@ public sealed interface Type {
         return this;
       }
 
-      /** Replace the full {@code extends} FQN list. */
-      public Builder extendsFqns(List<String> fqns) {
-        this.extendsFqns.clear();
-        if (fqns != null) extendsFqns.addAll(fqns);
-        return this;
-      }
-
       /** Append one {@code extends} FQN. */
       public Builder extendsFqn(String fqn) {
         this.extendsFqns.add(fqn);
         return this;
       }
 
-      /** Replace the full {@code implements} FQN list. */
+      /** Append a {@code implements} FQN list. */
       public Builder implementsFqns(List<String> fqns) {
-        this.implementsFqns.clear();
+
         if (fqns != null) implementsFqns.addAll(fqns);
         return this;
       }
@@ -834,23 +804,9 @@ public sealed interface Type {
         return this;
       }
 
-      /** Replace the full {@code extends} FQN list. */
-      public Builder extendsFqns(List<String> fqns) {
-        this.extendsFqns.clear();
-        if (fqns != null) extendsFqns.addAll(fqns);
-        return this;
-      }
-
       /** Append one {@code extends} FQN. */
       public Builder extendsFqn(String fqn) {
         this.extendsFqns.add(fqn);
-        return this;
-      }
-
-      /** Replace the full {@code permits} FQN list. */
-      public Builder permitsFqns(List<String> fqns) {
-        this.permitsFqns.clear();
-        if (fqns != null) permitsFqns.addAll(fqns);
         return this;
       }
 

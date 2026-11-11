@@ -51,7 +51,7 @@ public final class RecordSourceMapping {
             .javadoc(Javadoc.builder().text(m.comment()).build())
             .deprecated(m.deprecated())
             .name(m.name())
-            .implementsFqns(List.copyOf(m.interfaces()));
+            .implementsFqns(m.interfaces());
 
     // 1. The components -- one Member.Field per proto field, in declaration order. Blank Javadoc +
     // no @Deprecated + blank initializer are the compact-ctor defaults, so the builder sets only
@@ -157,7 +157,7 @@ public final class RecordSourceMapping {
             .returnType(m.name())
             .name("fromBytes")
             .param("byte[]", "in")
-            .thrown(List.of("java.io.IOException"))
+            .thrown("java.io.IOException")
             .body(Statement.of("return " + codecName + ".decode(in);"))
             .build());
 
@@ -170,7 +170,7 @@ public final class RecordSourceMapping {
             .public_()
             .returnType("byte[]")
             .name("toByteArray")
-            .thrown(List.of("java.io.IOException"))
+            .thrown("java.io.IOException")
             .body(Statement.of("return " + m.name() + "Codec.encode(this);"))
             .override(true)
             .build();
@@ -312,7 +312,7 @@ public final class RecordSourceMapping {
     // Build the sealed interface: extends clause first, then permits + per-member nested records +
     // default value() as we scan the members.
     Type.Interface.Builder iface =
-        Type.Interface.builder().public_().sealed_().name(ifaceName).extendsFqns(List.of(ext));
+        Type.Interface.builder().public_().sealed_().name(ifaceName).extendsFqn(ext);
 
     // Build permits and nested per-member records simultaneously. For each oneof member
     // (scalar, enum, or message), emit a nested public record <Cap>Value(<Type> value)
@@ -338,7 +338,7 @@ public final class RecordSourceMapping {
           Type.Record.builder()
               .public_()
               .name(valName)
-              .implementsFqns(List.of(ifaceName))
+              .implementsFqn(ifaceName)
               .component(Member.Field.builder().type(valType).name("value").build())
               .build();
       iface.nested(new Member.Nested(wr));
