@@ -45,15 +45,11 @@ class ClassSourceTest {
             .final_()
             .javadoc(new Javadoc("Wire codec for the MessageRec record."))
             .name("Codec")
-            .members(
-
-                // M4-C2b-2b-1: the codec's members are built with @RecordBuilder's fluent
-                // builders, so
-                // a caller sets only the elements it needs -- and the `throws` clause rides on
-                // the
-                // new `thrown` field (M4-C2b's per-message encode/decode are `throws
-                // IOException`).
-                Member.Constructor.builder().private_().name("Codec").build(),
+            // M4-C2b-2b-1: the codec's members are built with @RecordBuilder's fluent builders,
+            // so a caller sets only the elements it needs -- and the `throws` clause rides on the
+            // new `thrown` field (M4-C2b's per-message encode/decode are `throws IOException`).
+            .constructor(Member.Constructor.builder().private_().name("Codec").build())
+            .method(
                 Member.Method.builder()
                     .public_()
                     .static_()
@@ -76,7 +72,8 @@ class ClassSourceTest {
     return Type.Record.builder()
         .public_()
         .name("MessageRec")
-        .members(Member.Field.builder().type("int").name("id").build(), new Member.Nested(codec))
+        .component(Member.Field.builder().type("int").name("id").build())
+        .nested(new Member.Nested(codec))
         .build();
   }
 
@@ -326,8 +323,8 @@ class ClassSourceTest {
             .final_()
             .javadoc(new Javadoc("Wire codec for the RecordWithRealMultiScalar record."))
             .name("Codec")
-            .members(
-                Member.Constructor.builder().private_().name("Codec").build(),
+            .constructor(Member.Constructor.builder().private_().name("Codec").build())
+            .method(
                 // M4-C2b-2b-3: the multi-scalar encode body -- three guarded writes for int
                 // (field 1), long (field 2), and String (field 3).
                 Member.Method.builder()
@@ -386,11 +383,11 @@ class ClassSourceTest {
     return Type.Record.builder()
         .public_()
         .name("RecordWithRealMultiScalar")
-        .members(
+        .component(
             Member.Field.builder().type("int").name("id").build(),
             Member.Field.builder().type("long").name("value").build(),
-            Member.Field.builder().type("String").name("text").build(),
-            new Member.Nested(codec))
+            Member.Field.builder().type("String").name("text").build())
+        .nested(new Member.Nested(codec))
         .build();
   }
 
@@ -403,8 +400,8 @@ class ClassSourceTest {
             .final_()
             .javadoc(new Javadoc("Wire codec for the RecordWithRealCodec record."))
             .name("Codec")
-            .members(
-                Member.Constructor.builder().private_().name("Codec").build(),
+            .constructor(Member.Constructor.builder().private_().name("Codec").build())
+            .method(
                 // M4-C2b-2b-2: the codec's encode is the real scalar-encode body -- a fresh
                 // runtime Encoder, a per-field guarded write, and a finish. No oneof / no WKT /
                 // no nested-message / no unknown-field carrier -- deferred to M4-C2b-2b-3+.
@@ -454,7 +451,8 @@ class ClassSourceTest {
     return Type.Record.builder()
         .public_()
         .name("RecordWithRealCodec")
-        .members(Member.Field.builder().type("int").name("id").build(), new Member.Nested(codec))
+        .component(Member.Field.builder().type("int").name("id").build())
+        .nested(new Member.Nested(codec))
         .build();
   }
 
@@ -514,7 +512,7 @@ class ClassSourceTest {
             .static_()
             .final_()
             .name("Codec")
-            .members(encode, decode)
+            .method(encode, decode)
             .build();
 
     var record =
@@ -522,7 +520,8 @@ class ClassSourceTest {
             .public_()
             .final_()
             .name("RecordWithBytes")
-            .members(dataField, new Member.Nested(codec))
+            .component(dataField)
+            .nested(new Member.Nested(codec))
             .build();
 
     String src = SourceRenderer.render(new JavaFile(PKG, new Javadoc(""), record, ci));
@@ -582,7 +581,7 @@ class ClassSourceTest {
             .static_()
             .final_()
             .name("Codec")
-            .members(encode, decode)
+            .method(encode, decode)
             .build();
 
     var record =
@@ -590,7 +589,8 @@ class ClassSourceTest {
             .public_()
             .final_()
             .name("RecordWithBytes")
-            .members(dataField, new Member.Nested(codec))
+            .component(dataField)
+            .nested(new Member.Nested(codec))
             .build();
 
     String pkg = "bijnagte.recordbuf.codegen.source.roundtrip";

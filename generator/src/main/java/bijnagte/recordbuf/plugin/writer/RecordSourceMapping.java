@@ -56,11 +56,9 @@ public final class RecordSourceMapping {
     // 1. The components -- one Member.Field per proto field, in declaration order. Blank Javadoc +
     // no @Deprecated + blank initializer are the compact-ctor defaults, so the builder sets only
     // the
-    // component's type + javaName; SourceRenderer.renderRecord classifies every Member.Field among
-    // a
-    // record's members as a component (so they render in the record header).
+    // component's type + javaName; a record's components render in its header via components().
     for (Field f : m.fields()) {
-      result.members(
+      result.component(
           Member.Field.builder().type(scalarComponentType(f, ci)).name(f.javaName()).build());
     }
 
@@ -68,11 +66,11 @@ public final class RecordSourceMapping {
     // its
     // full core + its BY_NUMBER reverse-lookup cluster (with shared java.util.* imports).
     for (Enum e : m.nestedEnums()) {
-      result.members(new Member.Nested(EnumSourceMapping.toSource(e, ci)));
+      result.nested(new Member.Nested(EnumSourceMapping.toSource(e, ci)));
     }
     // M4-C2b-2b-12: oneof groups.
     for (Oneof oneof : m.oneofs()) {
-      result.members(emitOneof(oneof, ci));
+      emitOneof(result, oneof, ci);
     }
 
     return result.build();
@@ -104,11 +102,11 @@ public final class RecordSourceMapping {
             .deprecated(m.deprecated())
             .name(m.name());
     for (Field f : m.fields()) {
-      result.members(
+      result.component(
           Member.Field.builder().type(scalarComponentType(f, ci)).name(f.javaName()).build());
     }
     for (Enum e : m.nestedEnums()) {
-      result.members(new Member.Nested(EnumSourceMapping.toSource(e, ci)));
+      result.nested(new Member.Nested(EnumSourceMapping.toSource(e, ci)));
     }
     // M4-C2d-9: nested messages — emit each as an inner record via recursion.
     for (Message nested : m.nestedMessages()) {
@@ -118,17 +116,17 @@ public final class RecordSourceMapping {
               nested, ci, f -> f.kind() == FieldKind.MESSAGE ? f.typeUrl() + ".Codec" : null);
       // The nested type's FQN must be <Parent>.<Nested> — the TypeCollector handles the
       // package qualification, so just ensure the ci knows about it.
-      result.members(new Member.Nested(nestedRec));
+      result.nested(new Member.Nested(nestedRec));
     }
     // M4-C2b-2b-12: oneof groups.
     for (Oneof oneof : m.oneofs()) {
-      result.members(emitOneof(oneof, ci));
+      emitOneof(result, oneof, ci);
     }
     // M4-C2d-7: nested map entry records + their codecs, before the main Codec.
     for (Field f : m.fields()) {
       if (f.kind() == FieldKind.MAP) {
         Type.Record entry = mapEntryRecord(f, ci);
-        result.members(new Member.Nested(entry));
+        result.nested(new Member.Nested(entry));
       }
     }
 
@@ -138,21 +136,21 @@ public final class RecordSourceMapping {
     // M4-C2d-3: register java.util.ArrayList for the codec's repeated-local-init lines,
     // and java.util.List for the record's repeated-field components.
     ci.use("java.util.ArrayList");
-    result.members(Member.Field.builder().type(ufFqn).name("unknownFields").build());
+    result.component(Member.Field.builder().type(ufFqn).name("unknownFields").build());
 
     // M4-C2b-2b-6: the fluent builder. Emitted after the carrier and after the codec (a forward
     // reference to the codec's inner-class is resolved by javac's inner-class resolution).
-    result.members(emitBuilder(m, ci, ufFqn));
+    emitBuilder(result, m, ci, ufFqn);
     // M4-C2b-2b-8: toBuilder + fromBytes (old path parity)
     String codecName = m.name() + "Codec";
-    result.members(
+    result.method(
         Member.Method.builder()
             .public_()
             .returnType("Builder")
             .name("toBuilder")
             .body(Statement.of("return new " + m.name() + ".Builder(this);"))
             .build());
-    result.members(
+    result.method(
         Member.Method.builder()
             .public_()
             .static_()
@@ -176,17 +174,17 @@ public final class RecordSourceMapping {
             .body(Statement.of("return " + m.name() + "Codec.encode(this);"))
             .override(true)
             .build();
-    result.members(toByteArray);
+    result.method(toByteArray);
 
     // M4-C2b-2c: append the nested Codec, built from the same message model.
     Type.Class codec = CodecSourceMapping.toCodec(m, ci, typeResolver);
-    result.members(new Member.Nested(codec));
+    result.nested(new Member.Nested(codec));
 
     // M4-C2e: Layer B interop — nested Interop class when recordbuf.protobuf_java is set.
     // useFqn is used for the protobuf-java ref type to avoid a short-name import that
     // would collide with the record's own name in the same compilation unit.
     if (m.protobufJava() != null && !m.protobufJava().isEmpty()) {
-      result.members(new Member.Nested(InteropSourceMapping.toInterop(m, ci, "")));
+      result.nested(new Member.Nested(InteropSourceMapping.toInterop(m, ci, "")));
     }
 
     // Build the implements list: user-declared interfaces first, then ProtobufMessage
@@ -296,14 +294,14 @@ public final class RecordSourceMapping {
    * Choice.NameValue} are not import-eligible. Message member permits are resolved via {@code
    * ci.use(typeUrl)} to get their short name.
    */
-  private static List<Member> emitOneof(Oneof oneof, TypeCollector ci) {
-    List<Member> list = new ArrayList<>();
+  private static void emitOneof(Type.Record.Builder record, Oneof oneof, TypeCollector ci) {
     String ifaceName = oneof.ifaceName();
     String componentName = oneof.componentName();
 
     // 1. The @Nullable record component in the enclosing record.
     ci.use("org.jspecify.annotations.Nullable");
-    list.add(Member.Field.builder().type("@Nullable " + ifaceName).name(componentName).build());
+    record.component(
+        Member.Field.builder().type("@Nullable " + ifaceName).name(componentName).build());
 
     // 2. Build the sealed interface: extends clause + permits + per-member records + default
     // value().
@@ -341,9 +339,9 @@ public final class RecordSourceMapping {
               .public_()
               .name(valName)
               .implementsFqns(List.of(ifaceName))
-              .members(Member.Field.builder().type(valType).name("value").build())
+              .component(Member.Field.builder().type(valType).name("value").build())
               .build();
-      iface.members(new Member.Nested(wr));
+      iface.nested(new Member.Nested(wr));
     }
 
     // The default value() method (overrides the Unwrapable.value()). Use `default` keyword in an
@@ -355,10 +353,9 @@ public final class RecordSourceMapping {
             .name("value")
             .body(Statement.of("return this;"))
             .build();
-    iface.members(defaultMethod);
+    iface.method(defaultMethod);
 
-    list.add(new Member.Nested(iface.build()));
-    return list;
+    record.nested(new Member.Nested(iface.build()));
   }
 
   /**
@@ -398,7 +395,8 @@ public final class RecordSourceMapping {
   // - one fluent setter per component
   // - private unknownFields field with default empty()
   // - public build() terminal
-  private static List<Member> emitBuilder(Message m, TypeCollector ci, String ufFqn) {
+  private static void emitBuilder(
+      Type.Record.Builder record, Message m, TypeCollector ci, String ufFqn) {
     String recName = m.name();
     // The nested static Builder class — header first, members accumulated below.
     Type.Class.Builder builderClz =
@@ -422,7 +420,7 @@ public final class RecordSourceMapping {
     }
     for (Field f : m.fields()) {
       String fieldDefault = defaultFor(f);
-      builderClz.members(
+      builderClz.field(
           Member.Field.builder()
               .type(scalarComponentType(f, ci))
               .name(f.javaName())
@@ -432,7 +430,7 @@ public final class RecordSourceMapping {
     }
     // M4-C2b-2b-12: oneof component storage fields. Each defaults to null.
     for (var oneof : m.oneofs()) {
-      builderClz.members(
+      builderClz.field(
           Member.Field.builder()
               .type("@Nullable " + oneof.ifaceName())
               .name(oneof.componentName())
@@ -442,7 +440,7 @@ public final class RecordSourceMapping {
     }
     // Carrier storage field with default empty().
     String ufShort = ci.use(ufFqn);
-    builderClz.members(
+    builderClz.field(
         Member.Field.builder()
             .type(ufShort)
             .name("unknownFields")
@@ -452,7 +450,7 @@ public final class RecordSourceMapping {
 
     // The no-arg constructor (Java does not generate an implicit one when a parametered ctor
     // exists).
-    builderClz.members(Member.Constructor.builder().private_().name("Builder").body().build());
+    builderClz.constructor(Member.Constructor.builder().private_().name("Builder").body().build());
 
     // The toBuilder copy constructor.
     List<Statement> copyBody = new ArrayList<>();
@@ -472,7 +470,7 @@ public final class RecordSourceMapping {
           Statement.of("this." + oneof.componentName() + " = x." + oneof.componentName() + "();"));
     }
     copyBody.add(Statement.of("this.unknownFields = x.unknownFields();"));
-    builderClz.members(
+    builderClz.constructor(
         Member.Constructor.builder()
             .private_()
             .name("Builder")
@@ -483,7 +481,7 @@ public final class RecordSourceMapping {
     // Fluent setter for each field.
     for (Field f : m.fields()) {
       String fieldName = f.javaName();
-      builderClz.members(
+      builderClz.method(
           Member.Method.builder()
               .public_()
               .returnType("Builder")
@@ -497,7 +495,7 @@ public final class RecordSourceMapping {
     // M4-C2b-2b-12: oneof fluent setter per component.
     for (var oneof : m.oneofs()) {
       String compName = oneof.componentName();
-      builderClz.members(
+      builderClz.method(
           Member.Method.builder()
               .public_()
               .returnType("Builder")
@@ -509,7 +507,7 @@ public final class RecordSourceMapping {
               .build());
     }
     // Carrier setter.
-    builderClz.members(
+    builderClz.method(
         Member.Method.builder()
             .public_()
             .returnType("Builder")
@@ -528,7 +526,7 @@ public final class RecordSourceMapping {
       ctorArgs.add(oneof.componentName());
     }
     ctorArgs.add("unknownFields");
-    builderClz.members(
+    builderClz.method(
         Member.Method.builder()
             .javadoc(Javadoc.builder().text("Builds a ", m.name(), " record.").build())
             .public_()
@@ -557,7 +555,8 @@ public final class RecordSourceMapping {
             .body(Statement.of("return new " + recName + ".Builder();"))
             .build();
 
-    return List.of(builderFactory, new Member.Nested(nestedBuilder));
+    record.method(builderFactory);
+    record.nested(new Member.Nested(nestedBuilder));
   }
 
   /**
@@ -611,11 +610,11 @@ public final class RecordSourceMapping {
     String valueType = boxedScalarType(Objects.requireNonNull(f.mapValue()));
 
     Type.Record.Builder result = Type.Record.builder().public_().name(entryName);
-    result.members(Member.Field.builder().type(keyType).name("key").build());
-    result.members(Member.Field.builder().type(valueType).name("value").build());
+    result.component(Member.Field.builder().type(keyType).name("key").build());
+    result.component(Member.Field.builder().type(valueType).name("value").build());
 
     Type.Class entryCodec = CodecSourceMapping.emitEntryCodec(entryName, f, ci);
-    result.members(new Member.Nested(entryCodec));
+    result.nested(new Member.Nested(entryCodec));
 
     return result.build();
   }

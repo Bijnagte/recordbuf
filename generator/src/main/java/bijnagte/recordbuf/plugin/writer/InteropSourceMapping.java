@@ -71,7 +71,8 @@ public final class InteropSourceMapping {
         .final_()
         .javadoc(javadoc)
         .name("Interop")
-        .members(privateCtor, fromMethod, toMethod)
+        .constructor(privateCtor)
+        .method(fromMethod, toMethod)
         .build();
   }
 

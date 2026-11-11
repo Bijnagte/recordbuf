@@ -31,15 +31,17 @@ class JavaSourceTest {
     return Type.Enum.builder()
         .public_()
         .name("SampleType")
-        .members(
+        .enumConstant(
             Member.EnumConstant.builder().name("A").ctorArgs("0").build(),
-            Member.EnumConstant.builder().name("B").ctorArgs("1").build(),
-            Member.Field.builder().private_().type("int").name("number").build(),
+            Member.EnumConstant.builder().name("B").ctorArgs("1").build())
+        .field(Member.Field.builder().private_().type("int").name("number").build())
+        .constructor(
             Member.Constructor.builder()
                 .name("SampleType")
                 .param("int", "number")
                 .body(Statement.of("this.number = number;"))
-                .build(),
+                .build())
+        .method(
             Member.Method.builder()
                 .public_()
                 .returnType("int")
@@ -54,11 +56,12 @@ class JavaSourceTest {
     return Type.Record.builder()
         .public_()
         .name("Sample")
-        .members(
+        .component(
             Member.Field.builder().type("int").name("value").build(),
             Member.Field.builder().type("byte[]").name("items").build(),
-            Member.Field.builder().type("SampleType").name("type").build(),
-            new Member.Nested(sampleType()),
+            Member.Field.builder().type("SampleType").name("type").build())
+        .nested(new Member.Nested(sampleType()))
+        .method(
             Member.Method.builder()
                 .public_()
                 .static_()

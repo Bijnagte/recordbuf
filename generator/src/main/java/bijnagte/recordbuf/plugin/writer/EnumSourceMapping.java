@@ -58,7 +58,7 @@ public final class EnumSourceMapping {
 
     // 1. The constants -- each with its number ctor-arg, its own Javadoc, and its own @Deprecated.
     for (Enum.EnumConstant c : proto.constants()) {
-      result.members(
+      result.enumConstant(
           Member.EnumConstant.builder()
               .name(c.name())
               .ctorArgs(Integer.toString(c.number()))
@@ -68,8 +68,8 @@ public final class EnumSourceMapping {
     }
 
     // 2. The number field + ctor + accessor -- the core the M4-C2a slice mapped.
-    result.members(Member.Field.builder().private_().final_().type("int").name("number").build());
-    result.members(
+    result.field(Member.Field.builder().private_().final_().type("int").name("number").build());
+    result.constructor(
         Member.Constructor.builder()
             .name(name)
             .param("int", "number")
@@ -78,7 +78,7 @@ public final class EnumSourceMapping {
                     Expression.assign(
                         Expression.member("this", "number"), Expression.lit("number"))))
             .build());
-    result.members(
+    result.method(
         Member.Method.builder()
             .public_()
             .returnType("int")
@@ -91,7 +91,7 @@ public final class EnumSourceMapping {
     // form and emitted verbatim (TypeCollector.use strips generic args).
     String map = ci.use("java.util.Map");
     String hashMap = ci.use("java.util.HashMap");
-    result.members(
+    result.field(
         Member.Field.builder()
             .private_()
             .static_()
@@ -110,9 +110,9 @@ public final class EnumSourceMapping {
                   Expression.lit(String.valueOf(c.number())),
                   Expression.lit(c.name()))));
     }
-    result.members(new Member.StaticBlock(init));
+    result.staticBlock(new Member.StaticBlock(init));
 
-    result.members(
+    result.method(
         Member.Method.builder()
             .public_()
             .static_()

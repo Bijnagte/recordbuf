@@ -79,11 +79,12 @@ public final class AvroConverterSourceMapping {
     ci.use("bijnagte.recordbuf.runtime.UnknownFields");
 
     // --- class AST ---
-    Member privateCtor =
+    Member.Constructor privateCtor =
         Member.Constructor.builder().name(recordClass + "AvroConverter").private_().body().build();
 
-    Member toRecord = buildToRecord(message, recordClass, avroSpecific, hasWkt, hasByteField);
-    Member fromRecord = buildFromRecord(message, recordClass, avroSpecific, hasWkt);
+    Member.Method toRecord =
+        buildToRecord(message, recordClass, avroSpecific, hasWkt, hasByteField);
+    Member.Method fromRecord = buildFromRecord(message, recordClass, avroSpecific, hasWkt);
 
     Type.Class converterClass =
         Type.Class.builder()
@@ -91,7 +92,8 @@ public final class AvroConverterSourceMapping {
             .public_()
             .final_()
             .annotations(ANNOTATIONS)
-            .members(privateCtor, toRecord, fromRecord)
+            .constructor(privateCtor)
+            .method(toRecord, fromRecord)
             .build();
 
     JavaFile javaFile = new JavaFile(recordPkg, null, converterClass, ci);
@@ -108,7 +110,7 @@ public final class AvroConverterSourceMapping {
 
   // --- toRecord body builder ----------------------------------------------------------
 
-  private static Member buildToRecord(
+  private static Member.Method buildToRecord(
       Message message,
       String recordClass,
       String avroSpecific,
@@ -158,7 +160,7 @@ public final class AvroConverterSourceMapping {
 
   // --- fromRecord body builder --------------------------------------------------------
 
-  private static Member buildFromRecord(
+  private static Member.Method buildFromRecord(
       Message message, String recordClass, String avroSpecific, boolean hasWkt) {
     List<Statement> body = new ArrayList<>();
     body.add(Statement.of(avroSpecific + " s = new " + avroSpecific + "();"));

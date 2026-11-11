@@ -11,8 +11,11 @@ import java.util.List;
  * {@code List} of {@link Statement}s (idiom nodes + the {@link Statement.Fragment} escape) joined
  * verbatim at the body's indent via the renderer's {@code renderStatement} layout pass.
  *
- * <p>That split -- structural AST at the type/member level, line-emission at the method-body level
- * -- is the "structural AST, line-emission bodies" hybrid the user specified for M4.
+ * <p>The renderer never re-partitions a flat member stream: each {@link Type} stores its body in
+ * typed component lists, and the renderer reads them directly. It switches exhaustively over the
+ * {@link Member} variants when it lays out a body. The canonical body order is fields, static
+ * blocks, constructors, methods, then nested types; a record's components head its body and an
+ * enum's constants head the enum body.
  */
 public final class SourceRenderer {
 
@@ -50,25 +53,25 @@ public final class SourceRenderer {
       this.ci = ci;
     }
 
+    /**
+     * The collect phase: read the type's typed body lists and register import references. Records
+     * contribute components instead of fields; nested types recurse.
+     */
     void collect(Type t) {
       t.implementsFqns().forEach(ci::use);
       if (t instanceof Type.Interface iface) {
         iface.extendsFqns().forEach(ci::use);
-        // M4-C2b-2b-12: permitsFqns are pre-resolved relative references
+        // permitsFqns are pre-resolved relative references
         // (e.g. "Choice.NameValue") or bare short names; the renderer emits them verbatim
         // because nested types within the interface are not import-eligible.
       }
-      for (Member mem : t.members()) {
-        switch (mem) {
-          case Member.Field f -> ci.use(f.type());
-          case Member.Method mt -> {
-            ci.use(mt.returnType());
-            mt.thrown().forEach(ci::use);
-          }
-          case Member.Nested n -> collect(n.type());
-          default -> {}
-        }
+      for (Member.Field c : t.components()) ci.use(c.type());
+      for (Member.Field f : t.fields()) ci.use(f.type());
+      for (Member.Method m : t.methods()) {
+        ci.use(m.returnType());
+        m.thrown().forEach(ci::use);
       }
+      for (Member.Nested n : t.nested()) collect(n.type());
     }
 
     void render(Type t, int indent, StringBuilder out) {
@@ -89,17 +92,13 @@ public final class SourceRenderer {
 
     private void renderRecord(Type.Record r, int indent, StringBuilder out) {
       int body = indent + 1;
-      List<Member.Field> comps = new ArrayList<>();
-      List<Member> bodyMembers = new ArrayList<>();
-      for (Member m : r.members()) {
-        if (m instanceof Member.Field f) comps.add(f);
-        else bodyMembers.add(m);
-      }
+      List<Member> bodyMembers = bodyMembers(r);
 
       out.append(indent(indent));
       if (r.javadoc().present()) out.append(javadoc(r.javadoc().raw(), indent)).append('\n');
       if (r.deprecated()) out.append('@').append("Deprecated\n").append(indent(indent));
       out.append(r.mods().withSpace()).append("record ").append(r.name()).append('(');
+      var comps = r.components();
       if (comps.isEmpty()) {
         out.append(')');
       } else {
@@ -126,7 +125,7 @@ public final class SourceRenderer {
       out.append(" {\n");
       for (int i = 0; i < bodyMembers.size(); i++) {
         if (i > 0) out.append('\n');
-        renderBodyMember(bodyMembers.get(i), body, out);
+        renderMember(bodyMembers.get(i), body, out);
       }
       out.append(indent(indent)).append('}').append('\n');
     }
@@ -135,12 +134,7 @@ public final class SourceRenderer {
 
     private void renderEnum(Type.Enum e, int indent, StringBuilder out) {
       int body = indent + 1;
-      List<Member.EnumConstant> consts = new ArrayList<>();
-      List<Member> rest = new ArrayList<>();
-      for (Member m : e.members()) {
-        if (m instanceof Member.EnumConstant c) consts.add(c);
-        else rest.add(m);
-      }
+      List<Member> bodyMembers = bodyMembers(e);
       out.append(indent(indent));
       if (e.javadoc().present()) out.append(javadoc(e.javadoc().raw(), indent)).append('\n');
       if (e.deprecated()) out.append('@').append("Deprecated\n").append(indent(indent));
@@ -149,6 +143,7 @@ public final class SourceRenderer {
         out.append(" implements ").append(joinResolved(e.implementsFqns()));
       }
       out.append(" {\n");
+      var consts = e.enumConstants();
       for (int i = 0; i < consts.size(); i++) {
         Member.EnumConstant c = consts.get(i);
         // The optional per-constant Javadoc first (it renders its own indent); a leading
@@ -163,9 +158,9 @@ public final class SourceRenderer {
           out.append("(").append(String.join(", ", c.ctorArgs())).append(")");
         out.append(i + 1 == consts.size() ? ";" : ",").append('\n');
       }
-      for (int i = 0; i < rest.size(); i++) {
+      for (int i = 0; i < bodyMembers.size(); i++) {
         if (i > 0 || !consts.isEmpty()) out.append('\n');
-        renderBodyMember(rest.get(i), body, out);
+        renderMember(bodyMembers.get(i), body, out);
       }
       out.append(indent(indent)).append('}').append('\n');
     }
@@ -174,6 +169,7 @@ public final class SourceRenderer {
 
     private void renderClass(Type.Class c, int indent, StringBuilder out) {
       int body = indent + 1;
+      List<Member> bodyMembers = bodyMembers(c);
       out.append(indent(indent));
       // Annotations render first, each on its own indented line, before the Javadoc.
       for (String ann : c.annotations()) {
@@ -192,14 +188,14 @@ public final class SourceRenderer {
       if (!c.implementsFqns().isEmpty()) {
         out.append(" implements ").append(joinResolved(c.implementsFqns()));
       }
-      if (c.members().isEmpty()) {
+      if (bodyMembers.isEmpty()) {
         out.append(" {}\n");
         return;
       }
       out.append(" {\n");
-      for (int i = 0; i < c.members().size(); i++) {
+      for (int i = 0; i < bodyMembers.size(); i++) {
         if (i > 0) out.append('\n');
-        renderBodyMember(c.members().get(i), body, out);
+        renderMember(bodyMembers.get(i), body, out);
       }
       out.append(indent(indent)).append('}').append('\n');
     }
@@ -208,6 +204,7 @@ public final class SourceRenderer {
 
     private void renderInterface(Type.Interface iface, int indent, StringBuilder out) {
       int body = indent + 1;
+      List<Member> bodyMembers = bodyMembers(iface);
       out.append(indent(indent));
       if (iface.javadoc().present()) {
         out.append(javadoc(iface.javadoc().raw(), indent)).append('\n');
@@ -222,21 +219,38 @@ public final class SourceRenderer {
       if (!iface.permitsFqns().isEmpty()) {
         out.append(" permits ").append(String.join(", ", iface.permitsFqns()));
       }
-      if (iface.members().isEmpty()) {
+      if (bodyMembers.isEmpty()) {
         out.append(" {}\n");
         return;
       }
       out.append(" {\n");
-      for (int i = 0; i < iface.members().size(); i++) {
+      for (int i = 0; i < bodyMembers.size(); i++) {
         if (i > 0) out.append('\n');
-        renderBodyMember(iface.members().get(i), body, out);
+        renderMember(bodyMembers.get(i), body, out);
       }
       out.append(indent(indent)).append('}').append('\n');
     }
 
+    /**
+     * The type body in canonical order: fields, static blocks, constructors, methods, nested. A
+     * record contributes no fields of its own (its head is {@link Type#components()}), so this is
+     * its body. Assembled from the typed component lists only — never a re-partition of a flat
+     * member stream.
+     */
+    private List<Member> bodyMembers(Type t) {
+      List<Member> out = new ArrayList<>();
+      out.addAll(t.fields());
+      out.addAll(t.staticBlocks());
+      out.addAll(t.constructors());
+      out.addAll(t.methods());
+      out.addAll(t.nested());
+      return out;
+    }
+
     /* ---- body members -------------------------------------------------- */
 
-    private void renderBodyMember(Member mem, int indent, StringBuilder out) {
+    /** Render one body member. Exhaustive over the {@link Member} sealed hierarchy. */
+    private void renderMember(Member mem, int indent, StringBuilder out) {
       int body = indent + 1;
       switch (mem) {
         case Member.Field f -> {
@@ -256,7 +270,7 @@ public final class SourceRenderer {
         case Member.Method m -> {
           out.append(indent(indent));
           if (m.javadoc().present()) out.append(javadoc(m.javadoc().raw(), indent)).append('\n');
-          // M4-C2b-2b-5: @Override annotation before the modifier line.
+          // @Override annotation before the modifier line.
           if (m.override()) out.append("@Override\n").append(indent(indent));
           String sig =
               m.mods().withSpace()
@@ -298,6 +312,8 @@ public final class SourceRenderer {
           out.append(indent(indent)).append("}\n");
         }
         case Member.Nested n -> render(n.type(), indent, out);
+        // Enum constants are heads of an enum body; they are never part of a type body, so this
+        // arm is unreachable but keeps the switch exhaustive over the sealed hierarchy.
         case Member.EnumConstant ignored -> {}
       }
     }

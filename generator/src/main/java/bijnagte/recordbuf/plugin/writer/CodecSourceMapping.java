@@ -72,8 +72,8 @@ public final class CodecSourceMapping {
             .final_()
             .javadoc(Javadoc.builder().text("Wire codec for the ", m.name(), " record.").build())
             .name(codecName); // M4-C2b-2b-8: <Name>Codec to align with old path
-    result.members(Member.Constructor.builder().private_().name(codecName).build());
-    result.members(
+    result.constructor(Member.Constructor.builder().private_().name(codecName).build());
+    result.method(
         encode(
             m,
             ci,
@@ -84,7 +84,7 @@ public final class CodecSourceMapping {
             wireShort,
             bytesShort,
             typeResolver));
-    result.members(
+    result.method(
         decode(
             m,
             ci,
@@ -737,7 +737,7 @@ public final class CodecSourceMapping {
     String codecName = entryName + "Codec";
     Type.Class.Builder result = Type.Class.builder().public_().static_().final_().name(codecName);
 
-    result.members(Member.Constructor.builder().private_().name(codecName).build());
+    result.constructor(Member.Constructor.builder().private_().name(codecName).build());
 
     List<Statement> encBody = new ArrayList<>();
     encBody.add(Statement.of("var enc = " + encoderShort + ".start();"));
@@ -753,7 +753,7 @@ public final class CodecSourceMapping {
     encBody.add(Statement.of("out." + encodeCall(valWire) + "(2, " + valArg + ");"));
     encBody.add(Statement.of("return enc.finish();"));
 
-    result.members(
+    result.method(
         Member.Method.builder()
             .public_()
             .static_()
@@ -782,7 +782,7 @@ public final class CodecSourceMapping {
     decBody.add(Statement.of("}"));
     decBody.add(Statement.of("return new " + entryName + "(key, value);"));
 
-    result.members(
+    result.method(
         Member.Method.builder()
             .public_()
             .static_()
