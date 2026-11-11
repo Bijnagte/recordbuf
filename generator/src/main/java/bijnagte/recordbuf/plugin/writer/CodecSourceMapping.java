@@ -6,6 +6,7 @@ import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Member;
 import bijnagte.recordbuf.codegen.source.Statement;
+import bijnagte.recordbuf.codegen.source.Switch;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.codegen.source.While;
 import bijnagte.recordbuf.plugin.model.Field;
@@ -249,43 +250,43 @@ public final class CodecSourceMapping {
       body.add(Statement.of(o.ifaceName() + " " + o.componentName() + " = null;"));
     }
 
-    // Tag loop.
+    // Tag loop: a while-loop wrapping a pattern-matching switch of tag-case arms.
     List<Statement> tagLoop = new ArrayList<>();
     tagLoop.add(Statement.of("int tag = " + wireShort + ".readTag(in);"));
     tagLoop.add(If.builder().condition("tag == 0").body(Statement.of("break;")).build());
-    tagLoop.add(Statement.of("switch (" + wireShort + ".tagFieldNumber(tag)) {"));
+    Switch.Builder switchB = Switch.builder().subject(wireShort + ".tagFieldNumber(tag)");
     for (Field f : m.fields()) {
       Entry wktEntry = WktSourceMapping.resolve(f);
       if (wktEntry != null) {
         var wkt0 = Objects.requireNonNull(wktEntry);
-        WktSourceMapping.emitDecodeCase(f, wkt0, "in", "Wkt", tagLoop);
+        WktSourceMapping.emitDecodeCase(f, wkt0, "in", "Wkt", switchB);
       } else if (f.kind() == FieldKind.MAP) {
-        emitMapDecodeCase(f, ci, tagLoop);
+        emitMapDecodeCase(f, ci, switchB);
       } else if (f.kind() == FieldKind.MESSAGE) {
         if (f.label() == FieldLabel.REPEATED) {
-          emitRepeatedMessageDecodeCase(f, typeResolver, tagLoop);
+          emitRepeatedMessageDecodeCase(f, typeResolver, switchB);
         } else {
-          emitMessageDecodeCase(f, typeResolver, tagLoop);
+          emitMessageDecodeCase(f, typeResolver, switchB);
         }
       } else if (f.kind() == FieldKind.ENUM) {
         if (f.label() == FieldLabel.REPEATED) {
-          emitRepeatedEnumDecodeCase(f, typeResolver, tagLoop);
+          emitRepeatedEnumDecodeCase(f, typeResolver, switchB);
         } else {
-          emitEnumDecodeCase(f, typeResolver, tagLoop);
+          emitEnumDecodeCase(f, typeResolver, switchB);
         }
       } else if (f.label() == FieldLabel.REPEATED) {
-        emitRepeatedScalarDecodeCase(f, tagLoop);
+        emitRepeatedScalarDecodeCase(f, switchB);
       } else {
-        emitScalarDecodeCase(f, tagLoop);
+        emitScalarDecodeCase(f, switchB);
       }
     }
     // Oneof decode cases: each member contributes a case that assigns the oneof local.
     for (Oneof o : m.oneofs()) {
-      emitOneofDecodeCase(o, ci, typeResolver, tagLoop);
+      emitOneofDecodeCase(o, ci, typeResolver, switchB);
     }
     // M4-C2b-2b-5: the default case captures the unknown field into the builder.
-    tagLoop.add(Statement.of("default -> unknown.add(in, tag);"));
-    tagLoop.add(Statement.of("}"));
+    switchB.defaultBody(Statement.of("unknown.add(in, tag);"));
+    tagLoop.add(switchB.build());
     body.add(While.builder().condition("true").body(tagLoop).build());
 
     // Construct the record, passing the carrier as the last argument.
@@ -428,93 +429,73 @@ public final class CodecSourceMapping {
 
   /** M4-C2b-2b-9: singular ENUM decode — assign EnumName.forNumber(in.readEnum()). */
   private static void emitEnumDecodeCase(
-      Field f, @Nullable Function<Field, String> typeResolver, List<Statement> out) {
+      Field f, @Nullable Function<Field, String> typeResolver, Switch.Builder sw) {
     if (typeResolver == null) {
-      out.add(Statement.of("// M4-C2b-2b-9: typeResolver null; skip " + f.javaName()));
       return;
     }
     int num = f.number();
     String local = f.javaName();
     String enumName = typeResolver.apply(f);
-    out.add(
-        Statement.of(
-            "    case " + num + " -> " + local + " = " + enumName + ".forNumber(in.readEnum());"));
+    sw.caseArm(
+        String.valueOf(num), Statement.of(local + " = " + enumName + ".forNumber(in.readEnum());"));
   }
 
   /** M4-C2b-2b-9: repeated ENUM decode — add EnumName.forNumber(in.readEnum()) to the list. */
   private static void emitRepeatedEnumDecodeCase(
-      Field f, @Nullable Function<Field, String> typeResolver, List<Statement> out) {
+      Field f, @Nullable Function<Field, String> typeResolver, Switch.Builder sw) {
     if (typeResolver == null) {
-      out.add(Statement.of("// M4-C2b-2b-9: typeResolver null; skip " + f.javaName()));
       return;
     }
     int num = f.number();
     String local = f.javaName();
     String enumName = typeResolver.apply(f);
-    out.add(
-        Statement.of(
-            "    case "
-                + num
-                + " -> "
-                + local
-                + ".add("
-                + enumName
-                + ".forNumber(in.readEnum()));"));
+    sw.caseArm(
+        String.valueOf(num),
+        Statement.of(local + ".add(" + enumName + ".forNumber(in.readEnum()));"));
   }
 
   // --- Per-field MESSAGE decode case (M4-C2d-5) ---
 
   /** M4-C2d-5: singular MESSAGE decode — read length-delimited and decode via the codec. */
   private static void emitMessageDecodeCase(
-      Field f, @Nullable Function<Field, String> typeResolver, List<Statement> out) {
+      Field f, @Nullable Function<Field, String> typeResolver, Switch.Builder sw) {
     if (typeResolver == null) {
-      out.add(Statement.of("// M4-C2d-5: typeResolver null; skip " + f.javaName()));
       return;
     }
     int num = f.number();
     String local = f.javaName();
     String codecRef = typeResolver.apply(f);
-    out.add(Statement.of("    case " + num + " -> {"));
-    out.add(Statement.of("      " + local + " = " + codecRef + ".decode(in.readByteArray());"));
-    out.add(Statement.of("    }"));
+    sw.caseArm(
+        String.valueOf(num),
+        Statement.of(local + " = " + codecRef + ".decode(in.readByteArray());"));
   }
 
   /** M4-C2d-5: repeated MESSAGE decode — read length-delimited, add to the list. */
   private static void emitRepeatedMessageDecodeCase(
-      Field f, @Nullable Function<Field, String> typeResolver, List<Statement> out) {
+      Field f, @Nullable Function<Field, String> typeResolver, Switch.Builder sw) {
     if (typeResolver == null) {
-      out.add(Statement.of("// M4-C2d-5: typeResolver null; skip " + f.javaName()));
       return;
     }
     int num = f.number();
     String local = f.javaName();
     String codecRef = typeResolver.apply(f);
-    out.add(Statement.of("    case " + num + " -> {"));
-    out.add(Statement.of("      " + local + ".add(" + codecRef + ".decode(in.readByteArray()));"));
-    out.add(Statement.of("    }"));
+    sw.caseArm(
+        String.valueOf(num),
+        Statement.of(local + ".add(" + codecRef + ".decode(in.readByteArray()));"));
   }
 
   // --- Per-field decode case ---
 
-  private static void emitScalarDecodeCase(Field f, List<Statement> out) {
+  private static void emitScalarDecodeCase(Field f, Switch.Builder sw) {
     if (f.kind() != FieldKind.SCALAR) return;
     int num = f.number();
     String local = f.javaName();
+    String pattern = String.valueOf(num);
     switch (wireScalar(f)) {
-      case STRING ->
-          out.add(Statement.of("    case " + num + " -> " + local + " = in.readString();"));
+      case STRING -> sw.caseArm(pattern, Statement.of(local + " = in.readString();"));
       case BYTES ->
-          out.add(
-              Statement.of(
-                  "    case "
-                      + num
-                      + " -> "
-                      + local
-                      + " = Bytes.of(in.readBytes().toByteArray());"));
-      default ->
-          out.add(
-              Statement.of(
-                  "    case " + num + " -> " + local + " = " + decodeCall(wireScalar(f)) + ";"));
+          sw.caseArm(pattern, Statement.of(local + " = Bytes.of(in.readBytes().toByteArray());"));
+      default -> sw.caseArm(pattern, Statement.of(local + " = " + decodeCall(wireScalar(f)) + ";"));
     }
   }
 
@@ -677,21 +658,16 @@ public final class CodecSourceMapping {
             .build());
   }
 
-  private static void emitRepeatedScalarDecodeCase(Field f, List<Statement> out) {
+  private static void emitRepeatedScalarDecodeCase(Field f, Switch.Builder sw) {
     int num = f.number();
     String local = f.javaName();
     WireScalar wire = wireScalar(f);
-    out.add(Statement.of("    case " + num + " -> {"));
-    out.add(Statement.of("      int _lim = in.pushLimit(in.readRawVarint32());"));
-    out.add(
+    sw.caseArm(
+        String.valueOf(num),
+        Statement.of("int _lim = in.pushLimit(in.readRawVarint32());"),
         Statement.of(
-            "      while (in.getBytesUntilLimit() > 0) "
-                + local
-                + ".add("
-                + decodeCall(wire)
-                + ");"));
-    out.add(Statement.of("      in.popLimit(_lim);"));
-    out.add(Statement.of("    }"));
+            "while (in.getBytesUntilLimit() > 0) " + local + ".add(" + decodeCall(wire) + ");"),
+        Statement.of("in.popLimit(_lim);"));
   }
 
   private static void emitRepeatedLocalInit(Field f, List<Statement> out) {
@@ -779,11 +755,11 @@ public final class CodecSourceMapping {
     List<Statement> tagLoop = new ArrayList<>();
     tagLoop.add(Statement.of("int tag = " + wireShort + ".readTag(in);"));
     tagLoop.add(If.builder().condition("tag == 0").body(Statement.of("break;")).build());
-    tagLoop.add(Statement.of("switch (" + wireShort + ".tagFieldNumber(tag)) {"));
-    emitFieldDecodeCase(tagLoop, 1, "key", keyWire, wireShort);
-    emitFieldDecodeCase(tagLoop, 2, "value", valWire, wireShort);
-    tagLoop.add(Statement.of("default -> unknown.add(in, tag);"));
-    tagLoop.add(Statement.of("}"));
+    Switch.Builder switchB = Switch.builder().subject(wireShort + ".tagFieldNumber(tag)");
+    emitFieldDecodeCase(switchB, 1, "key", keyWire, wireShort);
+    emitFieldDecodeCase(switchB, 2, "value", valWire, wireShort);
+    switchB.defaultBody(Statement.of("unknown.add(in, tag);"));
+    tagLoop.add(switchB.build());
     tagLoop.add(Statement.of(""));
     decBody.add(While.builder().condition("true").body(tagLoop).build());
     decBody.add(Statement.of("return new " + entryName + "(key, value);"));
@@ -834,11 +810,11 @@ public final class CodecSourceMapping {
 
   /** M4-C2d-12: emit a decode case line for a map entry's scalar field. */
   private static void emitFieldDecodeCase(
-      List<Statement> out, int fieldNum, String name, WireScalar ws, String wire) {
+      Switch.Builder sw, int fieldNum, String name, WireScalar ws, String wire) {
     if (ws == WireScalar.STRING) {
-      out.add(Statement.of("  case " + fieldNum + " -> " + name + " = in.readString();"));
+      sw.caseArm(String.valueOf(fieldNum), Statement.of(name + " = in.readString();"));
     } else {
-      out.add(Statement.of("  case " + fieldNum + " -> " + name + " = " + decodeCall(ws) + ";"));
+      sw.caseArm(String.valueOf(fieldNum), Statement.of(name + " = " + decodeCall(ws) + ";"));
     }
   }
 
@@ -870,20 +846,15 @@ public final class CodecSourceMapping {
    * M4-C2d-7: decode case for a MAP field — read length-delimited entry, decode via entry codec.
    */
   @SuppressWarnings("java:S905")
-  private static void emitMapDecodeCase(Field f, TypeCollector ci, List<Statement> out) {
+  private static void emitMapDecodeCase(Field f, TypeCollector ci, Switch.Builder sw) {
     String entryName = mapEntryName(f);
     String local = f.javaName();
     int num = f.number();
-    out.add(Statement.of("    case " + num + " -> {"));
-    out.add(
+    sw.caseArm(
+        String.valueOf(num),
         Statement.of(
-            "      var _entry = "
-                + entryName
-                + "."
-                + entryName
-                + "Codec.decode(in.readByteArray());"));
-    out.add(Statement.of("      " + local + ".put(_entry.key(), _entry.value());"));
-    out.add(Statement.of("    }"));
+            "var _entry = " + entryName + "." + entryName + "Codec.decode(in.readByteArray());"),
+        Statement.of(local + ".put(_entry.key(), _entry.value());"));
   }
 
   // --- Oneof encode / decode ---
@@ -901,23 +872,19 @@ public final class CodecSourceMapping {
     String iface = o.ifaceName();
     String cmp = o.componentName();
     String getter = "v." + cmp + "()";
-    out.add(Statement.of("switch (" + getter + ") {"));
-    out.add(Statement.of("  case null -> {}"));
+    Switch.Builder sw = Switch.builder().subject(getter);
+    sw.caseArm("null");
     for (Field f : o.members()) {
       String bnd = String.valueOf(f.name().charAt(0)) + "_"; // unique binding name
       if (f.isMessage()) {
         String elem = f.typeUrl();
         String type = elem.substring(elem.lastIndexOf('.') + 1);
-        // The per-member sealed value record wraps the actual record; pattern-match on it.
         String sealedSub = iface + "." + JavaNames.cap(f.name()) + "Value";
         String codecRef = type + "." + type + "Codec";
-        out.add(
+        sw.caseArm(
+            sealedSub + " " + bnd,
             Statement.of(
-                "  case "
-                    + sealedSub
-                    + " "
-                    + bnd
-                    + " -> out.writeByteArray("
+                "out.writeByteArray("
                     + f.number()
                     + ", "
                     + codecRef
@@ -927,38 +894,20 @@ public final class CodecSourceMapping {
       } else if (f.kind() == FieldKind.ENUM) {
         // Enum oneof member: write via writeEnum, calling .getNumber() on the enum value.
         String recName = iface + "." + JavaNames.cap(f.name()) + "Value";
-        out.add(
-            Statement.of(
-                "  case "
-                    + recName
-                    + " "
-                    + bnd
-                    + " -> out.writeEnum("
-                    + f.number()
-                    + ", "
-                    + bnd
-                    + ".value().getNumber());"));
+        sw.caseArm(
+            recName + " " + bnd,
+            Statement.of("out.writeEnum(" + f.number() + ", " + bnd + ".value().getNumber());"));
       } else {
         // Scalar oneof member: dispatch on wire type.
         String recName = iface + "." + JavaNames.cap(f.name()) + "Value";
         WireScalar wire = wireScalar(f);
         String call = encodeCall(wire);
-        out.add(
-            Statement.of(
-                "  case "
-                    + recName
-                    + " "
-                    + bnd
-                    + " -> out."
-                    + call
-                    + "("
-                    + f.number()
-                    + ", "
-                    + bnd
-                    + ".value());"));
+        sw.caseArm(
+            recName + " " + bnd,
+            Statement.of("out." + call + "(" + f.number() + ", " + bnd + ".value());"));
       }
     }
-    out.add(Statement.of("}"));
+    out.add(sw.build());
   }
 
   /**
@@ -970,14 +919,12 @@ public final class CodecSourceMapping {
       Oneof o,
       TypeCollector ci,
       @Nullable Function<Field, String> typeResolver,
-      List<Statement> out) {
-    String iface = o.ifaceName();
+      Switch.Builder sw) {
     String cmp = o.componentName();
     for (Field f : o.members()) {
-      int num = f.number();
-      out.add(Statement.of("    case " + num + " -> {"));
-      out.add(Statement.of("      " + cmp + " = " + oneofDecodeRhs(o, f, ci, typeResolver) + ";"));
-      out.add(Statement.of("    }"));
+      sw.caseArm(
+          String.valueOf(f.number()),
+          Statement.of(cmp + " = " + oneofDecodeRhs(o, f, ci, typeResolver) + ";"));
     }
   }
 

@@ -4,6 +4,7 @@ import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.For;
 import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.Statement;
+import bijnagte.recordbuf.codegen.source.Switch;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
 import bijnagte.recordbuf.plugin.types.WellKnownTypes;
@@ -127,71 +128,56 @@ final class WktSourceMapping {
   // decode case: "case N -> { field = Wkt.parseName(in.readByteArray()); }"
   //             "case N -> { field = (Short) Wkt.parse(Wkt.Wrap.KIND, in.readByteArray()); }"
 
-  static void emitDecodeCase(Field f, Entry entry, String in, String wkt, List<Statement> body) {
+  // decode case: "case N -> field = Wkt.parseName(in.readByteArray());"
+  //             "case N -> field = (Short) Wkt.parse(Wkt.Wrap.KIND, in.readByteArray());"
+  static void emitDecodeCase(Field f, Entry entry, String in, String wkt, Switch.Builder sw) {
     int num = f.number();
     String name = f.javaName();
     String read = in + ".readByteArray()";
 
-    body.add(Statement.of("    case " + num + " -> {"));
-
+    String assignment;
     if (f.label() == FieldLabel.REPEATED) {
       if (entry.hasZeroDefault()) {
         // field.add(Wkt.parseName(in.readByteArray()));
-        body.add(
-            Statement.of(
-                "      "
-                    + name
-                    + ".add("
-                    + wkt
-                    + "."
-                    + parseMethod(f.typeUrl())
-                    + "("
-                    + read
-                    + "));"));
+        assignment = name + ".add(" + wkt + "." + parseMethod(f.typeUrl()) + "(" + read + "));";
       } else {
         String javaShort = shortNameOf(requireType(entry));
         // field.add((Short) Wkt.parse(Wkt.Wrap.KIND, in.readByteArray()));
-        body.add(
-            Statement.of(
-                "      "
-                    + name
-                    + ".add(("
-                    + javaShort
-                    + ") "
-                    + wkt
-                    + ".parse("
-                    + wkt
-                    + ".Wrap."
-                    + wrapKind(f.typeUrl())
-                    + ", "
-                    + read
-                    + "));"));
+        assignment =
+            name
+                + ".add(("
+                + javaShort
+                + ") "
+                + wkt
+                + ".parse("
+                + wkt
+                + ".Wrap."
+                + wrapKind(f.typeUrl())
+                + ", "
+                + read
+                + "));";
       }
     } else if (entry.hasZeroDefault()) {
       // field = Wkt.parseName(in.readByteArray());
-      body.add(
-          Statement.of(
-              "      " + name + " = " + wkt + "." + parseMethod(f.typeUrl()) + "(" + read + ");"));
+      assignment = name + " = " + wkt + "." + parseMethod(f.typeUrl()) + "(" + read + ");";
     } else {
       String javaShort = shortNameOf(requireType(entry));
       // field = (Short) Wkt.parse(Wkt.Wrap.KIND, in.readByteArray());
-      body.add(
-          Statement.of(
-              "      "
-                  + name
-                  + " = ("
-                  + javaShort
-                  + ") "
-                  + wkt
-                  + ".parse("
-                  + wkt
-                  + ".Wrap."
-                  + wrapKind(f.typeUrl())
-                  + ", "
-                  + read
-                  + ");"));
+      assignment =
+          name
+              + " = ("
+              + javaShort
+              + ") "
+              + wkt
+              + ".parse("
+              + wkt
+              + ".Wrap."
+              + wrapKind(f.typeUrl())
+              + ", "
+              + read
+              + ");";
     }
-    body.add(Statement.of("    }"));
+    sw.caseArm(String.valueOf(num), Statement.of(assignment));
   }
 
   private static String requireType(Entry entry) {
