@@ -63,6 +63,11 @@ avro-compiler       = { group = "org.apache.avro", name = "avro-compiler", versi
 # JSON tree (see the `jackson` version above). Transitive of avro-compiler; declared direct to name
 # the generator's direct dependency rather than lean on a transitive.
 jackson-databind    = { group = "com.fasterxml.jackson.core", name = "jackson-databind", version.ref = "jackson" }
+# Google Java Format -- the generator-side formatter the plugin's rendered source passes through
+# (the Formatter SPI's GJF-backed impl, U2). Pinned to the same 2.0.0 the Spotless gate uses,
+# so first-party `src/` and the generated output share one formatting standard. generator-only:
+# it is a Generation/build-time concern (R22 keeps the generated .rec surface dependency-free).
+google-java-format  = { group = "com.google.googlejavaformat", name = "google-java-format", version.ref = "google-java-format" }
 junit-jupiter       = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform" }
 

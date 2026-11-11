@@ -61,6 +61,15 @@ dependencies {
     // record/codec types (independent modules) pull JSpecify transitively.
     compileOnly(libs.jspecify)
 
+    // Google Java Format -- the generator-side default Formatter the plugin's
+    // rendered source passes through (the GJF-backed impl, added in U2; wired into
+    // the plugin's emit path in U3). generator-only: it is a generation-time concern,
+    // so implementation is NOT api and the generated .rec surface stays dependency-free
+    // (R22). GJF pokes com.sun.tools.javac.* reflectively, so --add-exports
+    // jdk.compiler/... is required whenever its code runs (the shared `gjfJvmArgs`
+    // set, wired onto the test + launched JVMs below).
+    implementation(libs.google.java.format)
+
     // Record-builder generates <Record>With interfaces for the plugin's OWN
     // model records (Field/Message/Enum/ProtoFile/EnumConstant), NOT for
     // generated user-facing output (that stays dependency-free). core carries
@@ -97,9 +106,32 @@ dependencies {
     testImplementation(libs.jspecify)
 }
 
+// The minimal --add-exports jdk.compiler/... set google-java-format 2.0.0 needs on this project's
+// JDK 25 toolchain. GJF's `Formatter.formatSource` parses source into a com.sun.tools.javac
+// compiler tree (JEP 396 module boundary), so the JVM that runs GJF -- the generator's `test`
+// JVM and the launched plugin (`run`/`installDist`) -- must export these packages. It is one
+// fact used by both, so it lives in one place (no drift between the two sets). Empirically minimal
+// for *pure syntactic* formatting: `comp`/`processing`/`model` are NOT reached because GJF does
+// not semantic-check, only reformat (verified this session on this JDK -- the launch smoke test
+// resolves the plan's deferred D1). Add a package here if a future source shape triggers a new
+// `IllegalAccessError` naming it.
+val gjfJvmArgs: List<String> =
+    listOf(
+        "--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED",
+    )
+
 application {
     mainClass = "bijnagte.recordbuf.plugin.Main"
     applicationName = "protoc-gen-recordbuf"
+    // applicationDefaultJvmArgs is baked into `run` and into the `installDist` launcher script, so
+    // the launched plugin JVM exports the GJF set the plugin's formatter needs at runtime.
+    applicationDefaultJvmArgs = gjfJvmArgs
 }
 
 tasks.test {
@@ -108,6 +140,10 @@ tasks.test {
         events("passed", "skipped", "failed")
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
     }
+    // The generator's test JVM needs the same --add-exports jdk.compiler/... set as the launched
+    // plugin (the launched plugin's set lives in the `application` block above) so GJF can run here
+    // too. Both reference the same `gjfJvmArgs` fact, so they cannot drift.
+    jvmArgs(gjfJvmArgs)
 }
 
 // NullAway via `options.errorprone { … }` (the DSL the plugin needs on JDK 16+;
