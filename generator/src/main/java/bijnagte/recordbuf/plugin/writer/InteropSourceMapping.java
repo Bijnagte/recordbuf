@@ -100,11 +100,10 @@ public final class InteropSourceMapping {
     body.add(Statement.of("    " + ci.use(RT + ".UnknownFields") + ".empty()"));
     body.add(Statement.of("    );"));
 
-    return Member.Method.builder()
+    return Member.Method.named("from")
         .public_()
         .static_()
         .returnType(rec)
-        .name("from")
         .param(ref, "x")
         .body(body)
         .build();
@@ -232,11 +231,10 @@ public final class InteropSourceMapping {
     }
     body.add(Statement.of("return _b.build();"));
 
-    return Member.Method.builder()
+    return Member.Method.named("to")
         .public_()
         .static_()
         .returnType(ref)
-        .name("to")
         .param(rec, "r")
         .body(body)
         .build();

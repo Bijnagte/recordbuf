@@ -40,9 +40,8 @@ class IfElseIfRenderingTest {
                 .name("WithElseIf")
                 .component(Member.Field.builder().type("int").name("value").build())
                 .method(
-                    Member.Method.builder()
+                    Member.Method.named("demo")
                         .public_()
-                        .name("demo")
                         .body(
                             If.condition("value > 0")
                                 .body(Statement.ret())
@@ -67,9 +66,8 @@ class IfElseIfRenderingTest {
                 .name("FullChain")
                 .component(Member.Field.builder().type("int").name("value").build())
                 .method(
-                    Member.Method.builder()
+                    Member.Method.named("demo")
                         .public_()
-                        .name("demo")
                         .body(
                             If.condition("value > 0")
                                 .body(Statement.ret())

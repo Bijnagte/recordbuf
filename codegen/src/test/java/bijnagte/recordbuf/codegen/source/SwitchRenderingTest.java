@@ -42,9 +42,8 @@ class SwitchRenderingTest {
                 .public_()
                 .name("SwitchEmpty")
                 .method(
-                    Member.Method.builder()
+                    Member.Method.named("demo")
                         .public_()
-                        .name("demo")
                         .body(
                             Switch.on("x")
                                 .caseArm("1") // empty arm: no body.
@@ -65,9 +64,8 @@ class SwitchRenderingTest {
                 .public_()
                 .name("SwitchSingle")
                 .method(
-                    Member.Method.builder()
+                    Member.Method.named("demo")
                         .public_()
-                        .name("demo")
                         .body(
                             Switch.on("Wire.tagFieldNumber(tag)")
                                 .caseArm("1", Statement.of("value = in.readInt64();"))
@@ -92,9 +90,8 @@ class SwitchRenderingTest {
                 .public_()
                 .name("SwitchMulti")
                 .method(
-                    Member.Method.builder()
+                    Member.Method.named("demo")
                         .public_()
-                        .name("demo")
                         .body(
                             Switch.on("x")
                                 .caseArm(
@@ -120,9 +117,8 @@ class SwitchRenderingTest {
                 .public_()
                 .name("SwitchCompiles")
                 .method(
-                    Member.Method.builder()
+                    Member.Method.named("demo")
                         .public_()
-                        .name("demo")
                         .param("Object", "n")
                         .body(
                             Switch.on("n.hashCode()")

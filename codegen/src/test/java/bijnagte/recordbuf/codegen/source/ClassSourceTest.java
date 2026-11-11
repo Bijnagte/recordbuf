@@ -50,20 +50,18 @@ class ClassSourceTest {
             // new `thrown` field (M4-C2b's per-message encode/decode are `throws IOException`).
             .constructor(Member.Constructor.builder().private_().name("Codec").build())
             .method(
-                Member.Method.builder()
+                Member.Method.named("encode")
                     .public_()
                     .static_()
                     .returnType("byte[]")
-                    .name("encode")
                     .param("MessageRec", "v")
                     .thrown("java.io.IOException")
                     .body(Statement.of("return new byte[0];"))
                     .build(),
-                Member.Method.builder()
+                Member.Method.named("decode")
                     .public_()
                     .static_()
                     .returnType("MessageRec")
-                    .name("decode")
                     .param("byte[]", "inBytes")
                     .thrown("java.io.IOException")
                     .body(Statement.of("return new MessageRec(0);"))
@@ -327,11 +325,10 @@ class ClassSourceTest {
             .method(
                 // M4-C2b-2b-3: the multi-scalar encode body -- three guarded writes for int
                 // (field 1), long (field 2), and String (field 3).
-                Member.Method.builder()
+                Member.Method.named("encode")
                     .public_()
                     .static_()
                     .returnType("byte[]")
-                    .name("encode")
                     .param("RecordWithRealMultiScalar", "v")
                     .thrown("java.io.IOException")
                     .body(
@@ -349,11 +346,10 @@ class ClassSourceTest {
                 // M4-C2b-2b-3: the multi-scalar decode body -- three per-field default-init,
                 // then a tag-loop switch that dispatches to the correct read for each field
                 // number and skips unknown tags.
-                Member.Method.builder()
+                Member.Method.named("decode")
                     .public_()
                     .static_()
                     .returnType("RecordWithRealMultiScalar")
-                    .name("decode")
                     .param("byte[]", "inBytes")
                     .thrown("java.io.IOException")
                     .body(
@@ -405,11 +401,10 @@ class ClassSourceTest {
                 // M4-C2b-2b-2: the codec's encode is the real scalar-encode body -- a fresh
                 // runtime Encoder, a per-field guarded write, and a finish. No oneof / no WKT /
                 // no nested-message / no unknown-field carrier -- deferred to M4-C2b-2b-3+.
-                Member.Method.builder()
+                Member.Method.named("encode")
                     .public_()
                     .static_()
                     .returnType("byte[]")
-                    .name("encode")
                     .param("RecordWithRealCodec", "v")
                     .thrown("java.io.IOException")
                     .body(
@@ -423,11 +418,10 @@ class ClassSourceTest {
                 // The codec's decode is the real tag-loop body: a fresh runtime Decoder, a
                 // per-field default-init, the tag/field-number loop, a switch that dispatches
                 // to the field, and a return built from the locally-decoded values.
-                Member.Method.builder()
+                Member.Method.named("decode")
                     .public_()
                     .static_()
                     .returnType("RecordWithRealCodec")
-                    .name("decode")
                     .param("byte[]", "inBytes")
                     .thrown("java.io.IOException")
                     .body(
@@ -467,11 +461,10 @@ class ClassSourceTest {
         Member.Field.builder().type("bijnagte.recordbuf.runtime.Bytes").name("data").build();
 
     var encode =
-        Member.Method.builder()
+        Member.Method.named("encode")
             .public_()
             .static_()
             .returnType("byte[]")
-            .name("encode")
             .param("RecordWithBytes", "v")
             .thrown("java.io.IOException")
             .body(
@@ -482,11 +475,10 @@ class ClassSourceTest {
             .build();
 
     var decode =
-        Member.Method.builder()
+        Member.Method.named("decode")
             .public_()
             .static_()
             .returnType("RecordWithBytes")
-            .name("decode")
             .param("byte[]", "inBytes")
             .thrown("java.io.IOException")
             .body(
@@ -536,11 +528,10 @@ class ClassSourceTest {
         Member.Field.builder().type("bijnagte.recordbuf.runtime.Bytes").name("data").build();
 
     var encode =
-        Member.Method.builder()
+        Member.Method.named("encode")
             .public_()
             .static_()
             .returnType("byte[]")
-            .name("encode")
             .param("RecordWithBytes", "v")
             .thrown("java.io.IOException")
             .body(
@@ -551,11 +542,10 @@ class ClassSourceTest {
             .build();
 
     var decode =
-        Member.Method.builder()
+        Member.Method.named("decode")
             .public_()
             .static_()
             .returnType("RecordWithBytes")
-            .name("decode")
             .param("byte[]", "inBytes")
             .thrown("java.io.IOException")
             .body(

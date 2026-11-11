@@ -236,9 +236,12 @@ public sealed interface Member {
       returnType = returnType == null ? "void" : returnType;
     }
 
-    /** A fresh method builder. */
-    public static Builder builder() {
-      return new Builder();
+    /**
+     * Entry point: a method identified by {@link #name}, the one always-required field, taken at
+     * construction — the optional elements accumulate as before.
+     */
+    public static Builder named(String name) {
+      return new Builder(name);
     }
 
     /** An accumulating, ergonomic {@link Method} builder. */
@@ -246,12 +249,17 @@ public sealed interface Member {
       private Javadoc javadoc;
       private final Modifiers.Builder mods = Modifiers.builder();
       private String returnType;
-      private String name;
+      private final String name;
       private final List<Param> params = new ArrayList<>();
       private final List<String> thrown = new ArrayList<>();
       private final List<Statement> body = new ArrayList<>();
       private boolean abstractDecl;
       private boolean override;
+
+      /** Seed the {@link #name} (the one always-required field); the rest accumulate. */
+      public Builder(String name) {
+        this.name = name;
+      }
 
       /** The method's Javadoc. */
       public Builder javadoc(Javadoc d) {
@@ -262,12 +270,6 @@ public sealed interface Member {
       /** Set the return type. */
       public Builder returnType(String rt) {
         this.returnType = rt;
-        return this;
-      }
-
-      /** Set the method name. */
-      public Builder name(String n) {
-        this.name = n;
         return this;
       }
 

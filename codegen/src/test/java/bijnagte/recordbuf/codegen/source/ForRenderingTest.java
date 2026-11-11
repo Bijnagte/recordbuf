@@ -42,9 +42,8 @@ class ForRenderingTest {
                 .component(
                     Member.Field.builder().type("java.util.List<String>").name("value").build())
                 .method(
-                    Member.Method.builder()
+                    Member.Method.named("demo")
                         .public_()
-                        .name("demo")
                         .body(For.enhanced("var _e", "value()").body(Statement.ret()).build())
                         .build())
                 .build());
@@ -64,9 +63,8 @@ class ForRenderingTest {
                 .component(
                     Member.Field.builder().type("java.util.List<String>").name("value").build())
                 .method(
-                    Member.Method.builder()
+                    Member.Method.named("demo")
                         .public_()
-                        .name("demo")
                         .body(For.enhanced("var _e", "value()").build())
                         .build())
                 .build());

@@ -43,9 +43,8 @@ class WhileRenderingTest {
                 .name("WhileLoop")
                 .component(Member.Field.builder().type("int").name("value").build())
                 .method(
-                    Member.Method.builder()
+                    Member.Method.named("demo")
                         .public_()
-                        .name("demo")
                         .body(While.condition("value > 0").body(Statement.ret()).build())
                         .build())
                 .build());
@@ -66,9 +65,8 @@ class WhileRenderingTest {
                 .name("WhileEmpty")
                 .component(Member.Field.builder().type("int").name("value").build())
                 .method(
-                    Member.Method.builder()
+                    Member.Method.named("demo")
                         .public_()
-                        .name("demo")
                         .body(While.condition("value > 0").build())
                         .build())
                 .build());

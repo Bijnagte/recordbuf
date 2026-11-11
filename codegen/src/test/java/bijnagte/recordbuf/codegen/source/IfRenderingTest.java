@@ -42,9 +42,8 @@ class IfRenderingTest {
                 .name("ThenOnly")
                 .component(Member.Field.builder().type("int").name("value").build())
                 .method(
-                    Member.Method.builder()
+                    Member.Method.named("demo")
                         .public_()
-                        .name("demo")
                         .body(If.condition("true").body(Statement.ret()).build())
                         .build())
                 .build());
@@ -65,9 +64,8 @@ class IfRenderingTest {
                 .name("ThenElse")
                 .component(Member.Field.builder().type("int").name("value").build())
                 .method(
-                    Member.Method.builder()
+                    Member.Method.named("demo")
                         .public_()
-                        .name("demo")
                         .body(
                             If.condition("value > 0")
                                 .body(Statement.ret())

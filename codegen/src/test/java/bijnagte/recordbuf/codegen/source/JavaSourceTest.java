@@ -42,10 +42,9 @@ class JavaSourceTest {
                 .body(Statement.of("this.number = number;"))
                 .build())
         .method(
-            Member.Method.builder()
+            Member.Method.named("getNumber")
                 .public_()
                 .returnType("int")
-                .name("getNumber")
                 .body(Statement.of("return number;"))
                 .build())
         .build();
@@ -62,19 +61,17 @@ class JavaSourceTest {
             Member.Field.builder().type("SampleType").name("type").build())
         .nested(new Member.Nested(sampleType()))
         .method(
-            Member.Method.builder()
+            Member.Method.named("toByteArray")
                 .public_()
                 .static_()
                 .returnType("byte[]")
-                .name("toByteArray")
                 .param("Sample", "s")
                 .body(Statement.of("return new byte[] { 0 };"))
                 .build(),
-            Member.Method.builder()
+            Member.Method.named("fromBytes")
                 .public_()
                 .static_()
                 .returnType("Sample")
-                .name("fromBytes")
                 .param("byte[]", "b")
                 .body(Statement.of("return new Sample(0, new byte[0], SampleType.A);"))
                 .build())

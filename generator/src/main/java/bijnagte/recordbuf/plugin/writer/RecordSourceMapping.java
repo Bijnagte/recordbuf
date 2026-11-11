@@ -144,18 +144,16 @@ public final class RecordSourceMapping {
     // M4-C2b-2b-8: toBuilder + fromBytes (old path parity)
     String codecName = m.name() + "Codec";
     result.method(
-        Member.Method.builder()
+        Member.Method.named("toBuilder")
             .public_()
             .returnType("Builder")
-            .name("toBuilder")
             .body(Statement.of("return new " + m.name() + ".Builder(this);"))
             .build());
     result.method(
-        Member.Method.builder()
+        Member.Method.named("fromBytes")
             .public_()
             .static_()
             .returnType(m.name())
-            .name("fromBytes")
             .param("byte[]", "in")
             .thrown("java.io.IOException")
             .body(Statement.of("return " + codecName + ".decode(in);"))
@@ -166,10 +164,9 @@ public final class RecordSourceMapping {
     String pbMsgFqn = RT + ".ProtobufMessage";
     ci.use(pbMsgFqn);
     var toByteArray =
-        Member.Method.builder()
+        Member.Method.named("toByteArray")
             .public_()
             .returnType("byte[]")
-            .name("toByteArray")
             .thrown("java.io.IOException")
             .body(Statement.of("return " + m.name() + "Codec.encode(this);"))
             .override(true)
@@ -347,10 +344,9 @@ public final class RecordSourceMapping {
     // The default value() method (overrides the Unwrapable.value()). Use `default` keyword in an
     // interface; @Override would be an abstract method WITH a body (illegal).
     var defaultMethod =
-        Member.Method.builder()
+        Member.Method.named("value")
             .default_()
             .returnType("Object")
-            .name("value")
             .body(Statement.of("return this;"))
             .build();
     iface.method(defaultMethod);
@@ -482,10 +478,9 @@ public final class RecordSourceMapping {
     for (Field f : m.fields()) {
       String fieldName = f.javaName();
       builderClz.method(
-          Member.Method.builder()
+          Member.Method.named(fieldName)
               .public_()
               .returnType("Builder")
-              .name(fieldName)
               .param(scalarComponentType(f, ci), fieldName)
               .body(
                   Statement.of("this." + fieldName + " = " + fieldName + ";"),
@@ -496,10 +491,9 @@ public final class RecordSourceMapping {
     for (var oneof : m.oneofs()) {
       String compName = oneof.componentName();
       builderClz.method(
-          Member.Method.builder()
+          Member.Method.named(compName)
               .public_()
               .returnType("Builder")
-              .name(compName)
               .param("@Nullable " + oneof.ifaceName(), compName)
               .body(
                   Statement.of("this." + compName + " = " + compName + ";"),
@@ -508,10 +502,9 @@ public final class RecordSourceMapping {
     }
     // Carrier setter.
     builderClz.method(
-        Member.Method.builder()
+        Member.Method.named("unknownFields")
             .public_()
             .returnType("Builder")
-            .name("unknownFields")
             .param(ufShort, "unknownFields")
             .body(Statement.of("this.unknownFields = unknownFields;"), Statement.of("return this;"))
             .build());
@@ -527,11 +520,10 @@ public final class RecordSourceMapping {
     }
     ctorArgs.add("unknownFields");
     builderClz.method(
-        Member.Method.builder()
+        Member.Method.named("build")
             .javadoc(Javadoc.builder().text("Builds a ", m.name(), " record.").build())
             .public_()
             .returnType(recName)
-            .name("build")
             .body(Statement.of("return new " + recName + "(" + String.join(", ", ctorArgs) + ");"))
             .build());
 
@@ -540,7 +532,7 @@ public final class RecordSourceMapping {
 
     // The static factory on the record, with javadoc.
     var builderFactory =
-        Member.Method.builder()
+        Member.Method.named("builder")
             .javadoc(
                 Javadoc.builder()
                     .text(
@@ -551,7 +543,6 @@ public final class RecordSourceMapping {
             .public_()
             .static_()
             .returnType("Builder")
-            .name("builder")
             .body(Statement.of("return new " + recName + ".Builder();"))
             .build();
 

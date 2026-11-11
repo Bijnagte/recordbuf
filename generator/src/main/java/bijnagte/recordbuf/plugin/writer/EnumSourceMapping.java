@@ -79,10 +79,9 @@ public final class EnumSourceMapping {
                         Expression.member("this", "number"), Expression.lit("number"))))
             .build());
     result.method(
-        Member.Method.builder()
+        Member.Method.named("getNumber")
             .public_()
             .returnType("int")
-            .name("getNumber")
             .body(Statement.ret(Expression.lit("number")))
             .build());
 
@@ -113,11 +112,10 @@ public final class EnumSourceMapping {
     result.staticBlock(new Member.StaticBlock(init));
 
     result.method(
-        Member.Method.builder()
+        Member.Method.named("forNumber")
             .public_()
             .static_()
             .returnType(name)
-            .name("forNumber")
             .param("int", "number")
             .body(
                 Statement.ret(

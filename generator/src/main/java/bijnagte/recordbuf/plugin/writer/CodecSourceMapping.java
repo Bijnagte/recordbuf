@@ -160,11 +160,10 @@ public final class CodecSourceMapping {
 
     body.add(Statement.of("return enc.finish();"));
 
-    return Member.Method.builder()
+    return Member.Method.named("encode")
         .public_()
         .static_()
         .returnType("byte[]")
-        .name("encode")
         .param(m.name(), "v")
         .thrown("java.io.IOException")
         .body(body)
@@ -296,11 +295,10 @@ public final class CodecSourceMapping {
     allNames.add("unknown.build()");
     body.add(Statement.of("return new " + m.name() + "(" + joinCommas(allNames) + ");"));
 
-    return Member.Method.builder()
+    return Member.Method.named("decode")
         .public_()
         .static_()
         .returnType(m.name())
-        .name("decode")
         .param("byte[]", "inBytes")
         .thrown("java.io.IOException")
         .body(body)
@@ -717,11 +715,10 @@ public final class CodecSourceMapping {
     encBody.add(Statement.of("return enc.finish();"));
 
     result.method(
-        Member.Method.builder()
+        Member.Method.named("encode")
             .public_()
             .static_()
             .returnType("byte[]")
-            .name("encode")
             .param(entryName, "v")
             .thrown("java.io.IOException")
             .body(encBody)
@@ -746,11 +743,10 @@ public final class CodecSourceMapping {
     decBody.add(Statement.of("return new " + entryName + "(key, value);"));
 
     result.method(
-        Member.Method.builder()
+        Member.Method.named("decode")
             .public_()
             .static_()
             .returnType(entryName)
-            .name("decode")
             .param("byte[]", "inBytes")
             .thrown("java.io.IOException")
             .body(decBody)

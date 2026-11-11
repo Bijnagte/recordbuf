@@ -124,11 +124,10 @@ public final class AvroConverterSourceMapping {
     body.add(Statement.of("b.unknownFields(UnknownFields.empty());"));
     body.add(Statement.of("return b.build();"));
 
-    return Member.Method.builder()
+    return Member.Method.named("toRecord")
         .public_()
         .static_()
         .returnType(recordClass)
-        .name("toRecord")
         .param(avroSpecific, "s")
         .body(body)
         .build();
@@ -170,11 +169,10 @@ public final class AvroConverterSourceMapping {
     }
     body.add(Statement.of("return s;"));
 
-    return Member.Method.builder()
+    return Member.Method.named("fromRecord")
         .public_()
         .static_()
         .returnType(avroSpecific)
-        .name("fromRecord")
         .param(recordClass, "r")
         .body(body)
         .build();
