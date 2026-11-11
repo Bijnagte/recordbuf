@@ -100,13 +100,3 @@ subprojects {
             }
     }
 }
-
-// KTD7 (accepted at 0.0.1): no build-time plugin<->runtime version guardrail.
-// Generated code references the runtime by fully-qualified name; the generator
-// never links the runtime at build time, so a mismatch is only detectable at
-// consumer link time. Within one co-versioned release the skip is safe; the two
-// cheap future guardrails are recorded and DEFERRED for when an independent
-// runtime release becomes possible:
-//   (a) a co-release assertion that all module versions are equal (thin), or
-//   (b) a generator-emitted runtime version stamp the fixtures assert at compile
-//       time (stronger). Adding either is a small, self-contained follow-up.
