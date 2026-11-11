@@ -1,0 +1,9 @@
+{
+  "autoStart": ["java"],
+  "servers": {
+    "java": {
+      "command": "jdtls",
+      "args": []
+    }
+  }
+}

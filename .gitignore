@@ -12,6 +12,11 @@ out/
 *.swp
 .DS_Store
 
+# Eclipse / IDE tooling (regenerable per-module)
+.project
+.classpath
+.settings/
+
 # Scratch directory for manual `protoc --java_out=./generated` runs
 /generated/
 /scratch/
