@@ -8,11 +8,11 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * Pins the {@link TypeCollector} contract -- a port of the plugin's original {@code
- * TypeImportsTest} (our own MIT asset), the authoritative behavioral spec this clean-room
- * implementation reproduces: same-package types resolve to their short name with no import,
- * cross-package types are imported under their short form, a short-name collision falls back to a
- * fully-qualified name at every reference site, {@code java.lang.*} is never imported, and {@link
+ * Pins the {@link TypeCollector} contract -- a port of the plugin's original import-behavior test
+ * (our own MIT asset), the authoritative behavioral spec this clean-room implementation reproduces:
+ * same-package types resolve to their short name with no import, cross-package types are imported
+ * under their short form, a short-name collision falls back to a fully-qualified name at every
+ * reference site, {@code java.lang.*} is never imported, and {@link
  * TypeCollector#finalizeResolution} switches {@link TypeCollector#use} to collision-aware names
  * while restoring un-collided references to their short form.
  *

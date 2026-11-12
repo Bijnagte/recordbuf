@@ -189,7 +189,7 @@ public final class CodeGenerator {
       for (Field member : oneof.members()) {
         if (!member.isMessage()) continue; // scalar/enum fold into the Scalar wrapper
         // The member's proto FQN resolves through the same file table the
-        // generator's TypeResolver uses, so the key lines up with the
+        // generator's TypeCollector uses, so the key lines up with the
         // member record's own fullName() at its emission site.
         String memberFqn = table.javaFqn(member.typeUrl());
         if (memberFqn == null) continue; // unresolved external type: no interface to implement
@@ -202,16 +202,16 @@ public final class CodeGenerator {
   /**
    * Generate one Java source file for a single top-level type.
    *
-   * <p>Generation runs in <b>two passes over a shared {@link TypeImports} collector</b> so a file's
-   * referenced types resolve to short names with a deduplicated, ordered import block — not
-   * fully-qualified, repeated names:
+   * <p>Generation runs in <b>two passes over a shared {@link
+   * bijnagte.recordbuf.codegen.TypeCollector}</b> so a file's referenced types resolve to short
+   * names with a deduplicated, ordered import block — not fully-qualified, repeated names:
    *
    * <ol>
    *   <li>a <i>collect</i> pass runs the body on a throwaway writer, filling the collector with
    *       every type the file references (a collision is a property of the whole set, so it can
    *       only be known after the file is walked in full);
-   *   <li>{@link TypeImports#finalizeResolution()} then fixes each name to its short form
-   *       (imported) or fully-qualified form (when its short name collides),
+   *   <li>{@link bijnagte.recordbuf.codegen.TypeCollector#finalizeResolution()} then fixes each
+   *       name to its short form (imported) or fully-qualified form (when its short name collides),
    *   <li>a <i>render</i> pass writes the header, package element, import block, and body into the
    *       real writer with those fixed names.
    * </ol>
