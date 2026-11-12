@@ -43,14 +43,14 @@ public sealed interface Element
     return new ExprStatement(e);
   }
 
-  static LocalVar local(String type, String name, String init) {
-    return new LocalVar(null, type, name, init);
+  static LocalVar local(String fqn, String name, String init) {
+    return new LocalVar(null, TypeRef.of(fqn), name, init);
   }
 
   /** A local declaration carrying annotations, rendered ahead of its type. */
-  static LocalVar local(String type, String name, String init, Annotation... annotations) {
+  static LocalVar local(String fqn, String name, String init, Annotation... annotations) {
     return new LocalVar(
-        annotations == null ? null : java.util.List.of(annotations), type, name, init);
+        annotations == null ? null : java.util.List.of(annotations), TypeRef.of(fqn), name, init);
   }
 
   static Comment comment(String text) {

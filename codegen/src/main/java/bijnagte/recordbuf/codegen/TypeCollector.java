@@ -121,6 +121,52 @@ public final class TypeCollector {
   }
 
   /**
+   * Resolve a structured {@link TypeRef} to the form to emit at that position. During the collect
+   * pass this registers the base FQN (for import-line purposes) and returns the short name; after
+   * {@link #finalizeResolution()} it returns the collision-aware form (short or fully-qualified).
+   * Generic arguments are rendered recursively. A {@code java.lang} or same-package type renders as
+   * a bare short name; every other type is collected for an import line.
+   */
+  public String use(bijnagte.recordbuf.codegen.source.TypeRef ref) {
+    return resolveTypeRef(ref);
+  }
+
+  private String resolveTypeRef(bijnagte.recordbuf.codegen.source.TypeRef ref) {
+    return switch (ref) {
+      case bijnagte.recordbuf.codegen.source.TypeRef.Named n -> resolveNamed(n);
+      case bijnagte.recordbuf.codegen.source.TypeRef.Primitive p -> p.fqn();
+      case bijnagte.recordbuf.codegen.source.TypeRef.Array a -> resolveTypeRef(a.element()) + "[]";
+    };
+  }
+
+  private String resolveNamed(bijnagte.recordbuf.codegen.source.TypeRef.Named n) {
+    // Compute the resolved base (short or fully-qualified), then append generics.
+    String base;
+    if (n.pkg().isEmpty()) {
+      base = n.shortName(); // bare name: no package, emitted as-is
+    } else {
+      use(n.pkg() + "." + n.shortName()); // register for import / collision tracking
+      base = n.shortName();
+      if (frozen && collidedShortNames.contains(base)) {
+        base = n.fqn(); // collided: emit the full qualified form
+      }
+    }
+    return base + genericsOf(n);
+  }
+
+  private String genericsOf(bijnagte.recordbuf.codegen.source.TypeRef.Named n) {
+    if (n.generics().isEmpty()) return "";
+    StringBuilder sb = new StringBuilder();
+    sb.append('<');
+    for (int i = 0; i < n.generics().size(); i++) {
+      if (i > 0) sb.append(", ");
+      sb.append(resolveTypeRef(n.generics().get(i)));
+    }
+    sb.append('>');
+    return sb.toString();
+  }
+
+  /**
    * The file's import elements, each {@code import x.y.Z;}, deduplicated and grouped: the {@code
    * java.*} package first, a single blank separator line, then every other package -- alphabetical
    * within each group. Collided names are omitted (emitted in fully-qualified form instead). Empty

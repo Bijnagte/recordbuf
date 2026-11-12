@@ -72,21 +72,38 @@ public final class SourceRenderer {
       switch (t) {
         case Type.Record r -> {
           r.implementsFqns().forEach(ci::use);
-          r.components().forEach(c -> ci.use(c.type()));
+          r.annotations().forEach(a -> ci.use(a.type()));
+          r.components()
+              .forEach(c -> {
+                ci.use(c.type());
+                c.annotations().forEach(a -> ci.use(a.type()));
+              });
           r.methods().forEach(this::collectMethod);
         }
         case Type.Class c -> {
           c.implementsFqns().forEach(ci::use);
-          c.fields().forEach(f -> ci.use(f.type()));
+          c.annotations().forEach(a -> ci.use(a.type()));
+          c.fields()
+              .forEach(f -> {
+                ci.use(f.type());
+                f.annotations().forEach(a -> ci.use(a.type()));
+              });
           c.methods().forEach(this::collectMethod);
         }
         case Type.Enum e -> {
           e.implementsFqns().forEach(ci::use);
-          e.fields().forEach(f -> ci.use(f.type()));
+          e.annotations().forEach(a -> ci.use(a.type()));
+          e.fields()
+              .forEach(f -> {
+                ci.use(f.type());
+                f.annotations().forEach(a -> ci.use(a.type()));
+              });
+          e.enumConstants().forEach(x -> x.annotations().forEach(a -> ci.use(a.type())));
           e.methods().forEach(this::collectMethod);
         }
         case Type.Interface iface -> {
           iface.extendsFqns().forEach(ci::use);
+          iface.annotations().forEach(a -> ci.use(a.type()));
           iface.methods().forEach(this::collectMethod);
         }
       }
@@ -94,7 +111,13 @@ public final class SourceRenderer {
     }
 
     private void collectMethod(Method m) {
+      m.annotations().forEach(a -> ci.use(a.type()));
       ci.use(m.returnType());
+      m.params()
+          .forEach(p -> {
+            ci.use(p.type());
+            p.annotations().forEach(a -> ci.use(a.type()));
+          });
       m.thrown().forEach(ci::use);
     }
 
@@ -316,7 +339,7 @@ public final class SourceRenderer {
       renderAnnotations(f.annotations(), out);
       if (f.javadoc().present()) out.append(javadoc(f.javadoc().raw())).append('\n');
       out.append(f.mods().withSpace());
-      out.append(f.type()).append(' ').append(f.name());
+      out.append(ci.use(f.type())).append(' ').append(f.name());
       if (f.initializer() != null && !f.initializer().isBlank()) {
         out.append(" = ").append(f.initializer());
       }
@@ -393,7 +416,8 @@ public final class SourceRenderer {
       String sig =
           m.mods().withSpace() + ci.use(m.returnType()) + " " + m.name() + renderParams(m.params());
       if (!m.thrown().isEmpty()) {
-        sig = sig + " throws " + String.join(", ", m.thrown().stream().map(ci::use).toList());
+        sig =
+            sig + " throws " + String.join(", ", m.thrown().stream().map(t -> ci.use(t)).toList());
       }
       if (m.abstractDecl()) {
         out.append(sig).append(";\n");
@@ -417,7 +441,7 @@ public final class SourceRenderer {
         case Throw t -> out.append("throw ").append(t.expr()).append(';').append('\n');
         case ExprStatement e -> out.append(e.expr()).append(";\n");
         case LocalVar lv ->
-            out.append(lv.type())
+            out.append(ci.use(lv.type()))
                 .append(' ')
                 .append(lv.name())
                 .append(lv.init() == null ? ";" : " = " + lv.init() + ";")
@@ -550,7 +574,7 @@ public final class SourceRenderer {
       for (int i = 0; i < params.size(); i++) {
         Param p = params.get(i);
         if (i > 0) sb.append(", ");
-        sb.append(p.type()).append(' ').append(p.name());
+        sb.append(ci.use(p.type())).append(' ').append(p.name());
       }
       return sb.append(')').toString();
     }

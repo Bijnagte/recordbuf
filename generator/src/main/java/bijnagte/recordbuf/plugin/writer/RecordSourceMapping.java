@@ -1,11 +1,13 @@
 package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
+import bijnagte.recordbuf.codegen.source.Annotation;
 import bijnagte.recordbuf.codegen.source.Component;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Method;
+import bijnagte.recordbuf.codegen.source.Param;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.plugin.model.Enum;
 import bijnagte.recordbuf.plugin.model.Field;
@@ -59,10 +61,10 @@ public final class RecordSourceMapping {
     // the
     // component's type + javaName; a record's components render in its header via components().
     for (Field f : m.fields()) {
-      result.component(Component.named(scalarComponentType(f, ci), f.javaName()).build());
+      var comp = Component.named(scalarComponentType(f, ci), f.javaName());
+      if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
+      result.component(comp.build());
     }
-
-    // 2. The nested ENUMS -- each reuses the M4-C2a-ext enum mapping, so the nested enum renders
     // its
     // full core + its BY_NUMBER reverse-lookup cluster (with shared java.util.* imports).
     for (Enum e : m.nestedEnums()) {
@@ -101,7 +103,9 @@ public final class RecordSourceMapping {
             .javadoc(Javadoc.builder().text(m.comment()).build())
             .deprecated(m.deprecated());
     for (Field f : m.fields()) {
-      result.component(Component.named(scalarComponentType(f, ci), f.javaName()).build());
+      var comp = Component.named(scalarComponentType(f, ci), f.javaName());
+      if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
+      result.component(comp.build());
     }
     for (Enum e : m.nestedEnums()) {
       result.nested(EnumSourceMapping.toSource(e, ci));
@@ -223,8 +227,7 @@ public final class RecordSourceMapping {
     // Int32Value→Integer). Singular WKT fields are @Nullable (presence-tracked; null = unset).
     var wkt = WellKnownTypes.resolve(f.typeUrl());
     if (wkt != null) {
-      ci.use("org.jspecify.annotations.Nullable");
-      return "@Nullable " + ci.use(Objects.requireNonNull(wkt.javaType()));
+      return ci.use(Objects.requireNonNull(wkt.javaType()));
     }
     // M4-C2d-2: singular MESSAGE/ENUM → the resolved short type name.
     // Singular message fields are presence-tracked, so they're @Nullable in the record;
@@ -232,15 +235,13 @@ public final class RecordSourceMapping {
     switch (f.kind()) {
       case MESSAGE:
       case ENUM:
-        ci.use("org.jspecify.annotations.Nullable");
-        return "@Nullable " + ci.use(javaSimpleName(f.typeUrl()));
+        return ci.use(javaSimpleName(f.typeUrl()));
       default:
         break;
     }
     // M4-C2d-1: optional scalar → @Nullable boxed wrapper.
     if (f.isNullable()) {
-      ci.use("org.jspecify.annotations.Nullable");
-      return "@Nullable " + boxedScalarComponent(f.typeUrl());
+      return boxedScalarComponent(f.typeUrl());
     }
     return switch (f.typeUrl()) {
       case "int32", "uint32", "fixed32", "sfixed32", "sint32" -> "int";
@@ -254,6 +255,32 @@ public final class RecordSourceMapping {
           throw new UnsupportedOperationException(
               "scalar " + f.typeUrl() + " component type is not in the M4-C2b-1 subset");
     };
+  }
+
+  /**
+   * Whether a record component for a proto field should carry the {@code @Nullable} annotation:
+   * singular {@code MESSAGE}, {@code ENUM}, {@code WKT}, and {@code optional} scalars (the field's
+   * own {@link Field#isNullable()}) are presence-tracked, so their Java component is
+   * {@code @Nullable} in the record.
+   */
+  private static boolean isComponentNullable(Field f) {
+    // REPEATED fields render as List<> / Map<> which are non-null; only singular fields can be
+    // null.
+    if (f.label() == FieldLabel.REPEATED) return false;
+    if (isComponentNullableWkt(f)) return true;
+    switch (f.kind()) {
+      case MESSAGE:
+      case ENUM:
+        return true;
+      case MAP:
+        return false; // Map<K,V> is non-null
+      default:
+        return f.isNullable();
+    }
+  }
+
+  private static boolean isComponentNullableWkt(Field f) {
+    return WellKnownTypes.resolve(f.typeUrl()) != null;
   }
 
   /** The inner element type of a {@code repeated X} field, resolved per {@link FieldKind}. */
@@ -295,7 +322,8 @@ public final class RecordSourceMapping {
 
     // 1. The @Nullable record component in the enclosing record.
     ci.use("org.jspecify.annotations.Nullable");
-    record.component(Component.named("@Nullable " + ifaceName, componentName).build());
+    record.component(
+        Component.named(ifaceName, componentName).annotation(Annotation.NULLABLE).build());
 
     // 2. Build the sealed interface: extends clause + permits + per-member records + default
     // value().
@@ -411,16 +439,18 @@ public final class RecordSourceMapping {
     }
     for (Field f : m.fields()) {
       String fieldDefault = defaultFor(f);
-      builderClz.field(
+      var comp =
           Component.named(scalarComponentType(f, ci), f.javaName())
               .initializer(fieldDefault)
-              .private_()
-              .build());
+              .private_();
+      if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
+      builderClz.field(comp.build());
     }
     // M4-C2b-2b-12: oneof component storage fields. Each defaults to null.
     for (var oneof : m.oneofs()) {
       builderClz.field(
-          Component.named("@Nullable " + oneof.ifaceName(), oneof.componentName())
+          Component.named(oneof.ifaceName(), oneof.componentName())
+              .annotation(Annotation.NULLABLE)
               .initializer("null")
               .private_()
               .build());
@@ -478,7 +508,7 @@ public final class RecordSourceMapping {
           Method.named(compName)
               .public_()
               .returnType("Builder")
-              .param("@Nullable " + oneof.ifaceName(), compName)
+              .param(Param.of(oneof.ifaceName(), compName, Annotation.NULLABLE))
               .body(
                   Element.of("this." + compName + " = " + compName + ";"),
                   Element.of("return this;"))
