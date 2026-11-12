@@ -51,7 +51,10 @@ This design restructures the AST so every type position holds a `TypeRef` (a
 carries no resolved value. A recursive tree-walk over each node collects the
 `TypeRef`s in its positions and in the `TypeRef`s of its children, assembles the
 imports and the collision map, and a single render resolves each `TypeRef` to its
-short or FQN form. The result is uniform type handling across **both surfaces** —
+short or FQN form. An expression-spliced site is a **parameterized `Raw`** — a
+format-string template with a `TypeRef` argument list, resolved and substituted at
+render — so a type is never carried as a separate side channel, only as the `Raw`'s own
+argument. The result is uniform type handling across **both surfaces** —
 declarations and expression-spliced types — and a `TypeRef`-based `ci.use` that
 resolves lazily. 2026-11-12-001's `Annotation.type` becomes a native `TypeRef`; no
 node is built as a string and later migrated.
@@ -127,10 +130,39 @@ replaced, not partially.
   callers stop reasoning about the sealed kind as each raw piece is later contracted
   into a structured one.
 
+- **Migration is a three-phase parameterization, canonical — and it decouples the two
+  hard problems.** The escape-hatch-first story kept *single-pass import resolution* (the
+  real win: retiring the two-pass re-emit) entangled with *fully-structured expressions*
+  (the big, least-valuable part, incl. the aspirational `Invocation` modeling). Building
+  each landing as a **parameterized `Raw`** (a format-string template plus its `TypeRef`
+  arguments) collapses the naive "raw string + side set" pair into a single structure, and
+  separates the work into three independently-shippable phases:
+  - **Phase A — parameterize.** At *every* `ci.use(x)` call — not just raw-string sites
+    but wherever a type flows into a position — build the landing as a **parameterized
+    `Raw`**: a format-string *template* plus an argument list whose entry is the
+    corresponding `TypeRef` (or a literal), instead of inlining the resolved name into a
+    flat string. A structured landing already holds the `TypeRef` directly; on a `Raw` it
+    is an **arg entry**, not a separate side set. Output is unchanged: a `TypeRef` arg is
+    resolved and substituted at render, reproducing today's bytes — so the carrier is the
+    arg *itself*, nothing duplicated.
+  - **Phase B — switch to the tree-walk render.** Production being universal, *every
+    imported type already has a `TypeRef` by construction* (the complete-mirror invariant
+    holds for free), so the renderer assembles the import set and collision map by one
+    tree-walk that collects `TypeRef`s from structured positions **and** `Raw`
+    argument lists, then formats each `Raw` by substituting resolved names for its
+    `TypeRef` placeholders. The **two-pass re-emit is retired**.
+  - **Phase C — rebuild the expressions.** Decompose each `Raw` template into a fully
+    structured `List<ExprPiece>` — the type placeholder becomes a structured type
+    embedding piece, the rest a structured piece per syntax — retiring the template
+    itself. This phase — and the finer per-syntax kinds it enables — is the permanent,
+    deferrable tail; **Phase B has already shipped the win**.
+  Because the parameterized `Raw` resolves to today's bytes, fixtures stay GJF-identical
+  at every step and each phase is independently shippable: A and B require no full
+  expression rewrite, and C can be deferred indefinitely.
+
 - **Implementation is deferred.** This doc fixes the contract; it does not perform the
-  migration. The actual rewire of the mappers, the embed API for the element
-  language, and the per-node collection method composition are an implementation pass,
-  planned separately.
+  migration. Phases A–C are an implementation pass, planned separately (the ordering and
+  the parameterization contract are fixed here).
 
 ## Requirements
 
@@ -162,30 +194,41 @@ positions.
 
 ### Surface B — expression-spliced positions in bodies
 
-**R6.** Bodies and initializers — every site that today splices a `ci.use(rawFqn)`
-result into an `Element.of(...)` string — become an `ExpressionStatement`, a
-`List<ExprPiece>` terminated by `;`. Non-type content stays an escape-hatch `Raw`
-`ExprPiece`; the type position is a type-embedding `ExprPiece` that carries a
-`TypeRef` (002) the renderer resolves at render time.
+**R6.** Every site that today splices a `ci.use(rawFqn)` result into an
+`Element.of(...)` string (Phase C's target) becomes an `ExpressionStatement`, a
+`List<ExprPiece>` terminated by `;`. The escape-hatch `Raw` `ExprPiece` is a
+**format string + a placeholder-argument list**, not a flat, fully-built string: a
+`Raw` holds a template with placeholders and a list of args, each a **literal**
+(rendered as-is) or a **`TypeRef`** (002), resolved to short/FQN at render and
+substituted into the template. So the `TypeRef`'s carriage is uniform, not a separate
+side set — on a `Raw` it is an **arg entry**, on a structured position it is the rendered
+value — and the `ci.use -> TypeRef` production generalizes to *every* `ci.use` call site.
+The aspirational extension: an arg that is neither literal nor `TypeRef` is itself a
+nested `ExprPiece`, so a `Raw`'s arg list is really a `List<ExprPiece>` — the bridge
+toward full structuring.
 
-**R7.** `ExprPiece` is the head of a sealed hierarchy of renderable expression
-pieces; the first implementation commits to only two kinds — an escape-hatch `Raw`
-piece (today's raw string content, incl. invocations) and the type-embedding piece
-that resolves a `TypeRef`. Phasing is **escape-hatch-first**: a body starts
-overwhelmingly as escape-hatch content with a `TypeRef`-embedding piece at each type
-position, and more structured `ExprPiece` kinds are layered in site by site *later,
-not up front*. A builder takes a raw `String` and wraps it in the appropriate
-`ExprPiece`, so today's `Element.of("...")` sites migrate mechanically and only type
-positions become structured. The finer per-syntax kinds (notably an `Invocation`-level
-piece) and the per-statement positional grammar are a *later, aspirational* direction
-— out of scope for this effort (see Scope Boundaries).
+**R7.** `ExprPiece` is the head of a sealed hierarchy of renderable expression pieces;
+the first implementation commits to only two kinds — an escape-hatch `Raw` piece (today's
+raw string content, incl. invocations) and the type-embedding piece that resolves a
+`TypeRef`. Phasing is the three-phase parameterization of the key decision: **Phase A**
+universal `ci.use -> TypeRef` augmentation, each landing built as a parameterized `Raw`
+(an arg entry on a `Raw`, the rendered value on a structured position) — output unchanged,
+complete mirror by construction; **Phase B** switch to the single tree-walk render and
+retire the two-pass re-emit; **Phase C** rebuild the templates into structured
+`ExprPiece`s (finer per-syntax kinds aspirational and out of scope). A builder takes a
+raw `String` and wraps it in the appropriate `ExprPiece`, so today's `Element.of(...)`
+sites migrate mechanically and only type positions become structured. Phasing is
+escape-hatch-first throughout: structured kinds layer in *later, not up front*.
 
 ### Resolution contract
 
 **R8.** Each AST node that can hold a `TypeRef` exposes a recursive collection method
 that yields the `TypeRef`s in its own positions and in the positions of its children;
 the top-level type's collection method assembles a single aggregate set for the file
-covering both Surface A and B.
+covering both surfaces and **every carrier** — structured type positions *and* the
+`TypeRef` entries in a `Raw`'s placeholder-argument list alike — and the set is
+**complete by construction** because `ci.use` is the universal chokepoint: every
+imported type has a `TypeRef`.
 
 **R9.** Resolution to short / FQN at render time applies the rules that 2026-11-12-002
 preserves: `java.lang.*` and in-package `Named` short with no import; every other
@@ -209,10 +252,12 @@ string.
 
 **Deferred for later.**
 
-- **The actual migration of every `ci.use(...)` / `List<String>` type position.**
-  This is the implementation of R3–R7 — rewriting the `*Mapper` call sites and the
-  `ExprPiece` / `ExpressionStatement` layer; the design fixes the contract but does
-  not perform the rewrite.
+- **The actual three phases of the `ci.use -> TypeRef` migration (R6–R7).** Phase A
+  (parameterize each landing into a parameterized `Raw`) and Phase B (switch to the
+  single tree-walk render, retire the two-pass re-emit) ship the import-resolution win
+  *without* any expression rewrite; Phase C (rebuild the templates into structured
+  `ExprPiece`s, finer kinds aspirational) is the deferrable tail. The design fixes the
+  ordering and contract; it does not perform the rewrite.
 - **The finer `ExprPiece` kinds and the per-statement positional grammar.** The
   escape-hatch `Raw` piece stays the dominant piece; layering in structured kinds
   (an `Invocation` / identifier / value-returning piece and the positional grammar
@@ -266,22 +311,28 @@ of pre-resolved strings, with no observable output change. *Covers R9, R10.*
 
 **Deferred to planning / a later pass.**
 
-- **The migration order and granularity for the actual rewrite** (by type position,
-  by mapper, by surface) — a `ce-plan` decision not fixed here.
+- **The granularity *within* each migration phase.** The ordering A -> B -> C is
+  fixed by design; the per-phase granularity (which `ci.use` site / mapper / surface each
+  phase handles first) is a `ce-plan` decision not fixed here. Phase B can ship before C
+  begins, and C (and its finer kinds) may never be started.
 - **The `ExprPiece` / `ExpressionStatement` realization** is resolved-by-design:
   `ExprPiece` is the sealed head, `ExpressionStatement` is a `List<ExprPiece>`
-  terminated by `;`, escape-hatch-first (R7) with a builder that wraps raw strings
-  (R7). Open for the implementation pass: the *exact* escape-hatch `Raw` piece shape,
-  how a `TypeRef`-embedding piece composes with the `Raw` content it resolves into, and
-  the migration granularity for contracting an escape-hatch piece into a structured one
-  over time.
+  terminated by `;`, escape-hatch-first (R7) with a builder that wraps raw strings (R7).
+  Open for the implementation pass: the **placeholder token** and its escape — it must not
+  collide with Java syntax that can appear in a template body (`<>`, `{}`, `%` are all
+  risks; a distinctive sentinel such as a Unicode guillemet pair, a `MessageFormat`-style
+  `{{n}}`, or a `printf` scheme, with an escape for a literal occurrence — and how that
+  token is parsed at render; the **nested-`ExprPiece` arg form** (an arg that is itself a
+  piece, the bridge to full structuring) when it lands; and the migration granularity for
+  contracting a `Raw` into a structured piece over time.
 - **The per-node collection method shape** (a `TypeRefs()` method on each node
   kind, a shared visitor, or something else) — the implementation decides.
 - **The collision-map data structure and the `useFqn` marker's exact form on a
   `TypeRef`** — an `errorprone` / design call the implementation pass can settle.
-- **Whether the two-pass `finalizeResolution()` pattern of `TypeCollector` is
-  retained** or fully replaced by the structural collect-then-render design — an
-  architecture choice the implementation plans.
+- **How the single-pass render replaces today's two-pass `finalizeResolution()`** — the
+  *direction* is decided (Phase B retires the two-pass re-emit in favour of a single
+  structural collect-then-render); the mechanics (a per-file collect pass, the aggregate
+  set's data structure, render-time resolution) are an implementation detail.
 
 ## Sources
 
