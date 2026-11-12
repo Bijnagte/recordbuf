@@ -165,11 +165,16 @@ consult it when orienting to the codebase or discussing domain concepts.
   yet): `./gradlew test`
 - Regenerate the plugin launcher for use by `protoc`:
   `./gradlew :recordbuf-generator:installDist`
-  → produces `generator/build/scripts/protoc-gen-recordbuf` (a self-contained
-  launcher that execs `java -cp … bijnagte.recordbuf.plugin.Main`).
+  → the launched launcher is `generator/build/install/protoc-gen-recordbuf/bin/protoc-gen-recordbuf`
+  (self-contained: execs `java -cp … bijnagte.recordbuf.plugin.Main` with its `lib/` populated).
+  Note: `installDist` also emits a `generator/build/scripts/protoc-gen-recordbuf`, but that is a
+  *staging* artifact, not the launcher -- it is meant to be run from the `install/.../bin/` location
+  where its `lib/` sits; invoked in place its `APP_HOME` resolves to `generator/build` and looks
+  for a `generator/build/lib` that does not exist, so `protoc` must be pointed at the `install/.../bin/`
+  launcher.
 - Generate code from a `.proto` (after `installDist`):
   ```bash
-  protoc --plugin=protoc-gen-recordbuf=$PWD/generator/build/scripts/protoc-gen-recordbuf \
+  protoc --plugin=protoc-gen-recordbuf=$PWD/generator/build/install/protoc-gen-recordbuf/bin/protoc-gen-recordbuf \
          --recordbuf_out=src/main/java <some>/hello.proto
   ```
 - Gradle is configured for **cache + parallel** (`gradle.properties`); expect

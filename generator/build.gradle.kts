@@ -115,16 +115,35 @@ dependencies {
 // not semantic-check, only reformat (verified this session on this JDK -- the launch smoke test
 // resolves the plan's deferred D1). Add a package here if a future source shape triggers a new
 // `IllegalAccessError` naming it.
-val gjfJvmArgs: List<String> =
+// The --add-exports jdk.compiler/... set google-java-format 2.0.0 needs on this project's JDK 25
+// toolchain. GJF's `Formatter.formatSource` parses source into a com.sun.tools.javac compiler tree
+// (JEP 396 module boundary), so the JVM that runs GJF -- the generator's `test` JVM and the
+// launched plugin (`run`/`installDist`) -- must export these packages. It is one fact used by both,
+// so it lives in one place (no drift between the two sets). The full `com.sun.tools.javac.*` tree is
+// exported (not a minimal subset) because GJF's cleanup phase can reach `comp`/`jvm`/`model` when
+// re-parsing certain source shapes, and the set is sensitive to the exact shape parsed. Add a
+// package here only if a new shape triggers an `IllegalAccessError` naming it.
+val javacPackages =
     listOf(
-        "--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
-        "--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED",
-        "--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
-        "--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
-        "--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED",
-        "--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
-        "--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED",
+        "",
+        "api",
+        "main",
+        "tree",
+        "util",
+        "file",
+        "code",
+        "parser",
+        "comp",
+        "jvm",
+        "model",
+        "resources",
+        "platform",
     )
+
+val gjfJvmArgs: List<String> =
+    javacPackages
+        .map { "--add-exports=jdk.compiler/com.sun.tools.javac${if (it.isEmpty()) "" else "." + it}=ALL-UNNAMED" }
+        .toList()
 
 application {
     mainClass = "bijnagte.recordbuf.plugin.Main"
@@ -179,13 +198,16 @@ tasks.withType<JavaCompile>().configureEach {
 
 // The plugin is consumed by `protoc` via:
 //
-//   protoc --plugin=protoc-gen-recordbuf=$PWD/generator/build/scripts/protoc-gen-recordbuf \
+//   protoc --plugin=protoc-gen-recordbuf=$PWD/generator/build/install/protoc-gen-recordbuf/bin/protoc-gen-recordbuf \
 //          --recordbuf_out=src/main/java src/main/proto/hello.proto
 //
 // After `./gradlew :recordbuf-generator:installDist` that script lives at
-// generator/build/scripts/protoc-gen-recordbuf and is a self-contained launcher
-// (it puts the project classpath on `$CLASSPATH` and execs
-// `java -cp ... bijnagte.recordbuf.plugin.Main`).
+// generator/build/install/protoc-gen-recordbuf/bin/protoc-gen-recordbuf and is the self-contained
+// launcher that actually runs (it puts the project classpath on `$CLASSPATH` and execs
+// `java -cp ... bijnagte.recordbuf.plugin.Main`). Point protoc at this `install/.../bin/` launcher.
+// The same task also emits a generator/build/scripts/protoc-gen-recordbuf, but that is a staging
+// artifact, not the launched launcher -- its `APP_HOME` resolves to `generator/build` and looks for
+// a `generator/build/lib` that does not exist, so it cannot load `Main` in place.
 tasks.named<Jar>("jar") {
     manifest {
         attributes(

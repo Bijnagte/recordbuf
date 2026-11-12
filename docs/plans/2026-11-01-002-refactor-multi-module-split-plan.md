@@ -288,7 +288,7 @@ flowchart TB
 - **Approach:** Per KTD1/KTD4/KTD8, move the source tree atomically (no half-move committed) and re-point the one cross-project edge (fixtures → generator launcher). The generator still links only protobuf; it emits runtime + user-interface FQNs as text and links neither (R6).
 - **Patterns to follow:** the existing root `build.gradle.kts` (`java` + `application` + `jar` manifest + `installDist` + Error Prone/NullAway *deferred* note, which moves with the generator and stays commented out per AGENTS.md).
 - **Test scenarios:**
-  - **Covers AE4.** `./gradlew :recordbuf-generator:installDist` produces `generator/build/scripts/protoc-gen-recordbuf`; pointing `protoc` at it still generates a record+codec that compiles and round-trips with the runtime on the classpath.
+  - **Covers AE4.** `./gradlew :recordbuf-generator:installDist` produces `generator/build/install/protoc-gen-recordbuf/bin/protoc-gen-recordbuf`; pointing `protoc` at it still generates a record+codec that compiles and round-trips with the runtime on the classpath.
   - `./gradlew build` builds all four modules green; fixtures' generation succeeds via the re-pointed `:recordbuf-generator:installDist`; the generator's dependency set contains protobuf only (no runtime, no options).
 - **Execution note:** Do the source-tree move and the fixtures re-point in the same unit; run `./gradlew build` immediately after so no broken launcher path is left.
 - **Verification:** `./gradlew :recordbuf-generator:installDist` + a manual `protoc --recordbuf_out` smoke compile+round-trip; full `./gradlew build` green; launcher at the generator module.
@@ -313,10 +313,10 @@ flowchart TB
 - **Goal:** Update the user docs for the new module split and confirm the quick-start still generates working code end to end.
 - **Requirements:** R2, R12 (F1, AE4).
 - **Dependencies:** U4, U5.
-- **Files:** `README.md` (modify — "Project layout" reflects the four `recordbuf-*` modules; quick-start uses `./gradlew :recordbuf-generator:installDist` and the launcher path `generator/build/scripts/protoc-gen-recordbuf`; a line on where `recordbuf_options.proto` now lives — the options module); `docs/README.md` (a note if the layout section references the old single module).
+- **Files:** `README.md` (modify — "Project layout" reflects the four `recordbuf-*` modules; quick-start uses `./gradlew :recordbuf-generator:installDist` and the launcher path `generator/build/install/protoc-gen-recordbuf/bin/protoc-gen-recordbuf`; a line on where `recordbuf_options.proto` now lives — the options module); `docs/README.md` (a note if the layout section references the old single module).
 - **Approach:** Per F1/AE4, mirror the new layout and the re-pointed launcher path; run the full quick-start once (`installDist` → `protoc --recordbuf_out` with the options import and the runtime on the classpath) as a manual end-to-end smoke.
 - **Patterns to follow:** the existing `README.md` structure and its `protobuf.dev` link style.
-- **Test scenarios:** `Test expectation: none — docs. Verified by a manual end-to-end smoke: `./gradlew :recordbuf-generator:installDist`, then `protoc --plugin=…generator/build/scripts/protoc-gen-recordbuf --recordbuf_out=… <sample.proto>` produces a generated record that compiles and round-trips with `:recordbuf-runtime` on the consumer classpath (AE4).`
+- **Test scenarios:** `Test expectation: none — docs. Verified by a manual end-to-end smoke: `./gradlew :recordbuf-generator:installDist`, then `protoc --plugin=…generator/build/install/protoc-gen-recordbuf/bin/protoc-gen-recordbuf --recordbuf_out=… <sample.proto>` produces a generated record that compiles and round-trips with `:recordbuf-runtime` on the consumer classpath (AE4).`
 - **Verification:** Quick-start in the README matches the actual build; the end-to-end smoke succeeds.
 
 ---
@@ -326,7 +326,7 @@ flowchart TB
 - **Per-unit gate (R12):** each unit U1–U6 ends with `./gradlew build` green — the co-versioned build across generator, options, runtime, and fixtures is the unit of verification. A unit that moves a source tree or a launcher path is verified *immediately after* the move, inside the same unit (KTD8).
 - **Byte-identity oracle (AE1/R10):** the interop byte-equality suite (bytes, fixed, int32, map, message, optional, order, packed, string, combined) is the standing proof that the extraction and every move preserve wire behavior and public shape. It must stay green throughout, unchanged.
 - **Fixture relocation (AE2/R11/R13):** after U3, `:recordbuf-fixtures:test` is where the interop + interface families run, compiled against the fixtures artifact; the root compiles no generated code.
-- **Launcher / quick-start (AE4):** after U4, `./gradlew :recordbuf-generator:installDist` yields `generator/build/scripts/protoc-gen-recordbuf`; U6's manual `protoc` smoke confirms end-to-end generation + round-trip.
+- **Launcher / quick-start (AE4):** after U4, `./gradlew :recordbuf-generator:installDist` yields `generator/build/install/protoc-gen-recordbuf/bin/protoc-gen-recordbuf`; U6's manual `protoc` smoke confirms end-to-end generation + round-trip.
 - **Codegen re-verification (AGENTS.md):** after any generation-emitting change (U1), run `./gradlew :recordbuf-generator:installDist` (or the still-root launcher before U4) and regenerate a sample; confirm it compiles + round-trips.
 - **No new test dependencies:** JUnit Jupiter + plain assertions only; JSpecify is generated-code infra, not a test library; protobuf `4.36.2` stays pinned in the catalog.
 

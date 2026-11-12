@@ -550,6 +550,13 @@ public final class RecordSourceMapping {
       // M4-C2d-1: optional scalar → null default, not a boxed 0.
       return "null";
     }
+    // Singular MESSAGE/ENUM components are @Nullable in the record (presence-tracked; see
+    // scalarComponentType), so their builder-storage default is null -- not the boxed 0 the
+    // typeUrl switch below would emit (which would not even compile against a reference type).
+    if ((f.kind() == FieldKind.MESSAGE || f.kind() == FieldKind.ENUM)
+        && f.label() != FieldLabel.REPEATED) {
+      return "null";
+    }
     if (f.label() == FieldLabel.REPEATED) {
       // Mutable default: callers get a fresh ArrayList, never an immutable List.of().
       return "new ArrayList<>()";

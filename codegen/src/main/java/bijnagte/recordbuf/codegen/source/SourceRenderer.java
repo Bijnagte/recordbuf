@@ -213,6 +213,18 @@ public final class SourceRenderer {
           out.append("(").append(String.join(", ", c.ctorArgs())).append(")");
         out.append(i + 1 == consts.size() ? ";" : ",").append('\n');
       }
+      // A member-bearing enum with NO constants still needs a `;` right after the opening brace
+      // (Java requires a constant list or a `;` to open the member section); without it the first
+      // body member is a syntax error. GJF -- which now parses every rendered surface -- surfaces
+      // this; emit the `;` so a constants-less enum with fields/ctors/methods stays valid Java.
+      if (consts.isEmpty()
+          && (e.fields().isEmpty() == false
+              || !e.staticBlocks().isEmpty()
+              || !e.constructors().isEmpty()
+              || !e.methods().isEmpty()
+              || !e.nested().isEmpty())) {
+        out.append(indent(body)).append(";\n");
+      }
       // A body only follows the constants when they exist; when the enum has constants the first
       // body member is separated from them by a blank line (first starts false), otherwise the
       // first

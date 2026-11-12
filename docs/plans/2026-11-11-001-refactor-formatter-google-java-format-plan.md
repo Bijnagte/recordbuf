@@ -610,8 +610,8 @@ launch-time concern that a unit test can't fully prove.
 
 **Approach —**
 - Run `./gradlew :recordbuf-generator:installDist` to produce
-  `generator/build/scripts/protoc-gen-recordbuf`.
-- Run `protoc --plugin=protoc-gen-recordbuf=$PWD/generator/build/scripts/protoc-gen-recordbuf
+  `generator/build/install/protoc-gen-recordbuf/bin/protoc-gen-recordbuf`.
+- Run `protoc --plugin=protoc-gen-recordbuf=$PWD/generator/build/install/protoc-gen-recordbuf/bin/protoc-gen-recordbuf
   --recordbuf_out=/tmp/gjf-smoke src/main/proto/hello.proto` (or a similar
   small proto that exists in the project's `src/main/`).
 - Confirm that the generated output compiles (e.g., via

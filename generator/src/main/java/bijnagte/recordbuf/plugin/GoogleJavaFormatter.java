@@ -12,7 +12,13 @@ import com.google.googlejavaformat.java.FormatterException;
  * generated {@code .rec} records compile against stays formatter-free, and the generated surface
  * stays dependency-free (R22).
  *
- * <p>GJF's own {@link com.google.googlejavaformat.java.Formatter} is referenced by fully-qualified
+ * <p>It uses GJF's <i>default</i> {@code Formatter} (Google style, cleanups enabled) so the
+ * generated {@code .java} output matches the formatting Spotless applies with {@code
+ * googleJavaFormat()} -- the R4 "spotless parity" bar. The formatter is only ever applied to
+ * generated Java source ({@code .rec} records and their {@code package-info.java}); the Avro
+ * bridge's {@code .avsc} (JSON) is emitted by Avro's external compiler and is not run through GJF.
+ *
+ * <p>GJF's own {@code com.google.googlejavaformat.java.Formatter} is referenced by fully-qualified
  * name on purpose: it collides with our SPI's {@link Formatter} simple name, and qualifying keeps
  * this class able to {@code implements Formatter} cleanly.
  *
@@ -24,11 +30,15 @@ import com.google.googlejavaformat.java.FormatterException;
  */
 public final class GoogleJavaFormatter implements Formatter {
 
-  /** The shared instance -- GJF's {@code Formatter} is stateless, so one instance serves all. */
+  /** GJF's {@code Formatter} is stateless, so one instance serves all files. */
   private static final GoogleJavaFormatter INSTANCE = new GoogleJavaFormatter();
 
-  private final com.google.googlejavaformat.java.Formatter gjf =
-      new com.google.googlejavaformat.java.Formatter();
+  /** The shared GJF formatter (GJF's {@code Formatter} is stateless, so one instance is reused). */
+  private final com.google.googlejavaformat.java.Formatter inner;
+
+  private GoogleJavaFormatter() {
+    this.inner = new com.google.googlejavaformat.java.Formatter();
+  }
 
   /** The shared, GJF-backed {@link Formatter} instance. */
   public static GoogleJavaFormatter getInstance() {
@@ -38,11 +48,11 @@ public final class GoogleJavaFormatter implements Formatter {
   @Override
   public String format(String source) {
     try {
-      return gjf.formatSource(source);
+      return inner.formatSource(source);
     } catch (FormatterException e) {
-      // The Formatter SPI is checked-exception-free; GJF's checked FormatterException (a parse
-      // failure on the rendered source we generated) is surfaced as an unchecked failure so the
-      // plugin fails loud rather than emitting malformed output.
+      // GJF's checked FormatterException (a parse failure on the rendered source we generated) is
+      // surfaced as an unchecked failure so the plugin fails loud rather than emitting malformed
+      // output.
       throw new IllegalStateException("Google Java Format could not format rendered source", e);
     }
   }

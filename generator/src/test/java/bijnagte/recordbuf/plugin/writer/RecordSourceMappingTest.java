@@ -744,6 +744,61 @@ class RecordSourceMappingTest {
   }
 
   /**
+   * Regression for the singular MESSAGE/ENUM default: a {@code REQUIRED} enum-typed field is
+   * presence-tracked, so the record component is {@code @Nullable} and its builder-storage default
+   * must be {@code null} -- not the boxed {@code 0} that {@link RecordSourceMapping}'s default
+   * resolver used to emit (which would not compile against a reference type, since {@code 0} is not
+   * a {@code Color}). A {@code REQUIRED} enum field has {@code isNullable() == false} (proto3
+   * presence is per-field-kind, not per-label), so the old typeUrl switch fell through to {@code
+   * default -> "0"}. This pins the fix: singular MESSAGE/ENUM fields default to {@code null}.
+   */
+  @Test
+  @SuppressWarnings("java:S905")
+  void required_enum_field_defaults_to_null_not_zero() {
+    var colorField =
+        new Field(
+            "color",
+            "color",
+            1,
+            FieldLabel.REQUIRED,
+            FieldKind.ENUM,
+            PKG + ".Color",
+            null,
+            null,
+            false,
+            null,
+            null,
+            false);
+    var m =
+        new Message(
+            "EnumMsg",
+            PKG + ".EnumMsg",
+            List.of(colorField),
+            List.of(),
+            List.of(),
+            List.of(),
+            false,
+            null,
+            List.of(),
+            null);
+    var ci = new TypeCollector(PKG);
+    Function<Field, String> typeResolver =
+        (Field ff) -> {
+          int dot = ff.typeUrl().lastIndexOf('.');
+          String shortName = dot < 0 ? ff.typeUrl() : ff.typeUrl().substring(dot + 1);
+          return ff.kind() == FieldKind.MESSAGE ? shortName + "Codec" : shortName;
+        };
+    var rec = RecordSourceMapping.toSourceWithCodec(m, ci, typeResolver);
+    var src = SourceRenderer.render(new JavaFile(PKG, Javadoc.builder().build(), rec, ci));
+
+    // The record component is @Nullable Color, and the builder-storage default is null -- not 0.
+    assertTrue(
+        src.contains("@Nullable Color color = null"),
+        "a REQUIRED enum field's @Nullable component defaults to null: " + src);
+    assertFalse(src.contains("Color color = 0"), "the boxed-0 default must not be emitted: " + src);
+  }
+
+  /**
    * M4-C2d-8: a message with singular + repeated nested-message fields (like the {@code
    * message.proto} fixture — a {@code Sample} with {@code Item single} + {@code repeated Item
    * items}) renders through the source-AST path and compiles via {@code javac}.

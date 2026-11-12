@@ -9,11 +9,14 @@
 //
 // The plugin is consumed by `protoc` via:
 //
-//   protoc --plugin=protoc-gen-recordbuf=$PWD/generator/build/scripts/protoc-gen-recordbuf \
+//   protoc --plugin=protoc-gen-recordbuf=$PWD/generator/build/install/protoc-gen-recordbuf/bin/protoc-gen-recordbuf \
 //          --recordbuf_out=src/main/java src/main/proto/hello.proto
 //
 // After `./gradlew :recordbuf-generator:installDist` that script lives at
-// generator/build/scripts/protoc-gen-recordbuf and is a self-contained launcher.
+// generator/build/install/protoc-gen-recordbuf/bin/protoc-gen-recordbuf and is a self-contained
+// launcher. Use this `install/.../bin/` launcher -- NOT the sibling
+// `build/scripts/protoc-gen-recordbuf` the same task also emits, whose `APP_HOME` resolves to
+// `generator/build` and looks for a non-existent `generator/build/lib`.
 
 // Spotless is applied to every subproject that has a `java` source set (see the
 // `subprojects { pluginManager.withPlugin("java") … }` block below). Declared

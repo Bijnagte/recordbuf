@@ -31,7 +31,12 @@ class GoogleJavaFormatterTest {
 
   @Test
   void is_a_formatter_spi_instance() {
-    assertTrue(GoogleJavaFormatter.getInstance() instanceof Formatter);
+    // The implement is enforced by the compiler at this Formatter-typed assignment; run the call
+    // through the SPI reference so the test also proves the interface is usable, not just declared.
+    Formatter formatter = GoogleJavaFormatter.getInstance();
+    assertTrue(
+        formatter.format("class  A   {    }").contains("class A"),
+        "the SPI reference formats its input: " + formatter.format("class  A   {    }"));
   }
 
   @Test

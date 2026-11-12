@@ -385,7 +385,7 @@ emits Javadoc + `@Deprecated` for a deprecated element. No changes to
   (`:recordbuf-options`, `:recordbuf-runtime`, `:recordbuf-generator`,
   `:recordbuf-fixtures`), with NullAway at error severity.
 - **Regen:** `./gradlew :recordbuf-generator:installDist && protoc
-  --plugin=protoc-gen-recordbuf=…/build/scripts/protoc-gen-recordbuf
+  --plugin=protoc-gen-recordbuf=…/build/install/protoc-gen-recordbuf/bin/protoc-gen-recordbuf
   --recordbuf_out=<tmp> annotation_demo.proto` produces a Java source that
   compiles cleanly (no unexpected javac warnings; no `@java.lang.Deprecated`
   in the output).

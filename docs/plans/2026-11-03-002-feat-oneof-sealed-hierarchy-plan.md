@@ -858,7 +858,7 @@ Builder/ctor:     one setter + one ctor arg per oneof component                 
   — the U4 gate.
 - **Codegen smoke (manual, per AGENTS.md):** `./gradlew
   :recordbuf-generator:installDist`, then `protoc --plugin=
-  protoc-gen-recordbuf=$PWD/generator/build/scripts/protoc-gen-recordbuf
+  protoc-gen-recordbuf=$PWD/generator/build/install/protoc-gen-recordbuf/bin/protoc-gen-recordbuf
   --recordbuf_out=… oneof.proto`, then confirm the generated Java compiles (the
   compile gate U2/U3 defer to — auto-covered by the fixtures build once the proto
   lands in U4).
