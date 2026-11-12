@@ -1,5 +1,6 @@
 package bijnagte.recordbuf.plugin.bridge;
 
+import bijnagte.recordbuf.codegen.source.Formatter;
 import bijnagte.recordbuf.plugin.model.ProtoFile;
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse;
 import java.util.List;
@@ -31,6 +32,13 @@ public interface FormatBridge {
    */
   boolean enabledFor(ProtoFile file, BridgeContext ctx);
 
-  /** The this-bridge's output files for a bridge-enabled {@code file}; empty when disabled. */
-  List<? extends CodeGeneratorResponse.File> emit(ProtoFile file, BridgeContext ctx);
+  /**
+   * This bridge's output files for a bridge-enabled {@code file}; empty when disabled. {@code
+   * formatter} is the formatter the bridge threads every rendered Java surface through (the same
+   * one the record/enum files use) so the bridge's own output (e.g. the Avro converter class) is
+   * formatted identically -- the generator keeps the codegen module backend-free and hands the
+   * concrete formatter in here.
+   */
+  List<? extends CodeGeneratorResponse.File> emit(
+      ProtoFile file, BridgeContext ctx, Formatter formatter);
 }

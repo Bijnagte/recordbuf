@@ -19,13 +19,13 @@ class SourceRendererJavadocTest {
 
   @Test
   void noOpForNullOrBlankCommentReturnsEmpty() {
-    assertTrue(SourceRenderer.javadoc(null, 0).isBlank(), "null raw renders nothing");
-    assertTrue(SourceRenderer.javadoc("   \n\t  ", 0).isBlank(), "blank raw renders nothing");
+    assertTrue(SourceRenderer.javadoc(null).isBlank(), "null raw renders nothing");
+    assertTrue(SourceRenderer.javadoc("   \n\t  ").isBlank(), "blank raw renders nothing");
   }
 
   @Test
   void emitsMultilineBlockComment() {
-    String out = SourceRenderer.javadoc("Line one.\nLine two.", 0);
+    String out = SourceRenderer.javadoc("Line one.\nLine two.");
     assertTrue(out.startsWith("/**"), "block opens with /**");
     assertTrue(out.contains(" * Line one."), "first content line prefixed ' * '");
     assertTrue(out.contains(" * Line two."), "second content line prefixed ' * '");
@@ -36,7 +36,7 @@ class SourceRendererJavadocTest {
   void escapesHtmlSignificantCharacters() {
     String out =
         SourceRenderer.javadoc(
-            "See <tag> and & ampersand, plus @NotNull stays bare; &amp; becomes &amp;amp;.", 0);
+            "See <tag> and & ampersand, plus @NotNull stays bare; &amp; becomes &amp;amp;.");
     assertTrue(out.contains("&lt;tag&gt;"), "angle brackets escape to &lt;/&gt;");
     assertFalse(out.contains("<tag>"), "raw <tag> must be escaped");
     assertTrue(out.contains("&amp;"), "bare & escapes to &amp;");
@@ -47,7 +47,7 @@ class SourceRendererJavadocTest {
 
   @Test
   void emptyLineInSourceCommentRendersAsStar() {
-    String out = SourceRenderer.javadoc("First.\n\nSecond.", 0);
+    String out = SourceRenderer.javadoc("First.\n\nSecond.");
     assertTrue(out.contains(" *\n"), "a blank source line renders as ' *'");
     assertTrue(out.contains(" * First."), "first line still renders its text");
     assertTrue(out.contains(" * Second."), "second line still renders its text");
@@ -55,17 +55,21 @@ class SourceRendererJavadocTest {
 
   @Test
   void trimsLeadingAndTrailingBlankLines() {
-    String out = SourceRenderer.javadoc("\n\nFirst\n  Second  \n", 0);
+    String out = SourceRenderer.javadoc("\n\nFirst\n  Second  \n");
     assertTrue(out.startsWith("/**"), "leading blank lines trimmed; block opens with /**");
     assertFalse(out.trim().endsWith("  */"), "trailing blank lines trimmed");
   }
 
   @Test
-  void indentsWithLeadingWhitespaceForNestedBlock() {
-    // indent(1) = 4 spaces (INDENT = "    "); indent(2) = 8 spaces
-    String out = SourceRenderer.javadoc("Nested", 1);
-    assertTrue(out.startsWith("    /**"), "indent=1: 4 spaces before /**");
-    assertTrue(out.contains("    * Nested"), "indent=1: 4 spaces before * Nested");
+  void emitsAtZeroIndentFormattingIsTheFormattersJob() {
+    // The renderer no longer indents Javadoc (or anything else): it emits at column 0 and a
+    // formatter (GJF in production) owns the whitespace layout, including Javadoc alignment. So a
+    // Javadoc block has no leading whitespace regardless of nesting -- the renderer owns structure
+    // only.
+    String out = SourceRenderer.javadoc("Nested");
+    assertTrue(out.startsWith("/**"), "block opens at column 0, no leading indent");
+    assertTrue(out.contains(" * Nested"), "content line prefixed ' * ' at column 0");
+    assertFalse(out.startsWith(" "), "no leading whitespace -- formatting is the formatter's job");
   }
 
   @Test

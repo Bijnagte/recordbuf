@@ -2,6 +2,7 @@ package bijnagte.recordbuf.plugin.writer;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import bijnagte.recordbuf.codegen.source.Formatter;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
@@ -64,7 +65,8 @@ class AvroConverterSourceMappingTest {
             "sample.proto",
             m,
             "bijnagte.recordbuf.fixture",
-            "bijnagte.recordbuf.fixture.rec");
+            "bijnagte.recordbuf.fixture.rec",
+            Formatter.IDENTITY);
 
     // Class name is XAvroConverter; specific record is XAvro; converter lives in .rec package.
     assertTrue(
@@ -129,7 +131,8 @@ class AvroConverterSourceMappingTest {
             "sample.proto",
             m,
             "bijnagte.recordbuf.fixture",
-            "bijnagte.recordbuf.fixture.rec");
+            "bijnagte.recordbuf.fixture.rec",
+            Formatter.IDENTITY);
 
     assertTrue(
         out.contains("ByteBuffer.wrap(r.a().toByteArray())"),

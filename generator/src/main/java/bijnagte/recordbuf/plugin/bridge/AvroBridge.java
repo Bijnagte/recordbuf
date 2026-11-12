@@ -1,5 +1,6 @@
 package bijnagte.recordbuf.plugin.bridge;
 
+import bijnagte.recordbuf.codegen.source.Formatter;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.ProtoFile;
 import bijnagte.recordbuf.plugin.writer.AvroConverterSourceMapping;
@@ -46,7 +47,8 @@ public final class AvroBridge implements FormatBridge {
   }
 
   @Override
-  public List<? extends CodeGeneratorResponse.File> emit(ProtoFile file, BridgeContext ctx) {
+  public List<? extends CodeGeneratorResponse.File> emit(
+      ProtoFile file, BridgeContext ctx, Formatter formatter) {
     // Off: a disabled file contributes nothing, exactly as an absent bridge would (R1/R3).
     if (!enabledFor(file, ctx)) return List.of();
 
@@ -94,7 +96,8 @@ public final class AvroBridge implements FormatBridge {
     // ----
     String recordPkg = recordPkg(file);
     String converterSource =
-        AvroConverterSourceMapping.generate(root.name(), file.fileName(), root, avroNs, recordPkg);
+        AvroConverterSourceMapping.generate(
+            root.name(), file.fileName(), root, avroNs, recordPkg, formatter);
     String converterPkg =
         recordPkg.isEmpty()
             ? root.name() + "AvroConverter"

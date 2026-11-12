@@ -154,7 +154,7 @@ public final class CodeGenerator {
     // conditional, per-bridge output (e.g. the Avro bridge's XSpecific/XAvro/XSchema + .avsc) only
     // when the bridge is enabled for this file (R1: file > flag > default-on). A disabled bridge
     // contributes nothing, exactly as an absent one would.
-    files.addAll(bridgeRegistry.emitAll(pf, bridgeContext));
+    files.addAll(bridgeRegistry.emitAll(pf, bridgeContext, formatter));
     return files;
   }
 

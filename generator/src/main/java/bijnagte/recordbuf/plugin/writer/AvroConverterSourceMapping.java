@@ -3,6 +3,7 @@ package bijnagte.recordbuf.plugin.writer;
 import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
+import bijnagte.recordbuf.codegen.source.Formatter;
 import bijnagte.recordbuf.codegen.source.JavaFile;
 import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.SourceRenderer;
@@ -53,7 +54,8 @@ public final class AvroConverterSourceMapping {
       String protoFile,
       Message message,
       String specificRecordPkg,
-      String recordPkg) {
+      String recordPkg,
+      Formatter formatter) {
     String recordClass = protoRoot;
     String avroSpecific = protoRoot + "Avro";
 
@@ -95,7 +97,7 @@ public final class AvroConverterSourceMapping {
             .build();
 
     JavaFile javaFile = new JavaFile(recordPkg, null, converterClass, ci);
-    String rendered = SourceRenderer.render(javaFile);
+    String rendered = SourceRenderer.render(javaFile, formatter);
 
     // Prepend the generated-file comment block.
     String comment =

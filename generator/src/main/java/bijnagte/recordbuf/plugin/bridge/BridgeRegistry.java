@@ -1,5 +1,6 @@
 package bijnagte.recordbuf.plugin.bridge;
 
+import bijnagte.recordbuf.codegen.source.Formatter;
 import bijnagte.recordbuf.plugin.model.ProtoFile;
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse;
 import java.util.ArrayList;
@@ -30,12 +31,17 @@ public final class BridgeRegistry {
     return new BridgeRegistry(List.of(AvroBridge.instance()));
   }
 
-  /** Run every registered bridge over {@code file}; concatenate each enabled bridge's output. */
-  public List<? extends CodeGeneratorResponse.File> emitAll(ProtoFile file, BridgeContext ctx) {
+  /**
+   * Run every registered bridge over {@code file}; concatenate each enabled bridge's output. {@code
+   * formatter} is threaded to each bridge so its rendered Java surfaces are formatted the same way
+   * as the record/enum files.
+   */
+  public List<? extends CodeGeneratorResponse.File> emitAll(
+      ProtoFile file, BridgeContext ctx, Formatter formatter) {
     List<CodeGeneratorResponse.File> out = new ArrayList<>();
     for (FormatBridge bridge : bridges) {
       if (bridge.enabledFor(file, ctx)) {
-        out.addAll(bridge.emit(file, ctx));
+        out.addAll(bridge.emit(file, ctx, formatter));
       }
     }
     return out;
