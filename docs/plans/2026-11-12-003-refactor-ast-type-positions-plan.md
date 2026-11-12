@@ -4,7 +4,7 @@ type: refactor
 date: 2026-11-12
 topic: ast-type-positions
 artifact_contract: ce-unified-plan/v1
-artifact_readiness: requirements-only
+artifact_readiness: implementation-ready
 product_contract_source: ce-brainstorm
 execution: code
 ---
@@ -276,6 +276,221 @@ string.
   11-12-002` unchanged.
 - **The `com.google.protobuf.compiler` protocol shim.** Never touched.
 - **Re-baselining the `fixtures/`** — the generated output stays byte-for-byte.
+
+## Implementation Units
+
+Each unit builds on the previous one. Phase A units carry output stability: fixtures stay
+GJF-identical at every step because the `TypeRef` resolves to today's short/FQN at every
+site. Phase B retires the two-pass emit and requires no change to any mapper after Phase A
+is complete.
+
+### U1 — `TypeRef` sealed interface (model)
+
+- **Status:** not started
+- **R:** R1, R2
+- **File:** `codegen/src/main/java/bijnagte/recordbuf/codegen/source/TypeRef.java` (new)
+- **Change:**
+  - `sealed interface TypeRef permits Named, Primitive, Array`
+  - `record Named(String pkg, String shortName, List<TypeRef> generics)` — factory:
+    `TypeRef.of(String fqn)` parses a FQN string into `(pkg, short, [])` (the current
+    `ci.use()` string-parsing logic, lifted into a factory for ergonomic construction from
+    a raw FQN; `TypeRef.of("java.util.Map")` → `Named("java.util","Map",[])`) and
+    `TypeRef.of(String fqn, TypeRef... typeArgs)` for the generic case (`List<T>` →
+    `Named("java.util","Map",[T])`). An empty `generics` list means a bare type.
+  - `enum Primitive { VOID, INT, LONG, FLOAT, DOUBLE, SHORT, CHAR, BOOLEAN, BYTE }` —
+    renders as the lowercase name (`void`, `int`, etc.)
+  - `record Array(TypeRef element)` — factory `TypeRef.array(Named)` / `TypeRef.array(Primitive)`;
+    renders as `element + "[]"`.
+  - `String resolved(String declaringPackage)` — the resolution method: for `Named` returns
+    short name when not collided / `java.lang.*` / in-package, or FQN when collided; for
+    `Primitive` / `Array` returns the bare form. This method is **pure** — it takes the
+    declaring package and a collision map, not a mutable `TypeCollector`.
+  - `String fqn()` — returns the canonical fully-qualified string (for the `useFqn` /
+    `InteropSourceMapping` always-FQN path).
+  - `String shortName()` — returns just the short class name (for collision detection).
+- **Test:** `codegen/src/test/java/bijnagte/recordbuf/codegen/source/TypeRefTest.java` (new)
+  - `Primitive` renders as lowercase (`INT` → `"int"`)
+  - `Array` renders as `element + "[]"`
+  - `Named.of(...)` round-trips through `fqn()`
+  - `resolved(...)` with empty collision map returns short for `java.lang.*` / in-package, FQN otherwise
+  - `resolved(...)` with a collision map returns FQN for collided short names
+- **Depends on:** nothing
+- **Output stability:** no output change — new files only; no mapper or renderer touches `TypeRef` yet.
+
+### U2 — `ExprPiece` sealed interface + `RawExpr` + `ExprStatement` migration
+
+- **Status:** not started
+- **R:** R6, R7
+- **Files:**
+  - `codegen/src/main/java/bijnagte/recordbuf/codegen/source/ExprPiece.java` (new)
+  - `codegen/src/main/java/bijnagte/recordbuf/codegen/source/RawExpr.java` (new)
+  - `codegen/src/main/java/bijnagte/recordbuf/codegen/source/ExprStatement.java` (modify)
+- **Change:**
+  - `sealed interface ExprPiece permits RawExpr` — the sealed head. Phase C extends this.
+  - `record RawExpr(String template, List<ExprPiece> args)` — a parameterized template.
+    - A **placeholder token** renders the corresponding arg by index. The implementation
+      decides the exact token and escape; the contract is one `ExprPiece` per arg and a
+      render-time substitution that produces identical output to today's resolved short string.
+    - Factory: `RawExpr.of(String template, ExprPiece... args)` (ergonomic, matches the
+      builder style).
+  - `ExprStatement` migrates from `record ExprStatement(String expr)` to
+    `record ExprStatement(List<ExprPiece> pieces)`. The `ExprStatement.of(String raw)`
+    factory wraps a bare raw string as a single-element list containing
+    `RawExpr.of(raw, [])` so all existing mappers that call `ExprStatement.of("expr;")` work
+    unchanged. The renderer renders each `ExprPiece` then joins them; a `RawExpr` template
+    with zero args renders the template verbatim — byte-compatible with today.
+  - `RawExpr` render: substitute each placeholder position with the result of `arg.resolved()`
+    (for `TypeRef` args) or `arg.render()` (for the escape-hatch / literal future kinds).
+    An `ExprPiece` needs a `String render()` default; `RawExpr`'s default is its substitution;
+    a `TypeEmbedding` (added later) delegates to `resolved()`.
+- **Test:**
+  - `codegen/src/test/java/bijnagte/recordbuf/codegen/source/RawExprTest.java` (new):
+    - `RawExpr.of("new %d<>()", TypeRef.of("java.util.HashMap"))` with the placeholder token
+      substitutes the short name at render time
+    - `RawExpr.of("literal", [])` renders as `"literal;"` — identical to current
+      `ExprStatement.of("literal")`
+  - `codegen/src/test/java/bijnagte/recordbuf/codegen/source/ExprStatementRenderingTest.java`
+    (new or updated from existing test file): `ExprStatement.of("x")` renders `x;` unchanged.
+- **Depends on:** U1 (`TypeRef` must exist before `RawExpr` can use it as an arg type)
+- **Output stability:** no output change — `RawExpr.of(anyString, [])` renders the template
+  verbatim, identical to today's `ExprStatement(String)`.
+
+### U3 — Surface A: type positions become `TypeRef`
+
+- **Status:** not started
+- **R:** R3, R4, R5
+- **Files to change (all in `:recordbuf-codegen`):**
+  - `Component.java` — `String type` → `TypeRef type`; `Component.builder()` and
+    `ComponentBuilder.of(typeRef, name)` factory; keep `Component.named(String, String)` for
+    backward compat by parsing the string via `TypeRef.of(fqn)` internally (or add a
+    `Component.of(TypeRef, String)` and remove the `named()` overload — implementation
+    decision; the contract is the public `TypeRef` field).
+  - `Method.java` — `String returnType` → `TypeRef returnType`; `List<String> thrown` →
+    `List<TypeRef> thrown`; add `Method.of(returnType, name)` and `thrown(TypeRef...)` /
+    `thrown(List<TypeRef>)` builder methods.
+  - `Param.java` — `String type` → `TypeRef type`; `Param.of(String, String, ...) ` becomes
+    `Param.of(TypeRef, String, ...)` with a `fromFqn(String fqn, String name, ...)` factory for
+    string-calling code paths.
+  - `LocalVar.java` — `String type` → `TypeRef type`.
+  - `Type.java` — all `List<String> implementsFqns`, `extendsFqns`, `permitsFqns` in
+    `Record`, `Class`, `Enum`, `Interface` variants → `List<TypeRef>`; add `implementsType`
+    / `extendsType` / `permitsType` builder methods; keep `implementsFqn(String)` factory that
+    parses via `TypeRef.of(fqn)`.
+  - `SourceRenderer.java`:
+    - `Pass.collect(Type t)` no longer takes string FQNs; it walks `TypeRef`s from each
+      variant to register them with `TypeCollector`. Since `TypeCollector.use(String)`
+      still exists, this phase only changes how the renderer *collects*: it calls
+      `ci.use(typeRef.fqn())` where it previously called `ci.use(stringFqn)` — behavior is
+      unchanged for collection, but the source of the string is now the `TypeRef`'s FQN.
+    - `renderMethod` / `renderField` / `joinResolved` / `renderParams` resolve via
+      `ci.use(typeRef.fqn())` where they previously called `ci.use(stringFqn)` — same logic,
+      just sourced from `TypeRef.fqn()` instead of a stored string. No output change yet.
+- **Tests to update:**
+  - `JavaSourceTest.java` — update `Component`, `Method`, `Type.*` construction to build `TypeRef`
+    fields (or use the `fromFqn` factory). Output assertions unchanged.
+  - `SourceAstClosednessTest.java` — add a check that no `Type.*` FQN list type parameter is
+    `String` (sealed-hierarchy test that verifies the type parameters are `TypeRef` not `String`).
+- **Depends on:** U1 (`TypeRef`); U2 is parallel (no dependency on each other)
+- **Output stability:** unchanged. `ci.use(typeRef.fqn())` produces the same short/FQN as
+  `ci.use(fqn)`. The migration is purely a data-shape change — no behavior change.
+
+### U4 — `Annotation.type` becomes `TypeRef` (R11)
+
+- **Status:** not started
+- **R:** R11
+- **File:** `Annotation.java` (modify)
+- **Change:**
+  - `record Annotation(TypeRef type, List<Arg> args)` — `String type` → `TypeRef type`.
+  - Constants: `DEPRECATED = new Annotation(TypeRef.of("java.lang", "Deprecated", []), [])`,
+    `OVERRIDE = new Annotation(TypeRef.of("java.lang", "Override", []), [])`,
+    `NULLABLE = new Annotation(TypeRef.of("org.jspecify.annotations", "Nullable", []), [])`.
+  - `Annotation.of(String fqn, Arg... args)` — parses the FQN to `TypeRef.of(fqn)`.
+  - `SourceRenderer.renderAnnotations()` — change `ci.use(a.type())` to
+    `ci.use(a.type().fqn())` (no behavioral change yet; U6 handles the tree-walk).
+- **Test:** `AnnotationTest.java` (new or updated)
+  - `DEPRECATED.type().fqn()` returns `"java.lang.Deprecated"`
+  - `DEPRECATED.type().shortName()` returns `"Deprecated"`
+  - `NULLABLE.type().fqn()` returns `"org.jspecify.annotations.Nullable"`
+- **Depends on:** U1 (`TypeRef`)
+- **Output stability:** unchanged — `ci.use(typeRef.fqn())` returns the same short/FQN as
+  `ci.use(fqn)`.
+
+### U5 — Mappers build `TypeRef` and `RawExpr` at all `ci.use` sites
+
+- **Status:** not started
+- **R:** R6, R7
+- **Files to change (all in `:recordbuf-generator`):**
+  - `CodecSourceMapping.java` — for every `ci.use(x)` call, the result is either:
+    - inlined into a Surface A position (`Component`, `Method`, `Param`, `LocalVar`, `Type` header)
+      → pass the `TypeRef` directly (from U3); no `ci.use(x)` call needed at mapper level
+    - spliced into an `ExprStatement.of(...)` / body string → build a `RawExpr` with the
+      `TypeRef` as the corresponding `ExprPiece` arg: e.g.,
+      `ExprStatement.of(List.of(RawExpr.of("new %d<>()", typeRef)))` where `typeRef =
+      TypeRef.of("java.util.HashMap")`.
+  - `EnumSourceMapping.java` — same migration: `ci.use("java.util.Map")` → `TypeRef.of("java.util.Map")`
+    embedded in a `RawExpr`.
+  - `InteropSourceMapping.java` — `ci.useFqn(ref)` calls are replaced with a
+    `TypeRef` + always-FQN flag (or a `Named` with a `true` marker) so the FQN is emitted
+    directly with no import — `useFqn` becomes a `TypeRef.useFqn` factory (a `Named` that
+    carries a no-import flag, or a distinct `TypeRef.UseFqn` subtype — implementation
+    decision). Keep the `useFqn` semantics on the TypeRef (no import, emit FQN).
+  - `AvroConverterSourceMapping.java` — same migration.
+  - `CodeGenerator.java` — update any `ci.use` call in the `main` generation flow (the
+    `rtUse` lambda / `RT` references).
+- **Tests to update:**
+  - `CodeGeneratorTest.java` (fixture round-trip) — no output change; assertions stay.
+  - `CodecSourceMappingTest.java` / any mapper-level tests — update to assert `TypeRef` fields
+    are built correctly when they exist; otherwise rely on fixture round-trip.
+- **Depends on:** U1, U2, U3, U4
+- **Output stability:** unchanged — `RawExpr` substitutes resolved names at render; every
+  fixture GJF-clean output is identical to today. This is the invariant that allows Phase A
+  to ship independently of Phase B.
+
+### U6 — Tree-walk `TypeRef` collector (Phase B)
+
+- **Status:** not started
+- **R:** R8, R9, R10
+- **Files to change (all in `:recordbuf-codegen`):**
+  - `SourceRenderer.java`:
+    - Remove `file.ci().finalizeResolution()` from `render()`. Instead, do a single-pass
+      collect-then-render: collect all `TypeRef`s from the tree (including `RawExpr` args)
+      before the render loop, build the collision map from that aggregate, then render in one
+      pass. The `TypeCollector` two-pass emit is retired.
+    - Add a `collectTypeRefs(Type t, Set<TypeRef> out)` walk that recurses:
+      - Surface A positions: `Component.type`, `Method.returnType`, `Method.thrown`,
+        `Param.type`, `LocalVar.type`, `Type.*` header FQN lists
+      - `RawExpr` args: `RawExpr.args()` — each `ExprPiece` that is a `TypeRef` contributes
+        that `TypeRef` (a `TypeRef` arg is not an `ExprPiece`; it is a `RawExpr` arg, and
+        needs its own collection path in `collectTypeRefs`)
+      - `Annotation.type` — `Annotation.type` is a `TypeRef`, collected at every position
+    - The collector aggregates `TypeRef`s into a single set + builds a `shortName → Set<FQN>`
+      collision map. Each `TypeRef` render call (in `renderRecord`, `renderMethod`, etc.)
+      looks up the resolved name via `typeRef.declaringPackage(declPkg, collisionMap)`.
+  - `JavaFile.java` — update the Javadoc to document the single-pass contract:
+    "render() does a single tree-walk collect then render; no two-pass emit."
+- **Tests to update:**
+  - `TypeCollectorTest.java` — keep the import-resolution rules (the behavior stays the same,
+    only the mechanism changes). Rename to `ImportResolutionTest` or add coverage for
+    the tree-walk path directly.
+  - New: `TypeRefResolvingTest.java` — a record with `TypeRef` components and a colliding
+    `TypeRef` in a `RawExpr` arg renders FQN at both sites, no import line for the collision.
+- **Depends on:** U1–U5 (all phases A units must be complete first)
+- **Output stability:** unchanged — the resolution rules from `002` are preserved exactly
+  (short + import; FQN on collision; `java.lang.*` / in-package short, unimported). The
+  two-pass vs. single-pass distinction has no observable output difference.
+
+### U7 — (Deferred, not planned) Phase C: decompose `RawExpr` into structured `ExprPiece`s
+
+- **R:** R7, future
+- **Scope:** Decompose each `RawExpr` template into a structured `List<ExprPiece>` — the
+  type-embedding piece (a structured `TypeEmbedding` `ExprPiece` that resolves a `TypeRef` at
+  render), and one structured piece per remaining syntax token (an `Identifier`, `Invocation`,
+  etc.). This is the permanent, deferrable tail; **Phase B has already shipped the win**
+  (single-pass import resolution; two-pass retired). Phase C is not required for any product
+  goal — it improves code-structurality but not output.
+- **Depends on:** U6
+- **Note:** If Phase C is started, it should be its own ce-plan; the placeholder token and
+  `ExprPiece` sub-kinds (beyond `RawExpr`) need their own design pass.
 
 ## Acceptance Examples
 
