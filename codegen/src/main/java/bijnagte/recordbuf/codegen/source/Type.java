@@ -12,16 +12,17 @@ import java.util.List;
  * only.
  *
  * <p>The interface itself exposes only what every variant shares -- {@link #name()}, {@link
- * #mods()}, {@link #javadoc()}, {@link #deprecated()}, and {@link #nested()} (every variant may
- * nest types). Every type-specific list -- {@code implements}, the record {@code components}, the
- * enum {@code enumConstants}, a class's fields/constructors/static blocks/annotations, an
- * interface's {@code extends}/{@code permits} -- lives on the variant that owns it, not on the
- * interface. Consequently the {@link SourceRenderer} dispatches on the concrete variant and renders
- * that variant's own lists directly; there is no flat member stream to re-partition.
+ * #mods()}, {@link #javadoc()}, {@link #annotations()}, and {@link #nested()} (every variant may
+ * nest types). Every variant carries a uniform {@code List<Annotation>} ({@link #annotations()}); a
+ * single {@link SourceRenderer} path emits it (one annotation per line, before the node's Javadoc),
+ * so the ad-hoc {@code @Deprecated}/{@code @Override}/${@code @SuppressWarnings}/${@code @Nullable}
+ * handling collapses into one model. Each variant is built via a hand-written, ergonomic nested
+ * {@code Builder} ({@code Type.Record.Builder}, ...); the compact constructors still seed optional
+ * fields to their null-safe defaults, so {@code new Record(...)} callers work unchanged.
  *
- * <p>Each variant is built via a hand-written, ergonomic nested {@code Builder} ({@code
- * Type.Record.Builder}, ...); the compact constructors still seed optional fields to their
- * null-safe defaults, so {@code new Record(...)} callers work unchanged.
+ * <p>Every builder keeps a transient {@code deprecated(boolean)} sugar that, when true, adds the
+ * {@link Annotation#DEPRECATED} marker to that node's list -- the previous per-node boolean flag
+ * now lives as an {@link Annotation} instance, not a parallel field.
  */
 public sealed interface Type {
   String name();
@@ -30,7 +31,12 @@ public sealed interface Type {
 
   Javadoc javadoc();
 
-  boolean deprecated();
+  /**
+   * The uniform annotation list the node carries (the record/class/interface/enum and -- through
+   * the same model -- their components, methods, params, and enum constants). Empty when none, so a
+   * node without annotations renders none.
+   */
+  List<Annotation> annotations();
 
   /** The nested types (each a nested {@link Type}); every variant may nest. */
   List<Type> nested();
@@ -42,7 +48,7 @@ public sealed interface Type {
   record Record(
       Modifiers mods,
       Javadoc javadoc,
-      boolean deprecated,
+      List<Annotation> annotations,
       String name,
       List<String> implementsFqns,
       List<Component> components,
@@ -53,10 +59,11 @@ public sealed interface Type {
       implements Type {
     // Optional fields stay null/empty when a builder leaves them unset; the compact ctor seeds
     // them:
-    // mods -> none, javadoc -> empty, implementsFqns + every body list -> empty.
+    // mods -> none, javadoc -> empty, annotations/implementsFqns + every body list -> empty.
     public Record {
       mods = mods == null ? Modifiers.none() : mods;
       javadoc = javadoc == null ? Javadoc.empty() : javadoc;
+      annotations = annotations == null ? List.of() : annotations;
       implementsFqns = implementsFqns == null ? List.of() : implementsFqns;
       components = components == null ? List.of() : components;
       staticBlocks = staticBlocks == null ? List.of() : staticBlocks;
@@ -78,7 +85,7 @@ public sealed interface Type {
 
       private final Modifiers.Builder mods = Modifiers.builder();
       private Javadoc javadoc;
-      private boolean deprecated;
+      private final List<Annotation> annotations = new ArrayList<>();
       private final String name;
       private final List<String> implementsFqns = new ArrayList<>();
       private final List<Component> components = new ArrayList<>();
@@ -93,9 +100,21 @@ public sealed interface Type {
         return this;
       }
 
-      /** Mark the record {@code @Deprecated}. */
+      /** Append each annotation in the list; calls accumulate. */
+      public Builder annotations(List<Annotation> anns) {
+        if (anns != null) annotations.addAll(anns);
+        return this;
+      }
+
+      /** Append one annotation. */
+      public Builder annotation(Annotation a) {
+        this.annotations.add(a);
+        return this;
+      }
+
+      /** Mark the record {@code @Deprecated} (adds the {@link Annotation#DEPRECATED} marker). */
       public Builder deprecated(boolean d) {
-        this.deprecated = d;
+        if (d) annotations.add(Annotation.DEPRECATED);
         return this;
       }
 
@@ -194,7 +213,7 @@ public sealed interface Type {
         return new Type.Record(
             mods.build(),
             javadoc,
-            deprecated,
+            List.copyOf(annotations),
             name,
             List.copyOf(implementsFqns),
             List.copyOf(components),
@@ -212,11 +231,15 @@ public sealed interface Type {
    * (per-message encode/decode) renders as a {@code Type.Class} nested inside the message's record.
    * A class renders {@code extends} (unlike a record, which has no {@code extends}); a record has
    * no {@code extends} clause.
+   *
+   * <p>The {@code annotations} is the uniform {@link Annotation} list; {@code rawAnnotations} is
+   * the legacy {@code List<String>} of pre-formed annotation source lines the class rendered
+   * verbatim (kept for the escape hatch a raw annotation string may need today).
    */
   record Class(
       Modifiers mods,
       Javadoc javadoc,
-      boolean deprecated,
+      List<Annotation> annotations,
       String name,
       List<String> extendsFqns,
       List<String> implementsFqns,
@@ -225,15 +248,16 @@ public sealed interface Type {
       List<Constructor> constructors,
       List<Method> methods,
       List<Type> nested,
-      List<String> annotations)
+      List<String> rawAnnotations)
       implements Type {
     // Optional fields stay null/empty when a builder leaves them unset; the compact ctor seeds
     // them:
-    // mods -> none, javadoc -> empty, extendsFqns/implementsFqns/annotations + every
-    // body list -> empty sets.
+    // mods -> none, javadoc -> empty, annotations/implementsFqns/extendsFqns/rawAnnotations +
+    // every body list -> empty sets.
     public Class {
       mods = mods == null ? Modifiers.none() : mods;
       javadoc = javadoc == null ? Javadoc.empty() : javadoc;
+      annotations = annotations == null ? List.of() : annotations;
       extendsFqns = extendsFqns == null ? List.of() : extendsFqns;
       implementsFqns = implementsFqns == null ? List.of() : implementsFqns;
       fields = fields == null ? List.of() : fields;
@@ -241,7 +265,7 @@ public sealed interface Type {
       constructors = constructors == null ? List.of() : constructors;
       methods = methods == null ? List.of() : methods;
       nested = nested == null ? List.of() : nested;
-      annotations = annotations == null ? List.of() : annotations;
+      rawAnnotations = rawAnnotations == null ? List.of() : rawAnnotations;
     }
 
     /** A fresh class builder. */
@@ -257,7 +281,7 @@ public sealed interface Type {
 
       private final Modifiers.Builder mods = Modifiers.builder();
       private Javadoc javadoc;
-      private boolean deprecated;
+      private final List<Annotation> annotations = new ArrayList<>();
       private final String name;
       private final List<String> extendsFqns = new ArrayList<>();
       private final List<String> implementsFqns = new ArrayList<>();
@@ -266,7 +290,7 @@ public sealed interface Type {
       private final List<Constructor> constructors = new ArrayList<>();
       private final List<Method> methods = new ArrayList<>();
       private final List<Type> nested = new ArrayList<>();
-      private final List<String> annotations = new ArrayList<>();
+      private final List<String> rawAnnotations = new ArrayList<>();
 
       /** The class's own Javadoc. */
       public Builder javadoc(Javadoc d) {
@@ -274,9 +298,33 @@ public sealed interface Type {
         return this;
       }
 
-      /** Mark the class {@code @Deprecated}. */
+      /** Append each annotation in the list; calls accumulate. */
+      public Builder annotations(List<Annotation> anns) {
+        if (anns != null) annotations.addAll(anns);
+        return this;
+      }
+
+      /** Append one annotation. */
+      public Builder annotation(Annotation a) {
+        this.annotations.add(a);
+        return this;
+      }
+
+      /** Mark the class {@code @Deprecated} (adds the {@link Annotation#DEPRECATED} marker). */
       public Builder deprecated(boolean d) {
-        this.deprecated = d;
+        if (d) annotations.add(Annotation.DEPRECATED);
+        return this;
+      }
+
+      /** Append the legacy raw annotation source lines (each rendered verbatim, one per line). */
+      public Builder rawAnnotations(List<String> anns) {
+        if (anns != null) rawAnnotations.addAll(anns);
+        return this;
+      }
+
+      /** Append one legacy raw annotation source line. */
+      public Builder rawAnnotation(String ann) {
+        this.rawAnnotations.add(ann);
         return this;
       }
 
@@ -319,18 +367,6 @@ public sealed interface Type {
       /** Append one or more nested types; calls accumulate. */
       public Builder nested(Type... ns) {
         for (Type n : ns) this.nested.add(n);
-        return this;
-      }
-
-      /** Append an annotation list. */
-      public Builder annotations(List<String> anns) {
-        if (anns != null) annotations.addAll(anns);
-        return this;
-      }
-
-      /** Append one annotation. */
-      public Builder annotation(String ann) {
-        this.annotations.add(ann);
         return this;
       }
 
@@ -387,7 +423,7 @@ public sealed interface Type {
         return new Type.Class(
             mods.build(),
             javadoc,
-            deprecated,
+            List.copyOf(annotations),
             name,
             List.copyOf(extendsFqns),
             List.copyOf(implementsFqns),
@@ -396,7 +432,7 @@ public sealed interface Type {
             List.copyOf(constructors),
             List.copyOf(methods),
             List.copyOf(nested),
-            List.copyOf(annotations));
+            List.copyOf(rawAnnotations));
       }
     }
   }
@@ -410,7 +446,7 @@ public sealed interface Type {
   record Enum(
       Modifiers mods,
       Javadoc javadoc,
-      boolean deprecated,
+      List<Annotation> annotations,
       String name,
       List<String> implementsFqns,
       List<EnumConstant> enumConstants,
@@ -422,10 +458,11 @@ public sealed interface Type {
       implements Type {
     // Optional fields stay null/empty when a builder leaves them unset; the compact ctor seeds
     // them:
-    // mods -> none, javadoc -> empty, implementsFqns + every body list -> empty sets.
+    // mods -> none, javadoc -> empty, annotations/implementsFqns + every body list -> empty sets.
     public Enum {
       mods = mods == null ? Modifiers.none() : mods;
       javadoc = javadoc == null ? Javadoc.empty() : javadoc;
+      annotations = annotations == null ? List.of() : annotations;
       implementsFqns = implementsFqns == null ? List.of() : implementsFqns;
       enumConstants = enumConstants == null ? List.of() : enumConstants;
       fields = fields == null ? List.of() : fields;
@@ -448,7 +485,7 @@ public sealed interface Type {
 
       private final Modifiers.Builder mods = Modifiers.builder();
       private Javadoc javadoc;
-      private boolean deprecated;
+      private final List<Annotation> annotations = new ArrayList<>();
       private final String name;
       private final List<String> implementsFqns = new ArrayList<>();
       private final List<EnumConstant> enumConstants = new ArrayList<>();
@@ -464,21 +501,33 @@ public sealed interface Type {
         return this;
       }
 
-      /** Mark the enum {@code @Deprecated}. */
-      public Builder deprecated(boolean d) {
-        this.deprecated = d;
+      /** Append each annotation in the list; calls accumulate. */
+      public Builder annotations(List<Annotation> anns) {
+        if (anns != null) annotations.addAll(anns);
         return this;
       }
 
-      /** Append a {@code implements} FQN list. */
-      public Builder implementsFqns(List<String> fqns) {
-        if (fqns != null) implementsFqns.addAll(fqns);
+      /** Append one annotation. */
+      public Builder annotation(Annotation a) {
+        this.annotations.add(a);
+        return this;
+      }
+
+      /** Mark the enum {@code @Deprecated} (adds the {@link Annotation#DEPRECATED} marker). */
+      public Builder deprecated(boolean d) {
+        if (d) annotations.add(Annotation.DEPRECATED);
         return this;
       }
 
       /** Append one {@code implements} FQN. */
       public Builder implementsFqn(String fqn) {
         this.implementsFqns.add(fqn);
+        return this;
+      }
+
+      /** Append a {@code implements} FQN list. */
+      public Builder implementsFqns(List<String> fqns) {
+        if (fqns != null) this.implementsFqns.addAll(fqns);
         return this;
       }
 
@@ -571,7 +620,7 @@ public sealed interface Type {
         return new Type.Enum(
             mods.build(),
             javadoc,
-            deprecated,
+            List.copyOf(annotations),
             name,
             List.copyOf(implementsFqns),
             List.copyOf(enumConstants),
@@ -593,7 +642,7 @@ public sealed interface Type {
   record Interface(
       Modifiers mods,
       Javadoc javadoc,
-      boolean deprecated,
+      List<Annotation> annotations,
       String name,
       List<String> extendsFqns,
       List<String> permitsFqns,
@@ -603,6 +652,7 @@ public sealed interface Type {
     public Interface {
       mods = mods == null ? Modifiers.none() : mods;
       javadoc = javadoc == null ? Javadoc.empty() : javadoc;
+      annotations = annotations == null ? List.of() : annotations;
       extendsFqns = extendsFqns == null ? List.of() : extendsFqns;
       permitsFqns = permitsFqns == null ? List.of() : permitsFqns;
       methods = methods == null ? List.of() : methods;
@@ -622,7 +672,7 @@ public sealed interface Type {
 
       private final Modifiers.Builder mods = Modifiers.builder();
       private Javadoc javadoc;
-      private boolean deprecated;
+      private final List<Annotation> annotations = new ArrayList<>();
       private final String name;
       private final List<String> extendsFqns = new ArrayList<>();
       private final List<String> permitsFqns = new ArrayList<>();
@@ -635,9 +685,21 @@ public sealed interface Type {
         return this;
       }
 
-      /** Mark the interface {@code @Deprecated}. */
+      /** Append each annotation in the list; calls accumulate. */
+      public Builder annotations(List<Annotation> anns) {
+        if (anns != null) annotations.addAll(anns);
+        return this;
+      }
+
+      /** Append one annotation. */
+      public Builder annotation(Annotation a) {
+        this.annotations.add(a);
+        return this;
+      }
+
+      /** Mark the interface {@code @Deprecated} (adds the {@link Annotation#DEPRECATED} marker). */
       public Builder deprecated(boolean d) {
-        this.deprecated = d;
+        if (d) annotations.add(Annotation.DEPRECATED);
         return this;
       }
 
@@ -712,7 +774,7 @@ public sealed interface Type {
         return new Type.Interface(
             mods.build(),
             javadoc,
-            deprecated,
+            List.copyOf(annotations),
             name,
             List.copyOf(extendsFqns),
             List.copyOf(permitsFqns),

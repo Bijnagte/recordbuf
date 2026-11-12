@@ -91,7 +91,7 @@ public final class AvroConverterSourceMapping {
         Type.Class.named(recordClass + "AvroConverter")
             .public_()
             .final_()
-            .annotations(ANNOTATIONS)
+            .rawAnnotations(ANNOTATIONS)
             .constructor(privateCtor)
             .method(toRecord, fromRecord)
             .build();

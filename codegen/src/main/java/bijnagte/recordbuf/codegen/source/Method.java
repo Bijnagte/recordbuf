@@ -11,22 +11,28 @@ import java.util.List;
  * Each {@code thrown} type is resolved through the collector; a non-empty list renders a {@code
  * throws} clause between the params and the block. An {@code abstract} method (the {@code
  * interface} case) renders the declaration followed by {@code ;} and no block.
+ *
+ * <p>The {@link #annotations()} list is the uniform first-class annotation list (e.g. {@link
+ * Annotation#OVERRIDE} on an overriding method). A builder {@code override(boolean)} sugar adds the
+ * {@link Annotation#OVERRIDE} marker when true -- the previous per-method boolean flag now lives as
+ * an annotation instance, not a parallel field.
  */
 public record Method(
     Javadoc javadoc,
     Modifiers mods,
+    List<Annotation> annotations,
     String returnType,
     String name,
     List<Param> params,
     List<String> thrown,
     List<Element> body,
-    boolean abstractDecl,
-    boolean override) {
+    boolean abstractDecl) {
   // The builder leaves the optional fields unset (null); the compact constructor seeds them to
   // their defaults so a caller sets only what it needs and the accessors stay non-null.
   public Method {
     javadoc = javadoc == null ? Javadoc.empty() : javadoc;
     mods = mods == null ? Modifiers.none() : mods;
+    annotations = annotations == null ? List.of() : annotations;
     params = params == null ? List.of() : params;
     thrown = thrown == null ? List.of() : thrown;
     body = body == null ? List.of() : body;
@@ -45,13 +51,13 @@ public record Method(
   public static final class Builder {
     private Javadoc javadoc;
     private final Modifiers.Builder mods = Modifiers.builder();
+    private final List<Annotation> annotations = new ArrayList<>();
     private String returnType;
     private final String name;
     private final List<Param> params = new ArrayList<>();
     private final List<String> thrown = new ArrayList<>();
     private final List<Element> body = new ArrayList<>();
     private boolean abstractDecl;
-    private boolean override;
 
     /** Seed the {@link #name} (the one always-required field); the rest accumulate. */
     public Builder(String name) {
@@ -64,6 +70,27 @@ public record Method(
       return this;
     }
 
+    /** Append each annotation in the list; calls accumulate. */
+    public Builder annotations(List<Annotation> anns) {
+      if (anns != null) annotations.addAll(anns);
+      return this;
+    }
+
+    /** Append one annotation. */
+    public Builder annotation(Annotation a) {
+      this.annotations.add(a);
+      return this;
+    }
+
+    /**
+     * Render {@code @Override} before the modifier line (adds the {@link Annotation#OVERRIDE}
+     * marker).
+     */
+    public Builder override(boolean o) {
+      if (o) annotations.add(Annotation.OVERRIDE);
+      return this;
+    }
+
     /** Set the return type. */
     public Builder returnType(String rt) {
       this.returnType = rt;
@@ -72,7 +99,13 @@ public record Method(
 
     /** Append one parameter (type + name); calls accumulate, and no params renders {@code ()}. */
     public Builder param(String type, String name) {
-      this.params.add(new Param(type, name));
+      this.params.add(Param.of(type, name));
+      return this;
+    }
+
+    /** Append a fully-built parameter (carrying its own annotations); calls accumulate. */
+    public Builder param(Param p) {
+      this.params.add(p);
       return this;
     }
 
@@ -106,12 +139,6 @@ public record Method(
       return this;
     }
 
-    /** Render {@code @Override} before the modifier line. */
-    public Builder override(boolean o) {
-      this.override = o;
-      return this;
-    }
-
     /** Set the {@code public} visibility. */
     public Builder public_() {
       mods.public_();
@@ -142,6 +169,12 @@ public record Method(
       return this;
     }
 
+    /** Set the {@code sealed} flag. */
+    public Builder sealed_() {
+      mods.sealed_();
+      return this;
+    }
+
     /** Set the {@code default} flag. */
     public Builder default_() {
       mods.default_();
@@ -153,13 +186,13 @@ public record Method(
       return new Method(
           javadoc,
           mods.build(),
+          List.copyOf(annotations),
           returnType,
           name,
           List.copyOf(params),
           List.copyOf(thrown),
           List.copyOf(body),
-          abstractDecl,
-          override);
+          abstractDecl);
     }
   }
 }

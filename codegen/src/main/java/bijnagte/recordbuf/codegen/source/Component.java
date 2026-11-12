@@ -1,5 +1,8 @@
 package bijnagte.recordbuf.codegen.source;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * A record component ({@code type name}) or a type-body field. When {@code initializer} is
  * non-blank it renders after the name as {@code = initializer} -- the {@code BY_NUMBER}
@@ -8,27 +11,33 @@ package bijnagte.recordbuf.codegen.source;
  * <p>The {@code type} and {@code initializer} strings are <em>pre-resolved short form</em>: the
  * caller has already run their type references through the {@code TypeCollector} and inlined each
  * short name, and the renderer emits them verbatim.
+ *
+ * <p>The {@link #annotations()} list is the uniform first-class annotation list (e.g. {@link
+ * Annotation#NULLABLE} on a presence-tracked field). A builder {@code deprecated(boolean)} sugar
+ * adds the {@link Annotation#DEPRECATED} marker when true -- the previous per-field boolean flag
+ * now lives as an annotation instance, not a parallel field.
  */
 public record Component(
     Javadoc javadoc,
     Modifiers mods,
+    List<Annotation> annotations,
     String type,
     String name,
-    boolean deprecated,
     String initializer) {
   // Optional fields stay null/empty when a builder leaves them unset; the compact ctor seeds
   // them:
-  // javadoc -> empty (renders nothing), mods -> none, initializer -> blank. `deprecated` is a
-  // primitive (false by default); `type`/`name` are required.
+  // javadoc -> empty (renders nothing), mods -> none, annotations -> empty, initializer -> blank.
+  // `type`/`name` are required.
   public Component {
     javadoc = javadoc == null ? Javadoc.empty() : javadoc;
     mods = mods == null ? Modifiers.none() : mods;
+    annotations = annotations == null ? List.of() : annotations;
     initializer = initializer == null ? "" : initializer;
   }
 
   /**
    * Entry point: a field identified by its {@link #type} and {@link #name} — the two required
-   * elements — taken at construction; the optional ones (Javadoc, modifiers, deprecation,
+   * elements — taken at construction; the optional ones (Javadoc, modifiers, annotations,
    * initializer) accumulate as before.
    */
   public static Builder named(String type, String name) {
@@ -39,9 +48,9 @@ public record Component(
   public static final class Builder {
     private Javadoc javadoc;
     private final Modifiers.Builder mods = Modifiers.builder();
+    private final List<Annotation> annotations = new ArrayList<>();
     private final String type;
     private final String name;
-    private boolean deprecated;
     private String initializer;
 
     /** Seed the two required fields ({@link #type}, {@link #name}); the rest accumulate. */
@@ -56,9 +65,21 @@ public record Component(
       return this;
     }
 
-    /** Mark the field {@code @Deprecated}. */
+    /** Append each annotation in the list; calls accumulate. */
+    public Builder annotations(List<Annotation> anns) {
+      if (anns != null) annotations.addAll(anns);
+      return this;
+    }
+
+    /** Append one annotation. */
+    public Builder annotation(Annotation a) {
+      this.annotations.add(a);
+      return this;
+    }
+
+    /** Mark the field {@code @Deprecated} (adds the {@link Annotation#DEPRECATED} marker). */
     public Builder deprecated(boolean d) {
-      this.deprecated = d;
+      if (d) annotations.add(Annotation.DEPRECATED);
       return this;
     }
 
@@ -112,7 +133,8 @@ public record Component(
 
     /** Construct the {@link Component}. */
     public Component build() {
-      return new Component(javadoc, mods.build(), type, name, deprecated, initializer);
+      return new Component(
+          javadoc, mods.build(), List.copyOf(annotations), type, name, initializer);
     }
   }
 }

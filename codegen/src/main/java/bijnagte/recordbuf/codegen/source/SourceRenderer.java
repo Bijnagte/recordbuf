@@ -110,8 +110,8 @@ public final class SourceRenderer {
     }
 
     private void renderRecord(Type.Record r, StringBuilder out) {
+      renderAnnotations(r.annotations(), out);
       if (r.javadoc().present()) out.append(javadoc(r.javadoc().raw())).append('\n');
-      if (r.deprecated()) out.append("@Deprecated\n");
       out.append(r.mods().withSpace()).append("record ").append(r.name()).append('(');
       var comps = r.components();
       if (comps.isEmpty()) {
@@ -120,11 +120,9 @@ public final class SourceRenderer {
         for (int i = 0; i < comps.size(); i++) {
           out.append('\n');
           Component f = comps.get(i);
+          renderAnnotations(f.annotations(), out);
           if (f.javadoc().present()) {
             out.append(javadoc(f.javadoc().raw())).append('\n');
-          }
-          if (f.deprecated()) {
-            out.append("@Deprecated\n");
           }
           out.append(ci.use(f.type())).append(' ').append(f.name());
           out.append(i + 1 == comps.size() ? "\n)" : ",");
@@ -152,15 +150,14 @@ public final class SourceRenderer {
     }
 
     private void renderClass(Type.Class c, StringBuilder out) {
-      // Annotations render first, each on its own line, before the Javadoc.
-      for (String ann : c.annotations()) {
+      // The uniform annotation model renders first, then the legacy raw-annotation string escape
+      // hatch (rawAnnotations) -- each on its own line, before the Javadoc.
+      renderAnnotations(c.annotations(), out);
+      for (String ann : c.rawAnnotations()) {
         out.append(ann).append('\n');
       }
       if (c.javadoc().present()) {
         out.append(javadoc(c.javadoc().raw())).append('\n');
-      }
-      if (c.deprecated()) {
-        out.append("@Deprecated\n");
       }
       out.append(c.mods().withSpace()).append("class ").append(c.name());
       if (!c.extendsFqns().isEmpty()) {
@@ -190,8 +187,8 @@ public final class SourceRenderer {
     }
 
     private void renderEnum(Type.Enum e, StringBuilder out) {
+      renderAnnotations(e.annotations(), out);
       if (e.javadoc().present()) out.append(javadoc(e.javadoc().raw())).append('\n');
-      if (e.deprecated()) out.append("@Deprecated\n");
       out.append(e.mods().withSpace()).append("enum ").append(e.name());
       if (!e.implementsFqns().isEmpty()) {
         out.append(" implements ").append(joinResolved(e.implementsFqns()));
@@ -202,10 +199,10 @@ public final class SourceRenderer {
         EnumConstant c = consts.get(i);
         // The optional per-constant Javadoc first (a formatter owns its alignment); the constant
         // name + ctor args follow on the same line at zero indent.
+        renderAnnotations(c.annotations(), out);
         if (c.javadoc().present()) {
           out.append(javadoc(c.javadoc().raw())).append('\n');
         }
-        if (c.deprecated()) out.append("@Deprecated\n");
         out.append(c.name());
         if (!c.ctorArgs().isEmpty())
           out.append("(").append(String.join(", ", c.ctorArgs())).append(")");
@@ -237,11 +234,9 @@ public final class SourceRenderer {
     }
 
     private void renderInterface(Type.Interface iface, StringBuilder out) {
+      renderAnnotations(iface.annotations(), out);
       if (iface.javadoc().present()) {
         out.append(javadoc(iface.javadoc().raw())).append('\n');
-      }
-      if (iface.deprecated()) {
-        out.append("@Deprecated\n");
       }
       out.append(iface.mods().withSpace()).append("interface ").append(iface.name());
       if (!iface.extendsFqns().isEmpty()) {
@@ -318,8 +313,8 @@ public final class SourceRenderer {
      * Map<Integer, Color>}.
      */
     private void renderField(Component f, StringBuilder out) {
+      renderAnnotations(f.annotations(), out);
       if (f.javadoc().present()) out.append(javadoc(f.javadoc().raw())).append('\n');
-      if (f.deprecated()) out.append("@Deprecated\n");
       out.append(f.mods().withSpace());
       out.append(f.type()).append(' ').append(f.name());
       if (f.initializer() != null && !f.initializer().isBlank()) {
@@ -332,6 +327,46 @@ public final class SourceRenderer {
       out.append("static {\n");
       for (Element st : s.body()) renderStatement(st, out);
       out.append('}').append('\n');
+    }
+
+    /** Render a node's uniform annotation list: each {@code @Name(args)} on its own line. */
+    private void renderAnnotations(List<Annotation> anns, StringBuilder out) {
+      for (Annotation a : anns) {
+        out.append('@').append(ci.use(a.type()));
+        if (!a.args().isEmpty()) {
+          out.append('(');
+          for (int i = 0; i < a.args().size(); i++) {
+            if (i > 0) out.append(", ");
+            out.append(renderArg(a.args().get(i)));
+          }
+          out.append(')');
+        }
+        out.append('\n');
+      }
+    }
+
+    /**
+     * Render one annotation argument: the value(s), positionally (no {@code name =}) when the name
+     * is null/blank/"value", else {@code name = value}. A single value renders as a quoted string;
+     * several as a {@code {...}} array literal. GJF owns the final layout.
+     */
+    private String renderArg(Arg arg) {
+      StringBuilder sb = new StringBuilder();
+      String name = arg.name();
+      boolean positional = name == null || name.isBlank() || "value".equals(name);
+      if (!positional && !arg.values().isEmpty()) sb.append(name).append('=');
+      List<String> vals = arg.values();
+      if (vals.size() == 1) {
+        sb.append('"').append(vals.get(0)).append('"');
+      } else {
+        sb.append('{');
+        for (int i = 0; i < vals.size(); i++) {
+          if (i > 0) sb.append(", ");
+          sb.append('"').append(vals.get(i)).append('"');
+        }
+        sb.append('}');
+      }
+      return sb.toString();
     }
 
     private void renderConstructor(Constructor c, StringBuilder out, String enclosing) {
@@ -352,9 +387,9 @@ public final class SourceRenderer {
     }
 
     private void renderMethod(Method m, StringBuilder out) {
+      // Annotations render first (e.g. @Override), before the Javadoc + the modifier line.
+      renderAnnotations(m.annotations(), out);
       if (m.javadoc().present()) out.append(javadoc(m.javadoc().raw())).append('\n');
-      // @Override annotation before the modifier line.
-      if (m.override()) out.append("@Override\n");
       String sig =
           m.mods().withSpace() + ci.use(m.returnType()) + " " + m.name() + renderParams(m.params());
       if (!m.thrown().isEmpty()) {

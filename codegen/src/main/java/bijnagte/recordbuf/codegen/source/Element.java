@@ -44,7 +44,13 @@ public sealed interface Element
   }
 
   static LocalVar local(String type, String name, String init) {
-    return new LocalVar(type, name, init);
+    return new LocalVar(null, type, name, init);
+  }
+
+  /** A local declaration carrying annotations, rendered ahead of its type. */
+  static LocalVar local(String type, String name, String init, Annotation... annotations) {
+    return new LocalVar(
+        annotations == null ? null : java.util.List.of(annotations), type, name, init);
   }
 
   static Comment comment(String text) {
