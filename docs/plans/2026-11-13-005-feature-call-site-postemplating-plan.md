@@ -4,84 +4,166 @@ type: feature
 date: 2026-11-13
 topic: call-site-postemplating-migration
 artifact_contract: ce-unified-plan/v1
-artifact_readiness: requirements-only
+artifact_readiness: implementation-ready
 product_contract_source: ce-brainstorm
-status: brainstorming
+status: implementation-ready
 ---
 
 ## Goal Capsule
 
-**Objective.** Migrate all remaining Java `String`-concatenation call sites in the `*Mapping.java` files to the `@N` positional system we built in 004. By the end of this plan, zero lines in the writer mappings use `+ "..." ` or `"... + "` to build expression templates — every dynamic value is a positional `@N` arg, resolved at render time via `RawExpr.render(ctx)`.
+**Objective.** Migrate all remaining Java `String`-concatenation in the writer mapping files to the `@N` positional system. By the end, zero lines in `*Mapping.java` use `+ "..." ` to build expression templates, conditions, or iterables; every dynamic value is a positional `@N` arg.
 
-**Product authority.** This is a pure refactor of internal call sites — no new user-facing behavior. Generated code must remain byte-identical before and after.
+**Product authority.** Pure internal refactor — generated output must be byte-identical before and after. No new user-facing behavior.
 
-**Open blockers.**
-- `If.condition(String)` and `ElseIf.condition(String)` have no positional-arg overload; 005 must add them.
-- `RawExpr.of(template + f.javaName() + " ...", TypeRef.of(FQN))` patterns concatenate *non-type* values into the template string before `of()` — those must become additional `@N` args.
-- A few `Element.of(...)` calls create `Fragment` nodes (not `ExprStatement`); migrating them requires deciding which are genuine fragments vs. expression-statement-shaped lines that should become `Element.expr(...)`.
+**Open blockers.** None. The three brainstorm decisions are resolved below (see Assumptions).
+
+**Product Contract preservation.** Product Contract unchanged.
 
 ---
 
-## Product Contract
+## Assumptions
 
-### Problem Statement
+1. **`If`/`ElseIf` `condition` becomes `RawExpr`.** The record field changes from `String condition` to `RawExpr condition`; `If.condition(String)` delegates to `new Builder(RawExpr.of(s))`. `SourceRenderer.renderIf` calls `condition.render(ctx)` and `collectBody` calls `condition.collect(ci)`.
 
-004 built the `@N` positional system — `RawExpr.of(template, Object... args)` with `TypeRef`/`String`/`Formattable` arg dispatch, `Element.expr(template, args)`, `LocalVar.Builder(type, name, initTemplate, args)` — and migrated type *resolution* (`ci.use(FQN)` → `TypeRef.of(FQN).collect(ci).render(ctx)`). But the *expression templates themselves* are still built by Java string concatenation:
+2. **`For.enhanced` iterable and `Switch.on` subject** also get positional overloads: `For.enhanced(String pattern, String iterTemplate, Object... iterArgs)` and `Switch.on(String subjectTemplate, Object... subjectArgs)`. `While.condition` has no write-path caller in the mapping files today but is included for API completeness. The iterable/subject fields change from `String` to `RawExpr`.
 
-```java
-// Before — dynamic values concatenated into the template string:
-RawExpr.of("var _" + f.javaName() + " = new @0<>()", TypeRef.of(HASH_MAP));
-//                    ^^^^^^^^^^^^ non-type value spliced into template
-//                             ^@0 TypeRef (already positional)
+3. **`WktSourceMapping` `outExpr`** — the nested prefix (`out + ".writeByteArray(" + num + ", "`) becomes a single positional expression: `Element.expr("@0.writeByteArray(@1, @2.method(e));", out, num, wktRef)`. The intermediate `outExpr` string variable is deleted; the positional call builds it in one expression.
 
-Element.of("var enc = " + encoderShort + ".start();");
-//         no @N at all — pure string concat
+---
 
-If.condition(!" + def + ".equals(" + g + ")" + " && !".concat(g + " == null").body(...));
-```
+## File map
 
-This means the `@N` positional system is only *half* used: type resolution is positional, but variable names, accessor strings, and condition expressions are still spliced in *before* `of()` is called. The benefit of positional args — collision detection, type-aware rendering, fail-fast out-of-bounds — only reaches the `TypeRef` slot.
+| File | Change scope |
+|------|-------------|
+| `codegen/.../source/If.java` | `condition`: `String` → `RawExpr`; add `condition(String, Object...)` overload |
+| `codegen/.../source/ElseIf.java` | `condition`: `String` → `RawExpr` |
+| `codegen/.../source/For.java` | `iterable`: `String` → `RawExpr`; add `enhanced(String, String, Object...)`; fix `collectBody` to collect from iterable |
+| `codegen/.../source/While.java` | `condition`: `String` → `RawExpr`; add `condition(String, Object...)`; no current callers |
+| `codegen/.../source/Switch.java` | `subject`: `String` → `RawExpr`; add `on(String, Object...)`; fix `collectBody` to collect from subject |
+| `codegen/.../source/SourceRenderer.java` | `collectBody`: add `.collect(ci)` calls for `If.condition`, `For.iterable`, `Switch.subject`; `renderIf/renderFor/renderSwitch`: call `.render(ctx)` |
+| `generator/.../writer/CodecSourceMapping.java` | Migrate all `If.condition(...)` and `For.enhanced(...)` string-concatenation; `Element.of(a+b)` → `Element.expr("@0@1", a, b)` |
+| `generator/.../writer/InteropSourceMapping.java` | Same |
+| `generator/.../writer/WktSourceMapping.java` | Migrate `outExpr` chain; `If.condition` positional; delete intermediate string variables |
+| `generator/.../writer/RecordSourceMapping.java` | Migrate `Element.of(a+b)` to `Element.expr("@0@1", a, b)` |
+| `generator/.../writer/AvroConverterSourceMapping.java` | Migrate `Element.of(a+b)` to `Element.expr("@0@1", a, b)` |
+| `generator/.../writer/EnumSourceMapping.java` | Migrate remaining 4 concat lines |
 
-### Decision: Add positional overloads to control-flow nodes
+**Test files:**
+- `codegen/src/test/.../FormatterWiringTest.java` — verify byte-identical output for `If`/`For`/`Switch` positional nodes
+- `codegen/src/test/.../source/SourceRendererTest.java` — add `If.condition(template, args)` render + collect test
+- `codegen/src/test/.../source/RawExprTest.java` — verify `If`/`For`/`Switch` positional arg resolution
 
-`If.condition(String)` and `ElseIf.condition(String)` must accept `(String template, Object... args)` like `Element.expr`. This is the one new API surface 005 introduces. The internal representation changes from `String condition` to `RawExpr condition` in `If`/`ElseIf` records, with a `collect(ci)` and `render(ctx)` that delegate to the underlying `RawExpr`.
+---
 
-### Decision: All `Element.of(...)` calls evaluated for `Element.expr(...)`
+## Units
 
-Each `Element.of(...)` call site is reviewed:
-- **Expression-shaped** (e.g. `"var enc = " + X + ".start();"`) → `Element.expr("@0.start();", X)` — a proper `ExprStatement` node.
-- **Fragment-shaped** (control-flow lines, comments, multi-line syntax the closed set hasn't modeled) → stay as `Element.of(...)` or be migrated to `If`/`While`/`For`/`Switch` idioms if a closed node exists.
+### U1 — Prerequisite: `If`/`ElseIf`/`For`/`While`/`Switch` positional overloads
 
-### File order (by frequency)
+**Scope.** Change `condition`/`iterable`/`subject` fields from `String` to `RawExpr` in the 5 control-flow records; add the positional factory overloads; update `SourceRenderer` (`collectBody` + `renderIf`/`renderFor`/`renderSwitch`); update `FormatterWiringTest` expectations.
 
-| Unit | File | Concat Lines | Status |
-|------|------|:---:|------|
-| U1 | `If`/`ElseIf` positional overload | — | Prerequisite |
-| U2 | `CodecSourceMapping` | 111 | Largest |
-| U3 | `InteropSourceMapping` | 70 | |
-| U4 | `WktSourceMapping` | 24 | |
-| U5 | `RecordSourceMapping` | 24 | |
-| U6 | `AvroConverterSourceMapping` | 20 | |
-| U7 | `EnumSourceMapping` | 4 | Smallest |
-| U8 | Build verification: spotless + full `./gradlew build` + `--recordbuf_out` smoke test | — | |
+**Test scenarios:**
+1. `If.condition("@0 != null", "g")` renders `if (g != null) {…}` byte-identically to `If.condition("g != null")`.
+2. `If.condition("!@0.isEmpty()", "g")` renders `if (!g.isEmpty()) {…}`.
+3. `For.enhanced("var e", "r.@0()", "items")` renders `for (var e : r.items()) {…}`.
+4. `Switch.on("w.@0(t)", "Tag")` renders `switch (w.Tag(t)) {`.
+5. TypeRefs in condition/iterable args: `If.condition("!@0.equals(ZERO)", TypeRef.of("java.lang.Integer"))` — collect registers `Integer` for import, render resolves to `Integer`.
+6. Build (`./gradlew build`) is green.
+7. `FormatterWiringTest` passes.
 
-### Definition of Done
+---
 
-- `grep '" + "\|+ "' generator/src/main/java/bijnagte/recordbuf/plugin/writer/*.java` returns zero dynamic-concatenation lines (remaining `+ "` occurrences may be module-level constant FQN like `RT + ".Encoder"` — these are static string constants, not expression templates).
-- `./gradlew build` is green (compile + test).
-- `--recordbuf_out` from a managed protoc produces byte-identical generated output to pre-005 baseline.
-- Spotless is clean after `./gradlew spotlessApply`.
+### U2 — `CodecSourceMapping` (111 lines)
 
-### Outstanding Questions
+**Scope.** Migrate all 111 concat lines:
+- `If.condition(getter + " != null")` → `If.condition("@0 != null", getter)`
+- `If.condition("!" + getter + ".isEmpty()")` → `If.condition("!@0.isEmpty()", getter)`
+- `For.enhanced("var _e", "v." + f.javaName() + "().entrySet()")` → `For.enhanced("var _e", "v.@0().entrySet()", f.javaName())`
+- `Switch.on(wireShort + ".tagFieldNumber(tag)")` → `Switch.on("@0.tagFieldNumber(tag)", wireShort)`
+- `Element.of("var enc = " + encoderShort + ".start();")` → `Element.expr("var enc = @0.start();", encoderShort)`
+- `TypeRef.of(RT + ".Encoder")` → `private static final TypeRef ENCODER = TypeRef.of(...)`, used by name
 
-1. **`if-condition-with-TypeRef`** — Some `If.condition(...)` expressions embed a `TypeRef` (e.g., a WKT wrap condition). Does the `@N` positional for `Type` args in `If.condition` require `collect(ci)` + `render(ctx)` like `If`'s `ExprStatement`, or can we resolve the type *at call time* (when `If.condition` is being built)? Recommendation: resolve at call-time since conditions are rarely collision-ambiguous, and `If.condition` is built before `ci` is finalized.
+**Test scenarios:**
+1. `./gradlew build` is green.
+2. `grep '" + "\|+ "' CodecSourceMapping.java` returns only static-constant FQN lines (`RT + ".Encoder"`).
+3. `--recordbuf_out` produces byte-identical generated codec to pre-U2 baseline.
 
-2. **`FQN-building constants** — `TypeRef.of(RT + ".Encoder")` and similar are static constants. Should these become module-level `private static final TypeRef` fields to avoid the `TypeRef.of()` call-per-use? Recommendation: yes for frequently-used ones (`Encoder`, `Decoder`, `Bytes`), no for one-off usages.
+---
 
-3. **`Element.of` vs `Element.expr` in `InteropSourceMapping`** — Many `InteropSourceMapping` call sites use `Element.of("return new " + rec + "(")` for multi-line constructors. These are `Fragment`-shaped (partial expressions). Should these become `Element.expr(RawExpr.of("return new @0(", rec))` or stay as Fragments (they're incomplete expressions)? Recommendation: stay as Fragments — they can't be a syntactically complete `ExprStatement`.
+### U3 — `InteropSourceMapping` (70 lines)
+
+**Scope.** Migrate 70 concat lines — `Element.of(a+b)`, `For.enhanced("var _e", "x.get" + cap + "List()")`, `If.condition(src + " != null")`, `Switch.on("r." + o.componentName() + "()")`.
+
+**Test scenarios:**
+1. `./gradlew build` is green.
+2. `--recordbuf_out` with protobuf interop produces byte-identical output.
+3. `grep '" + "\|+ "' InteropSourceMapping.java` returns only module-level constants.
+
+---
+
+### U4 — `WktSourceMapping` (24 lines)
+
+**Scope.** Migrate `outExpr` chain + `If.condition` cases. The `outExpr` string variable is deleted; each positional call substitutes `out`, `num`, and the `wktRef` directly.
+
+**Test scenarios:**
+1. `./gradlew build` is green.
+2. `--recordbuf_out` with `--recordbuf_wkt` flag produces byte-identical WKT codec output.
+3. `grep '" + "\|+ "' WktSourceMapping.java` returns no dynamic-concatenation lines.
+
+---
+
+### U5 — `RecordSourceMapping` (24 lines)
+
+**Scope.** Migrate `Element.of(a+b)` to `Element.expr("@0@1", a, b)`.
+
+**Test scenarios:**
+1. `./gradlew build` is green.
+2. `--recordbuf_out` produces byte-identical record output.
+3. `grep '" + "\|+ "' RecordSourceMapping.java` returns no dynamic-concatenation lines.
+
+---
+
+### U6 — `AvroConverterSourceMapping` (20 lines)
+
+**Scope.** Migrate `Element.of(a+b)` to `Element.expr("@0@1", a, b)`.
+
+**Test scenarios:**
+1. `./gradlew build` is green.
+2. `--recordbuf_out` with `--recordbuf_avro` produces byte-identical output.
+3. `grep '" + "\|+ "' AvroConverterSourceMapping.java` returns no dynamic-concatenation lines.
+
+---
+
+### U7 — `EnumSourceMapping` (4 lines)
+
+**Scope.** Migrate the 4 remaining concat lines.
+
+**Test scenarios:**
+1. `./gradlew build` is green.
+2. `--recordbuf_out` produces byte-identical enum output.
+
+---
+
+### U8 — Verification round-trip
+
+**Scope.** `rm -rf fixtures/build/generated/ && ./gradlew spotlessApply --rerun-tasks build --rerun-tasks && ./gradlew :recordbuf-generator:installDist && protoc --recordbuf_out=<tmp>/…` from managed protoc; diff generated output against pre-U2 baseline. Also `spotlessCheck` clean.
+
+**Test scenarios:**
+1. `./gradlew build --rerun-tasks` is green.
+2. Generated output from managed protoc is byte-identical to captured baseline.
+3. `spotlessCheck` passes; `spotlessApply` makes no changes.
+
+---
+
+## Risks
+
+1. **Byte-identical output.** The `@N` positional system was verified in 004 for type resolution, but `If`/`For`/`Switch` conditions and iterables are a new use. The key risk: `RawExpr.of(template)` with `@N` that *also* embeds dynamic variable names (not just `TypeRef`s) — render must produce exactly the same output string. Mitigation: `U6` test for each file compares against a captured baseline before the migration.
+
+2. **`SourceRenderer.collectBody` missing a collect call.** If `collectBody` for `If` doesn't call `condition.collect(ci)`, a `TypeRef`-bearing condition's import won't be registered. This was the bug pattern in 004. Mitigation: U1 test explicitly covers the `TypeRef`-in-condition case.
+
+3. **`While` has no current caller — API completeness but no test coverage.** Acceptable; the U1 test covers `While.condition` via a unit test even without a write-path caller.
 
 ---
 
 ## Next Steps
 
-**After brainstorm: run `ce-plan`.** 005 is a requirements-only brainstorm. Run `ce-plan` to produce the implementation-ready plan with unit-level task breakdown.
+**Start with U1** — it's the prerequisite for all subsequent units. `U1..U7` each commit independently after a green build. `U8` verifies the full round-trip.
