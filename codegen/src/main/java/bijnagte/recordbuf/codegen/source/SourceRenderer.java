@@ -119,6 +119,38 @@ public final class SourceRenderer {
             p.annotations().forEach(a -> ci.use(a.type()));
           });
       m.thrown().forEach(ci::use);
+      m.body().forEach(this::collectBody);
+    }
+
+    /**
+     * Walk a method/static-block body and register {@link TypeRef}s found in {@link LocalVar} and
+     * {@link ExprStatement} nodes. This ensures imports for types used inside method bodies (e.g.
+     * {@code var x = new ArrayList<>()}) are registered in the collect phase alongside declaration
+     * types. {@link Fragment} and control-flow nodes ({@link If}, {@link For}, etc.) recurse into
+     * their nested bodies.
+     */
+    private void collectBody(Element e) {
+      switch (e) {
+        case LocalVar lv -> ci.use(lv.type());
+        case ExprStatement es -> collectExpr(es.expr());
+        case If i -> {
+          i.body().forEach(this::collectBody);
+          i.elseIf().forEach(ei -> ei.body().forEach(this::collectBody));
+          i.elseBody().forEach(this::collectBody);
+        }
+        case While w -> w.body().forEach(this::collectBody);
+        case For f -> f.body().forEach(this::collectBody);
+        case Switch sw -> {
+          sw.cases().forEach(c -> c.body().forEach(this::collectBody));
+          sw.defaultBody().forEach(this::collectBody);
+        }
+        default -> {}
+      }
+    }
+
+    /** Walk a {@link RawExpr} and register {@link TypeRef}s from its args. */
+    private void collectExpr(RawExpr node) {
+      node.args().forEach(ci::use);
     }
 
     /* ---- render dispatch & per-variant renderers ------------------------ */
