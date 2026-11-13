@@ -81,7 +81,9 @@ final class WktSourceMapping {
             For.enhanced("var e", g)
                 .body(
                     If.condition("!e.equals(@0)", def)
-                        .body(Element.expr("@0.writeByteArray(@1, @2.@3(e);", out, num, wktRef, methodName))
+                        .body(
+                            Element.expr(
+                                "@0.writeByteArray(@1, @2.@3(e);", out, num, wktRef, methodName))
                         .build())
                 .build());
       } else {
@@ -89,22 +91,37 @@ final class WktSourceMapping {
         body.add(
             For.enhanced("var e", g)
                 .body(
-                    Element.expr("@0.writeByteArray(@1, @2.wrap(@2.Wrap." + wrapKind(f.typeUrl()) + ", e);", out, num, wktRef))
+                    Element.expr(
+                        "@0.writeByteArray(@1, @2.wrap(@2.Wrap.@3, e));",
+                        out,
+                        num,
+                        wktRef,
+                        wrapKind(f.typeUrl())))
                 .build());
       }
     } else if (entry.hasZeroDefault()) {
       String def = Objects.requireNonNull(entry.zeroDefault());
       // if (v.field() != null && !def.equals(v.field())) out.writeByteArray(n,
       // Wkt.method(v.field()));
-      String call = outExpr + "@0." + methodName + "(" + g + "))";
       body.add(
           If.condition("@0 != null && !@1.equals(@0)", g, def)
-              .body(Element.expr(call, wktRef))
+              .body(
+                  Element.expr(
+                      "@0.writeByteArray(@1, @2.@3(@4));", out, num, wktRef, methodName, g))
               .build());
     } else {
       // if (v.field() != null) out.writeByteArray(n, Wkt.wrap(Wkt.Wrap.KIND, v.field()));
-      String call = outExpr + "@0.wrap(@0.Wrap." + wrapKind(f.typeUrl()) + ", " + g + "));";
-      body.add(If.condition("@0 != null", g).body(Element.expr(call, wktRef)).build());
+      body.add(
+          If.condition("@0 != null", g)
+              .body(
+                  Element.expr(
+                      "@0.writeByteArray(@1, @2.wrap(@2.Wrap.@3, @4));",
+                      out,
+                      num,
+                      wktRef,
+                      wrapKind(f.typeUrl()),
+                      g))
+              .build());
     }
   }
 
