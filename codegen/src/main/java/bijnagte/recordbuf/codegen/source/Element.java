@@ -43,7 +43,12 @@ public sealed interface Element
     return new ExprStatement(RawExpr.of(e));
   }
 
-  /** Build an {@link ExprStatement} from a raw expression with {@link TypeRef} args. */
+  /** Build an {@link ExprStatement} from a template string with {@code @N} positional args. */
+  static ExprStatement expr(String template, Object... args) {
+    return new ExprStatement(RawExpr.of(template, args));
+  }
+
+  /** Build an {@link ExprStatement} from a pre-built {@link RawExpr}. */
   static ExprStatement expr(RawExpr rawExpr) {
     return new ExprStatement(rawExpr);
   }

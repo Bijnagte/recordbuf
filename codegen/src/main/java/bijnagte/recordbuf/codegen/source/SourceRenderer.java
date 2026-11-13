@@ -152,8 +152,9 @@ public final class SourceRenderer {
      * Walk a {@link RawExpr} and register {@link type references} from its args via {@code
      * Formattable.collect}.
      */
-    private void collectExpr(RawExpr node) {
-      node.collect(ci);
+    /** Walk a {@link Formattable} and register any type references it contributes. */
+    private void collectExpr(Formattable f) {
+      f.collect(ci);
     }
 
     /* ---- render dispatch & per-variant renderers ------------------------ */
