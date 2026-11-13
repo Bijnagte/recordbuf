@@ -137,13 +137,25 @@ public final class SourceRenderer {
         }
         case ExprStatement es -> collectExpr(es.expr());
         case If i -> {
+          i.condition().collect(ci);
           i.body().forEach(this::collectBody);
-          i.elseIf().forEach(ei -> ei.body().forEach(this::collectBody));
+          i.elseIf()
+              .forEach(ei -> {
+                ei.condition().collect(ci);
+                ei.body().forEach(this::collectBody);
+              });
           i.elseBody().forEach(this::collectBody);
         }
-        case While w -> w.body().forEach(this::collectBody);
-        case For f -> f.body().forEach(this::collectBody);
+        case While w -> {
+          w.condition().collect(ci);
+          w.body().forEach(this::collectBody);
+        }
+        case For f -> {
+          f.iterable().collect(ci);
+          f.body().forEach(this::collectBody);
+        }
         case Switch sw -> {
+          sw.subject().collect(ci);
           sw.cases().forEach(c -> c.body().forEach(this::collectBody));
           sw.defaultBody().forEach(this::collectBody);
         }
@@ -473,26 +485,24 @@ public final class SourceRenderer {
      * Render one body element -- the idiom layout pass lives here; a formatter owns indentation.
      */
     private void renderStatement(Element s, StringBuilder out) {
+      var ctx = ci.resolutionContext();
       switch (s) {
         case Fragment fr -> out.append(fr.text()).append('\n');
         case Return r ->
             out.append(r.expr() == null ? "return;" : "return " + r.expr() + ";").append('\n');
         case Throw t -> out.append("throw ").append(t.expr()).append(';').append('\n');
-        case ExprStatement e -> out.append(e.expr().render(ci.resolutionContext())).append(";\n");
+        case ExprStatement e -> out.append(e.expr().render(ctx)).append(";\n");
         case LocalVar lv ->
             out.append(ci.use(lv.type()))
                 .append(' ')
                 .append(lv.name())
-                .append(
-                    lv.init() == null
-                        ? ";"
-                        : " = " + lv.init().render(ci.resolutionContext()) + ";")
+                .append(lv.init() == null ? ";" : " = " + lv.init().render(ctx) + ";")
                 .append('\n');
         case Comment c -> out.append("// ").append(c.text()).append('\n');
-        case If i -> renderIf(i, out);
-        case While w -> renderWhile(w, out);
-        case For f -> renderFor(f, out);
-        case Switch sw -> renderSwitch(sw, out);
+        case If i -> renderIf(i, out, ctx);
+        case While w -> renderWhile(w, out, ctx);
+        case For f -> renderFor(f, out, ctx);
+        case Switch sw -> renderSwitch(sw, out, ctx);
       }
     }
 
@@ -502,11 +512,12 @@ public final class SourceRenderer {
      * (...)} / {@code } else {}} on the preceding close-brace line) and lays its element body out
      * via {@link #renderStatement}; an empty branch list renders no clause.
      */
-    private void renderIf(If ifStmt, StringBuilder out) {
-      out.append("if (").append(ifStmt.condition()).append(") {\n");
+    private void renderIf(
+        If ifStmt, StringBuilder out, bijnagte.recordbuf.codegen.source.ResolutionContext ctx) {
+      out.append("if (").append(ifStmt.condition().render(ctx)).append(") {\n");
       for (Element s : ifStmt.body()) renderStatement(s, out);
       for (ElseIf ei : ifStmt.elseIf()) {
-        out.append("} else if (").append(ei.condition()).append(") {\n");
+        out.append("} else if (").append(ei.condition().render(ctx)).append(") {\n");
         for (Element s : ei.body()) renderStatement(s, out);
       }
       if (!ifStmt.elseBody().isEmpty()) {
@@ -522,8 +533,9 @@ public final class SourceRenderer {
      * so it always closes on its own; an empty body renders the empty-loop case {@code while (c)
      * {}}.
      */
-    private void renderWhile(While w, StringBuilder out) {
-      out.append("while (").append(w.condition()).append(") {\n");
+    private void renderWhile(
+        While w, StringBuilder out, bijnagte.recordbuf.codegen.source.ResolutionContext ctx) {
+      out.append("while (").append(w.condition().render(ctx)).append(") {\n");
       for (Element s : w.body()) renderStatement(s, out);
       out.append('}').append('\n');
     }
@@ -533,8 +545,13 @@ public final class SourceRenderer {
      * body, closed by its own brace. A for-each always closes on its own; an empty body renders the
      * empty-loop case {@code for (p : x) {}}.
      */
-    private void renderFor(For f, StringBuilder out) {
-      out.append("for (").append(f.pattern()).append(" : ").append(f.iterable()).append(") {\n");
+    private void renderFor(
+        For f, StringBuilder out, bijnagte.recordbuf.codegen.source.ResolutionContext ctx) {
+      out.append("for (")
+          .append(f.pattern())
+          .append(" : ")
+          .append(f.iterable().render(ctx))
+          .append(") {\n");
       for (Element s : f.body()) renderStatement(s, out);
       out.append('}').append('\n');
     }
@@ -546,8 +563,9 @@ public final class SourceRenderer {
      * un-braced {@code -> stmt;} (required for switch-expression yields), and a multi-element arm
      * braces {@code -> { … }}.
      */
-    private void renderSwitch(Switch sw, StringBuilder out) {
-      out.append("switch (").append(sw.subject()).append(") {\n");
+    private void renderSwitch(
+        Switch sw, StringBuilder out, bijnagte.recordbuf.codegen.source.ResolutionContext ctx) {
+      out.append("switch (").append(sw.subject().render(ctx)).append(") {\n");
       for (Case c : sw.cases()) renderCase(c, out);
       // Render the terminal default arm only when it has a body, mirroring If's optional elseBody:
       // an empty defaultBody omits the default clause entirely.
