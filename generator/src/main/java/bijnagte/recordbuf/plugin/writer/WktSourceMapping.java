@@ -81,7 +81,7 @@ final class WktSourceMapping {
             For.enhanced("var e", g)
                 .body(
                     If.condition("!e.equals(@0)", def)
-                        .body(Element.expr(outExpr + "@0." + methodName + "(e));", wktRef))
+                        .body(Element.expr("@0.writeByteArray(@1, @2.@3(e);", out, num, wktRef, methodName))
                         .build())
                 .build());
       } else {
@@ -89,8 +89,7 @@ final class WktSourceMapping {
         body.add(
             For.enhanced("var e", g)
                 .body(
-                    Element.expr(
-                        outExpr + "@0.wrap(@0.Wrap." + wrapKind(f.typeUrl()) + ", e));", wktRef))
+                    Element.expr("@0.writeByteArray(@1, @2.wrap(@2.Wrap." + wrapKind(f.typeUrl()) + ", e);", out, num, wktRef))
                 .build());
       }
     } else if (entry.hasZeroDefault()) {
