@@ -586,3 +586,14 @@ of pre-resolved strings, with no observable output change. *Covers R9, R10.*
 - `docs/plans/2026-11-12-001-refactor-ast-annotations-plan.md` — the `Annotation`
   model whose `Annotation.type` becomes a native `TypeRef` under this design,
   foreclosing the string-to-`TypeRef` migration that plan otherwise anticipated.
+
+## Status (2026-11-13)
+
+Superseded by `docs/plans/2026-11-13-004-feature-rawexpr-positional-templating-plan.md`.
+U1–U4 are complete. U5 (mappers at all `ci.use` sites, string-position migration)
+and U6 (tree-walk `TypeRef` collector) are superseded by the 004 positional
+templating design, which replaces the `%d` placeholder pattern with positional
+`@N` placeholders, introduces the `Formattable` interface, makes `LocalVar.init`
+a `Formattable`, and unifies the collect/render phases via `Formattable.collect(ci)`.
+The 004 plan is the current path; U5/U6 from 003 are folded into it.
+
