@@ -131,7 +131,10 @@ public final class SourceRenderer {
      */
     private void collectBody(Element e) {
       switch (e) {
-        case LocalVar lv -> ci.use(lv.type());
+        case LocalVar lv -> {
+          ci.use(lv.type());
+          if (lv.init() != null) lv.init().collect(ci);
+        }
         case ExprStatement es -> collectExpr(es.expr());
         case If i -> {
           i.body().forEach(this::collectBody);
@@ -480,7 +483,10 @@ public final class SourceRenderer {
             out.append(ci.use(lv.type()))
                 .append(' ')
                 .append(lv.name())
-                .append(lv.init() == null ? ";" : " = " + lv.init() + ";")
+                .append(
+                    lv.init() == null
+                        ? ";"
+                        : " = " + lv.init().render(ci.resolutionContext()) + ";")
                 .append('\n');
         case Comment c -> out.append("// ").append(c.text()).append('\n');
         case If i -> renderIf(i, out);

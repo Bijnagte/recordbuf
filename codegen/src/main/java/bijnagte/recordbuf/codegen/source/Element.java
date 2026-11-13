@@ -54,13 +54,24 @@ public sealed interface Element
   }
 
   static LocalVar local(String fqn, String name, String init) {
-    return new LocalVar(null, TypeRef.of(fqn), name, init);
+    return new LocalVar(null, TypeRef.of(fqn), name, RawExpr.of(init));
   }
 
   /** A local declaration carrying annotations, rendered ahead of its type. */
   static LocalVar local(String fqn, String name, String init, Annotation... annotations) {
     return new LocalVar(
-        annotations == null ? null : java.util.List.of(annotations), TypeRef.of(fqn), name, init);
+        annotations == null ? null : java.util.List.of(annotations),
+        TypeRef.of(fqn),
+        name,
+        RawExpr.of(init));
+  }
+
+  /**
+   * A local variable with an {@code @N}-templated initializer built via the {@link
+   * LocalVar.Builder}.
+   */
+  static LocalVar local(TypeRef type, String name, String initTemplate, Object... initArgs) {
+    return LocalVar.builder(type, name).build(initTemplate, initArgs);
   }
 
   static Comment comment(String text) {
