@@ -298,7 +298,7 @@ public final class SourceRenderer {
         out.append(" extends ").append(joinResolved(iface.extendsFqns()));
       }
       if (!iface.permitsFqns().isEmpty()) {
-        out.append(" permits ").append(String.join(", ", iface.permitsFqns()));
+        out.append(" permits ").append(joinFqnsRefs(iface.permitsFqns()));
       }
       boolean[] first = {true};
       boolean empty = iface.methods().isEmpty() && iface.nested().isEmpty();
@@ -585,11 +585,30 @@ public final class SourceRenderer {
       return sb.toString().stripTrailing();
     }
 
-    private String joinResolved(List<String> fqns) {
+    /**
+     * Join a list of {@link TypeRef}s, resolving each through the {@link TypeCollector} to its
+     * short or FQN form. Used for {@code extends} / {@code implements} clauses and similar header
+     * positions where the type is import-eligible.
+     */
+    private String joinResolved(List<TypeRef> refs) {
       StringBuilder sb = new StringBuilder();
-      for (int i = 0; i < fqns.size(); i++) {
+      for (int i = 0; i < refs.size(); i++) {
         if (i > 0) sb.append(", ");
-        sb.append(ci.use(fqns.get(i)));
+        sb.append(ci.use(refs.get(i)));
+      }
+      return sb.toString();
+    }
+
+    /**
+     * Join a list of {@link TypeRef}s by their bare FQN (no {@link TypeCollector} resolution). Used
+     * for {@code permits} clauses where the type is a nested type qualifier not eligible for import
+     * registration.
+     */
+    private String joinFqnsRefs(List<TypeRef> refs) {
+      StringBuilder sb = new StringBuilder();
+      for (int i = 0; i < refs.size(); i++) {
+        if (i > 0) sb.append(", ");
+        sb.append(refs.get(i).fqn());
       }
       return sb.toString();
     }
