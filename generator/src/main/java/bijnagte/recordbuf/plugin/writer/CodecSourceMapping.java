@@ -195,7 +195,7 @@ public final class CodecSourceMapping {
       Entry wktEntry = WktSourceMapping.resolve(f);
       if (wktEntry != null) {
         var wkt0 = Objects.requireNonNull(wktEntry);
-        body.add(Element.of(WktSourceMapping.localInit(f, wkt0, ci)));
+        body.add(WktSourceMapping.localInitElement(f, wkt0, ci));
       } else if (f.kind() == FieldKind.MAP) {
         String keyType = boxedScalarShortName(Objects.requireNonNull(f.mapKey()));
         String valueType = boxedScalarShortName(Objects.requireNonNull(f.mapValue()));
