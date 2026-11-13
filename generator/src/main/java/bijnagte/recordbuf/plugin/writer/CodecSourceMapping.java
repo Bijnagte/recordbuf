@@ -505,16 +505,10 @@ public final class CodecSourceMapping {
     out.add(
         For.enhanced("var _e", "v.@0().entrySet()", f.javaName())
             .body(
-                Element.of(
-                    "out.writeByteArray("
-                        + f.number()
-                        + ", "
-                        + entryName
-                        + "."
-                        + entryName
-                        + "Codec.encode(new "
-                        + entryName
-                        + "(_e.getKey(), _e.getValue())));"))
+                Element.expr(
+                    "out.writeByteArray(@0, @1.@1Codec.encode(new @1(_e.getKey(), _e.getValue())))",
+                    f.number(),
+                    entryName))
             .build());
   }
 
@@ -665,12 +659,8 @@ public final class CodecSourceMapping {
 
   private static void emitRepeatedLocalInit(Field f, List<Element> out) {
     out.add(
-        Element.of(
-            "List<"
-                + boxedScalarShortName(f.typeUrl())
-                + "> "
-                + f.javaName()
-                + " = new ArrayList<>();"));
+        Element.expr(
+            "List<@0> @1 = new ArrayList<>()", boxedScalarShortName(f.typeUrl()), f.javaName()));
   }
 
   /** The short-form boxed Java component type for a repeated scalar's element. */
@@ -797,9 +787,7 @@ public final class CodecSourceMapping {
     if (ws == WireScalar.STRING) {
       out.add(Element.expr("String @0 = \"\"", name));
     } else {
-      out.add(
-          Element.of(
-              localTypeForWire(ws) + " " + name + " = " + cd + "." + defaultForWire(ws) + "();"));
+      out.add(Element.expr("@0 @1 = @2.@3()", localTypeForWire(ws), name, cd, defaultForWire(ws)));
     }
   }
 
@@ -877,28 +865,21 @@ public final class CodecSourceMapping {
         String codecRef = type + "." + type + "Codec";
         sw.caseArm(
             sealedSub + " " + bnd,
-            Element.of(
-                "out.writeByteArray("
-                    + f.number()
-                    + ", "
-                    + codecRef
-                    + ".encode("
-                    + bnd
-                    + ".value()));"));
+            Element.expr(
+                "out.writeByteArray(@0, @1.encode(@2.value()))", f.number(), codecRef, bnd));
       } else if (f.kind() == FieldKind.ENUM) {
         // Enum oneof member: write via writeEnum, calling .getNumber() on the enum value.
         String recName = iface + "." + JavaNames.cap(f.name()) + "Value";
         sw.caseArm(
             recName + " " + bnd,
-            Element.of("out.writeEnum(" + f.number() + ", " + bnd + ".value().getNumber());"));
+            Element.expr("out.writeEnum(@0, @1.value().getNumber())", f.number(), bnd));
       } else {
         // Scalar oneof member: dispatch on wire type.
         String recName = iface + "." + JavaNames.cap(f.name()) + "Value";
         WireScalar wire = wireScalar(f);
         String call = encodeCall(wire);
         sw.caseArm(
-            recName + " " + bnd,
-            Element.of("out." + call + "(" + f.number() + ", " + bnd + ".value());"));
+            recName + " " + bnd, Element.expr("out.@0(@1, @2.value())", call, f.number(), bnd));
       }
     }
     out.add(sw.build());
@@ -918,7 +899,7 @@ public final class CodecSourceMapping {
     for (Field f : o.members()) {
       sw.caseArm(
           String.valueOf(f.number()),
-          Element.of(cmp + " = " + oneofDecodeRhs(o, f, ci, typeResolver) + ";"));
+          Element.expr("@0 = @1", cmp, oneofDecodeRhs(o, f, ci, typeResolver)));
     }
   }
 

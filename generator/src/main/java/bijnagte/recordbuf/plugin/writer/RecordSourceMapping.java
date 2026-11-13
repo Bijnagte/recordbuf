@@ -150,7 +150,7 @@ public final class RecordSourceMapping {
         Method.named("toBuilder")
             .public_()
             .returnType("Builder")
-            .body(Element.of("return new " + m.name() + ".Builder(this);"))
+            .body(Element.expr("return new @0.Builder(this)", m.name()))
             .build());
     result.method(
         Method.named("fromBytes")
@@ -159,7 +159,7 @@ public final class RecordSourceMapping {
             .returnType(m.name())
             .param("byte[]", "in")
             .thrown("java.io.IOException")
-            .body(Element.of("return " + codecName + ".decode(in);"))
+            .body(Element.expr("return @0.decode(in)", codecName))
             .build());
 
     // M4-C2b-2b-5: the Layer A marshalling hook. Every record implements ProtobufMessage by
@@ -170,7 +170,7 @@ public final class RecordSourceMapping {
             .public_()
             .returnType("byte[]")
             .thrown("java.io.IOException")
-            .body(Element.of("return " + m.name() + "Codec.encode(this);"))
+            .body(Element.expr("return @0Codec.encode(this)", m.name()))
             .override(true)
             .build();
     result.method(toByteArray);
@@ -489,17 +489,16 @@ public final class RecordSourceMapping {
     for (Field f : m.fields()) {
       String fn = f.javaName();
       if (f.label() == FieldLabel.REPEATED) {
-        copyBody.add(Element.of("this." + fn + " = new ArrayList<>(x." + fn + "());"));
+        copyBody.add(Element.expr("this.@0 = new ArrayList<>(x.@1())", fn, fn));
       } else if (f.kind() == FieldKind.MAP) {
-        copyBody.add(Element.of("this." + fn + " = new HashMap<>(x." + fn + "());"));
+        copyBody.add(Element.expr("this.@0 = new HashMap<>(x.@1())", fn, fn));
       } else {
-        copyBody.add(Element.of("this." + fn + " = x." + fn + "();"));
+        copyBody.add(Element.expr("this.@0 = x.@1()", fn, fn));
       }
     }
     // M4-C2b-2b-12: oneof component copy.
     for (var oneof : m.oneofs()) {
-      copyBody.add(
-          Element.of("this." + oneof.componentName() + " = x." + oneof.componentName() + "();"));
+      copyBody.add(Element.expr("this.@0 = x.@1()", oneof.componentName(), oneof.componentName()));
     }
     copyBody.add(Element.of("this.unknownFields = x.unknownFields();"));
     builderClz.constructor(
@@ -513,9 +512,7 @@ public final class RecordSourceMapping {
               .public_()
               .returnType("Builder")
               .param(scalarComponentType(f, ci), fieldName)
-              .body(
-                  Element.of("this." + fieldName + " = " + fieldName + ";"),
-                  Element.of("return this;"))
+              .body(Element.expr("this.@0 = @1", fieldName, fieldName), Element.of("return this;"))
               .build());
     }
     // M4-C2b-2b-12: oneof fluent setter per component.
@@ -526,9 +523,7 @@ public final class RecordSourceMapping {
               .public_()
               .returnType("Builder")
               .param(Param.of(oneof.ifaceName(), compName, Annotation.NULLABLE))
-              .body(
-                  Element.of("this." + compName + " = " + compName + ";"),
-                  Element.of("return this;"))
+              .body(Element.expr("this.@0 = @1", compName, compName), Element.of("return this;"))
               .build());
     }
     // Carrier setter.
@@ -555,7 +550,7 @@ public final class RecordSourceMapping {
             .javadoc(Javadoc.builder().text("Builds a ", m.name(), " record.").build())
             .public_()
             .returnType(recName)
-            .body(Element.of("return new " + recName + "(" + String.join(", ", ctorArgs) + ");"))
+            .body(Element.expr("return new @0(@1)", recName, String.join(", ", ctorArgs)))
             .build());
 
     // The nested Builder class itself — with javadoc matching the old JavaWriter path.
@@ -574,7 +569,7 @@ public final class RecordSourceMapping {
             .public_()
             .static_()
             .returnType("Builder")
-            .body(Element.of("return new " + recName + ".Builder();"))
+            .body(Element.expr("return new @0.Builder()", recName))
             .build();
 
     record.method(builderFactory);
