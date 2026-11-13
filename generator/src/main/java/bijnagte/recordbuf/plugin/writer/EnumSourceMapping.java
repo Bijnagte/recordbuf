@@ -4,38 +4,34 @@ import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Component;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
-import bijnagte.recordbuf.codegen.source.EnumConstant;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Method;
+import bijnagte.recordbuf.codegen.source.RawExpr;
 import bijnagte.recordbuf.codegen.source.StaticBlock;
 import bijnagte.recordbuf.codegen.source.Type;
+import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Enum;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Maps the generator's proto {@link Enum} model into a {@link Type.Enum} of the pure-Java,
- * proto-agnostic {@code source} AST ({@code bijnagte.recordbuf.codegen.source}) -- the M4 step that
+ * proto-agnostic {@code source} AST ({@code bijnagte.recordbuf.codegen.source}) — the M4 step that
  * replaces the string-concatenation {@link EnumGenerator} with a renderable, structural tree.
  *
  * <p>M4-C2a-ext mirrors what {@link EnumGenerator#write} emits, in full: the {@code public enum
  * Name [implements ...]} header (its Javadoc and {@code @Deprecated} come from the proto {@code
  * comment} / {@code deprecated}), each constant, the {@code private final int number;} field, the
  * {@code Name(int number)} constructor, the {@code getNumber()} accessor, and the reverse-lookup
- * cluster -- the {@code private static final Map<Integer, Name> BY_NUMBER = new HashMap<>();}
- * field, its {@code static {}} initializer, and the {@code forNumber} accessor.
+ * cluster — the {@code private static final Map<Integer, Name> BY_NUMBER = new HashMap<>();} field,
+ * its {@code static {}} initializer, and the {@code forNumber} accessor.
  *
- * <p>The reverse-lookup cluster's generic types ({@code java.util.Map} / {@code java.util.HashMap})
- * are the only external types. Because {@code TypeCollector.use} strips generic arguments, the
- * field's type + initializer are built as <em>pre-resolved short-form strings</em>: each raw FQN is
- * run through {@code ci.use} once (to import it and yield its short name) and inlined -- e.g.
- * {@code ci.use("java.util.Map") + "<Integer, " + name + ">"} for the type and {@code "new " +
- * ci.use("java.util.HashMap") + "<>()"} for the initializer. The renderer emits a field's type +
- * initializer verbatim (see {@link Component}).
- *
- * <p>The one detail from {@link EnumGenerator} this mirror omits is its leading {@code // Reverse
- * lookup ...} comment: the {@code source} AST has no standalone line-comment member to hold a
- * bare-slash comment (a noted M4 follow-up: a comment/line member), so it is not reproduced here.
+ * <p>The reverse-lookup cluster's external types are {@code java.util.Map} and {@code
+ * java.util.HashMap}. U5 migration: the {@code Map<Integer, Name>} field type is a structured
+ * {@link TypeRef} so the renderer resolves it collision-aware at render time. The {@code new
+ * HashMap<>()} initializer remains a pre-resolved string (U3 will migrate {@link Component}
+ * initializers to {@link RawExpr}); {@code ci.use("java.util.HashMap")} registers the import and
+ * yields the short name for the string.
  */
 public final class EnumSourceMapping {
 
@@ -45,10 +41,12 @@ public final class EnumSourceMapping {
    * Map a proto {@link Enum} model into a source-AST {@link Type.Enum}.
    *
    * @param proto the proto enum model
-   * @param ci the file's type collector, used to import + short-name the cluster's {@code
-   *     java.util.Map} / {@code java.util.HashMap} references
+   * @param ci the file's type collector, used to register the cluster's {@code java.util.Map} /
+   *     {@code java.util.HashMap} imports
+   * @param declaringPkg the Java package the generated enum belongs to — used to resolve the
+   *     self-reference {@code Name} inside {@code Map<Integer, Name>}
    */
-  public static Type.Enum toSource(Enum proto, TypeCollector ci) {
+  public static Type.Enum toSource(Enum proto, TypeCollector ci, String declaringPkg) {
     String name = proto.name();
 
     Type.Enum.Builder result =
@@ -58,17 +56,17 @@ public final class EnumSourceMapping {
             .deprecated(proto.deprecated())
             .implementsFqns(proto.interfaces());
 
-    // 1. The constants -- each with its number ctor-arg, its own Javadoc, and its own @Deprecated.
-    for (Enum.EnumConstant c : proto.constants()) {
+    // 1. The constants — each with its number ctor-arg, its own Javadoc, and its own @Deprecated.
+    for (bijnagte.recordbuf.plugin.model.Enum.EnumConstant c : proto.constants()) {
       result.enumConstant(
-          EnumConstant.named(c.name())
+          bijnagte.recordbuf.codegen.source.EnumConstant.named(c.name())
               .ctorArgs(Integer.toString(c.number()))
               .javadoc(Javadoc.builder().text(c.comment()).build())
               .deprecated(c.deprecated())
               .build());
     }
 
-    // 2. The number field + ctor + accessor -- the core the M4-C2a slice mapped.
+    // 2. The number field + ctor + accessor — the core the M4-C2a slice mapped.
     result.field(Component.named("int", "number").private_().final_().build());
     result.constructor(
         Constructor.builder()
@@ -78,21 +76,23 @@ public final class EnumSourceMapping {
     result.method(
         Method.named("getNumber").public_().returnType("int").body(Element.ret("number")).build());
 
-    // 3. The reverse-lookup cluster -- M4-C2a-ext's fold-in. ci.use imports java.util.Map/HashMap +
-    // yields each short name; the generic field type + initializer are then spelled out in short
-    // form and emitted verbatim (TypeCollector.use strips generic args).
-    String map = ci.use("java.util.Map");
-    String hashMap = ci.use("java.util.HashMap");
+    // 3. The reverse-lookup cluster — U5: BY_NUMBER field type is a TypeRef.
+    //    U3 will migrate the initializer from String to RawExpr; for now ci.use() registers
+    //    java.util.HashMap and returns its short name for the initializer string.
+    TypeRef selfRef = TypeRef.of(declaringPkg + "." + name);
+    List<TypeRef> mapGenerics = List.of(TypeRef.of("java.lang.Integer"), selfRef);
+    TypeRef mapType = TypeRef.named("java.util", "Map", mapGenerics);
+    String hashMapShort = ci.use("java.util.HashMap");
     result.field(
-        Component.named(map + "<Integer, " + name + ">", "BY_NUMBER")
+        Component.type(mapType, "BY_NUMBER")
             .private_()
             .static_()
             .final_()
-            .initializer("new " + hashMap + "<>()")
+            .initializer("new " + hashMapShort + "<>()")
             .build());
 
     List<Element> init = new ArrayList<>();
-    for (Enum.EnumConstant c : proto.constants()) {
+    for (bijnagte.recordbuf.plugin.model.Enum.EnumConstant c : proto.constants()) {
       init.add(Element.expr("BY_NUMBER.put(" + c.number() + ", " + c.name() + ")"));
     }
     result.staticBlock(new StaticBlock(init));
@@ -101,7 +101,7 @@ public final class EnumSourceMapping {
         Method.named("forNumber")
             .public_()
             .static_()
-            .returnType(name)
+            .returnType(selfRef)
             .param("int", "number")
             .body(Element.ret("BY_NUMBER.getOrDefault(number, " + firstConstantName(proto) + ")"))
             .build());
@@ -110,7 +110,7 @@ public final class EnumSourceMapping {
   }
 
   /** The first constant's name, or {@code UNRECOGNIZED} when the enum has none. */
-  private static String firstConstantName(Enum e) {
+  private static String firstConstantName(bijnagte.recordbuf.plugin.model.Enum e) {
     return e.constants().isEmpty() ? "UNRECOGNIZED" : e.constants().get(0).name();
   }
 }

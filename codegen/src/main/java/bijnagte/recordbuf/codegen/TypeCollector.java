@@ -47,6 +47,12 @@ public final class TypeCollector {
   private final LinkedHashSet<String> collidedShortNames = new LinkedHashSet<>();
 
   private final String declaringPackage;
+
+  /** The declaring package. */
+  public String declaringPackage() {
+    return declaringPackage;
+  }
+
   private boolean frozen = false;
 
   /**
@@ -206,5 +212,23 @@ public final class TypeCollector {
   private static String stripGenericArguments(String reference) {
     int lt = reference.indexOf('<');
     return lt < 0 ? reference : reference.substring(0, lt);
+  }
+
+  /**
+   * The post-finalization {@code ResolutionContext} — used by mappers to build {@link
+   * bijnagte.recordbuf.codegen.source.ResolveableExpr}.
+   */
+  public bijnagte.recordbuf.codegen.source.ResolutionContext resolutionContext() {
+    return new bijnagte.recordbuf.codegen.source.ResolutionContext(
+        declaringPackage, java.util.Set.copyOf(collidedShortNames));
+  }
+
+  /**
+   * Registers the import for a {@link bijnagte.recordbuf.codegen.source.TypeRef} (no return — the
+   * import is a side-effect only). For expression-body registration use this instead of {@link
+   * #use(TypeRef)} which returns the resolved string.
+   */
+  public void register(bijnagte.recordbuf.codegen.source.TypeRef ref) {
+    resolveTypeRef(ref);
   }
 }

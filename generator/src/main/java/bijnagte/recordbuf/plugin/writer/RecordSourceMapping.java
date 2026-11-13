@@ -68,7 +68,7 @@ public final class RecordSourceMapping {
     // its
     // full core + its BY_NUMBER reverse-lookup cluster (with shared java.util.* imports).
     for (Enum e : m.nestedEnums()) {
-      result.nested(EnumSourceMapping.toSource(e, ci));
+      result.nested(EnumSourceMapping.toSource(e, ci, ci.declaringPackage()));
     }
     // M4-C2b-2b-12: oneof groups.
     for (Oneof oneof : m.oneofs()) {
@@ -108,7 +108,7 @@ public final class RecordSourceMapping {
       result.component(comp.build());
     }
     for (Enum e : m.nestedEnums()) {
-      result.nested(EnumSourceMapping.toSource(e, ci));
+      result.nested(EnumSourceMapping.toSource(e, ci, ci.declaringPackage()));
     }
     // M4-C2d-9: nested messages — emit each as an inner record via recursion.
     for (Message nested : m.nestedMessages()) {
