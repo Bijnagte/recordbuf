@@ -146,7 +146,7 @@ public final class InteropSourceMapping {
                   TypeRef.of(ARRAY_LIST))));
       out.add(
           For.enhanced("var _e", "x.get" + cap + "List()")
-              .body(Element.of("_" + f.javaName() + ".add(" + recSib + ".Interop.from(_e));"))
+              .body(Element.expr("_@0.add(@1.Interop.from(_e))", f.javaName(), recSib))
               .build());
       return;
     }
@@ -166,7 +166,7 @@ public final class InteropSourceMapping {
       return;
     }
     if (f.kind() == FieldKind.ENUM) {
-      out.add(Element.of("var _" + f.javaName() + " = " + fromExpr(f) + ";"));
+      out.add(Element.expr("var _@0 = @1", f.javaName(), fromExpr(f)));
       return;
     }
     if (f.isRepeated()) {
@@ -197,7 +197,7 @@ public final class InteropSourceMapping {
           Element.of(
               "var _" + f.javaName() + " = x.has" + cap + "() ? x.get" + cap + "() : null;"));
     } else {
-      out.add(Element.of("var _" + f.javaName() + " = " + fromExpr(f) + ";"));
+      out.add(Element.expr("var _@0 = @1", f.javaName(), fromExpr(f)));
     }
   }
 
@@ -238,7 +238,7 @@ public final class InteropSourceMapping {
     String cap = JavaNames.cap(f.javaName());
     if (f.isMap()) {
       out.add(
-          For.enhanced("var _e", "r." + f.javaName() + "().entrySet()")
+          For.enhanced("var _e", "r.@0().entrySet()", f.javaName())
               .body(
                   Element.of(
                       "_b.put" + cap + "(" + mapKeyTo(f, ci) + ", " + mapValueTo(f, ci) + ");"))
@@ -249,7 +249,7 @@ public final class InteropSourceMapping {
       String recSib = recordSiblingFqn(f);
       out.add(
           For.enhanced("var _e", "r." + f.javaName() + "()")
-              .body(Element.of("_b.add" + cap + "(" + recSib + ".Interop.to(_e));"))
+              .body(Element.expr("_b.add@0(@1.Interop.to(_e))", cap, recSib))
               .build());
       return;
     }
@@ -259,9 +259,9 @@ public final class InteropSourceMapping {
       String src = "r." + f.javaName() + "()";
       String local = "n" + JavaNames.cap(f.javaName());
       out.add(
-          If.condition(src + " != null")
+          If.condition("@0 != null", src)
               .body(
-                  Element.of("var " + local + " = " + src + ";"),
+                  Element.expr("var @0 = @1", local, src),
                   Element.of("_b.set" + cap + "(" + recSib + ".Interop.to(" + local + "));"))
               .build());
       return;
@@ -275,7 +275,7 @@ public final class InteropSourceMapping {
                         RawExpr.of("_b.add" + cap + "(@0.copyFrom(_e))", TypeRef.of(BYTE_STRING))))
                 .build());
       } else {
-        out.add(Element.of("_b.addAll" + cap + "(r." + f.javaName() + "());"));
+        out.add(Element.expr("_b.addAll@0(r.@1())", cap, f.javaName()));
       }
       return;
     }
@@ -298,11 +298,11 @@ public final class InteropSourceMapping {
               TypeRef.of(BYTE_STRING)));
     }
     if (f.isNullable()) {
-      return If.condition(src + " != null")
+      return If.condition("@0 != null", src)
           .body(Element.of("_b.set" + cap + "(" + src + ");"))
           .build();
     }
-    return Element.of("_b.set" + cap + "(" + src + ");");
+    return Element.expr("_b.set@0(@1)", cap, src);
   }
 
   private static String toSet(Field f, String src, TypeCollector ci, String refPkg) {
@@ -384,7 +384,7 @@ public final class InteropSourceMapping {
       String pattern = iface + "." + cap + "Value v";
       if (f.isMessage()) {
         String recSib = recordSiblingFqn(f);
-        sw.caseArm(pattern, Element.of("_b.set" + cap + "(" + recSib + ".Interop.to(v.value()));"));
+        sw.caseArm(pattern, Element.expr("_b.set@0(@1.Interop.to(v.value()))", cap, recSib));
       } else {
         sw.caseArm(pattern, Element.of(toSet(f, "v.value()", ci, refPkg)));
       }
