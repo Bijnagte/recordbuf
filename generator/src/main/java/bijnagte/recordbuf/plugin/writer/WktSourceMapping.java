@@ -83,7 +83,7 @@ final class WktSourceMapping {
                     If.condition("!e.equals(@0)", def)
                         .body(
                             Element.expr(
-                                "@0.writeByteArray(@1, @2.@3(e);", out, num, wktRef, methodName))
+                                "@0.writeByteArray(@1, @2.@3(e));", out, num, wktRef, methodName))
                         .build())
                 .build());
       } else {

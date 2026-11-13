@@ -152,7 +152,13 @@ public final class InteropSourceMapping {
     }
     if (f.isMessage()) {
       String recSib = recordSiblingFqn(f);
-      out.add(Element.of("var _@0 = x.has@1() ? @2.Interop.from(x.get@1()) : null"));
+      out.add(
+          Element.expr(
+              RawExpr.of(
+                  "var _@0 = x.has@1() ? @2.Interop.from(x.get@1()) : null",
+                  f.javaName(),
+                  JavaNames.cap(f.javaName()),
+                  TypeRef.of(recSib))));
       return;
     }
     if (f.kind() == FieldKind.ENUM) {
