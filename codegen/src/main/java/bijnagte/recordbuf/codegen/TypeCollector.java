@@ -70,7 +70,12 @@ public final class TypeCollector {
    * <p>This is for reference types in a different compilation unit where a short-name import would
    * create a shadowing conflict, e.g. the protobuf-java reference type of a {@code
    * recordbuf.protobuf_java}-opted message. Returns the FQN as-is.
+   *
+   * @deprecated internal bridge for {@link
+   *     bijnagte.recordbuf.codegen.source.TypeRef#useFqn(TypeCollector)}; callers should use {@code
+   *     TypeRef.of(fqn).useFqn(ci)} instead.
    */
+  @Deprecated
   public String useFqn(String fqn) {
     int lastDot = fqn.lastIndexOf('.');
     if (lastDot < 0) return fqn; // prime number / bare name
@@ -84,25 +89,24 @@ public final class TypeCollector {
    * {@link #useFqn(String)} overload for a {@link bijnagte.recordbuf.codegen.source.TypeRef}. The
    * base FQN is extracted via {@link bijnagte.recordbuf.codegen.source.TypeRef#fqn()} and marked as
    * collided (no import emitted for its short name).
+   *
+   * @deprecated internal bridge for {@code TypeRef.useFqn(ci)}; callers should use {@code
+   *     TypeRef.of(fqn).useFqn(ci)} instead.
    */
+  @Deprecated
   public void useFqn(bijnagte.recordbuf.codegen.source.TypeRef ref) {
     useFqn(ref.fqn());
   }
 
   /**
-   * Records one type reference and returns the name to emit at that site.
-   *
-   * <p>A bare name carrying no package segment -- a primitive, a {@code byte[]} array, or a
-   * same-package {@literal /} {@code java.lang} short name -- is returned unchanged and never
-   * imported. Before {@link #finalizeResolution()} the returned name is always the short name;
-   * afterwards it is the fully-qualified name only when that short name is shared by another
-   * distinct type.
-   */
-  /**
    * Records one type reference and returns the name to emit at that site, preserving any generic
-   * suffix from {@code reference} (e.g. {@code java.util.List<java.lang.Integer>}). The base type
-   * is resolved for import/collision handling, but the returned name keeps the original generic
-   * arguments so the render pass emits {@code List<Integer>} rather than a raw {@code List}.
+   * suffix from {@code reference} (e.g. {@code java.util.List<java.lang.Integer>}). This is the
+   * primary <b>tree-walker entry point</b> — {@code SourceRenderer.collect()} walks the AST and
+   * calls {@code ci.use(type)} for each annotation, field, and parameter type it encounters. A bare
+   * name carrying no package segment — a primitive, a {@code byte[]} array, or a same-package /
+   * {@code java.lang} short name — is returned unchanged and never imported. Before {@code
+   * finalizeResolution()} the returned name is always the short name; afterwards it is the
+   * fully-qualified name only when that short name is shared by another distinct type.
    */
   public String use(String reference) {
     int lt = reference.indexOf('<');
@@ -234,9 +238,13 @@ public final class TypeCollector {
 
   /**
    * Registers the import for a {@link bijnagte.recordbuf.codegen.source.TypeRef} (no return — the
-   * import is a side-effect only). For expression-body registration use this instead of {@link
-   * #use(TypeRef)} which returns the resolved string.
+   * import is a side-effect). This is an internal bridge for {@link
+   * bijnagte.recordbuf.codegen.source.Formattable#collect(TypeCollector)} which is the public API
+   * for collect-phase registration.
+   *
+   * @deprecated use {@code TypeRef.of(fqn).collect(ci)} or {@code Formattable.collect(ci)} instead.
    */
+  @Deprecated
   public void register(bijnagte.recordbuf.codegen.source.TypeRef ref) {
     resolveTypeRef(ref);
   }

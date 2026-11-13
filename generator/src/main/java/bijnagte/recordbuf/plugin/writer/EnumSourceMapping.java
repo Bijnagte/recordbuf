@@ -6,7 +6,6 @@ import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Method;
-import bijnagte.recordbuf.codegen.source.RawExpr;
 import bijnagte.recordbuf.codegen.source.StaticBlock;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.codegen.source.TypeRef;
@@ -27,11 +26,9 @@ import java.util.List;
  * its {@code static {}} initializer, and the {@code forNumber} accessor.
  *
  * <p>The reverse-lookup cluster's external types are {@code java.util.Map} and {@code
- * java.util.HashMap}. U5 migration: the {@code Map<Integer, Name>} field type is a structured
- * {@link TypeRef} so the renderer resolves it collision-aware at render time. The {@code new
- * HashMap<>()} initializer remains a pre-resolved string (U3 will migrate {@link Component}
- * initializers to {@link RawExpr}); {@code ci.use("java.util.HashMap")} registers the import and
- * yields the short name for the string.
+ * java.util.HashMap}. U5 migration: the {@code Map<Integer, String>} field type and the {@code new
+ * HashMap<>()} initializer are both structured {@link TypeRef}s registered in the collect phase;
+ * they resolve collision-aware at render time via {@code TypeRef.render(ctx)}.
  */
 public final class EnumSourceMapping {
 
@@ -76,9 +73,8 @@ public final class EnumSourceMapping {
     result.method(
         Method.named("getNumber").public_().returnType("int").body(Element.ret("number")).build());
 
-    // 3. The reverse-lookup cluster — U5: BY_NUMBER field type is a TypeRef.
-    //    U3 will migrate the initializer from String to RawExpr; for now ci.use() registers
-    //    java.util.HashMap and returns its short name for the initializer string.
+    // 3. The reverse-lookup cluster — U5: BY_NUMBER field type and initializers are TypeRefs.
+    //    Collected in the collect phase; resolved collision-aware at render time.
     TypeRef selfRef = TypeRef.of(declaringPkg + "." + name);
     List<TypeRef> mapGenerics = List.of(TypeRef.of("java.lang.Integer"), selfRef);
     TypeRef mapType = TypeRef.named("java.util", "Map", mapGenerics);

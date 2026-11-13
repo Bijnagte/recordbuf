@@ -342,7 +342,8 @@ public final class RecordSourceMapping {
     // 2. Build the sealed interface: extends clause + permits + per-member records + default
     // value().
     String unwrapFqn = RT + ".Unwrapable";
-    // The extendsFqn carries the full FQN; the collect() phase registers it via ci.use(TypeRef).
+    // The extendsFqn carries the full FQN; the collect() phase registers it via
+    // TypeRef.collect(ci).
     Type.Interface.Builder iface =
         Type.Interface.named(ifaceName).public_().sealed_().extendsFqn(unwrapFqn + "<Object>");
 
