@@ -8,6 +8,8 @@ artifact_readiness: implementation-ready
 product_contract_source: ce-brainstorm
 execution: code
 status: partially-complete
+<!-- U1-U8 complete. U9/U10 next: dead-code sweep + end-to-end smoke test.
+     One ci.use(f.typeUrl()) interop fallback is tree-walker-deferred (CodecSourceMapping). -->
 ---
 
 ## Goal Capsule
