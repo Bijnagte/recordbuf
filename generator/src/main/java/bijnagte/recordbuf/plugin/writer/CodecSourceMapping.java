@@ -635,10 +635,10 @@ public final class CodecSourceMapping {
     String readOp = decodeCall(wire);
     // Packed scalar: emit one length-delimited group when the list is non-empty.
     out.add(
-        If.condition("!" + getter + ".isEmpty()")
+        If.condition("!@0.isEmpty()", getter)
             .body(
-                Element.of("var body = Encoder.start();"),
-                Element.of("var _o = body.out();"),
+                Element.expr("var body = @0.start()", ENCODER),
+                Element.expr("var _o = @0.out()", "body"),
                 For.enhanced("var _x", getter)
                     .body(Element.expr("_o.@0(_x)", packedNoTag(wire)))
                     .build(),
