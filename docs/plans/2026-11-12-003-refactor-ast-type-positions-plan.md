@@ -286,7 +286,7 @@ is complete.
 
 ### U1 — `TypeRef` sealed interface (model)
 
-- **Status:** not started
+- **Status:** done (b972b49) — `Named`/`Primitive`/`Array` sealed hierarchy;
 - **R:** R1, R2
 - **File:** `codegen/src/main/java/bijnagte/recordbuf/codegen/source/TypeRef.java` (new)
 - **Change:**
@@ -319,7 +319,7 @@ is complete.
 
 ### U2 — `ExprPiece` sealed interface + `RawExpr` + `ExprStatement` migration
 
-- **Status:** not started
+- **Status:** done (c163266, f45811b) — `ExprStatement` holds `RawExpr` (not String);
 - **R:** R6, R7
 - **Files:**
   - `codegen/src/main/java/bijnagte/recordbuf/codegen/source/ExprPiece.java` (new)
@@ -357,7 +357,7 @@ is complete.
 
 ### U3 — Surface A: type positions become `TypeRef`
 
-- **Status:** not started
+- **Status:** done (998c073, 8217aef) — `Type.*` header FQN lists (extends/implements/permits) are `List<TypeRef>`;
 - **R:** R3, R4, R5
 - **Files to change (all in `:recordbuf-codegen`):**
   - `Component.java` — `String type` → `TypeRef type`; `Component.builder()` and
@@ -396,7 +396,7 @@ is complete.
 
 ### U4 — `Annotation.type` becomes `TypeRef` (R11)
 
-- **Status:** not started
+- **Status:** done (b972b49) — `Annotation.type` is `TypeRef`;
 - **R:** R11
 - **File:** `Annotation.java` (modify)
 - **Change:**
@@ -417,7 +417,24 @@ is complete.
 
 ### U5 — Mappers build `TypeRef` and `RawExpr` at all `ci.use` sites
 
-- **Status:** not started
+- **Status:** partially done — registration-only site migration complete; string-position
+  sites (U7 territory) remain.
+- **Done (commit `c20a4e6` + `d6ad4a2` + `8da2b7b`):**
+  - `EnumSourceMapping` — BY_NUMBER field type → `TypeRef`; `forNumber` return type →
+    selfRef `TypeRef`.
+  - `InteropSourceMapping` — 6 `ci.use`-in-string-splice sites in `encodeMessage`/`decodeMessage`
+    converted to `RawExpr` + `TypeRef.args`; collect-phase `collectBody`/`collectExpr` walk added.
+  - `AvroConverterSourceMapping` — all 6 registration-only `ci.use(FQN)` → `ci.register(TypeRef.of(FQN))`.
+  - `RecordSourceMapping` — 3 redundant registration-only `ci.use` calls removed (handled by the
+    `collect()` tree walk via `TypeRef` in type positions); remaining `ci.use("java.util.ArrayList")`
+    for string-position initializers migrated to `ci.register(TypeRef.of(...))`.
+  - `TypeCollector` — added `useFqn(TypeRef)` overload (delegates to `useFqn(fqn)`).
+- **Remaining (U7 / Phase C territory):**
+  - `WktSourceMapping`, `CodecSourceMapping`, remaining `RecordSourceMapping` string-helper
+    positions: these `ci.use(FQN)` calls feed short-name strings into `Element.of(...)` / body
+    strings that are not reachable by the `collect()` phase tree walk. Migrate requires the
+    `RawExpr` decomposition (Phase C) that decomposes body expression strings into structured
+    `ExprPiece` trees. Deferred to U7.
 - **R:** R6, R7
 - **Files to change (all in `:recordbuf-generator`):**
   - `CodecSourceMapping.java` — for every `ci.use(x)` call, the result is either:
