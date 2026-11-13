@@ -8,6 +8,7 @@ import bijnagte.recordbuf.codegen.source.JavaFile;
 import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.SourceRenderer;
 import bijnagte.recordbuf.codegen.source.Type;
+import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.Message;
@@ -64,22 +65,22 @@ public final class AvroConverterSourceMapping {
     // --- conditional imports, resolved upfront in the TypeCollector ---
     boolean samePkg = recordPkg.equals(specificRecordPkg);
     if (!samePkg) {
-      ci.use(specificRecordPkg + "." + avroSpecific);
+      ci.register(TypeRef.of(specificRecordPkg + "." + avroSpecific));
     }
     boolean hasWkt =
         message.fields().stream().anyMatch(f -> AvroSchemaGenerator.typeUrlIfWkt(f) != null);
     if (hasWkt) {
-      ci.use("bijnagte.recordbuf.avro.WktAvroBridge");
+      ci.register(TypeRef.of("bijnagte.recordbuf.avro.WktAvroBridge"));
     }
     boolean hasByteField =
         message.fields().stream()
             .anyMatch(f -> f.kind() == FieldKind.SCALAR && "bytes".equals(f.typeUrl()));
     if (hasByteField) {
-      ci.use("bijnagte.recordbuf.runtime.Bytes");
-      ci.use("java.nio.ByteBuffer");
-      ci.use("java.util.Arrays");
+      ci.register(TypeRef.of("bijnagte.recordbuf.runtime.Bytes"));
+      ci.register(TypeRef.of("java.nio.ByteBuffer"));
+      ci.register(TypeRef.of("java.util.Arrays"));
     }
-    ci.use("bijnagte.recordbuf.runtime.UnknownFields");
+    ci.register(TypeRef.of("bijnagte.recordbuf.runtime.UnknownFields"));
 
     // --- class AST ---
     Constructor privateCtor = Constructor.builder().private_().body().build();

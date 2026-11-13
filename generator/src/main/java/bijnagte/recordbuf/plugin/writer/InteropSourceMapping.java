@@ -50,7 +50,7 @@ public final class InteropSourceMapping {
     String refType = JavaNames.cap(m.name());
     // Register the ref FQN-only so no import is generated (avoids collision with the record).
     String ref = refFqn(refPkg, refType);
-    ci.useFqn(ref);
+    ci.useFqn(TypeRef.of(ref));
     String rec = m.name();
 
     Javadoc javadoc =

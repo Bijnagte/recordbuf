@@ -9,6 +9,7 @@ import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.Param;
 import bijnagte.recordbuf.codegen.source.Type;
+import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Enum;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
@@ -133,11 +134,11 @@ public final class RecordSourceMapping {
     }
 
     // M4-C2b-2b-5: always-on unknown-field carrier: the record's last component.
+    // The import is registered by the collect() phase via component.type().
     String ufFqn = RT + ".UnknownFields";
-    ci.use(ufFqn);
     // M4-C2d-3: register java.util.ArrayList for the codec's repeated-local-init lines,
     // and java.util.List for the record's repeated-field components.
-    ci.use("java.util.ArrayList");
+    ci.register(TypeRef.of("java.util.ArrayList"));
     result.component(Component.named(ufFqn, "unknownFields").build());
 
     // M4-C2b-2b-6: the fluent builder. Emitted after the carrier and after the codec (a forward
@@ -162,9 +163,8 @@ public final class RecordSourceMapping {
             .build());
 
     // M4-C2b-2b-5: the Layer A marshalling hook. Every record implements ProtobufMessage by
-    // delegating to its own nested Codec.encode.
-    String pbMsgFqn = RT + ".ProtobufMessage";
-    ci.use(pbMsgFqn);
+    // delegating to its own nested Codec.encode. Import is registered via implementsFqns by the
+    // collect() phase.
     var toByteArray =
         Method.named("toByteArray")
             .public_()
@@ -190,7 +190,7 @@ public final class RecordSourceMapping {
     // (matches the old JavaWriter ordering: option interfaces precede the runtime marker).
     List<String> implementsList = new ArrayList<>();
     implementsList.addAll(m.interfaces());
-    implementsList.add(pbMsgFqn);
+    implementsList.add(RT + ".ProtobufMessage");
     result.implementsFqns(implementsList);
 
     return result.build();
@@ -321,20 +321,16 @@ public final class RecordSourceMapping {
     String componentName = oneof.componentName();
 
     // 1. The @Nullable record component in the enclosing record.
-    ci.use("org.jspecify.annotations.Nullable");
+    //    Import is registered by the collect() phase via Annotation.NULLABLE.type().
     record.component(
         Component.named(ifaceName, componentName).annotation(Annotation.NULLABLE).build());
 
     // 2. Build the sealed interface: extends clause + permits + per-member records + default
     // value().
     String unwrapFqn = RT + ".Unwrapable";
-    // Pre-resolve the extends FQN via ci.use() (it preserves generics and registers the import).
-    String ext = ci.use(unwrapFqn + "<Object>");
-
-    // Build the sealed interface: extends clause first, then permits + per-member nested records +
-    // default value() as we scan the members.
+    // The extendsFqn carries the full FQN; the collect() phase registers it via ci.use(TypeRef).
     Type.Interface.Builder iface =
-        Type.Interface.named(ifaceName).public_().sealed_().extendsFqn(ext);
+        Type.Interface.named(ifaceName).public_().sealed_().extendsFqn(unwrapFqn + "<Object>");
 
     // Build permits and nested per-member records simultaneously. For each oneof member
     // (scalar, enum, or message), emit a nested public record <Cap>Value(<Type> value)

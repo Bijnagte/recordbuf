@@ -81,6 +81,15 @@ public final class TypeCollector {
   }
 
   /**
+   * {@link #useFqn(String)} overload for a {@link bijnagte.recordbuf.codegen.source.TypeRef}. The
+   * base FQN is extracted via {@link bijnagte.recordbuf.codegen.source.TypeRef#fqn()} and marked as
+   * collided (no import emitted for its short name).
+   */
+  public void useFqn(bijnagte.recordbuf.codegen.source.TypeRef ref) {
+    useFqn(ref.fqn());
+  }
+
+  /**
    * Records one type reference and returns the name to emit at that site.
    *
    * <p>A bare name carrying no package segment -- a primitive, a {@code byte[]} array, or a
