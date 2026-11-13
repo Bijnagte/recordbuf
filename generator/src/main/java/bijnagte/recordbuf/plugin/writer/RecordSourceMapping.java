@@ -138,7 +138,7 @@ public final class RecordSourceMapping {
     String ufFqn = RT + ".UnknownFields";
     // M4-C2d-3: register java.util.ArrayList for the codec's repeated-local-init lines,
     // and java.util.List for the record's repeated-field components.
-    ci.register(TypeRef.of("java.util.ArrayList"));
+    TypeRef.of("java.util.ArrayList").collect(ci);
     result.component(Component.named(ufFqn, "unknownFields").build());
 
     // M4-C2b-2b-6: the fluent builder. Emitted after the carrier and after the codec (a forward
@@ -212,7 +212,7 @@ public final class RecordSourceMapping {
     // each is rendered as its boxed Java type (primitives get boxed inside Map<>).
     // Must run BEFORE the REPEATED label check (maps use REPEATED but are not Lists).
     if (f.kind() == FieldKind.MAP) {
-      ci.use("java.util.Map");
+      TypeRef.of("java.util.Map").collect(ci);
       // MAP's mapKey/mapValue are @Nullable String; a MAP field always has both.
       String keyType = boxedScalarType(Objects.requireNonNull(f.mapKey()));
       String valueType = boxedScalarType(Objects.requireNonNull(f.mapValue()));
@@ -220,14 +220,16 @@ public final class RecordSourceMapping {
     }
     // M4-C2d-2: repeated MESSAGE/ENUM → List<ElementType>, element resolved per kind.
     if (f.label() == FieldLabel.REPEATED) {
-      ci.use("java.util.List");
+      TypeRef.of("java.util.List").collect(ci);
       return "List<" + elementComponentType(f, ci) + ">";
     }
     // M4-C2d-12: WKT fields → native Java type from WellKnownTypes (e.g. Timestamp→Instant,
     // Int32Value→Integer). Singular WKT fields are @Nullable (presence-tracked; null = unset).
     var wkt = WellKnownTypes.resolve(f.typeUrl());
     if (wkt != null) {
-      return ci.use(Objects.requireNonNull(wkt.javaType()));
+      TypeRef wktRef = TypeRef.of(Objects.requireNonNull(wkt.javaType()));
+      wktRef.collect(ci);
+      return wktRef.render(ci.resolutionContext());
     }
     // M4-C2d-2: singular MESSAGE/ENUM → the resolved short type name.
     // Singular message fields are presence-tracked, so they're @Nullable in the record;
@@ -235,7 +237,11 @@ public final class RecordSourceMapping {
     switch (f.kind()) {
       case MESSAGE:
       case ENUM:
-        return ci.use(javaSimpleName(f.typeUrl()));
+        {
+          TypeRef sibRef = TypeRef.of(javaSimpleName(f.typeUrl()));
+          sibRef.collect(ci);
+          return sibRef.render(ci.resolutionContext());
+        }
       default:
         break;
     }
@@ -288,12 +294,16 @@ public final class RecordSourceMapping {
     // M4-C2d-12: WKT elements use the native Java type.
     var wkt = WellKnownTypes.resolve(f.typeUrl());
     if (wkt != null) {
-      return ci.use(Objects.requireNonNull(wkt.javaType()));
+      TypeRef wktElemRef = TypeRef.of(Objects.requireNonNull(wkt.javaType()));
+      wktElemRef.collect(ci);
+      return wktElemRef.render(ci.resolutionContext());
     }
-    return switch (f.kind()) {
-      case MESSAGE, ENUM -> ci.use(javaSimpleName(f.typeUrl()));
-      default -> boxedScalarComponent(f.typeUrl());
-    };
+    if (f.kind() == FieldKind.MESSAGE || f.kind() == FieldKind.ENUM) {
+      TypeRef sibElemRef = TypeRef.of(javaSimpleName(f.typeUrl()));
+      sibElemRef.collect(ci);
+      return sibElemRef.render(ci.resolutionContext());
+    }
+    return boxedScalarComponent(f.typeUrl());
   }
 
   /**
@@ -346,9 +356,13 @@ public final class RecordSourceMapping {
       // reference (resolved via the type resolver).
       String valType;
       if (member.isMessage()) {
-        valType = ci.use(javaSimpleName(member.typeUrl()));
+        TypeRef msgRef = TypeRef.of(javaSimpleName(member.typeUrl()));
+        msgRef.collect(ci);
+        valType = msgRef.render(ci.resolutionContext());
       } else if (member.kind() == FieldKind.ENUM) {
-        valType = ci.use(javaSimpleName(member.typeUrl()));
+        TypeRef enumRef = TypeRef.of(javaSimpleName(member.typeUrl()));
+        enumRef.collect(ci);
+        valType = enumRef.render(ci.resolutionContext());
       } else {
         valType = boxedScalarType(member.typeUrl());
       }
@@ -430,8 +444,8 @@ public final class RecordSourceMapping {
     // resolves field types (the builder's copy-constructor and fresh defaults may use
     // new ArrayList / new HashMap).
     for (Field f : m.fields()) {
-      if (f.label() == FieldLabel.REPEATED) ci.use("java.util.ArrayList");
-      if (f.kind() == FieldKind.MAP) ci.use("java.util.HashMap");
+      if (f.label() == FieldLabel.REPEATED) TypeRef.of("java.util.ArrayList").collect(ci);
+      if (f.kind() == FieldKind.MAP) TypeRef.of("java.util.HashMap").collect(ci);
     }
     for (Field f : m.fields()) {
       String fieldDefault = defaultFor(f);
@@ -452,7 +466,9 @@ public final class RecordSourceMapping {
               .build());
     }
     // Carrier storage field with default empty().
-    String ufShort = ci.use(ufFqn);
+    TypeRef ufRef = TypeRef.of(ufFqn);
+    ufRef.collect(ci);
+    String ufShort = ufRef.render(ci.resolutionContext());
     builderClz.field(
         Component.named(ufShort, "unknownFields")
             .initializer(ufShort + ".empty()")

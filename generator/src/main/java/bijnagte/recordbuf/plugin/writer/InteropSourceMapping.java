@@ -315,7 +315,15 @@ public final class InteropSourceMapping {
       return "_b.set" + cap + "(" + refEnum + ".forNumber(" + src + ".getNumber()));";
     }
     if ("bytes".equals(f.typeUrl())) {
-      return "_b.set" + cap + "(" + ci.use(BYTE_STRING) + ".copyFrom(" + src + ".toByteArray()));";
+      TypeRef bytesRef = TypeRef.of(BYTE_STRING);
+      bytesRef.collect(ci);
+      return "_b.set"
+          + cap
+          + "("
+          + bytesRef.render(ci.resolutionContext())
+          + ".copyFrom("
+          + src
+          + ".toByteArray()));";
     }
     if (f.isNullable()) {
       return "if (" + src + " != null) _b.set" + cap + "(" + src + ");";
@@ -420,15 +428,22 @@ public final class InteropSourceMapping {
   }
 
   private static String mapKeyTo(Field f, TypeCollector ci) {
-    return "bytes".equals(f.mapKey())
-        ? ci.use(BYTE_STRING) + ".copyFrom(_e.getKey())"
-        : "_e.getKey()";
+    if ("bytes".equals(f.mapKey())) {
+      TypeRef bytesRef = TypeRef.of(BYTE_STRING);
+      bytesRef.collect(ci);
+      return bytesRef.render(ci.resolutionContext()) + ".copyFrom(_e.getKey())";
+    }
+    return "_e.getKey()";
   }
 
   private static String mapValueTo(Field f, TypeCollector ci) {
     String t = f.mapValue();
     if (t == null) return "_e.getValue()";
-    if ("bytes".equals(t)) return ci.use(BYTE_STRING) + ".copyFrom(_e.getValue())";
+    if ("bytes".equals(t)) {
+      TypeRef bytesRef = TypeRef.of(BYTE_STRING);
+      bytesRef.collect(ci);
+      return bytesRef.render(ci.resolutionContext()) + ".copyFrom(_e.getValue())";
+    }
     return "_e.getValue()";
   }
 }
