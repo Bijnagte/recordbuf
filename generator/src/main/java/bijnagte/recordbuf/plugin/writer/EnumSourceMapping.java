@@ -6,6 +6,7 @@ import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Method;
+import bijnagte.recordbuf.codegen.source.RawExpr;
 import bijnagte.recordbuf.codegen.source.StaticBlock;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.codegen.source.TypeRef;
@@ -75,25 +76,24 @@ public final class EnumSourceMapping {
 
     // 3. The reverse-lookup cluster — U5: BY_NUMBER field type and initializers are TypeRefs.
     //    Collected in the collect phase; resolved collision-aware at render time.
-    TypeRef selfRef = TypeRef.of(declaringPkg + "." + name);
+    TypeRef selfRef = TypeRef.named(declaringPkg, name);
     List<TypeRef> mapGenerics = List.of(TypeRef.of("java.lang.Integer"), selfRef);
     TypeRef mapType = TypeRef.named("java.util", "Map", mapGenerics);
     // The initializer still needs a string for Component.initializer(String);
-    // TypeRef.collect handles the import; .render gives the short string.
+    // TypeRef.collect handles the import; the RawExpr @0 resolves to the short name at render.
     TypeRef hashMapRef = TypeRef.of("java.util.HashMap");
     hashMapRef.collect(ci);
-    String hashMapShort = hashMapRef.render(ci.resolutionContext());
     result.field(
         Component.type(mapType, "BY_NUMBER")
             .private_()
             .static_()
             .final_()
-            .initializer("new " + hashMapShort + "<>()")
+            .initializer(RawExpr.of("new @0<>()", hashMapRef).render(ci.resolutionContext()))
             .build());
 
     List<Element> init = new ArrayList<>();
     for (bijnagte.recordbuf.plugin.model.Enum.EnumConstant c : proto.constants()) {
-      init.add(Element.expr("BY_NUMBER.put(" + c.number() + ", " + c.name() + ")"));
+      init.add(Element.expr("BY_NUMBER.put(@0, @1)", c.number(), c.name()));
     }
     result.staticBlock(new StaticBlock(init));
 
