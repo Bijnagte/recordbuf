@@ -131,7 +131,7 @@ public final class InteropSourceMapping {
                 RawExpr.of("var _" + f.javaName() + " = new @0<>()", TypeRef.of(HASH_MAP))));
         out.add(
             For.enhanced("var _e", "x.get" + cap + "Map().entrySet()")
-                .body(Element.of("_" + f.javaName() + ".put(" + keyExpr + ", " + valExpr + ");"))
+                .body(Element.expr("_@0.put(@1, @2)", f.javaName(), keyExpr, valExpr))
                 .build());
       }
       return;
@@ -176,12 +176,12 @@ public final class InteropSourceMapping {
                 RawExpr.of("var _" + f.javaName() + " = new @0<>()", TypeRef.of(ARRAY_LIST))));
         out.add(
             For.enhanced("var _e", "x.get" + cap + "List()")
-                .body(Element.of("_" + f.javaName() + ".add(_e.toByteArray());"))
+                .body(Element.expr("_@0.add(_e.toByteArray())", f.javaName()))
                 .build());
       } else {
         // For non-bytes repeated fields, use the protobuf-java list directly;
         // var infers the correct element type from x.getList().
-        out.add(Element.of("var _" + f.javaName() + " = x.get" + cap + "List();"));
+        out.add(Element.expr("var _@0 = x.get@1List()", f.javaName(), cap));
       }
       return;
     }
@@ -216,7 +216,7 @@ public final class InteropSourceMapping {
 
   private static Method emitTo(Message m, TypeCollector ci, String refPkg, String ref, String rec) {
     List<Element> body = new ArrayList<>();
-    body.add(Element.of("var _b = " + ref + ".newBuilder();"));
+    body.add(Element.expr("var _b = @0.newBuilder()", ref));
     for (Field f : m.fields()) {
       toStmt(body, f, ci, refPkg);
     }
@@ -262,7 +262,7 @@ public final class InteropSourceMapping {
           If.condition("@0 != null", src)
               .body(
                   Element.expr("var @0 = @1", local, src),
-                  Element.of("_b.set" + cap + "(" + recSib + ".Interop.to(" + local + "));"))
+                  Element.expr("_b.set@0(@1.Interop.to(@2))", cap, recSib, local))
               .build());
       return;
     }
@@ -289,7 +289,7 @@ public final class InteropSourceMapping {
           refPkg.isEmpty()
               ? JavaNames.cap(lastSegment(f.typeUrl()))
               : refPkg + "." + JavaNames.cap(lastSegment(f.typeUrl()));
-      return Element.of("_b.set" + cap + "(" + refEnum + ".forNumber(" + src + ".getNumber()));");
+      return Element.expr("_b.set@0(@1.forNumber(@2.getNumber()))", cap, refEnum, src);
     }
     if ("bytes".equals(f.typeUrl())) {
       return Element.expr(
@@ -299,7 +299,7 @@ public final class InteropSourceMapping {
     }
     if (f.isNullable()) {
       return If.condition("@0 != null", src)
-          .body(Element.of("_b.set" + cap + "(" + src + ");"))
+          .body(Element.expr("_b.set@0(@1)", cap, src))
           .build();
     }
     return Element.expr("_b.set@0(@1)", cap, src);

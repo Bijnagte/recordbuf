@@ -306,7 +306,7 @@ public final class CodecSourceMapping {
     // M4-C2b-2b-12: oneof components: pass the oneof local (assigned in the tag loop, or null).
     for (var oneof : m.oneofs()) allNames.add(oneof.componentName());
     allNames.add("unknown.build()");
-    body.add(Element.of("return new " + m.name() + "(" + joinCommas(allNames) + ");"));
+    body.add(Element.expr("return new @0(@1)", m.name(), joinCommas(allNames)));
 
     return Method.named("decode")
         .public_()

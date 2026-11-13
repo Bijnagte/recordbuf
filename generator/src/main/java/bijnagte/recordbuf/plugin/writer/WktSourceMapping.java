@@ -80,7 +80,7 @@ final class WktSourceMapping {
         body.add(
             For.enhanced("var e", g)
                 .body(
-                    If.condition("!e.equals(" + def + ")")
+                    If.condition("!e.equals(@0)", def)
                         .body(Element.expr(outExpr + "@0." + methodName + "(e));", wktRef))
                         .build())
                 .build());
@@ -99,13 +99,13 @@ final class WktSourceMapping {
       // Wkt.method(v.field()));
       String call = outExpr + "@0." + methodName + "(" + g + "))";
       body.add(
-          If.condition(g + " != null && !" + def + ".equals(" + g + ")")
+          If.condition("@0 != null && !@1.equals(@0)", g, def)
               .body(Element.expr(call, wktRef))
               .build());
     } else {
       // if (v.field() != null) out.writeByteArray(n, Wkt.wrap(Wkt.Wrap.KIND, v.field()));
       String call = outExpr + "@0.wrap(@0.Wrap." + wrapKind(f.typeUrl()) + ", " + g + "));";
-      body.add(If.condition(g + " != null").body(Element.expr(call, wktRef)).build());
+      body.add(If.condition("@0 != null", g).body(Element.expr(call, wktRef)).build());
     }
   }
 
