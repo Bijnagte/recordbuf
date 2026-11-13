@@ -119,14 +119,14 @@ public final class InteropSourceMapping {
         out.add(
             Element.expr(
                 RawExpr.of(
-                    "var _" + f.javaName() + " = new %d<>(x.get" + cap + "Map())",
+                    "var _" + f.javaName() + " = new @0<>(x.get" + cap + "Map())",
                     TypeRef.of(HASH_MAP))));
       } else {
         String keyExpr = mapKeyFrom(f);
         String valExpr = mapValueFrom(f, ci);
         out.add(
             Element.expr(
-                RawExpr.of("var _" + f.javaName() + " = new %d<>()", TypeRef.of(HASH_MAP))));
+                RawExpr.of("var _" + f.javaName() + " = new @0<>()", TypeRef.of(HASH_MAP))));
         out.add(
             For.enhanced("var _e", "x.get" + cap + "Map().entrySet()")
                 .body(Element.of("_" + f.javaName() + ".put(" + keyExpr + ", " + valExpr + ");"))
@@ -139,7 +139,7 @@ public final class InteropSourceMapping {
       out.add(
           Element.expr(
               RawExpr.of(
-                  "%d<" + recSib + "> _" + f.javaName() + " = new %d<>()",
+                  "@0<" + recSib + "> _" + f.javaName() + " = new @1<>()",
                   TypeRef.of(LIST),
                   TypeRef.of(ARRAY_LIST))));
       out.add(
@@ -171,7 +171,7 @@ public final class InteropSourceMapping {
       if ("bytes".equals(f.typeUrl())) {
         out.add(
             Element.expr(
-                RawExpr.of("var _" + f.javaName() + " = new %d<>()", TypeRef.of(ARRAY_LIST))));
+                RawExpr.of("var _" + f.javaName() + " = new @0<>()", TypeRef.of(ARRAY_LIST))));
         out.add(
             For.enhanced("var _e", "x.get" + cap + "List()")
                 .body(Element.of("_" + f.javaName() + ".add(_e.toByteArray());"))
@@ -188,7 +188,7 @@ public final class InteropSourceMapping {
       out.add(
           Element.expr(
               RawExpr.of(
-                  "var _" + f.javaName() + " = %d.of(" + fromExpr(f) + ")",
+                  "var _" + f.javaName() + " = @0.of(" + fromExpr(f) + ")",
                   TypeRef.of(RT + ".Bytes"))));
     } else if (f.isNullable()) {
       out.add(
@@ -270,7 +270,7 @@ public final class InteropSourceMapping {
             For.enhanced("byte[] _e", "r." + f.javaName() + "()")
                 .body(
                     Element.expr(
-                        RawExpr.of("_b.add" + cap + "(%d.copyFrom(_e))", TypeRef.of(BYTE_STRING))))
+                        RawExpr.of("_b.add" + cap + "(@0.copyFrom(_e))", TypeRef.of(BYTE_STRING))))
                 .build());
       } else {
         out.add(Element.of("_b.addAll" + cap + "(r." + f.javaName() + "());"));
@@ -292,7 +292,7 @@ public final class InteropSourceMapping {
     if ("bytes".equals(f.typeUrl())) {
       return Element.expr(
           RawExpr.of(
-              "_b.set" + cap + "(%d.copyFrom(" + src + ".toByteArray()))",
+              "_b.set" + cap + "(@0.copyFrom(" + src + ".toByteArray()))",
               TypeRef.of(BYTE_STRING)));
     }
     if (f.isNullable()) {
