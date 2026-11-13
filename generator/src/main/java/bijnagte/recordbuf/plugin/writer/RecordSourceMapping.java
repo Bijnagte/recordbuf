@@ -256,7 +256,11 @@ public final class RecordSourceMapping {
       case "double" -> "double";
       case "bool" -> "boolean";
       case "string" -> "String";
-      case "bytes" -> ci.use(RT + ".Bytes");
+      case "bytes" -> {
+        TypeRef bytesRef = TypeRef.of(RT + ".Bytes");
+        bytesRef.collect(ci);
+        yield bytesRef.render(ci.resolutionContext());
+      }
       default ->
           throw new UnsupportedOperationException(
               "scalar " + f.typeUrl() + " component type is not in the M4-C2b-1 subset");
@@ -322,9 +326,9 @@ public final class RecordSourceMapping {
    * members), the {@code default Object value()} method, and the nested per-member records.
    *
    * <p>{@code permitsFqns} are <em>pre-resolved relative references</em> — the renderer emits them
-   * verbatim (no {@code ci.use()} call), because nested type qualifiers like {@code
+   * verbatim (no type-collection call), because nested type qualifiers like {@code
    * Choice.NameValue} are not import-eligible. Message member permits are resolved via {@code
-   * ci.use(typeUrl)} to get their short name.
+   * TypeRef.of(typeUrl).collect(ci) + .render(ctx)} to get their short name.
    */
   private static void emitOneof(Type.Record.Builder record, Oneof oneof, TypeCollector ci) {
     String ifaceName = oneof.ifaceName();

@@ -9,6 +9,7 @@ import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.Switch;
 import bijnagte.recordbuf.codegen.source.Type;
+import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.codegen.source.While;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
@@ -59,15 +60,28 @@ public final class CodecSourceMapping {
       Message m, TypeCollector ci, @Nullable Function<Field, String> typeResolver) {
     // Pre-resolve all runtime FQN references to short forms so the codec body uses imported
     // short names, not fully-qualified names (satisfying the UnnecessarilyFullyQualified check).
-    String encoderShort = ci.use(RT + ".Encoder");
-    String decoderShort = ci.use(RT + ".Decoder");
-    String unknownFieldsShort = ci.use(RT + ".UnknownFields");
-    String codecDefaultsShort = ci.use(RT + ".CodecDefaults");
-    String wireShort = ci.use(RT + ".Wire");
-    String bytesShort = ci.use(RT + ".Bytes");
+    // Tree-walker-aware: collect(ci) registers each FQN; resolve() gives the collision-aware short.
+    TypeRef encoderRef = TypeRef.of(RT + ".Encoder");
+    encoderRef.collect(ci);
+    String encoderShort = encoderRef.render(ci.resolutionContext());
+    TypeRef decoderRef = TypeRef.of(RT + ".Decoder");
+    decoderRef.collect(ci);
+    String decoderShort = decoderRef.render(ci.resolutionContext());
+    TypeRef unknownFieldsRef = TypeRef.of(RT + ".UnknownFields");
+    unknownFieldsRef.collect(ci);
+    String unknownFieldsShort = unknownFieldsRef.render(ci.resolutionContext());
+    TypeRef codecDefaultsRef = TypeRef.of(RT + ".CodecDefaults");
+    codecDefaultsRef.collect(ci);
+    String codecDefaultsShort = codecDefaultsRef.render(ci.resolutionContext());
+    TypeRef wireRef = TypeRef.of(RT + ".Wire");
+    wireRef.collect(ci);
+    String wireShort = wireRef.render(ci.resolutionContext());
+    TypeRef bytesRef = TypeRef.of(RT + ".Bytes");
+    bytesRef.collect(ci);
+    String bytesShort = bytesRef.render(ci.resolutionContext());
     // M4-C2d-7: map fields need java.util.HashMap; repeated fields need java.util.ArrayList.
-    ci.use("java.util.HashMap");
-    ci.use("java.util.ArrayList");
+    TypeRef.of("java.util.HashMap").collect(ci);
+    TypeRef.of("java.util.ArrayList").collect(ci);
     String codecName = m.name() + "Codec"; // M4-C2b-2b-8: align with old SampleCodec naming
     Type.Class.Builder result =
         Type.Class.named(codecName)
@@ -686,12 +700,22 @@ public final class CodecSourceMapping {
    */
   @SuppressWarnings("java:S905")
   public static Type.Class emitEntryCodec(String entryName, Field f, TypeCollector ci) {
-    String encoderShort = ci.use(RT + ".Encoder");
-    String decoderShort = ci.use(RT + ".Decoder");
-    String unknownFieldsShort = ci.use(RT + ".UnknownFields");
-    String codecDefaultsShort = ci.use(RT + ".CodecDefaults");
-    String wireShort = ci.use(RT + ".Wire");
-    ci.use(RT + ".Bytes");
+    TypeRef encoderRef2 = TypeRef.of(RT + ".Encoder");
+    encoderRef2.collect(ci);
+    String encoderShort = encoderRef2.render(ci.resolutionContext());
+    TypeRef decoderRef2 = TypeRef.of(RT + ".Decoder");
+    decoderRef2.collect(ci);
+    String decoderShort = decoderRef2.render(ci.resolutionContext());
+    TypeRef unknownFieldsRef2 = TypeRef.of(RT + ".UnknownFields");
+    unknownFieldsRef2.collect(ci);
+    String unknownFieldsShort = unknownFieldsRef2.render(ci.resolutionContext());
+    TypeRef codecDefaultsRef2 = TypeRef.of(RT + ".CodecDefaults");
+    codecDefaultsRef2.collect(ci);
+    String codecDefaultsShort = codecDefaultsRef2.render(ci.resolutionContext());
+    TypeRef wireRef2 = TypeRef.of(RT + ".Wire");
+    wireRef2.collect(ci);
+    String wireShort = wireRef2.render(ci.resolutionContext());
+    TypeRef.of(RT + ".Bytes").collect(ci);
 
     // M4-C2d-12: resolve key/value wire scalars from the Field's type URLs.
     WireScalar keyWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapKey()));
@@ -921,6 +945,8 @@ public final class CodecSourceMapping {
     }
     // Scalar or enum member: wrap the decoded value in the per-member record.
     if (f.kind() == FieldKind.ENUM) {
+      // Tree-walker deferred: ci.use(f.typeUrl()) is the interop fallback for when
+      // typeResolver is null. The tree-walker approach will handle this in a future unit.
       String enumShort = typeResolver != null ? typeResolver.apply(f) : ci.use(f.typeUrl());
       return "new " + recName + "(" + enumShort + ".forNumber(in.readEnum()))";
     }
@@ -930,7 +956,7 @@ public final class CodecSourceMapping {
     return switch (wire) {
       case STRING -> "new " + recName + "(in.readString())";
       case BYTES -> {
-        ci.use(RT + ".Bytes");
+        TypeRef.of(RT + ".Bytes").collect(ci);
         yield "new " + recName + "(Bytes.of(in.readBytes().toByteArray()))";
       }
       default -> "new " + recName + "(" + readCall + ")";
