@@ -40,7 +40,12 @@ public sealed interface Element
   }
 
   static ExprStatement expr(String e) {
-    return new ExprStatement(e);
+    return new ExprStatement(RawExpr.of(e));
+  }
+
+  /** Build an {@link ExprStatement} from a raw expression with {@link TypeRef} args. */
+  static ExprStatement expr(RawExpr rawExpr) {
+    return new ExprStatement(rawExpr);
   }
 
   static LocalVar local(String fqn, String name, String init) {

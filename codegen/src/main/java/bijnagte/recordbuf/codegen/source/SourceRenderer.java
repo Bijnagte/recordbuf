@@ -439,7 +439,7 @@ public final class SourceRenderer {
         case Return r ->
             out.append(r.expr() == null ? "return;" : "return " + r.expr() + ";").append('\n');
         case Throw t -> out.append("throw ").append(t.expr()).append(';').append('\n');
-        case ExprStatement e -> out.append(e.expr()).append(";\n");
+        case ExprStatement e -> out.append(e.expr().render(null)).append(";\n");
         case LocalVar lv ->
             out.append(ci.use(lv.type()))
                 .append(' ')

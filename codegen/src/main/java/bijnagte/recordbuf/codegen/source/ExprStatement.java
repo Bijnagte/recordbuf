@@ -1,7 +1,8 @@
 package bijnagte.recordbuf.codegen.source;
 
 /**
- * An expression element: {@code <expr>;}. {@code expr} is raw expression text the renderer emits
- * verbatim.
+ * An expression element: {@code <expr>;}. The expression is a {@link RawExpr} — today a raw string
+ * (args empty, rendered verbatim), but can also carry {@link TypeRef} positional args for Phase B
+ * tree-walk resolution.
  */
-public record ExprStatement(String expr) implements Element {}
+public record ExprStatement(RawExpr expr) implements Element {}
