@@ -52,6 +52,17 @@ public sealed interface TypeRef extends Formattable {
     return resolved(ctx.declaringPackage(), ctx.collidedShortNames());
   }
 
+  /**
+   * Mark this type as fully-qualified — it will never be imported; its short name is treated as
+   * collided at every reference site. Used for cross-compilation-unit reference types where a
+   * short-name import would shadow the generated record's own short name.
+   *
+   * @param collector the collector to register the FQN-only reference with
+   */
+  default void useFqn(bijnagte.recordbuf.codegen.TypeCollector collector) {
+    collector.useFqn(this);
+  }
+
   // --- factories ---------------------------------------------------------------
 
   /**

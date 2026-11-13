@@ -50,7 +50,7 @@ public final class InteropSourceMapping {
     String refType = JavaNames.cap(m.name());
     // Register the ref FQN-only so no import is generated (avoids collision with the record).
     String ref = refFqn(refPkg, refType);
-    ci.useFqn(TypeRef.of(ref));
+    TypeRef.of(ref).useFqn(ci);
     String rec = m.name();
 
     Javadoc javadoc =
@@ -98,7 +98,9 @@ public final class InteropSourceMapping {
     for (Oneof o : m.oneofs()) {
       body.add(Element.of("    _" + o.name() + ","));
     }
-    body.add(Element.of("    " + ci.use(RT + ".UnknownFields") + ".empty()"));
+    TypeRef ufRef = TypeRef.of(RT + ".UnknownFields");
+    ufRef.collect(ci);
+    body.add(Element.of("    " + ufRef.render(ci.resolutionContext()) + ".empty()"));
     body.add(Element.of("    );"));
 
     return Method.named("from")
