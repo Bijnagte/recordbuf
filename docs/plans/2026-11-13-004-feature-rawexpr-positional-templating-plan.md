@@ -7,7 +7,7 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: ce-brainstorm
 execution: code
-status: implementation-ready
+status: partially-complete
 ---
 
 ## Goal Capsule
