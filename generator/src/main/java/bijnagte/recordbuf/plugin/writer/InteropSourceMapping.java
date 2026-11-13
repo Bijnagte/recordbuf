@@ -231,9 +231,7 @@ public final class InteropSourceMapping {
     if (f.isMap()) {
       out.add(
           For.enhanced("var _e", "r.@0().entrySet()", f.javaName())
-              .body(
-                  Element.of(
-                      "_b.put" + cap + "(" + mapKeyTo(f, ci) + ", " + mapValueTo(f, ci) + ");"))
+              .body(Element.expr("_b.put@0(@1, @2)", cap, mapKeyTo(f, ci), mapValueTo(f, ci)))
               .build());
       return;
     }
@@ -295,34 +293,6 @@ public final class InteropSourceMapping {
     return Element.expr("_b.set@0(@1)", cap, src);
   }
 
-  private static String toSet(Field f, String src, TypeCollector ci, String refPkg) {
-    String cap = JavaNames.cap(f.javaName());
-    if (f.kind() == FieldKind.ENUM) {
-      String refEnum =
-          refPkg.isEmpty()
-              ? JavaNames.cap(lastSegment(f.typeUrl()))
-              : refPkg + "." + JavaNames.cap(lastSegment(f.typeUrl()));
-      return "_b.set" + cap + "(" + refEnum + ".forNumber(" + src + ".getNumber()));";
-    }
-    if ("bytes".equals(f.typeUrl())) {
-      TypeRef bytesRef = TypeRef.of(BYTE_STRING);
-      bytesRef.collect(ci);
-      return "_b.set"
-          + cap
-          + "("
-          + bytesRef.render(ci.resolutionContext())
-          + ".copyFrom("
-          + src
-          + ".toByteArray()));";
-    }
-    if (f.isNullable()) {
-      return "if (" + src + " != null) _b.set" + cap + "(" + src + ");";
-    }
-    return "_b.set" + cap + "(" + src + ");";
-  }
-
-  // -- oneof --------------------------------------------------------------------
-
   private static void emitOneofFrom(List<Element> out, Oneof o, TypeCollector ci) {
     String iface = o.ifaceName();
     out.add(
@@ -376,7 +346,7 @@ public final class InteropSourceMapping {
         String recSib = recordSiblingFqn(f);
         sw.caseArm(pattern, Element.expr("_b.set@0(@1.Interop.to(v.value()))", cap, recSib));
       } else {
-        sw.caseArm(pattern, Element.of(toSet(f, "v.value()", ci, refPkg)));
+        sw.caseArm(pattern, toSetStatement(f, "v.value()", ci, refPkg));
       }
     }
     out.add(sw.build());
