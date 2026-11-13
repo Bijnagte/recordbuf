@@ -491,7 +491,15 @@ public final class SourceRenderer {
         case Return r ->
             out.append(r.expr() == null ? "return;" : "return " + r.expr() + ";").append('\n');
         case Throw t -> out.append("throw ").append(t.expr()).append(';').append('\n');
-        case ExprStatement e -> out.append(e.expr().render(ctx)).append(";\n");
+        case ExprStatement e -> {
+          String rendered = e.expr().render(ctx);
+          // Strip a trailing ';
+          // ' if the template already includes one, to avoid double-;; in arrow switch cases.
+          if (rendered.endsWith(";")) {
+            rendered = rendered.substring(0, rendered.length() - 1);
+          }
+          out.append(rendered).append(";\n");
+        }
         case LocalVar lv ->
             out.append(ci.use(lv.type()))
                 .append(' ')

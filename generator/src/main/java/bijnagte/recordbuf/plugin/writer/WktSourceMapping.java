@@ -70,7 +70,6 @@ final class WktSourceMapping {
     int num = f.number();
     String g = v + "." + f.javaName() + "()";
     String methodName = encodeMethod(f.typeUrl());
-    String outExpr = out + ".writeByteArray(" + num + ", ";
 
     if (f.label() == FieldLabel.REPEATED) {
       TypeRef.of("java.util.List").collect(ci);
@@ -130,54 +129,49 @@ final class WktSourceMapping {
 
   // decode case: "case N -> field = Wkt.parseName(in.readByteArray());"
   //             "case N -> field = (Short) Wkt.parse(Wkt.Wrap.KIND, in.readByteArray());"
-  static void emitDecodeCase(Field f, Entry entry, String in, String wkt, Switch.Builder sw) {
+  static void emitDecodeCase(Field f, Entry entry, String in, Switch.Builder sw, TypeCollector ci) {
     int num = f.number();
     String name = f.javaName();
     String read = in + ".readByteArray()";
+    TypeRef wktRef = TypeRef.of(WKT_FQN);
+    wktRef.collect(ci);
 
-    String assignment;
+    Element assignment;
     if (f.label() == FieldLabel.REPEATED) {
       if (entry.hasZeroDefault()) {
         // field.add(Wkt.parseName(in.readByteArray()));
-        assignment = name + ".add(" + wkt + "." + parseMethod(f.typeUrl()) + "(" + read + "));";
+        assignment =
+            Element.expr("@0.add(@1.@2(@3))", name, wktRef, parseMethod(f.typeUrl()), read);
       } else {
-        String javaShort = shortNameOf(requireType(entry));
+        TypeRef castRef = TypeRef.of(shortNameOf(requireType(entry)));
+        castRef.collect(ci);
         // field.add((Short) Wkt.parse(Wkt.Wrap.KIND, in.readByteArray()));
         assignment =
-            name
-                + ".add(("
-                + javaShort
-                + ") "
-                + wkt
-                + ".parse("
-                + wkt
-                + ".Wrap."
-                + wrapKind(f.typeUrl())
-                + ", "
-                + read
-                + "));";
+            Element.expr(
+                "@0.add((@3) @1.parse(@1.Wrap.@4, @2))",
+                name,
+                wktRef,
+                read,
+                castRef,
+                wrapKind(f.typeUrl()));
       }
     } else if (entry.hasZeroDefault()) {
       // field = Wkt.parseName(in.readByteArray());
-      assignment = name + " = " + wkt + "." + parseMethod(f.typeUrl()) + "(" + read + ");";
+      assignment = Element.expr("@0 = @1.@2(@3)", name, wktRef, parseMethod(f.typeUrl()), read);
     } else {
-      String javaShort = shortNameOf(requireType(entry));
+      TypeRef castRef = TypeRef.of(shortNameOf(requireType(entry)));
+      castRef.collect(ci);
       // field = (Short) Wkt.parse(Wkt.Wrap.KIND, in.readByteArray());
       assignment =
-          name
-              + " = ("
-              + javaShort
-              + ") "
-              + wkt
-              + ".parse("
-              + wkt
-              + ".Wrap."
-              + wrapKind(f.typeUrl())
-              + ", "
-              + read
-              + ");";
+          Element.expr(
+              "@0 = (@3) @1.parse(@1.Wrap.@4, @2)",
+              name,
+              wktRef,
+              read,
+              castRef,
+              wrapKind(f.typeUrl()));
     }
-    sw.caseArm(String.valueOf(num), Element.of(assignment));
+    sw.caseArm(String.valueOf(num), assignment);
   }
 
   private static String requireType(Entry entry) {

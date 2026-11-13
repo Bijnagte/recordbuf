@@ -270,7 +270,7 @@ public final class CodecSourceMapping {
       Entry wktEntry = WktSourceMapping.resolve(f);
       if (wktEntry != null) {
         var wkt0 = Objects.requireNonNull(wktEntry);
-        WktSourceMapping.emitDecodeCase(f, wkt0, "in", "Wkt", switchB);
+        WktSourceMapping.emitDecodeCase(f, wkt0, "in", switchB, ci);
       } else if (f.kind() == FieldKind.MAP) {
         emitMapDecodeCase(f, ci, switchB);
       } else if (f.kind() == FieldKind.MESSAGE) {
