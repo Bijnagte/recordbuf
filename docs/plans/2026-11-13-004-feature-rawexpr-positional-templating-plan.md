@@ -7,9 +7,9 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: ce-brainstorm
 execution: code
-status: partially-complete
-<!-- U1-U8 complete. U9/U10 next: dead-code sweep + end-to-end smoke test.
-     One ci.use(f.typeUrl()) interop fallback is tree-walker-deferred (CodecSourceMapping). -->
+status: complete
+<!-- U1-U10 complete. The positional-templating refactor is fully done; all ci.use sites migrated
+     except the one interop ci.use(f.typeUrl()) in CodecSourceMapping (tree-walker deferred). -->
 ---
 
 ## Goal Capsule
