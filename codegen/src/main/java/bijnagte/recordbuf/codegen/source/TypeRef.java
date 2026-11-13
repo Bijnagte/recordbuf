@@ -22,7 +22,7 @@ import java.util.Set;
  * suffix). At a type position {@link #resolved(String, Set) resolved} returns the form that should
  * be emitted at that site — short (when uncollided) or fully-qualified (when collided).
  */
-public sealed interface TypeRef {
+public sealed interface TypeRef extends Formattable {
 
   /** The bare fully-qualified name, with no generic suffix (for {@code import} lines). */
   String fqn();
@@ -41,6 +41,16 @@ public sealed interface TypeRef {
    * @return the resolved name to emit at this position
    */
   String resolved(String declaringPackage, Set<String> collidedShortNames);
+
+  /**
+   * Default render — delegates to {@link #resolved(String, Set)} unpacked via {@link
+   * ResolutionContext}. Override in a variant only if it needs different render behavior from its
+   * resolution form.
+   */
+  @Override
+  default String render(ResolutionContext ctx) {
+    return resolved(ctx.declaringPackage(), ctx.collidedShortNames());
+  }
 
   // --- factories ---------------------------------------------------------------
 
@@ -189,6 +199,12 @@ public sealed interface TypeRef {
       return sb.toString();
     }
 
+    @Override
+    public void collect(bijnagte.recordbuf.codegen.TypeCollector collector) {
+      if (pkg.isEmpty()) return; // bare name: no import
+      collector.register(this);
+    }
+
     /** A fully-qualified reference with no generics. */
     public Named withTypeArgs(TypeRef... args) {
       return new Named(pkg, shortName, List.of(args));
@@ -230,6 +246,11 @@ public sealed interface TypeRef {
     public String resolved(String declaringPackage, Set<String> collidedShortNames) {
       return keyword;
     }
+
+    @Override
+    public void collect(bijnagte.recordbuf.codegen.TypeCollector collector) {
+      // Primitives have no package — no import needed.
+    }
   }
 
   /**
@@ -254,6 +275,11 @@ public sealed interface TypeRef {
     @Override
     public String resolved(String declaringPackage, Set<String> collidedShortNames) {
       return element.resolved(declaringPackage, collidedShortNames) + "[]";
+    }
+
+    @Override
+    public void collect(bijnagte.recordbuf.codegen.TypeCollector collector) {
+      element().collect(collector);
     }
   }
 }
