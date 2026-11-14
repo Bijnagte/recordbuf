@@ -139,9 +139,6 @@ public final class RecordSourceMapping {
     // M4-C2b-2b-5: always-on unknown-field carrier: the record's last component.
     // The import is registered by the collect() phase via component.type().
     String ufFqn = TypeRefs.UNKNOWN_FIELDS.fqn();
-    // M4-C2d-3: register java.util.ArrayList for the codec's repeated-local-init lines,
-    // and java.util.List for the record's repeated-field components.
-    TypeRefs.ARRAY_LIST.collect(ci);
     result.component(Component.named(ufFqn, "unknownFields").build());
 
     // M4-C2b-2b-6: the fluent builder. Emitted after the carrier and after the codec (a forward
@@ -250,10 +247,7 @@ public final class RecordSourceMapping {
       case "double" -> TypeRef.Primitive.DOUBLE;
       case "bool" -> TypeRef.Primitive.BOOLEAN;
       case "string" -> TypeRef.STRING;
-      case "bytes" -> {
-        TypeRef bytesRef = TypeRefs.BYTES;
-        yield bytesRef;
-      }
+      case "bytes" -> TypeRefs.BYTES;
       default ->
           throw new UnsupportedOperationException(
               "scalar " + f.typeUrl() + " component type is not in the M4-C2b-1 subset");
@@ -413,18 +407,10 @@ public final class RecordSourceMapping {
             .final_();
 
     // Storage fields with codec defaults for each component field.
-    // Register container imports up-front so the TypeCollector has them when the render pass
-    // resolves field types (the builder's copy-constructor and fresh defaults may use
-    // new ArrayList / new HashMap).
     for (Field f : m.fields()) {
-      if (f.label() == FieldLabel.REPEATED) TypeRefs.ARRAY_LIST.collect(ci);
-      if (f.kind() == FieldKind.MAP) TypeRefs.HASH_MAP.collect(ci);
-    }
-    for (Field f : m.fields()) {
-      String fieldDefault = defaultFor(f);
       var comp =
           Component.type(scalarComponentType(f), f.javaName())
-              .initializer(RawExpr.of(fieldDefault))
+              .initializer(defaultFor(f))
               .private_();
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       builderClz.field(comp.build());
@@ -456,9 +442,9 @@ public final class RecordSourceMapping {
     for (Field f : m.fields()) {
       String fn = f.javaName();
       if (f.label() == FieldLabel.REPEATED) {
-        copyBody.add(Element.expr("this.@0 = new ArrayList<>(x.@1())", fn, fn));
+        copyBody.add(Element.expr("this.@0 = new @2<>(x.@1())", fn, fn, TypeRefs.ARRAY_LIST));
       } else if (f.kind() == FieldKind.MAP) {
-        copyBody.add(Element.expr("this.@0 = new HashMap<>(x.@1())", fn, fn));
+        copyBody.add(Element.expr("this.@0 = new @2<>(x.@1())", fn, fn, TypeRefs.HASH_MAP));
       } else {
         copyBody.add(Element.expr("this.@0 = x.@1()", fn, fn));
       }
@@ -554,40 +540,40 @@ public final class RecordSourceMapping {
    * The default initializer for a builder's storage field: "" for String, 0 for numeric, null for
    * others.
    */
-  private static String defaultFor(Field f) {
+  private static RawExpr defaultFor(Field f) {
     var wkt = WellKnownTypes.resolve(f.typeUrl());
     if (wkt != null) {
-      if (f.label() == FieldLabel.REPEATED) return "new ArrayList<>()";
+      if (f.label() == FieldLabel.REPEATED) return RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST);
       var z = wkt.zeroDefault();
-      if (z != null) return z;
-      return "null";
+      if (z != null) return RawExpr.of("@0", z);
+      return RawExpr.of("null");
     }
     if (f.isNullable()) {
       // M4-C2d-1: optional scalar → null default, not a boxed 0.
-      return "null";
+      return RawExpr.of("null");
     }
     // Singular MESSAGE/ENUM components are @Nullable in the record (presence-tracked; see
     // scalarComponentType), so their builder-storage default is null -- not the boxed 0 the
     // typeUrl switch below would emit (which would not even compile against a reference type).
     if ((f.kind() == FieldKind.MESSAGE || f.kind() == FieldKind.ENUM)
         && f.label() != FieldLabel.REPEATED) {
-      return "null";
+      return RawExpr.of("null");
     }
     if (f.label() == FieldLabel.REPEATED) {
       // Mutable default: callers get a fresh ArrayList, never an immutable List.of().
-      return "new ArrayList<>()";
+      return RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST);
     }
     // M4-C2b-2b-13: map field → empty mutable map default.
     if (f.kind() == FieldKind.MAP) {
-      return "new HashMap<>()";
+      return RawExpr.of("new @0<>()", TypeRefs.HASH_MAP);
     }
     return switch (f.typeUrl()) {
-      case "string" -> "\"\"";
-      case "bytes" -> "Bytes.empty()";
-      case "bool" -> "false";
-      case "float" -> "0.0f";
-      case "double" -> "0.0";
-      default -> "0";
+      case "string" -> RawExpr.of("\"\"");
+      case "bytes" -> RawExpr.of("@0.empty()", TypeRefs.BYTES);
+      case "bool" -> RawExpr.of("false");
+      case "float" -> RawExpr.of("0.0f");
+      case "double" -> RawExpr.of("0.0");
+      default -> RawExpr.of("0");
     };
   }
 

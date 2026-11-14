@@ -8,6 +8,7 @@ import bijnagte.recordbuf.codegen.source.For;
 import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Method;
+import bijnagte.recordbuf.codegen.source.RawExpr;
 import bijnagte.recordbuf.codegen.source.Switch;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.codegen.source.TypeRef;
@@ -818,7 +819,7 @@ public final class CodecSourceMapping {
    * The right-hand side of a oneof member's decode assignment: the per-member wrapper record's
    * constructor call carrying the decoded value.
    */
-  private static String oneofDecodeRhs(
+  private static RawExpr oneofDecodeRhs(
       Oneof o, Field f, TypeCollector ci, @Nullable Function<Field, String> typeResolver) {
     String iface = o.ifaceName();
     String recName = iface + "." + JavaNames.cap(f.name()) + "Value";
@@ -826,7 +827,7 @@ public final class CodecSourceMapping {
       String elem = f.typeUrl();
       String type = elem.substring(elem.lastIndexOf('.') + 1);
       String codecRef = type + "." + type + "Codec";
-      return "new " + recName + "(" + codecRef + ".decode(in.readByteArray()))";
+      return RawExpr.of("new @0(@1.decode(in.readByteArray()))", recName, codecRef);
     }
     // Scalar or enum member: wrap the decoded value in the per-member record.
     if (f.kind() == FieldKind.ENUM) {
@@ -835,18 +836,15 @@ public final class CodecSourceMapping {
       // string-based ci.use(String) used to cover is now resolved by the tree-walker).
       String enumShort =
           typeResolver != null ? typeResolver.apply(f) : ci.use(TypeRef.of(f.typeUrl()));
-      return "new " + recName + "(" + enumShort + ".forNumber(in.readEnum()))";
+      return RawExpr.of("new @0(@1.forNumber(in.readEnum()))", recName, enumShort);
     }
     // Scalar member.
     WireScalar wire = wireScalar(f);
     String readCall = decodeCall(wire);
     return switch (wire) {
-      case STRING -> "new " + recName + "(in.readString())";
-      case BYTES -> {
-        BYTES.collect(ci);
-        yield "new " + recName + "(Bytes.of(in.readBytes().toByteArray()))";
-      }
-      default -> "new " + recName + "(" + readCall + ")";
+      case STRING -> RawExpr.of("new @0(in.readString())", recName);
+      case BYTES -> RawExpr.of("new @0(@1.of(in.readBytes().toByteArray()))", recName, BYTES);
+      default -> RawExpr.of("new @0(@1)", recName, readCall);
     };
   }
 
