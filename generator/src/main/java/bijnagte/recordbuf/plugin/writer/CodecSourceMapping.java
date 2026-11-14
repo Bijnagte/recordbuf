@@ -251,9 +251,9 @@ public final class CodecSourceMapping {
         String localType = TypeRef.boxedFor(f.typeUrl()).render(ci.resolutionContext());
         body.add(Element.expr("@0 @1 = null;", localType, f.javaName()));
       } else {
-        String localType = decodeLocalType(f);
+        TypeRef localTypeRef = decodeLocalType(f);
         String defaultExpr = codecDefaultsShort + "." + defaultMethod(f) + "()";
-        body.add(Element.expr("@0 @1 = @2", localType, f.javaName(), defaultExpr));
+        body.add(Element.expr("@0 @1 = @2", localTypeRef, f.javaName(), defaultExpr));
       }
     }
 
@@ -529,17 +529,17 @@ public final class CodecSourceMapping {
    * type matches the record component type; for {@code Bytes}, the local is the {@code
    * bijnagte.recordbuf.runtime.Bytes} wrapper type.
    */
-  private static String decodeLocalType(Field f) {
-    if (f.kind() != FieldKind.SCALAR) return "Object";
+  private static TypeRef decodeLocalType(Field f) {
+    if (f.kind() != FieldKind.SCALAR) return TypeRef.OBJECT;
     return switch (wireScalar(f)) {
-      case STRING -> "String";
-      case BYTES -> "Bytes";
-      case INT32, UINT32, SINT_32, FIXED32 -> "int";
-      case INT64, UINT64, SINT_64, FIXED64 -> "long";
-      case FLOAT -> "float";
-      case DOUBLE -> "double";
-      case BOOL -> "boolean";
-      default -> "Object";
+      case STRING -> TypeRef.STRING;
+      case BYTES -> BYTES;
+      case INT32, UINT32, SINT_32, FIXED32 -> TypeRef.Primitive.INT;
+      case INT64, UINT64, SINT_64, FIXED64 -> TypeRef.Primitive.LONG;
+      case FLOAT -> TypeRef.Primitive.FLOAT;
+      case DOUBLE -> TypeRef.Primitive.DOUBLE;
+      case BOOL -> TypeRef.Primitive.BOOLEAN;
+      default -> TypeRef.OBJECT;
     };
   }
 
