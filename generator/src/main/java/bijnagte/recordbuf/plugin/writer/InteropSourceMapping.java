@@ -1,15 +1,18 @@
 package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
+import bijnagte.recordbuf.codegen.source.Annotation;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.For;
-import bijnagte.recordbuf.codegen.source.Fragment;
+import bijnagte.recordbuf.codegen.source.Formattable;
 import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.Javadoc;
+import bijnagte.recordbuf.codegen.source.LocalVar;
 import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.RawExpr;
 import bijnagte.recordbuf.codegen.source.Switch;
+import bijnagte.recordbuf.codegen.source.SwitchExpr;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Field;
@@ -98,7 +101,7 @@ public final class InteropSourceMapping {
       body.addAll(fromLocal(f, ci));
     }
     for (Oneof o : m.oneofs()) {
-      body.addAll(emitOneofFrom(o));
+      body.add(emitOneofFrom(o));
     }
 
     List<String> ctorArgs = new ArrayList<>();
@@ -195,15 +198,15 @@ public final class InteropSourceMapping {
     return out;
   }
 
-  private static String fromExpr(Field f) {
+  private static Formattable fromExpr(Field f) {
     String cap = JavaNames.cap(f.javaName());
     if (f.kind() == FieldKind.ENUM) {
-      return recordSiblingFqn(f) + ".forNumber(x.get" + cap + "().getNumber())";
+      return RawExpr.of("@0.forNumber(x.get@1().getNumber())", recordSiblingFqn(f), cap);
     }
     if ("bytes".equals(f.typeUrl())) {
-      return "x.get" + cap + "().toByteArray()";
+      return RawExpr.of("x.get@0().toByteArray()", cap);
     }
-    return "x.get" + cap + "()";
+    return RawExpr.of("x.get@0()", cap);
   }
 
   // -- to(record) -> reference --------------------------------------------------
@@ -293,32 +296,22 @@ public final class InteropSourceMapping {
     return Element.expr("_b.set@0(@1)", cap, src);
   }
 
-  private static List<Element> emitOneofFrom(Oneof o) {
-    List<Element> out = new ArrayList<>();
-    out.add(Fragment.of("@Nullable @0 _@1 = switch (x.get@0Case()) {", o.ifaceName(), o.name()));
+  private static Element emitOneofFrom(Oneof o) {
+    var sw = SwitchExpr.on("x.get@0Case()", o.ifaceName());
     for (Field f : o.members()) {
-      out.add(oneofValueCase(o, f));
+      String cap = JavaNames.cap(f.name());
+      Formattable inner =
+          f.isMessage()
+              ? RawExpr.of("@0.Interop.from(x.get@1())", recordSiblingFqn(f), cap)
+              : fromExpr(f);
+      sw.caseArm(
+          JavaNames.snakeUpper(f.name()),
+          RawExpr.of("new @0.@1Value(@2)", o.ifaceName(), cap, inner));
     }
-    out.add(Element.of("  default -> null;"));
-    out.add(Element.of("};"));
-    return out;
-  }
-
-  /**
-   * Build one {@code case <NAME> -> new <Iface>.<Cap>Value(<arg>);} arm of the {@code from()} oneof
-   * switch expression. A message member wraps {@code <RecSibling>.Interop.from(x.get<Cap>())};
-   * every scalar/enum member passes {@link #fromExpr(Field)} directly.
-   */
-  private static Element oneofValueCase(Oneof o, Field f) {
-    String cap = JavaNames.cap(f.name());
-    String inner =
-        f.isMessage() ? recordSiblingFqn(f) + ".Interop.from(x.get" + cap + "())" : fromExpr(f);
-    return Element.expr(
-        "  case @0 -> new @1.@2Value(@3)",
-        JavaNames.snakeUpper(f.name()),
-        o.ifaceName(),
-        cap,
-        inner);
+    sw.defaultArm(RawExpr.of("null"));
+    return LocalVar.builder(TypeRef.of(o.ifaceName()), "_" + o.name())
+        .annotation(Annotation.NULLABLE)
+        .build(sw.build());
   }
 
   private static List<Element> emitOneofTo(Oneof o, TypeCollector ci, String refPkg) {

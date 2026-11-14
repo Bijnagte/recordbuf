@@ -82,5 +82,16 @@ public record LocalVar(List<Annotation> annotations, TypeRef type, String name, 
     public LocalVar build(String initTemplate, Object... initArgs) {
       return new LocalVar(List.copyOf(annotations), type, name, RawExpr.of(initTemplate, initArgs));
     }
+
+    /**
+     * Build with a pre-built {@link Formattable} initializer. Use this when the initializer is a
+     * composite node (e.g. a {@link SwitchExpr}) rather than a {@code @N}-templated string.
+     *
+     * @param init the initializer expression
+     * @return a {@link LocalVar} with the initializer set
+     */
+    public LocalVar build(Formattable init) {
+      return new LocalVar(List.copyOf(annotations), type, name, init);
+    }
   }
 }

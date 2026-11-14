@@ -500,12 +500,7 @@ public final class SourceRenderer {
           }
           out.append(rendered).append(";\n");
         }
-        case LocalVar lv ->
-            out.append(ci.use(lv.type()))
-                .append(' ')
-                .append(lv.name())
-                .append(lv.init() == null ? ";" : " = " + lv.init().render(ctx) + ";")
-                .append('\n');
+        case LocalVar lv -> renderLocalVar(lv, out, ctx);
         case Comment c -> out.append("// ").append(c.text()).append('\n');
         case If i -> renderIf(i, out, ctx);
         case While w -> renderWhile(w, out, ctx);
@@ -606,6 +601,22 @@ public final class SourceRenderer {
         for (Element s : body) renderStatement(s, out);
         out.append('}').append('\n');
       }
+    }
+
+    /**
+     * Render a {@link LocalVar}: annotations (if any), then {@code <type> <name>[ = <init>];} on
+     * one line.
+     */
+    private void renderLocalVar(LocalVar lv, StringBuilder out, ResolutionContext ctx) {
+      // For local variables, annotations are inline (same line as the type), unlike class members.
+      for (Annotation a : lv.annotations()) {
+        out.append('@').append(ci.use(a.type())).append(' ');
+      }
+      out.append(ci.use(lv.type()))
+          .append(' ')
+          .append(lv.name())
+          .append(lv.init() == null ? ";" : " = " + lv.init().render(ctx) + ";")
+          .append('\n');
     }
 
     /**
