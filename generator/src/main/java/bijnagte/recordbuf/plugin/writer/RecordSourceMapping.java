@@ -181,11 +181,15 @@ public final class RecordSourceMapping {
     Type.Class codec = CodecSourceMapping.toCodec(m, ci, typeResolver);
     result.nested(codec);
 
-    // M4-C2e: Layer B interop — nested Interop class when recordbuf.protobuf_java is set.
-    // useFqn is used for the protobuf-java ref type to avoid a short-name import that
-    // would collide with the record's own name in the same compilation unit.
+    // M4-C2e: Layer B interop — nested Interop class when recordbuf.protobuf_java is set. The
+    // protobuf-java ref type is emitted fully-qualified by the TypeCollector's collision policy, so
+    // its short name never collides with the record's own name in the same compilation unit.
     if (m.protobufJava() != null && !m.protobufJava().isEmpty()) {
-      result.nested(InteropSourceMapping.toInterop(m, ci, ""));
+      // Declare the record's own FQN so its short name occupies the declaring package; the
+      // TypeCollector then FQN's any out-of-package type sharing the name (the protobuf-java
+      // reference type of this same message), so the ref and the record never collide.
+      TypeRef.of(ci.declaringPackage() + "." + m.name()).collect(ci);
+      result.nested(InteropSourceMapping.toInterop(m, ""));
     }
 
     // Build the implements list: user-declared interfaces first, then ProtobufMessage

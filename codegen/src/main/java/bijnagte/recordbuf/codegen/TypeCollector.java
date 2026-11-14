@@ -64,41 +64,6 @@ public final class TypeCollector {
   }
 
   /**
-   * Records a fully-qualified type reference that should ALWAYS be emitted in fully-qualified form
-   * (never imported, even when the short name is unique).
-   *
-   * <p>This is for reference types in a different compilation unit where a short-name import would
-   * create a shadowing conflict, e.g. the protobuf-java reference type of a {@code
-   * recordbuf.protobuf_java}-opted message. Returns the FQN as-is.
-   *
-   * @deprecated internal bridge for {@link
-   *     bijnagte.recordbuf.codegen.source.TypeRef#useFqn(TypeCollector)}; callers should use {@code
-   *     TypeRef.of(fqn).useFqn(ci)} instead.
-   */
-  @Deprecated
-  public String useFqn(String fqn) {
-    int lastDot = fqn.lastIndexOf('.');
-    if (lastDot < 0) return fqn; // prime number / bare name
-    String shortName = fqn.substring(lastDot + 1);
-    // Mark the short name as collided so no import is ever emitted for it.
-    collidedShortNames.add(shortName);
-    return fqn;
-  }
-
-  /**
-   * {@link #useFqn(String)} overload for a {@link bijnagte.recordbuf.codegen.source.TypeRef}. The
-   * base FQN is extracted via {@link bijnagte.recordbuf.codegen.source.TypeRef#fqn()} and marked as
-   * collided (no import emitted for its short name).
-   *
-   * @deprecated internal bridge for {@code TypeRef.useFqn(ci)}; callers should use {@code
-   *     TypeRef.of(fqn).useFqn(ci)} instead.
-   */
-  @Deprecated
-  public void useFqn(bijnagte.recordbuf.codegen.source.TypeRef ref) {
-    useFqn(ref.fqn());
-  }
-
-  /**
    * Marks the referral set complete; after this {@link #use(TypeRef)} returns collision-aware
    * names.
    */
@@ -133,8 +98,10 @@ public final class TypeCollector {
     } else {
       registerType(n.pkg() + "." + n.shortName()); // register for import / collision tracking
       base = n.shortName();
-      if (frozen && collidedShortNames.contains(base)) {
-        base = n.fqn(); // collided: emit the full qualified form
+      // A collided short name is emitted fully-qualified for the out-of-package type; an in-package
+      // type occupies the short name in the declaring package and stays short.
+      if (frozen && collidedShortNames.contains(base) && !n.pkg().equals(declaringPackage)) {
+        base = n.fqn(); // collided out-of-package: emit the full qualified form
       }
     }
     return base + genericsOf(n);
@@ -150,15 +117,22 @@ public final class TypeCollector {
     int lastDot = fullyQualified.lastIndexOf('.');
     if (lastDot < 0) return; // bare name -- skip
     String owner = fullyQualified.substring(0, lastDot);
-    if (owner.equals("java.lang") || owner.equals(declaringPackage)) {
-      return; // in-package or java.lang: short, never imported
+    if (owner.equals("java.lang")) {
+      return; // java.lang: short, never imported, and never a collision source
     }
-    importEligible.add(fullyQualified);
     String shortName = fullyQualified.substring(lastDot + 1);
+    // Track every non-java.lang short name for collision detection, including in-package types: an
+    // in-package type's short name can collide with an out-of-package type that shares it (e.g. the
+    // protobuf-java reference type of a recordbuf message), and that collision must be detected so
+    // the out-of-package type is emitted fully-qualified.
     LinkedHashSet<String> seen = byShortName.computeIfAbsent(shortName, k -> new LinkedHashSet<>());
     seen.add(fullyQualified);
     if (seen.size() > 1) {
       collidedShortNames.add(shortName);
+    }
+    // Only out-of-package types contribute an import line; in-package types stay short.
+    if (!owner.equals(declaringPackage)) {
+      importEligible.add(fullyQualified);
     }
   }
 

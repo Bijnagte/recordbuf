@@ -28,8 +28,8 @@ import java.util.List;
  * Maps a {@code recordbuf.protobuf_java}-opted {@link Message} into a nested {@link Type.Class}
  * {@code Interop} node for the source AST.
  *
- * <p>Protobuf-java reference types are emitted in fully-qualified form (via {@link
- * TypeCollector#useFqn}) so the ref's short name never collides with the record's own name.
+ * <p>Protobuf-java reference types are emitted in fully-qualified form by the {@link TypeCollector}
+ * collision policy, so the ref's short name never collides with the record's own name.
  */
 public final class InteropSourceMapping {
 
@@ -40,19 +40,18 @@ public final class InteropSourceMapping {
    * its protobuf-java reference type.
    *
    * @param m the message model (must have {@code protobufJava()} non-null/non-empty)
-   * @param ci the shared TypeCollector for this record's source file
    * @param sourceName the source {@code .proto} file name (used in the Javadoc)
    * @return the nested {@code Interop} {@link Type.Class} node
    */
-  public static Type.Class toInterop(Message m, TypeCollector ci, String sourceName) {
+  public static Type.Class toInterop(Message m, String sourceName) {
     String refPkg = m.protobufJava();
     if (refPkg == null || refPkg.isEmpty()) {
       throw new IllegalArgumentException("toInterop: protobufJava must be non-null/non-empty");
     }
     String refType = JavaNames.cap(m.name());
-    // Register the ref FQN-only so no import is generated (avoids collision with the record).
+    // The ref is used below as TypeRef.of(ref); the TypeCollector's collision policy emits it
+    // fully-qualified, since its short name collides with the record's own name.
     String ref = refFqn(refPkg, refType);
-    TypeRef.of(ref).useFqn(ci);
     String rec = m.name();
 
     Javadoc javadoc =

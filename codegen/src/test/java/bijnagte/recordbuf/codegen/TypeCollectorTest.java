@@ -61,6 +61,20 @@ class TypeCollectorTest {
   }
 
   @Test
+  void inPackageCollisionFqnsOutOfPackageOnly() {
+    TypeCollector ci = new TypeCollector(PKG);
+    // An in-package type and an out-of-package type share the short name "Sub": the in-package
+    // type occupies the short name, so only the out-of-package type is emitted fully-qualified.
+    ci.use(TypeRef.of(PKG + ".Sub"));
+    ci.use(TypeRef.of("com.example.other.Sub"));
+    ci.finalizeResolution();
+    assertEquals("Sub", ci.use(TypeRef.of(PKG + ".Sub")));
+    assertEquals("com.example.other.Sub", ci.use(TypeRef.of("com.example.other.Sub")));
+    // No import for the in-package type; the out-of-package type is FQN'd, so neither is imported.
+    assertEquals(List.of(), ci.importLines());
+  }
+
+  @Test
   void importLinesAreGroupedJavaFirstThenOther() {
     TypeCollector ci = new TypeCollector(PKG);
     ci.use(TypeRef.of("bijnagte.recordbuf.runtime.Encoder"));
