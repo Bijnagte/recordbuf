@@ -103,8 +103,20 @@ waiting on it.
   The 3-tier policy's tier-3 (shortest-package-name tie-break) is a no-op for the current fixtures (no
   genuine multi-way out-of-package collision), so it is not yet exercised; a fixture to lock it remains a
   deferred follow-up.
-- **Next:** retire the remaining `@Deprecated` `TypeCollector` bridge methods (`use`/`register`) once
-  nothing but the renderer's walk calls them — or begin the full tree-walker (003 U6).
+- **U2 (B1 — `ci.use` oneof fallback): DONE.** The last `ci.use(TypeRef.of(…))` call — the
+  `oneofDecodeRhs` enum branch's `typeResolver == null` fallback — is eliminated. The oneof enum member
+  now resolves to its **record FQN** (`ci.declaringPackage() + "." + shortName`) as a `TypeRef`
+  positional, so the tree-walker registers it in-package (short, no import) instead of the natural
+  protobuf-java reference FQN (out-of-package, which would force a redundant `import`). The
+  `typeResolver` param is dropped from the oneof helpers (`emitOneofDecodeCase`/`oneofDecodeRhs`); it
+  stays on the non-oneof enum/message decode. This also fixes a latent bug where the nested-message
+  recursion's `typeResolver` returned `null` for an enum oneof member (now irrelevant — the oneof path
+  uses `ci.declaringPackage()`). Byte-identical; full build green. Per the user, the full `Type`/
+  `TypeRef` integration (giving `Type` a package + a `ref()` method) is deferred; this uses the minimal
+  "add the record package to the type" form.
+- **Next:** with the last `ci.use` gone, the remaining `@Deprecated` `TypeCollector` bridge methods
+  (`use`/`register`) can be retired once nothing but the renderer's walk calls them — or begin the full
+  tree-walker (003 U6).
 
 ## Approach
 
@@ -208,14 +220,15 @@ is promoted to U2/U3 (it was not actually reachable).
   `CodecSourceMappingTest` — only `RecordSourceMappingTest`, `AvroConverterSourceMappingTest`, and
   `EnumSourceMappingTest` exist, with the fixtures exercising the rest.)
 
-### U2 — Category B: short-name splices
+### U2 — Category B: short-name splices — **B1 (`ci.use` oneof fallback) DONE; rest pending**
 
 Swap each `String xShort = X.render(ctx)` passed as a `RawExpr`/`Element.expr` arg to the `TypeRef X`; delete the
 `xShort` local and the `X.collect(ci)`. Primary target `CodecSourceMapping` (`ENCODER`/`DECODER`/
 `UNKNOWN_FIELDS`/`CODEC_DEFAULTS`/`WIRE`/`BYTES` at L71–82, L634–644, L870). Resolve the **typeResolver
-fallback** (`L861`): route both the `typeResolver` and the `ci.use` branch through a `TypeRef`-bearing
-`RawExpr` arg (sub-decision: make `typeResolver` yield a `TypeRef`, or keep it and only eliminate the
-`ci.use` branch — choose the one that keeps output byte-stable with least churn).
+fallback** (`L861`): **DONE** — the oneof enum member resolves to its record FQN
+(`ci.declaringPackage() + "." + shortName`) as a `TypeRef` positional, so the walk registers it
+in-package (short, no import) rather than the natural reference FQN; the `typeResolver` is dropped from
+the oneof helpers (kept on the non-oneof enum/message decode). The rest of Category B remains.
 
 - **Do:** arg-swap + delete; settle the `typeResolver` sub-decision to keep the enum/codec-ref path byte-stable.
 - **Verify:** `./gradlew build` green; codec fixture + `RecordSourceMappingTest` byte-identical.

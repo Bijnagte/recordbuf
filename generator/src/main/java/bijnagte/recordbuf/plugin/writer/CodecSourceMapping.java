@@ -252,7 +252,7 @@ public final class CodecSourceMapping {
     }
     // Oneof decode cases: each member contributes a case that assigns the oneof local.
     for (Oneof o : m.oneofs()) {
-      switchB.caseArm(emitOneofDecodeCase(o, ci, typeResolver));
+      switchB.caseArm(emitOneofDecodeCase(o, ci));
     }
     // M4-C2b-2b-5: the default case captures the unknown field into the builder.
     switchB.defaultBody(Element.of("unknown.add(in, tag);"));
@@ -800,15 +800,13 @@ public final class CodecSourceMapping {
    * assigns the oneof's shared local. A message member decodes via its nested codec; a scalar/enum
    * member decodes via the wire read primitive and wraps in the per-member record.
    */
-  private static List<Case> emitOneofDecodeCase(
-      Oneof o, TypeCollector ci, @Nullable Function<Field, String> typeResolver) {
+  private static List<Case> emitOneofDecodeCase(Oneof o, TypeCollector ci) {
     String cmp = o.componentName();
     List<Case> arms = new ArrayList<>();
     for (Field f : o.members()) {
       arms.add(
           Case.of(
-              String.valueOf(f.number()),
-              Element.expr("@0 = @1", cmp, oneofDecodeRhs(o, f, ci, typeResolver))));
+              String.valueOf(f.number()), Element.expr("@0 = @1", cmp, oneofDecodeRhs(o, f, ci))));
     }
     return arms;
   }
@@ -817,8 +815,7 @@ public final class CodecSourceMapping {
    * The right-hand side of a oneof member's decode assignment: the per-member wrapper record's
    * constructor call carrying the decoded value.
    */
-  private static RawExpr oneofDecodeRhs(
-      Oneof o, Field f, TypeCollector ci, @Nullable Function<Field, String> typeResolver) {
+  private static RawExpr oneofDecodeRhs(Oneof o, Field f, TypeCollector ci) {
     String iface = o.ifaceName();
     String recName = iface + "." + JavaNames.cap(f.name()) + "Value";
     if (f.isMessage()) {
@@ -829,12 +826,13 @@ public final class CodecSourceMapping {
     }
     // Scalar or enum member: wrap the decoded value in the per-member record.
     if (f.kind() == FieldKind.ENUM) {
-      // The enum short name when a typeResolver is wired; otherwise the FQN's resolved short
-      // name via the structured TypeRef path (the interop-fallback branch that the original
-      // string-based ci.use(String) used to cover is now resolved by the tree-walker).
-      String enumShort =
-          typeResolver != null ? typeResolver.apply(f) : ci.use(TypeRef.of(f.typeUrl()));
-      return RawExpr.of("new @0(@1.forNumber(in.readEnum()))", recName, enumShort);
+      // The enum's RECORD fqn (record package + short name), so the reference resolves to the
+      // in-package record enum (short), not the natural protobuf-java reference FQN. As a TypeRef
+      // positional, the tree-walker resolves + registers it -- no ci.use pre-resolution.
+      int dot = f.typeUrl().lastIndexOf('.');
+      String shortName = dot < 0 ? f.typeUrl() : f.typeUrl().substring(dot + 1);
+      String recordFqn = ci.declaringPackage() + "." + shortName;
+      return RawExpr.of("new @0(@1.forNumber(in.readEnum()))", recName, TypeRef.of(recordFqn));
     }
     // Scalar member.
     WireScalar wire = wireScalar(f);
