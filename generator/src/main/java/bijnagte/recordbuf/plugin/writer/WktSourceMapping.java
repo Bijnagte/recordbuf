@@ -24,8 +24,6 @@ import org.jspecify.annotations.Nullable;
  */
 final class WktSourceMapping {
 
-  private static final String WKT_FQN = "bijnagte.recordbuf.runtime.wkt.Wkt";
-
   private WktSourceMapping() {}
 
   static @Nullable Entry resolve(Field f) {
@@ -46,8 +44,7 @@ final class WktSourceMapping {
     if (f.label() == FieldLabel.REPEATED) {
       TypeRef namedList =
           TypeRef.named("java.util", "List", List.of(TypeRef.of(requireType(entry))));
-      return LocalVar.builder(namedList, name)
-          .build("new @0<>()", TypeRef.of("java.util.ArrayList"));
+      return LocalVar.builder(namedList, name).build("new @0<>()", TypeRefs.ARRAY_LIST);
     }
     if (entry.hasZeroDefault()) {
       return LocalVar.builder(type, name).build(entry.zeroDefault());
@@ -63,15 +60,12 @@ final class WktSourceMapping {
   //            repeated form:      "for (var e : v.field()) out.writeByteArray(n, Wkt.method(e));"
 
   static Element emitEncode(Field f, Entry entry, String out, String v, TypeCollector ci) {
-    TypeRef wktRef = TypeRef.of(WKT_FQN);
-    wktRef.collect(ci);
-    TypeRef.of(requireType(entry)).collect(ci);
+    TypeRef wktRef = TypeRefs.WKT;
     int num = f.number();
     String g = v + "." + f.javaName() + "()";
     String methodName = encodeMethod(f.typeUrl());
 
     if (f.label() == FieldLabel.REPEATED) {
-      TypeRef.of("java.util.List").collect(ci);
       if (entry.hasZeroDefault()) {
         String def = Objects.requireNonNull(entry.zeroDefault());
         // for (var e : v.field()) { if (!e.equals(def)) out.writeByteArray(n, Wkt.method(e)); }
@@ -126,8 +120,7 @@ final class WktSourceMapping {
     int num = f.number();
     String name = f.javaName();
     String read = in + ".readByteArray()";
-    TypeRef wktRef = TypeRef.of(WKT_FQN);
-    wktRef.collect(ci);
+    TypeRef wktRef = TypeRefs.WKT;
 
     Element assignment;
     if (f.label() == FieldLabel.REPEATED) {
@@ -137,7 +130,6 @@ final class WktSourceMapping {
             Element.expr("@0.add(@1.@2(@3))", name, wktRef, parseMethod(f.typeUrl()), read);
       } else {
         TypeRef castRef = TypeRef.of(shortNameOf(requireType(entry)));
-        castRef.collect(ci);
         // field.add((Short) Wkt.parse(Wkt.Wrap.KIND, in.readByteArray()));
         assignment =
             Element.expr(
@@ -153,7 +145,6 @@ final class WktSourceMapping {
       assignment = Element.expr("@0 = @1.@2(@3)", name, wktRef, parseMethod(f.typeUrl()), read);
     } else {
       TypeRef castRef = TypeRef.of(shortNameOf(requireType(entry)));
-      castRef.collect(ci);
       // field = (Short) Wkt.parse(Wkt.Wrap.KIND, in.readByteArray());
       assignment =
           Element.expr(

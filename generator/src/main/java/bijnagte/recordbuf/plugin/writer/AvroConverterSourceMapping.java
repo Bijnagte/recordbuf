@@ -70,17 +70,17 @@ public final class AvroConverterSourceMapping {
     boolean hasWkt =
         message.fields().stream().anyMatch(f -> AvroSchemaGenerator.typeUrlIfWkt(f) != null);
     if (hasWkt) {
-      TypeRef.of("bijnagte.recordbuf.avro.WktAvroBridge").collect(ci);
+      TypeRefs.WKT_AVRO_BRIDGE.collect(ci);
     }
     boolean hasByteField =
         message.fields().stream()
             .anyMatch(f -> f.kind() == FieldKind.SCALAR && "bytes".equals(f.typeUrl()));
     if (hasByteField) {
-      TypeRef.of("bijnagte.recordbuf.runtime.Bytes").collect(ci);
-      TypeRef.of("java.nio.ByteBuffer").collect(ci);
-      TypeRef.of("java.util.Arrays").collect(ci);
+      TypeRefs.BYTES.collect(ci);
+      TypeRefs.BYTE_BUFFER.collect(ci);
+      TypeRefs.ARRAYS.collect(ci);
     }
-    TypeRef.of("bijnagte.recordbuf.runtime.UnknownFields").collect(ci);
+    TypeRefs.UNKNOWN_FIELDS.collect(ci);
 
     // --- class AST ---
     Constructor privateCtor = Constructor.builder().private_().body().build();

@@ -81,9 +81,9 @@ public final class EnumSourceMapping {
     // 3. The reverse-lookup cluster — U5: BY_NUMBER field type and initializers are TypeRefs.
     //    Collected in the collect phase; resolved collision-aware at render time.
     TypeRef selfRef = TypeRef.named(declaringPkg, name);
-    List<TypeRef> mapGenerics = List.of(TypeRef.of("java.lang.Integer"), selfRef);
+    List<TypeRef> mapGenerics = List.of(TypeRef.INTEGER, selfRef);
     TypeRef mapType = TypeRef.named("java.util", "Map", mapGenerics);
-    TypeRef hashMapRef = TypeRef.of("java.util.HashMap");
+    TypeRef hashMapRef = TypeRefs.HASH_MAP;
     result.field(
         Component.type(mapType, "BY_NUMBER")
             .private_()

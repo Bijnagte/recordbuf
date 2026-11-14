@@ -36,14 +36,12 @@ import org.jspecify.annotations.Nullable;
  */
 public final class CodecSourceMapping {
 
-  private static final String RT = "bijnagte.recordbuf.runtime";
-
-  private static final TypeRef ENCODER = TypeRef.of(RT + ".Encoder");
-  private static final TypeRef DECODER = TypeRef.of(RT + ".Decoder");
-  private static final TypeRef UNKNOWN_FIELDS = TypeRef.of(RT + ".UnknownFields");
-  private static final TypeRef CODEC_DEFAULTS = TypeRef.of(RT + ".CodecDefaults");
-  private static final TypeRef WIRE = TypeRef.of(RT + ".Wire");
-  private static final TypeRef BYTES = TypeRef.of(RT + ".Bytes");
+  private static final TypeRef ENCODER = TypeRefs.ENCODER;
+  private static final TypeRef DECODER = TypeRefs.DECODER;
+  private static final TypeRef UNKNOWN_FIELDS = TypeRefs.UNKNOWN_FIELDS;
+  private static final TypeRef CODEC_DEFAULTS = TypeRefs.CODEC_DEFAULTS;
+  private static final TypeRef WIRE = TypeRefs.WIRE;
+  private static final TypeRef BYTES = TypeRefs.BYTES;
 
   private CodecSourceMapping() {}
 
@@ -78,8 +76,8 @@ public final class CodecSourceMapping {
     String codecDefaultsShort = CODEC_DEFAULTS.render(ci.resolutionContext());
     WIRE.collect(ci);
     String wireShort = WIRE.render(ci.resolutionContext());
-    TypeRef.of("java.util.HashMap").collect(ci);
-    TypeRef.of("java.util.ArrayList").collect(ci);
+    TypeRefs.HASH_MAP.collect(ci);
+    TypeRefs.ARRAY_LIST.collect(ci);
     String codecName = m.name() + "Codec"; // M4-C2b-2b-8: align with old SampleCodec naming
     Type.Class.Builder result =
         Type.Class.named(codecName)

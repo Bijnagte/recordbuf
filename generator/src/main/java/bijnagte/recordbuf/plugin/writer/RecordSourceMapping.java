@@ -43,8 +43,6 @@ import org.jspecify.annotations.Nullable;
  */
 public final class RecordSourceMapping {
 
-  private static final String RT = "bijnagte.recordbuf.runtime";
-
   private RecordSourceMapping() {}
 
   /**
@@ -63,7 +61,7 @@ public final class RecordSourceMapping {
     // the
     // component's type + javaName; a record's components render in its header via components().
     for (Field f : m.fields()) {
-      var comp = Component.type(scalarComponentType(f, ci), f.javaName());
+      var comp = Component.type(scalarComponentType(f), f.javaName());
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       result.component(comp.build());
     }
@@ -75,7 +73,7 @@ public final class RecordSourceMapping {
     // M4-C2b-2b-12: oneof groups. Each contributes one @Nullable record component and
     // one nested sealed interface (the per-member value records live inside it).
     for (Oneof oneof : m.oneofs()) {
-      OneofEmission oe = emitOneof(oneof, ci);
+      OneofEmission oe = emitOneof(oneof);
       result.component(oe.component());
       result.nested(oe.iface());
     }
@@ -108,7 +106,7 @@ public final class RecordSourceMapping {
             .javadoc(Javadoc.builder().text(m.comment()).build())
             .deprecated(m.deprecated());
     for (Field f : m.fields()) {
-      var comp = Component.type(scalarComponentType(f, ci), f.javaName());
+      var comp = Component.type(scalarComponentType(f), f.javaName());
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       result.component(comp.build());
     }
@@ -126,7 +124,7 @@ public final class RecordSourceMapping {
     }
     // M4-C2b-2b-12: oneof groups.
     for (Oneof oneof : m.oneofs()) {
-      OneofEmission oe = emitOneof(oneof, ci);
+      OneofEmission oe = emitOneof(oneof);
       result.component(oe.component());
       result.nested(oe.iface());
     }
@@ -140,10 +138,10 @@ public final class RecordSourceMapping {
 
     // M4-C2b-2b-5: always-on unknown-field carrier: the record's last component.
     // The import is registered by the collect() phase via component.type().
-    String ufFqn = RT + ".UnknownFields";
+    String ufFqn = TypeRefs.UNKNOWN_FIELDS.fqn();
     // M4-C2d-3: register java.util.ArrayList for the codec's repeated-local-init lines,
     // and java.util.List for the record's repeated-field components.
-    TypeRef.of("java.util.ArrayList").collect(ci);
+    TypeRefs.ARRAY_LIST.collect(ci);
     result.component(Component.named(ufFqn, "unknownFields").build());
 
     // M4-C2b-2b-6: the fluent builder. Emitted after the carrier and after the codec (a forward
@@ -197,7 +195,7 @@ public final class RecordSourceMapping {
     // (matches the old JavaWriter ordering: option interfaces precede the runtime marker).
     List<String> implementsList = new ArrayList<>();
     implementsList.addAll(m.interfaces());
-    implementsList.add(RT + ".ProtobufMessage");
+    implementsList.add(TypeRefs.PROTOBUF_MESSAGE.fqn());
     result.implementsFqns(implementsList);
 
     return result.build();
@@ -209,7 +207,7 @@ public final class RecordSourceMapping {
    * scalars resolve to their Java primitive or boxed type. The {@link TypeCollector} collects
    * cross-package type references so the render pass can emit correct imports.
    */
-  private static TypeRef scalarComponentType(Field f, TypeCollector ci) {
+  private static TypeRef scalarComponentType(Field f) {
     // M4-C2b-2b-13: map<K, V> field. Key + value are proto scalar type URLs;
     // each is rendered as its boxed Java type (primitives get boxed inside Map<>).
     // Must run BEFORE the REPEATED label check (maps use REPEATED but are not Lists).
@@ -220,13 +218,11 @@ public final class RecordSourceMapping {
               "Map",
               TypeRef.boxedFor(Objects.requireNonNull(f.mapKey())),
               TypeRef.boxedFor(Objects.requireNonNull(f.mapValue())));
-      mapRef.collect(ci);
       return mapRef;
     }
     // M4-C2d-2: repeated MESSAGE/ENUM → List<ElementType>, element resolved per kind.
     if (f.label() == FieldLabel.REPEATED) {
-      var listRef = TypeRef.named("java.util", "List", elementComponentType(f, ci));
-      listRef.collect(ci);
+      var listRef = TypeRef.named("java.util", "List", elementComponentType(f));
       return listRef;
     }
     // M4-C2d-12: WKT fields → native Java type from WellKnownTypes (e.g. Timestamp→Instant,
@@ -234,7 +230,6 @@ public final class RecordSourceMapping {
     var wkt = WellKnownTypes.resolve(f.typeUrl());
     if (wkt != null) {
       TypeRef wktRef = TypeRef.of(Objects.requireNonNull(wkt.javaType()));
-      wktRef.collect(ci);
       return wktRef;
     }
     // M4-C2d-2: singular MESSAGE/ENUM → the resolved short type name.
@@ -242,7 +237,6 @@ public final class RecordSourceMapping {
     // the builder copy constructor and codec must null-guard accordingly.
     if (f.kind() == FieldKind.MESSAGE || f.kind() == FieldKind.ENUM) {
       TypeRef sibRef = TypeRef.of(javaSimpleName(f.typeUrl()));
-      sibRef.collect(ci);
       return sibRef;
     }
     // M4-C2d-1: optional scalar → @Nullable boxed wrapper.
@@ -257,8 +251,7 @@ public final class RecordSourceMapping {
       case "bool" -> TypeRef.Primitive.BOOLEAN;
       case "string" -> TypeRef.STRING;
       case "bytes" -> {
-        TypeRef bytesRef = TypeRef.of(RT + ".Bytes");
-        bytesRef.collect(ci);
+        TypeRef bytesRef = TypeRefs.BYTES;
         yield bytesRef;
       }
       default ->
@@ -290,17 +283,15 @@ public final class RecordSourceMapping {
   }
 
   /** The inner element type of a {@code repeated X} field, resolved per {@link FieldKind}. */
-  private static TypeRef elementComponentType(Field f, TypeCollector ci) {
+  private static TypeRef elementComponentType(Field f) {
     // M4-C2d-12: WKT elements use the native Java type.
     var wkt = WellKnownTypes.resolve(f.typeUrl());
     if (wkt != null) {
       TypeRef wktElemRef = TypeRef.of(Objects.requireNonNull(wkt.javaType()));
-      wktElemRef.collect(ci);
       return wktElemRef;
     }
     if (f.kind() == FieldKind.MESSAGE || f.kind() == FieldKind.ENUM) {
       TypeRef sibElemRef = TypeRef.of(javaSimpleName(f.typeUrl()));
-      sibElemRef.collect(ci);
       return sibElemRef;
     }
     return TypeRef.boxedFor(f.typeUrl());
@@ -326,7 +317,7 @@ public final class RecordSourceMapping {
    * Choice.NameValue} are not import-eligible. Message member permits are resolved via {@code
    * TypeRef.of(typeUrl).collect(ci) + .render(ctx)} to get their short name.
    */
-  private static OneofEmission emitOneof(Oneof oneof, TypeCollector ci) {
+  private static OneofEmission emitOneof(Oneof oneof) {
     String ifaceName = oneof.ifaceName();
     String componentName = oneof.componentName();
 
@@ -337,7 +328,7 @@ public final class RecordSourceMapping {
 
     // 2. Build the sealed interface: extends clause + permits + per-member records + default
     // value().
-    String unwrapFqn = RT + ".Unwrapable";
+    String unwrapFqn = TypeRefs.UNWRAPABLE.fqn();
     // The extendsFqn carries the full FQN; the collect() phase registers it via
     // TypeRef.collect(ci).
     Type.Interface.Builder iface =
@@ -358,10 +349,8 @@ public final class RecordSourceMapping {
       TypeRef valType;
       if (member.isMessage()) {
         valType = TypeRef.of(javaSimpleName(member.typeUrl()));
-        valType.collect(ci);
       } else if (member.kind() == FieldKind.ENUM) {
         valType = TypeRef.of(javaSimpleName(member.typeUrl()));
-        valType.collect(ci);
       } else {
         valType = TypeRef.boxedFor(member.typeUrl());
       }
@@ -428,13 +417,13 @@ public final class RecordSourceMapping {
     // resolves field types (the builder's copy-constructor and fresh defaults may use
     // new ArrayList / new HashMap).
     for (Field f : m.fields()) {
-      if (f.label() == FieldLabel.REPEATED) TypeRef.of("java.util.ArrayList").collect(ci);
-      if (f.kind() == FieldKind.MAP) TypeRef.of("java.util.HashMap").collect(ci);
+      if (f.label() == FieldLabel.REPEATED) TypeRefs.ARRAY_LIST.collect(ci);
+      if (f.kind() == FieldKind.MAP) TypeRefs.HASH_MAP.collect(ci);
     }
     for (Field f : m.fields()) {
       String fieldDefault = defaultFor(f);
       var comp =
-          Component.type(scalarComponentType(f, ci), f.javaName())
+          Component.type(scalarComponentType(f), f.javaName())
               .initializer(RawExpr.of(fieldDefault))
               .private_();
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
@@ -451,7 +440,6 @@ public final class RecordSourceMapping {
     }
     // Carrier storage field with default empty().
     TypeRef ufRef = TypeRef.of(ufFqn);
-    ufRef.collect(ci);
     String ufShort = ufRef.render(ci.resolutionContext());
     builderClz.field(
         Component.named(ufShort, "unknownFields")
@@ -490,7 +478,7 @@ public final class RecordSourceMapping {
           Method.named(fieldName)
               .public_()
               .returnType(TypeRef.of("Builder"))
-              .param(Param.of(scalarComponentType(f, ci), fieldName))
+              .param(Param.of(scalarComponentType(f), fieldName))
               .body(Element.expr("this.@0 = @1", fieldName, fieldName), Element.of("return this;"))
               .build());
     }

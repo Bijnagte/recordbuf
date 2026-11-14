@@ -32,20 +32,6 @@ import java.util.List;
  */
 public final class InteropSourceMapping {
 
-  /**
-   * Static TypeRefs — one per runtime type referenced by an {@code Interop} body. Each is
-   * registered with {@link TypeRef#collect} on first use, so the constant's idempotency collapses
-   * the previously repeated {@code TypeRef.of(...)} calls into a single import per type.
-   */
-  private static final TypeRef LIST = TypeRef.of("java.util.List");
-
-  private static final TypeRef ARRAY_LIST = TypeRef.of("java.util.ArrayList");
-  private static final TypeRef HASH_MAP = TypeRef.of("java.util.HashMap");
-  private static final TypeRef BYTE_STRING = TypeRef.of("com.google.protobuf.ByteString");
-  private static final TypeRef UNKNOWN_FIELDS =
-      TypeRef.of("bijnagte.recordbuf.runtime.UnknownFields");
-  private static final TypeRef BYTES = TypeRef.of("bijnagte.recordbuf.runtime.Bytes");
-
   private InteropSourceMapping() {}
 
   /**
@@ -113,8 +99,8 @@ public final class InteropSourceMapping {
     for (Oneof o : m.oneofs()) {
       ctorArgs.add("_" + o.name());
     }
-    UNKNOWN_FIELDS.collect(ci);
-    ctorArgs.add(UNKNOWN_FIELDS.render(ci.resolutionContext()) + ".empty()");
+    TypeRefs.UNKNOWN_FIELDS.collect(ci);
+    ctorArgs.add(TypeRefs.UNKNOWN_FIELDS.render(ci.resolutionContext()) + ".empty()");
     body.add(Element.expr("return new @0(@1)", rec, String.join(", ", ctorArgs)));
 
     return Method.named("from")
@@ -135,11 +121,12 @@ public final class InteropSourceMapping {
         // Non-byte maps: copy the protobuf-java map directly (compatible key/value types)
         out.add(
             Element.expr(
-                RawExpr.of("var _@0 = new @1<>(x.get@2Map())", f.javaName(), HASH_MAP, cap)));
+                RawExpr.of(
+                    "var _@0 = new @1<>(x.get@2Map())", f.javaName(), TypeRefs.HASH_MAP, cap)));
       } else {
         String keyExpr = mapKeyFrom(f);
         String valExpr = mapValueFrom(f);
-        out.add(Element.expr(RawExpr.of("var _@0 = new @1<>()", f.javaName(), HASH_MAP)));
+        out.add(Element.expr(RawExpr.of("var _@0 = new @1<>()", f.javaName(), TypeRefs.HASH_MAP)));
         out.add(
             For.enhanced("var _e", "x.get@0Map().entrySet()", cap)
                 .body(Element.expr("_@0.put(@1, @2)", f.javaName(), keyExpr, valExpr))
@@ -152,7 +139,11 @@ public final class InteropSourceMapping {
       out.add(
           Element.expr(
               RawExpr.of(
-                  "@0<@2> _@3 = new @1<>()", LIST, ARRAY_LIST, TypeRef.of(recSib), f.javaName())));
+                  "@0<@2> _@3 = new @1<>()",
+                  TypeRefs.LIST,
+                  TypeRefs.ARRAY_LIST,
+                  TypeRef.of(recSib),
+                  f.javaName())));
       out.add(
           For.enhanced("var _e", "x.get@0List()", cap)
               .body(Element.expr("_@0.add(@1.Interop.from(_e))", f.javaName(), recSib))
@@ -176,7 +167,8 @@ public final class InteropSourceMapping {
     }
     if (f.isRepeated()) {
       if ("bytes".equals(f.typeUrl())) {
-        out.add(Element.expr(RawExpr.of("var _@0 = new @1<>()", f.javaName(), ARRAY_LIST)));
+        out.add(
+            Element.expr(RawExpr.of("var _@0 = new @1<>()", f.javaName(), TypeRefs.ARRAY_LIST)));
         out.add(
             For.enhanced("var _e", "x.get@0List()", cap)
                 .body(Element.expr("_@0.add(_e.toByteArray())", f.javaName()))
@@ -190,7 +182,9 @@ public final class InteropSourceMapping {
     }
     // Singular scalar / bytes
     if ("bytes".equals(f.typeUrl())) {
-      out.add(Element.expr(RawExpr.of("var _@0 = @1.of(@2)", f.javaName(), BYTES, fromExpr(f))));
+      out.add(
+          Element.expr(
+              RawExpr.of("var _@0 = @1.of(@2)", f.javaName(), TypeRefs.BYTES, fromExpr(f))));
 
     } else if (f.isNullable()) {
       out.add(Element.expr("var _@0 = x.has@1() ? x.get@1() : null", f.javaName(), cap));
@@ -268,7 +262,9 @@ public final class InteropSourceMapping {
       if ("bytes".equals(f.typeUrl())) {
         out.add(
             For.enhanced("byte[] _e", "r.@0()", f.javaName())
-                .body(Element.expr(RawExpr.of("_b.add@1(@0.copyFrom(_e))", BYTE_STRING, cap)))
+                .body(
+                    Element.expr(
+                        RawExpr.of("_b.add@1(@0.copyFrom(_e))", TypeRefs.BYTE_STRING, cap)))
                 .build());
       } else {
         out.add(Element.expr("_b.addAll@0(r.@1())", cap, f.javaName()));
@@ -290,7 +286,7 @@ public final class InteropSourceMapping {
     }
     if ("bytes".equals(f.typeUrl())) {
       return Element.expr(
-          RawExpr.of("_b.set@0(@1.copyFrom(@2.toByteArray()))", cap, BYTE_STRING, src));
+          RawExpr.of("_b.set@0(@1.copyFrom(@2.toByteArray()))", cap, TypeRefs.BYTE_STRING, src));
     }
     if (f.isNullable()) {
       return If.condition("@0 != null", src).body(Element.expr("_b.set@0(@1)", cap, src)).build();
@@ -364,8 +360,8 @@ public final class InteropSourceMapping {
 
   private static String mapKeyTo(Field f, TypeCollector ci) {
     if ("bytes".equals(f.mapKey())) {
-      BYTE_STRING.collect(ci);
-      return BYTE_STRING.render(ci.resolutionContext()) + ".copyFrom(_e.getKey())";
+      TypeRefs.BYTE_STRING.collect(ci);
+      return TypeRefs.BYTE_STRING.render(ci.resolutionContext()) + ".copyFrom(_e.getKey())";
     }
     return "_e.getKey()";
   }
@@ -374,8 +370,8 @@ public final class InteropSourceMapping {
     String t = f.mapValue();
     if (t == null) return "_e.getValue()";
     if ("bytes".equals(t)) {
-      BYTE_STRING.collect(ci);
-      return BYTE_STRING.render(ci.resolutionContext()) + ".copyFrom(_e.getValue())";
+      TypeRefs.BYTE_STRING.collect(ci);
+      return TypeRefs.BYTE_STRING.render(ci.resolutionContext()) + ".copyFrom(_e.getValue())";
     }
     return "_e.getValue()";
   }
