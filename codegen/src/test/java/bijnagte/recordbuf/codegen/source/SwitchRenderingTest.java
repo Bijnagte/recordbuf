@@ -3,6 +3,7 @@ package bijnagte.recordbuf.codegen.source;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import bijnagte.recordbuf.codegen.SourceRenderer;
 import bijnagte.recordbuf.codegen.TypeCollector;
 import java.net.URI;
 import java.nio.file.Files;

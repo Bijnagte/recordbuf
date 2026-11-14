@@ -49,6 +49,9 @@ public final class InteropSourceMapping {
   private InteropSourceMapping() {}
 
   /**
+   * Returns the nested {@code Interop} {@link Type.Class} node that converts {@code m} to and from
+   * its protobuf-java reference type.
+   *
    * @param m the message model (must have {@code protobufJava()} non-null/non-empty)
    * @param ci the shared TypeCollector for this record's source file
    * @param sourceName the source {@code .proto} file name (used in the Javadoc)
@@ -79,7 +82,7 @@ public final class InteropSourceMapping {
 
     var privateCtor = Constructor.builder().private_().build();
 
-    var fromMethod = emitFrom(m, ci, refPkg, ref, rec);
+    var fromMethod = emitFrom(m, ci, ref, rec);
     var toMethod = emitTo(m, ci, refPkg, ref, rec);
 
     return Type.Class.named("Interop")
@@ -94,11 +97,10 @@ public final class InteropSourceMapping {
 
   // -- from(reference) -> record ------------------------------------------------
 
-  private static Method emitFrom(
-      Message m, TypeCollector ci, String refPkg, String ref, String rec) {
+  private static Method emitFrom(Message m, TypeCollector ci, String ref, String rec) {
     List<Element> body = new ArrayList<>();
     for (Field f : m.fields()) {
-      body.addAll(fromLocal(f, ci));
+      body.addAll(fromLocal(f));
     }
     for (Oneof o : m.oneofs()) {
       body.add(emitOneofFrom(o));
@@ -124,7 +126,7 @@ public final class InteropSourceMapping {
         .build();
   }
 
-  private static List<Element> fromLocal(Field f, TypeCollector ci) {
+  private static List<Element> fromLocal(Field f) {
     String cap = JavaNames.cap(f.javaName());
     List<Element> out = new ArrayList<>();
     if (f.isMap()) {
@@ -136,7 +138,7 @@ public final class InteropSourceMapping {
                 RawExpr.of("var _@0 = new @1<>(x.get@2Map())", f.javaName(), HASH_MAP, cap)));
       } else {
         String keyExpr = mapKeyFrom(f);
-        String valExpr = mapValueFrom(f, ci);
+        String valExpr = mapValueFrom(f);
         out.add(Element.expr(RawExpr.of("var _@0 = new @1<>()", f.javaName(), HASH_MAP)));
         out.add(
             For.enhanced("var _e", "x.get@0Map().entrySet()", cap)
@@ -218,7 +220,7 @@ public final class InteropSourceMapping {
       body.addAll(toStmt(f, ci, refPkg));
     }
     for (Oneof o : m.oneofs()) {
-      body.addAll(emitOneofTo(o, ci, refPkg));
+      body.addAll(emitOneofTo(o, refPkg));
     }
     body.add(Element.of("return _b.build();"));
 
@@ -273,11 +275,11 @@ public final class InteropSourceMapping {
       }
       return out;
     }
-    out.add(toSetStatement(f, "r." + f.javaName() + "()", ci, refPkg));
+    out.add(toSetStatement(f, "r." + f.javaName() + "()", refPkg));
     return out;
   }
 
-  private static Element toSetStatement(Field f, String src, TypeCollector ci, String refPkg) {
+  private static Element toSetStatement(Field f, String src, String refPkg) {
     String cap = JavaNames.cap(f.javaName());
     if (f.kind() == FieldKind.ENUM) {
       String refEnum =
@@ -314,7 +316,7 @@ public final class InteropSourceMapping {
         .build(sw.build());
   }
 
-  private static List<Element> emitOneofTo(Oneof o, TypeCollector ci, String refPkg) {
+  private static List<Element> emitOneofTo(Oneof o, String refPkg) {
     String iface = o.ifaceName();
     Switch.Builder sw = Switch.on("r.@0()", o.componentName());
     // The null arm: an empty body auto-braces to `case null -> {}`.
@@ -326,7 +328,7 @@ public final class InteropSourceMapping {
         String recSib = recordSiblingFqn(f);
         sw.caseArm(pattern, Element.expr("_b.set@0(@1.Interop.to(v.value()))", cap, recSib));
       } else {
-        sw.caseArm(pattern, toSetStatement(f, "v.value()", ci, refPkg));
+        sw.caseArm(pattern, toSetStatement(f, "v.value()", refPkg));
       }
     }
     return List.of(sw.build());
@@ -337,13 +339,6 @@ public final class InteropSourceMapping {
   /** The record sibling short name from the field's typeUrl last segment. */
   private static String recordSiblingFqn(Field f) {
     return JavaNames.cap(lastSegment(f.typeUrl()));
-  }
-
-  /** The Java element type of a repeated scalar/enum field. */
-  private static String recordElement(Field f) {
-    // For repeated, the component is a List<T> where T is the element type.
-    // Use var in the generated code since the specific type can vary by proto.
-    return "Object"; // var handles this; the specific type is inferred from the x.getList()
   }
 
   private static String lastSegment(String fqn) {
@@ -360,7 +355,7 @@ public final class InteropSourceMapping {
     return "bytes".equals(f.mapKey()) ? "_e.getKey().toByteArray()" : "_e.getKey()";
   }
 
-  private static String mapValueFrom(Field f, TypeCollector ci) {
+  private static String mapValueFrom(Field f) {
     String t = f.mapValue();
     if (t == null) return "_e.getValue()";
     if ("bytes".equals(t)) return "_e.getValue().toByteArray()";

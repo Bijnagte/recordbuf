@@ -1,5 +1,6 @@
 package bijnagte.recordbuf.codegen.source;
 
+import bijnagte.recordbuf.codegen.SourceRenderer;
 import bijnagte.recordbuf.codegen.TypeCollector;
 
 /**

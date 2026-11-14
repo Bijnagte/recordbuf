@@ -1,4 +1,6 @@
-package bijnagte.recordbuf.codegen.source;
+package bijnagte.recordbuf.codegen;
+
+import bijnagte.recordbuf.codegen.source.Formatter;
 
 /**
  * The identity {@link Formatter}: returns its input source unchanged.

@@ -8,9 +8,9 @@ import java.util.List;
  * not a top-level {@link Element}: the renderer reaches it via {@code If.elseIf()} and lays it out
  * between the {@code if} body's close brace and the terminal {@code else} body.
  */
-record ElseIf(RawExpr condition, List<Element> body) {
+public record ElseIf(RawExpr condition, List<Element> body) {
 
-  ElseIf {
+  public ElseIf {
     body = body == null ? List.of() : List.copyOf(body);
   }
 }

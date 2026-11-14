@@ -1,4 +1,4 @@
-package bijnagte.recordbuf.codegen.source;
+package bijnagte.recordbuf.codegen;
 
 import java.util.Set;
 

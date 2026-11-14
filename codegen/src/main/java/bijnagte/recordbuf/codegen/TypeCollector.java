@@ -215,8 +215,8 @@ public final class TypeCollector {
    * The post-finalization {@code ResolutionContext} — used by mappers to build {@link
    * bijnagte.recordbuf.codegen.source.ResolveableExpr}.
    */
-  public bijnagte.recordbuf.codegen.source.ResolutionContext resolutionContext() {
-    return new bijnagte.recordbuf.codegen.source.ResolutionContext(
+  public bijnagte.recordbuf.codegen.ResolutionContext resolutionContext() {
+    return new bijnagte.recordbuf.codegen.ResolutionContext(
         declaringPackage, java.util.Set.copyOf(collidedShortNames));
   }
 

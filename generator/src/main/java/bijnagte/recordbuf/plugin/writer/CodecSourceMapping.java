@@ -49,9 +49,8 @@ public final class CodecSourceMapping {
 
   /**
    * Map a message model to a nested {@code Codec} class node. The codec is scoped statically inside
-   * the enclosing record (its parent is the record's name, set by the caller via the {@link
-   * Type.Class#parent}), and has a private constructor + a static {@code encode} + a static {@code
-   * decode}.
+   * the enclosing record (attached via {@link Type.Record#nested}), and has a private constructor +
+   * a static {@code encode} + a static {@code decode}.
    *
    * @param m the message model
    * @param ci the type collector (used to pre-register all runtime FQN references so the import
@@ -79,8 +78,6 @@ public final class CodecSourceMapping {
     String codecDefaultsShort = CODEC_DEFAULTS.render(ci.resolutionContext());
     WIRE.collect(ci);
     String wireShort = WIRE.render(ci.resolutionContext());
-    BYTES.collect(ci);
-    String bytesShort = BYTES.render(ci.resolutionContext());
     TypeRef.of("java.util.HashMap").collect(ci);
     TypeRef.of("java.util.ArrayList").collect(ci);
     String codecName = m.name() + "Codec"; // M4-C2b-2b-8: align with old SampleCodec naming
@@ -94,29 +91,10 @@ public final class CodecSourceMapping {
                     .text("Wire codec for the ", m.name(), " record.")
                     .build()); // M4-C2b-2b-8: <Name>Codec to align with old path
     result.constructor(Constructor.builder().private_().build());
-    result.method(
-        encode(
-            m,
-            ci,
-            encoderShort,
-            decoderShort,
-            unknownFieldsShort,
-            codecDefaultsShort,
-            wireShort,
-            bytesShort,
-            typeResolver));
+    result.method(encode(m, ci, encoderShort, wireShort, typeResolver));
     result.method(
         decode(
-            m,
-            ci,
-            encoderShort,
-            decoderShort,
-            unknownFieldsShort,
-            codecDefaultsShort,
-            wireShort,
-            bytesShort,
-            typeResolver));
-
+            m, ci, decoderShort, unknownFieldsShort, codecDefaultsShort, wireShort, typeResolver));
     return result.build();
   }
 
@@ -125,11 +103,7 @@ public final class CodecSourceMapping {
       Message m,
       TypeCollector ci,
       String encoderShort,
-      String decoderShort,
-      String unknownFieldsShort,
-      String codecDefaultsShort,
       String wireShort,
-      String bytesShort,
       @Nullable Function<Field, String> typeResolver) {
     List<Element> body = new ArrayList<>();
     body.add(Element.expr("var enc = @0.start();", encoderShort));
@@ -144,7 +118,7 @@ public final class CodecSourceMapping {
         var wkt0 = Objects.requireNonNull(wktEntry);
         body.add(WktSourceMapping.emitEncode(f, wkt0, "out", "v", ci));
       } else if (f.kind() == FieldKind.MAP) {
-        body.add(emitMapEncode(f, ci));
+        body.add(emitMapEncode(f));
       } else if (f.kind() == FieldKind.MESSAGE) {
         if (f.label() == FieldLabel.REPEATED) {
           body.add(emitRepeatedMessageEncode(f, typeResolver));
@@ -166,7 +140,7 @@ public final class CodecSourceMapping {
 
     // Oneof members: pattern-matching switch on the sealed-interface component.
     for (Oneof o : m.oneofs()) {
-      body.add(emitOneofEncode(o, ci, typeResolver));
+      body.add(emitOneofEncode(o));
     }
 
     // M4-C2b-2b-5: re-emit the unknown-fields carrier, if any, preserving wire-order round-trip.
@@ -191,12 +165,10 @@ public final class CodecSourceMapping {
   private static Method decode(
       Message m,
       TypeCollector ci,
-      String encoderShort,
       String decoderShort,
       String unknownFieldsShort,
       String codecDefaultsShort,
       String wireShort,
-      String bytesShort,
       @Nullable Function<Field, String> typeResolver) {
     List<Element> body = new ArrayList<>();
     body.add(Element.expr("var dec = @0.start(inBytes);", decoderShort));
@@ -275,7 +247,7 @@ public final class CodecSourceMapping {
         var wkt0 = Objects.requireNonNull(wktEntry);
         switchB.caseArm(WktSourceMapping.emitDecodeCase(f, wkt0, "in", ci));
       } else if (f.kind() == FieldKind.MAP) {
-        switchB.caseArm(emitMapDecodeCase(f, ci));
+        switchB.caseArm(emitMapDecodeCase(f));
       } else if (f.kind() == FieldKind.MESSAGE) {
         Case c =
             f.label() == FieldLabel.REPEATED
@@ -490,7 +462,7 @@ public final class CodecSourceMapping {
 
   /** M4-C2d-7: MAP encode — iterate the map's entry set, encode each entry via its entry codec. */
   @SuppressWarnings("java:S905")
-  private static Element emitMapEncode(Field f, TypeCollector ci) {
+  private static Element emitMapEncode(Field f) {
     String entryName = mapEntryName(f);
     return For.enhanced("var _e", "v.@0().entrySet()", f.javaName())
         .body(
@@ -649,15 +621,11 @@ public final class CodecSourceMapping {
         "List<@0> @1 = new ArrayList<>()", TypeRef.boxedFor(f.typeUrl()), f.javaName());
   }
 
-  /** The short-form boxed Java component type for a repeated scalar's element. */
   /**
    * M4-C2d-7: emit a 2-field entry codec for a map entry record. The entry has exactly two fields:
    * {@code key} (field 1) and {@code value} (field 2). Both are scalar types.
    *
    * @param entryName the entry record's name (e.g. "DataEntry")
-   * @param mapFieldNumber the map field's number (for logging/debugging only)
-   * @param keyType the boxed Java type of the key component (e.g. "String", "Integer")
-   * @param valueType the boxed Java type of the value component (e.g. "Integer", "Long")
    * @param ci the type collector
    * @return the nested {@code <Entry>Codec} class
    */
@@ -802,7 +770,7 @@ public final class CodecSourceMapping {
    * M4-C2d-7: decode case for a MAP field — read length-delimited entry, decode via entry codec.
    */
   @SuppressWarnings("java:S905")
-  private static Case emitMapDecodeCase(Field f, TypeCollector ci) {
+  private static Case emitMapDecodeCase(Field f) {
     String entryName = mapEntryName(f);
     String local = f.javaName();
     int num = f.number();
@@ -819,8 +787,7 @@ public final class CodecSourceMapping {
    * component. {@code case null -> {}} skips; message members dispatch through their nested codec;
    * scalar/enum members dispatch through the wire primitive that matches their field type.
    */
-  private static Element emitOneofEncode(
-      Oneof o, TypeCollector ci, @Nullable Function<Field, String> typeResolver) {
+  private static Element emitOneofEncode(Oneof o) {
     String iface = o.ifaceName();
     String cmp = o.componentName();
     String getter = "v." + cmp + "()";

@@ -1,5 +1,7 @@
 package bijnagte.recordbuf.codegen.source;
 
+import bijnagte.recordbuf.codegen.SourceRenderer;
+
 /**
  * A single element inside a method, constructor, or {@code static {}} body. A body is a {@link
  * java.util.List List<Element>}; the {@link SourceRenderer} owns brace, paren, and join layout for

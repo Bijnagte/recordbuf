@@ -1,10 +1,10 @@
 package bijnagte.recordbuf.plugin;
 
+import bijnagte.recordbuf.codegen.SourceRenderer;
 import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Formatter;
 import bijnagte.recordbuf.codegen.source.JavaFile;
 import bijnagte.recordbuf.codegen.source.Javadoc;
-import bijnagte.recordbuf.codegen.source.SourceRenderer;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.plugin.bridge.BridgeContext;
 import bijnagte.recordbuf.plugin.bridge.BridgeRegistry;
@@ -25,7 +25,6 @@ import com.google.protobuf.compiler.PluginProtos.CodeGeneratorRequest;
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse;
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse.Feature;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -42,27 +41,10 @@ import org.jspecify.annotations.Nullable;
  */
 public final class CodeGenerator {
 
-  // The recordbuf runtime package, referenced by generated records for the
-  // unknown-field carrier and the ProtobufMessage marker.
-  private static final String RT = "bijnagte.recordbuf.runtime";
-
   // Assigned at the start of generate() from the request's plugin parameter so
   // per-call generation (Main invokes one CodeGenerator per request) stays
   // stateless. Built fresh each call with the parsed package_suffix.
   private FileTable table = new FileTable();
-
-  /**
-   * The oneof member-to-interface registry for this invocation. A oneof's MESSAGE members are
-   * identity subtypes of the enclosing record's nested oneof interface (K6), so each such member's
-   * record must {@code implements} that interface — and that is resolved per-invocation, not by the
-   * model. The map is keyed by the member type's Java fully-qualified name and maps it to every
-   * interface (by FQN) it must implement. It is built over the model of every protobuf file in the
-   * request (not just {@code file_to_generate}) so a message may live in a different file than the
-   * oneof that references it. Scalar/enum members never appear as keys: they fold into the
-   * enclosing interface's shared {@code Scalar} wrapper rather than being identity subtypes. An
-   * absent key means "not a oneof member" and the record implements only the marker.
-   */
-  private Map<String, Set<String>> oneofRegistry = new LinkedHashMap<>();
 
   // Per-request de-dup for the generated @NullMarked package-info.java: several .proto
   // files can map to ONE java package, so that package-level marker is emitted once per
@@ -95,10 +77,6 @@ public final class CodeGenerator {
     // (and every cross-file resolution through it) is suffixed uniformly.
     table = new FileTable(parsePackageSuffix(request.getParameter()));
     table.addAll(request.getProtoFileList());
-    // A second pass over every requested file builds the oneof member-to-
-    // interface registry so a record can implement the nested interface a
-    // message member of another file's oneof belongs to (K6, cross-file).
-    this.oneofRegistry = buildOneofRegistry(request.getProtoFileList());
     // Fresh per request so a package-info is de-duplicated WITHIN this request only.
     this.emittedPackageInfos = new LinkedHashSet<>();
     // The bridge context + registry are per-invocation too: the --avro flag is parsed from the
@@ -156,24 +134,6 @@ public final class CodeGenerator {
     // contributes nothing, exactly as an absent one would.
     files.addAll(bridgeRegistry.emitAll(pf, bridgeContext, formatter));
     return files;
-  }
-
-  /**
-   * Build the run-wide oneof member-to-interface registry by loading the model of EVERY requested
-   * protobuf file (not just {@code file_to_generate}) and recording, for each oneof
-   * <em>message</em> member, that its record must implement the enclosing record's nested oneof
-   * interface. Scalar/enum members are excluded (they fold into the interface's shared {@code
-   * Scalar} wrapper). A member type whose Java FQN is unresolved (e.g. an external type)
-   * contributes no entry, so its record implements no oneof interface.
-   */
-  private Map<String, Set<String>> buildOneofRegistry(List<FileDescriptorProto> files) {
-    var registry = new LinkedHashMap<String, Set<String>>();
-    for (FileDescriptorProto fdp : files) {
-      String javaPkg = table.javaPackage(fdp);
-      ProtoFile pf = new ModelLoader(table, javaPkg).load(fdp);
-      for (Message m : pf.messages()) collectOneofInterfaces(m, registry);
-    }
-    return registry;
   }
 
   /**
@@ -304,21 +264,6 @@ public final class CodeGenerator {
                 + ";\n\nimport org.jspecify.annotations.NullMarked;\n");
     return CodeGeneratorResponse.File.newBuilder().setName(name).setContent(content).build();
   }
-
-  /**
-   * Emit the per-package {@code @NullMarked} marker: a {@code package-info.java} declaring that
-   * every type in a recordbuf-generated java package is non-null by default, with {@code @Nullable}
-   * the single escape. It mirrors {@code bijnagte.recordbuf.runtime}'s own {@code
-   * package-info.java} and is the mark that lets a consumer running NullAway with {@code
-   * OnlyNullMarked=true} (the project's convention) scope the nullness analysis to exactly the
-   * generated records, leaving the un-marked protobuf-java reference output ({@code Sample}/{@code
-   * SampleOrBuilder}/…) out of scope.
-   *
-   * <p>Emitted in the plugin's clean-output style: a {@code @NullMarked} annotation before the
-   * {@code package} element (JSpecify's module convention, so the usual package/import/body order a
-   * type file uses does not apply to a package-info), then the import, under the generated-file
-   * header.
-   */
 
   /**
    * Resolve the run-wide {@code package_suffix} parameter to a normalized suffix (leading/trailing

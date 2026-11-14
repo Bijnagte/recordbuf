@@ -1,12 +1,12 @@
 package bijnagte.recordbuf.plugin.writer;
 
+import bijnagte.recordbuf.codegen.SourceRenderer;
 import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.Formatter;
 import bijnagte.recordbuf.codegen.source.JavaFile;
 import bijnagte.recordbuf.codegen.source.Method;
-import bijnagte.recordbuf.codegen.source.SourceRenderer;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Field;
@@ -85,8 +85,8 @@ public final class AvroConverterSourceMapping {
     // --- class AST ---
     Constructor privateCtor = Constructor.builder().private_().body().build();
 
-    Method toRecord = buildToRecord(message, recordClass, avroSpecific, hasWkt, hasByteField);
-    Method fromRecord = buildFromRecord(message, recordClass, avroSpecific, hasWkt);
+    Method toRecord = buildToRecord(message, recordClass, avroSpecific);
+    Method fromRecord = buildFromRecord(message, recordClass, avroSpecific);
 
     Type.Class converterClass =
         Type.Class.named(recordClass + "AvroConverter")
@@ -111,16 +111,11 @@ public final class AvroConverterSourceMapping {
 
   // --- toRecord body builder ----------------------------------------------------------
 
-  private static Method buildToRecord(
-      Message message,
-      String recordClass,
-      String avroSpecific,
-      boolean hasWkt,
-      boolean hasByteField) {
+  private static Method buildToRecord(Message message, String recordClass, String avroSpecific) {
     List<Element> body = new ArrayList<>();
     body.add(Element.expr("@0.Builder b = @1.builder()", recordClass, recordClass));
     for (Field f : message.fields()) {
-      body.add(toRecordFieldLine(f, "s", hasWkt, hasByteField));
+      body.add(toRecordFieldLine(f, "s"));
     }
     body.add(Element.of("b.unknownFields(UnknownFields.empty());"));
     body.add(Element.of("return b.build();"));
@@ -134,8 +129,7 @@ public final class AvroConverterSourceMapping {
         .build();
   }
 
-  private static Element toRecordFieldLine(
-      Field f, String param, boolean hasWkt, boolean hasByteField) {
+  private static Element toRecordFieldLine(Field f, String param) {
     String getter = param + ".get" + cap(f.javaName());
     String var = "b." + f.javaName();
     if (AvroSchemaGenerator.typeUrlIfWkt(f) != null) {
@@ -160,13 +154,12 @@ public final class AvroConverterSourceMapping {
 
   // --- fromRecord body builder --------------------------------------------------------
 
-  private static Method buildFromRecord(
-      Message message, String recordClass, String avroSpecific, boolean hasWkt) {
+  private static Method buildFromRecord(Message message, String recordClass, String avroSpecific) {
     List<Element> body = new ArrayList<>();
     body.add(Element.expr("@0 s = new @1()", avroSpecific, avroSpecific));
     body.add(Element.of("")); // blank line between declaration and setters
     for (Field f : message.fields()) {
-      body.add(fromRecordFieldLine(f, "s", "r", hasWkt));
+      body.add(fromRecordFieldLine(f, "s", "r"));
     }
     body.add(Element.of("return s;"));
 
@@ -179,7 +172,7 @@ public final class AvroConverterSourceMapping {
         .build();
   }
 
-  private static Element fromRecordFieldLine(Field f, String param, String record, boolean hasWkt) {
+  private static Element fromRecordFieldLine(Field f, String param, String record) {
     String setter = param + ".set" + cap(f.javaName());
     String accessor = record + "." + f.javaName() + "()";
     if (AvroSchemaGenerator.typeUrlIfWkt(f) != null) {

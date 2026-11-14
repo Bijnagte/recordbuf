@@ -1,6 +1,31 @@
-package bijnagte.recordbuf.codegen.source;
+package bijnagte.recordbuf.codegen;
 
-import bijnagte.recordbuf.codegen.TypeCollector;
+import bijnagte.recordbuf.codegen.source.Annotation;
+import bijnagte.recordbuf.codegen.source.Arg;
+import bijnagte.recordbuf.codegen.source.Case;
+import bijnagte.recordbuf.codegen.source.Comment;
+import bijnagte.recordbuf.codegen.source.Component;
+import bijnagte.recordbuf.codegen.source.Constructor;
+import bijnagte.recordbuf.codegen.source.Element;
+import bijnagte.recordbuf.codegen.source.ElseIf;
+import bijnagte.recordbuf.codegen.source.EnumConstant;
+import bijnagte.recordbuf.codegen.source.ExprStatement;
+import bijnagte.recordbuf.codegen.source.For;
+import bijnagte.recordbuf.codegen.source.Formattable;
+import bijnagte.recordbuf.codegen.source.Formatter;
+import bijnagte.recordbuf.codegen.source.Fragment;
+import bijnagte.recordbuf.codegen.source.If;
+import bijnagte.recordbuf.codegen.source.JavaFile;
+import bijnagte.recordbuf.codegen.source.LocalVar;
+import bijnagte.recordbuf.codegen.source.Method;
+import bijnagte.recordbuf.codegen.source.Param;
+import bijnagte.recordbuf.codegen.source.Return;
+import bijnagte.recordbuf.codegen.source.StaticBlock;
+import bijnagte.recordbuf.codegen.source.Switch;
+import bijnagte.recordbuf.codegen.source.Throw;
+import bijnagte.recordbuf.codegen.source.Type;
+import bijnagte.recordbuf.codegen.source.TypeRef;
+import bijnagte.recordbuf.codegen.source.While;
 import java.util.List;
 
 /**
@@ -520,7 +545,7 @@ public final class SourceRenderer {
      * via {@link #renderStatement}; an empty branch list renders no clause.
      */
     private void renderIf(
-        If ifStmt, StringBuilder out, bijnagte.recordbuf.codegen.source.ResolutionContext ctx) {
+        If ifStmt, StringBuilder out, bijnagte.recordbuf.codegen.ResolutionContext ctx) {
       out.append("if (").append(ifStmt.condition().render(ctx)).append(") {\n");
       for (Element s : ifStmt.body()) renderStatement(s, out);
       for (ElseIf ei : ifStmt.elseIf()) {
@@ -541,7 +566,7 @@ public final class SourceRenderer {
      * {}}.
      */
     private void renderWhile(
-        While w, StringBuilder out, bijnagte.recordbuf.codegen.source.ResolutionContext ctx) {
+        While w, StringBuilder out, bijnagte.recordbuf.codegen.ResolutionContext ctx) {
       out.append("while (").append(w.condition().render(ctx)).append(") {\n");
       for (Element s : w.body()) renderStatement(s, out);
       out.append('}').append('\n');
@@ -553,7 +578,7 @@ public final class SourceRenderer {
      * empty-loop case {@code for (p : x) {}}.
      */
     private void renderFor(
-        For f, StringBuilder out, bijnagte.recordbuf.codegen.source.ResolutionContext ctx) {
+        For f, StringBuilder out, bijnagte.recordbuf.codegen.ResolutionContext ctx) {
       out.append("for (")
           .append(f.pattern())
           .append(" : ")
@@ -571,7 +596,7 @@ public final class SourceRenderer {
      * braces {@code -> { … }}.
      */
     private void renderSwitch(
-        Switch sw, StringBuilder out, bijnagte.recordbuf.codegen.source.ResolutionContext ctx) {
+        Switch sw, StringBuilder out, bijnagte.recordbuf.codegen.ResolutionContext ctx) {
       out.append("switch (").append(sw.subject().render(ctx)).append(") {\n");
       for (Case c : sw.cases()) renderCase(c, out);
       // Render the terminal default arm only when it has a body, mirroring If's optional elseBody:

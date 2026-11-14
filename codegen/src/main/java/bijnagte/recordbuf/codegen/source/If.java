@@ -1,5 +1,6 @@
 package bijnagte.recordbuf.codegen.source;
 
+import bijnagte.recordbuf.codegen.ResolutionContext;
 import java.util.ArrayList;
 import java.util.List;
 

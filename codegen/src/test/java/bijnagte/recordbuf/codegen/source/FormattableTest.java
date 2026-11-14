@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import bijnagte.recordbuf.codegen.ResolutionContext;
 import bijnagte.recordbuf.codegen.TypeCollector;
 import java.util.List;
 import java.util.Set;

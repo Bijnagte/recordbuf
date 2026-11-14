@@ -1,5 +1,7 @@
 package bijnagte.recordbuf.codegen.source;
 
+import bijnagte.recordbuf.codegen.SourceRenderer;
+
 /**
  * Formats rendered Java source into its canonical style.
  *

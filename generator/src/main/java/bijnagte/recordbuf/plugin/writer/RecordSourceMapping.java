@@ -117,7 +117,6 @@ public final class RecordSourceMapping {
     }
     // M4-C2d-9: nested messages — emit each as an inner record via recursion.
     for (Message nested : m.nestedMessages()) {
-      String nestedFqn = nested.fullName(); // not used — just ensure ci knows the type
       var nestedRec =
           toSourceWithCodec(
               nested, ci, f -> f.kind() == FieldKind.MESSAGE ? f.typeUrl() + ".Codec" : null);
@@ -205,11 +204,6 @@ public final class RecordSourceMapping {
   }
 
   /**
-   * The record component's Java type for the M4-C2b-1 scalar subset. A non-scalar field -- a nested
-   * message, an enum, a repeated / optional field, a map, or a WKT -- throws here: its component
-   * type is M4-C2b-2+ work and is not in this shell's scope.
-   */
-  /**
    * The record component's Java type for the M4-C2b scalar subset. A non-scalar field throws here;
    * repeated scalars resolve to {@code List<T>} where T is the boxed Java element type; singular
    * scalars resolve to their Java primitive or boxed type. The {@link TypeCollector} collects
@@ -246,16 +240,10 @@ public final class RecordSourceMapping {
     // M4-C2d-2: singular MESSAGE/ENUM → the resolved short type name.
     // Singular message fields are presence-tracked, so they're @Nullable in the record;
     // the builder copy constructor and codec must null-guard accordingly.
-    switch (f.kind()) {
-      case MESSAGE:
-      case ENUM:
-        {
-          TypeRef sibRef = TypeRef.of(javaSimpleName(f.typeUrl()));
-          sibRef.collect(ci);
-          return sibRef;
-        }
-      default:
-        break;
+    if (f.kind() == FieldKind.MESSAGE || f.kind() == FieldKind.ENUM) {
+      TypeRef sibRef = TypeRef.of(javaSimpleName(f.typeUrl()));
+      sibRef.collect(ci);
+      return sibRef;
     }
     // M4-C2d-1: optional scalar → @Nullable boxed wrapper.
     if (f.isNullable()) {
@@ -290,15 +278,11 @@ public final class RecordSourceMapping {
     // null.
     if (f.label() == FieldLabel.REPEATED) return false;
     if (isComponentNullableWkt(f)) return true;
-    switch (f.kind()) {
-      case MESSAGE:
-      case ENUM:
-        return true;
-      case MAP:
-        return false; // Map<K,V> is non-null
-      default:
-        return f.isNullable();
-    }
+    return switch (f.kind()) {
+      case MESSAGE, ENUM -> true;
+      case MAP -> false;
+      default -> f.isNullable();
+    };
   }
 
   private static boolean isComponentNullableWkt(Field f) {
@@ -582,7 +566,7 @@ public final class RecordSourceMapping {
   private static String defaultFor(Field f) {
     var wkt = WellKnownTypes.resolve(f.typeUrl());
     if (wkt != null) {
-      if (f.label() == FieldLabel.REPEATED) return "new ArrayList\u003c\u003e()";
+      if (f.label() == FieldLabel.REPEATED) return "new ArrayList<>()";
       var z = wkt.zeroDefault();
       if (z != null) return z;
       return "null";
