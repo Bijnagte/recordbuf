@@ -63,15 +63,10 @@ public final class CodecSourceMapping {
 
   private static Type.Class doToCodec(
       Message m, TypeCollector ci, @Nullable Function<Field, String> typeResolver) {
-    // The encoder/decoder/unknownFields/wire short names are now passed as TypeRef positional
-    // args (the renderer's collect walk registers + resolves them), so they no longer need an
-    // explicit collect/render here. CODEC_DEFAULTS is still spliced in as a raw
-    // `CodecDefaults.<x>()`
-    // concat and HASH_MAP/ARRAY_LIST appear as `new HashMap<>()`/`new ArrayList<>()` literals --
-    // none
-    // of which the walk reaches -- so they are still registered here explicitly.
-    TypeRefs.HASH_MAP.collect(ci);
-    TypeRefs.ARRAY_LIST.collect(ci);
+    // Every type the codec body references (encoder/decoder/unknownFields/wire/codecDefaults,
+    // plus the HashMap/ArrayList/Bytes constructors and CodecDefaults.<x>() default calls) is now
+    // a TypeRef positional arg of a RawExpr, so the renderer's collect walk registers + resolves
+    // it; no explicit collect/render is needed here.
     String codecName = m.name() + "Codec"; // M4-C2b-2b-8: align with old SampleCodec naming
     Type.Class.Builder result =
         Type.Class.named(codecName)
@@ -169,13 +164,20 @@ public final class CodecSourceMapping {
         String valueType =
             TypeRef.boxedFor(Objects.requireNonNull(f.mapValue())).render(ci.resolutionContext());
         body.add(
-            Element.expr("Map<@0, @1> @2 = new HashMap<>();", keyType, valueType, f.javaName()));
+            Element.expr(
+                "Map<@0, @1> @2 = new @3<>();",
+                keyType,
+                valueType,
+                f.javaName(),
+                TypeRefs.HASH_MAP));
       } else if (f.kind() == FieldKind.MESSAGE) {
         if (typeResolver != null) {
           // The TYPE short name for the local init.
           String typeShort = f.typeUrl().substring(f.typeUrl().lastIndexOf('.') + 1);
           if (f.label() == FieldLabel.REPEATED) {
-            body.add(Element.expr("List<@0> @1 = new ArrayList<>();", typeShort, f.javaName()));
+            body.add(
+                Element.expr(
+                    "List<@0> @1 = new @2<>();", typeShort, f.javaName(), TypeRefs.ARRAY_LIST));
           } else {
             body.add(Element.expr("@0 @1 = null;", typeShort, f.javaName()));
           }
@@ -186,13 +188,15 @@ public final class CodecSourceMapping {
         if (typeResolver != null) {
           String enumShort = typeResolver.apply(f);
           if (f.label() == FieldLabel.REPEATED) {
-            body.add(Element.expr("List<@0> @1 = new ArrayList<>();", enumShort, f.javaName()));
+            body.add(
+                Element.expr(
+                    "List<@0> @1 = new @2<>();", enumShort, f.javaName(), TypeRefs.ARRAY_LIST));
           } else {
             body.add(Element.expr("@0 @1 = null;", enumShort, f.javaName()));
           }
         } else {
           if (f.label() == FieldLabel.REPEATED) {
-            body.add(Element.expr("List<?> @0 = new ArrayList<>();", f.javaName()));
+            body.add(Element.expr("List<?> @0 = new @1<>();", f.javaName(), TypeRefs.ARRAY_LIST));
           } else {
             body.add(Element.expr("Object @0 = null;", f.javaName()));
           }
@@ -599,7 +603,10 @@ public final class CodecSourceMapping {
 
   private static Element emitRepeatedLocalInit(Field f) {
     return Element.expr(
-        "List<@0> @1 = new ArrayList<>()", TypeRef.boxedFor(f.typeUrl()), f.javaName());
+        "List<@0> @1 = new @2<>()",
+        TypeRef.boxedFor(f.typeUrl()),
+        f.javaName(),
+        TypeRefs.ARRAY_LIST);
   }
 
   /**
@@ -612,8 +619,6 @@ public final class CodecSourceMapping {
    */
   @SuppressWarnings("java:S905")
   public static Type.Class emitEntryCodec(String entryName, Field f, TypeCollector ci) {
-    // M4-C2d-12: resolve key/value wire scalars from the Field's type URLs.
-
     // M4-C2d-12: resolve key/value wire scalars from the Field's type URLs.
     WireScalar keyWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapKey()));
     WireScalar valWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapValue()));
