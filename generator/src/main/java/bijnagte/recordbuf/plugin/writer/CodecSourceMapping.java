@@ -70,8 +70,6 @@ public final class CodecSourceMapping {
     // concat and HASH_MAP/ARRAY_LIST appear as `new HashMap<>()`/`new ArrayList<>()` literals --
     // none
     // of which the walk reaches -- so they are still registered here explicitly.
-    CODEC_DEFAULTS.collect(ci);
-    String codecDefaultsShort = CODEC_DEFAULTS.render(ci.resolutionContext());
     TypeRefs.HASH_MAP.collect(ci);
     TypeRefs.ARRAY_LIST.collect(ci);
     String codecName = m.name() + "Codec"; // M4-C2b-2b-8: align with old SampleCodec naming
@@ -86,7 +84,7 @@ public final class CodecSourceMapping {
                     .build()); // M4-C2b-2b-8: <Name>Codec to align with old path
     result.constructor(Constructor.builder().private_().build());
     result.method(encode(m, ci, typeResolver));
-    result.method(decode(m, ci, codecDefaultsShort, typeResolver));
+    result.method(decode(m, ci, typeResolver));
     return result.build();
   }
 
@@ -151,10 +149,7 @@ public final class CodecSourceMapping {
 
   /** The {@code Message decode(byte[] inBytes) throws IOException} method body. */
   private static Method decode(
-      Message m,
-      TypeCollector ci,
-      String codecDefaultsShort,
-      @Nullable Function<Field, String> typeResolver) {
+      Message m, TypeCollector ci, @Nullable Function<Field, String> typeResolver) {
     List<Element> body = new ArrayList<>();
     body.add(Element.expr("var dec = @0.start(inBytes);", DECODER));
     body.add(Element.of("var in = dec.in();"));
@@ -210,8 +205,9 @@ public final class CodecSourceMapping {
         body.add(Element.expr("@0 @1 = null;", localType, f.javaName()));
       } else {
         TypeRef localTypeRef = decodeLocalType(f);
-        String defaultExpr = codecDefaultsShort + "." + defaultMethod(f) + "()";
-        body.add(Element.expr("@0 @1 = @2", localTypeRef, f.javaName(), defaultExpr));
+        body.add(
+            Element.expr(
+                "@0 @1 = @2.@3()", localTypeRef, f.javaName(), CODEC_DEFAULTS, defaultMethod(f)));
       }
     }
 
@@ -440,7 +436,7 @@ public final class CodecSourceMapping {
     return switch (wireScalar(f)) {
       case STRING -> Case.of(pattern, Element.expr("@0 = in.readString()", local));
       case BYTES ->
-          Case.of(pattern, Element.expr("@0 = Bytes.of(in.readBytes().toByteArray())", local));
+          Case.of(pattern, Element.expr("@0 = @1.of(in.readBytes().toByteArray())", local, BYTES));
       default -> Case.of(pattern, Element.expr("@0 = @1", local, decodeCall(wireScalar(f))));
     };
   }
@@ -616,12 +612,7 @@ public final class CodecSourceMapping {
    */
   @SuppressWarnings("java:S905")
   public static Type.Class emitEntryCodec(String entryName, Field f, TypeCollector ci) {
-    // CODEC_DEFAULTS (a `CodecDefaults.<x>()` concat) and BYTES (a `Bytes.of(...)` literal) are
-    // still spliced in as raw text the walk does not reach, so they are registered here; the
-    // encoder/decoder/unknownFields/wire short names are now TypeRef positional args.
-    CODEC_DEFAULTS.collect(ci);
-    String codecDefaultsShort = CODEC_DEFAULTS.render(ci.resolutionContext());
-    BYTES.collect(ci);
+    // M4-C2d-12: resolve key/value wire scalars from the Field's type URLs.
 
     // M4-C2d-12: resolve key/value wire scalars from the Field's type URLs.
     WireScalar keyWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapKey()));
@@ -659,8 +650,8 @@ public final class CodecSourceMapping {
     decBody.add(Element.expr("var dec = @0.start(inBytes);", DECODER));
     decBody.add(Element.of("var in = dec.in();"));
     decBody.add(Element.expr("var unknown = @0.builder();", UNKNOWN_FIELDS));
-    decBody.add(emitFieldLocalInit("key", keyWire, codecDefaultsShort));
-    decBody.add(emitFieldLocalInit("value", valWire, codecDefaultsShort));
+    decBody.add(emitFieldLocalInit("key", keyWire, CODEC_DEFAULTS));
+    decBody.add(emitFieldLocalInit("value", valWire, CODEC_DEFAULTS));
     List<Element> tagLoop = new ArrayList<>();
     tagLoop.add(Element.expr("int tag = @0.readTag(in);", WIRE));
     tagLoop.add(If.condition("tag == 0").body(Element.of("break;")).build());
@@ -705,7 +696,7 @@ public final class CodecSourceMapping {
   }
 
   /** M4-C2d-12: emit a decode local-initializer line for a map entry's scalar field. */
-  private static Element emitFieldLocalInit(String name, WireScalar ws, String cd) {
+  private static Element emitFieldLocalInit(String name, WireScalar ws, TypeRef cd) {
     if (ws == WireScalar.STRING) {
       return Element.expr("String @0 = \"\"", name);
     } else {
