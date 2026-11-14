@@ -69,7 +69,7 @@ public final class InteropSourceMapping {
     var privateCtor = Constructor.builder().private_().build();
 
     var fromMethod = emitFrom(m, ci, ref, rec);
-    var toMethod = emitTo(m, ci, refPkg, ref, rec);
+    var toMethod = emitTo(m, refPkg, ref, rec);
 
     return Type.Class.named("Interop")
         .public_()
@@ -207,11 +207,11 @@ public final class InteropSourceMapping {
 
   // -- to(record) -> reference --------------------------------------------------
 
-  private static Method emitTo(Message m, TypeCollector ci, String refPkg, String ref, String rec) {
+  private static Method emitTo(Message m, String refPkg, String ref, String rec) {
     List<Element> body = new ArrayList<>();
     body.add(Element.expr("var _b = @0.newBuilder()", ref));
     for (Field f : m.fields()) {
-      body.addAll(toStmt(f, ci, refPkg));
+      body.addAll(toStmt(f, refPkg));
     }
     for (Oneof o : m.oneofs()) {
       body.addAll(emitOneofTo(o, refPkg));
@@ -227,13 +227,13 @@ public final class InteropSourceMapping {
         .build();
   }
 
-  private static List<Element> toStmt(Field f, TypeCollector ci, String refPkg) {
+  private static List<Element> toStmt(Field f, String refPkg) {
     String cap = JavaNames.cap(f.javaName());
     List<Element> out = new ArrayList<>();
     if (f.isMap()) {
       out.add(
           For.enhanced("var _e", "r.@0().entrySet()", f.javaName())
-              .body(Element.expr("_b.put@0(@1, @2)", cap, mapKeyTo(f, ci), mapValueTo(f, ci)))
+              .body(Element.expr("_b.put@0(@1, @2)", cap, mapKeyTo(f), mapValueTo(f)))
               .build());
       return out;
     }
@@ -358,21 +358,17 @@ public final class InteropSourceMapping {
     return "_e.getValue()";
   }
 
-  private static String mapKeyTo(Field f, TypeCollector ci) {
+  private static Formattable mapKeyTo(Field f) {
     if ("bytes".equals(f.mapKey())) {
-      TypeRefs.BYTE_STRING.collect(ci);
-      return TypeRefs.BYTE_STRING.render(ci.resolutionContext()) + ".copyFrom(_e.getKey())";
+      return RawExpr.of("@0.copyFrom(_e.getKey())", TypeRefs.BYTE_STRING);
     }
-    return "_e.getKey()";
+    return RawExpr.of("_e.getKey()");
   }
 
-  private static String mapValueTo(Field f, TypeCollector ci) {
-    String t = f.mapValue();
-    if (t == null) return "_e.getValue()";
-    if ("bytes".equals(t)) {
-      TypeRefs.BYTE_STRING.collect(ci);
-      return TypeRefs.BYTE_STRING.render(ci.resolutionContext()) + ".copyFrom(_e.getValue())";
+  private static Formattable mapValueTo(Field f) {
+    if ("bytes".equals(f.mapValue())) {
+      return RawExpr.of("@0.copyFrom(_e.getValue())", TypeRefs.BYTE_STRING);
     }
-    return "_e.getValue()";
+    return RawExpr.of("_e.getValue()");
   }
 }
