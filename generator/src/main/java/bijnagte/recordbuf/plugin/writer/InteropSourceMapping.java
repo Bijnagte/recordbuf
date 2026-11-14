@@ -89,7 +89,7 @@ public final class InteropSourceMapping {
       fromLocal(body, f, ci);
     }
     for (Oneof o : m.oneofs()) {
-      emitOneofFrom(body, o, ci);
+      body.addAll(emitOneofFrom(o, ci));
     }
     body.add(Element.of("return new " + rec + "("));
     for (Field f : m.fields()) {
@@ -213,7 +213,7 @@ public final class InteropSourceMapping {
       toStmt(body, f, ci, refPkg);
     }
     for (Oneof o : m.oneofs()) {
-      emitOneofTo(body, o, ci, refPkg);
+      body.addAll(emitOneofTo(o, ci, refPkg));
     }
     body.add(Element.of("return _b.build();"));
 
@@ -293,8 +293,9 @@ public final class InteropSourceMapping {
     return Element.expr("_b.set@0(@1)", cap, src);
   }
 
-  private static void emitOneofFrom(List<Element> out, Oneof o, TypeCollector ci) {
+  private static List<Element> emitOneofFrom(Oneof o, TypeCollector ci) {
     String iface = o.ifaceName();
+    List<Element> out = new ArrayList<>();
     out.add(
         Element.of(
             "@Nullable " + iface + " _" + o.name() + " = switch (x.get" + iface + "Case()) {"));
@@ -332,9 +333,10 @@ public final class InteropSourceMapping {
     }
     out.add(Element.of("  default -> null;"));
     out.add(Element.of("};"));
+    return out;
   }
 
-  private static void emitOneofTo(List<Element> out, Oneof o, TypeCollector ci, String refPkg) {
+  private static List<Element> emitOneofTo(Oneof o, TypeCollector ci, String refPkg) {
     String iface = o.ifaceName();
     Switch.Builder sw = Switch.on("r." + o.componentName() + "()");
     // The null arm: an empty body auto-braces to `case null -> {}`.
@@ -349,7 +351,7 @@ public final class InteropSourceMapping {
         sw.caseArm(pattern, toSetStatement(f, "v.value()", ci, refPkg));
       }
     }
-    out.add(sw.build());
+    return List.of(sw.build());
   }
 
   // -- helpers ------------------------------------------------------------------

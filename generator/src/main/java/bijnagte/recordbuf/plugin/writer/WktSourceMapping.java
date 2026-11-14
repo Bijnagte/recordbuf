@@ -62,8 +62,7 @@ final class WktSourceMapping {
   // Wkt.wrap(Wkt.Wrap.KIND, v.field()));"
   //            repeated form:      "for (var e : v.field()) out.writeByteArray(n, Wkt.method(e));"
 
-  static void emitEncode(
-      Field f, Entry entry, String out, String v, TypeCollector ci, List<Element> body) {
+  static Element emitEncode(Field f, Entry entry, String out, String v, TypeCollector ci) {
     TypeRef wktRef = TypeRef.of(WKT_FQN);
     wktRef.collect(ci);
     TypeRef.of(requireType(entry)).collect(ci);
@@ -76,51 +75,45 @@ final class WktSourceMapping {
       if (entry.hasZeroDefault()) {
         String def = Objects.requireNonNull(entry.zeroDefault());
         // for (var e : v.field()) { if (!e.equals(def)) out.writeByteArray(n, Wkt.method(e)); }
-        body.add(
-            For.enhanced("var e", g)
-                .body(
-                    If.condition("!e.equals(@0)", def)
-                        .body(
-                            Element.expr(
-                                "@0.writeByteArray(@1, @2.@3(e));", out, num, wktRef, methodName))
-                        .build())
-                .build());
+        return For.enhanced("var e", g)
+            .body(
+                If.condition("!e.equals(@0)", def)
+                    .body(
+                        Element.expr(
+                            "@0.writeByteArray(@1, @2.@3(e));", out, num, wktRef, methodName))
+                    .build())
+            .build();
       } else {
         // for (var e : v.field()) out.writeByteArray(n, Wkt.wrap(Wkt.Wrap.KIND, e));
-        body.add(
-            For.enhanced("var e", g)
-                .body(
-                    Element.expr(
-                        "@0.writeByteArray(@1, @2.wrap(@2.Wrap.@3, e));",
-                        out,
-                        num,
-                        wktRef,
-                        wrapKind(f.typeUrl())))
-                .build());
+        return For.enhanced("var e", g)
+            .body(
+                Element.expr(
+                    "@0.writeByteArray(@1, @2.wrap(@2.Wrap.@3, e));",
+                    out,
+                    num,
+                    wktRef,
+                    wrapKind(f.typeUrl())))
+            .build();
       }
     } else if (entry.hasZeroDefault()) {
       String def = Objects.requireNonNull(entry.zeroDefault());
       // if (v.field() != null && !def.equals(v.field())) out.writeByteArray(n,
       // Wkt.method(v.field()));
-      body.add(
-          If.condition("@0 != null && !@1.equals(@0)", g, def)
-              .body(
-                  Element.expr(
-                      "@0.writeByteArray(@1, @2.@3(@4));", out, num, wktRef, methodName, g))
-              .build());
+      return If.condition("@0 != null && !@1.equals(@0)", g, def)
+          .body(Element.expr("@0.writeByteArray(@1, @2.@3(@4));", out, num, wktRef, methodName, g))
+          .build();
     } else {
       // if (v.field() != null) out.writeByteArray(n, Wkt.wrap(Wkt.Wrap.KIND, v.field()));
-      body.add(
-          If.condition("@0 != null", g)
-              .body(
-                  Element.expr(
-                      "@0.writeByteArray(@1, @2.wrap(@2.Wrap.@3, @4));",
-                      out,
-                      num,
-                      wktRef,
-                      wrapKind(f.typeUrl()),
-                      g))
-              .build());
+      return If.condition("@0 != null", g)
+          .body(
+              Element.expr(
+                  "@0.writeByteArray(@1, @2.wrap(@2.Wrap.@3, @4));",
+                  out,
+                  num,
+                  wktRef,
+                  wrapKind(f.typeUrl()),
+                  g))
+          .build();
     }
   }
 

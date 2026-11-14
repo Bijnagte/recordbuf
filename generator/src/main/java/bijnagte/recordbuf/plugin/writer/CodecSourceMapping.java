@@ -141,25 +141,25 @@ public final class CodecSourceMapping {
       Entry wktEntry = WktSourceMapping.resolve(f);
       if (wktEntry != null) {
         var wkt0 = Objects.requireNonNull(wktEntry);
-        WktSourceMapping.emitEncode(f, wkt0, "out", "v", ci, body);
+        body.add(WktSourceMapping.emitEncode(f, wkt0, "out", "v", ci));
       } else if (f.kind() == FieldKind.MAP) {
         body.add(emitMapEncode(f, ci));
       } else if (f.kind() == FieldKind.MESSAGE) {
         if (f.label() == FieldLabel.REPEATED) {
-          emitRepeatedMessageEncode(f, typeResolver, body);
+          body.add(emitRepeatedMessageEncode(f, typeResolver));
         } else {
-          emitMessageEncode(f, typeResolver, body);
+          body.add(emitMessageEncode(f, typeResolver));
         }
       } else if (f.kind() == FieldKind.ENUM) {
         if (f.label() == FieldLabel.REPEATED) {
-          emitRepeatedEnumEncode(f, typeResolver, body);
+          body.add(emitRepeatedEnumEncode(f, typeResolver));
         } else {
-          emitEnumEncode(f, typeResolver, body);
+          body.add(emitEnumEncode(f, typeResolver));
         }
       } else if (f.label() == FieldLabel.REPEATED) {
         body.add(emitRepeatedScalarEncode(f));
       } else {
-        emitScalarEncode(f, body);
+        body.add(emitScalarEncode(f));
       }
     }
 
@@ -322,15 +322,13 @@ public final class CodecSourceMapping {
 
   // --- Per-field encode ---
 
-  private static void emitScalarEncode(Field f, List<Element> out) {
+  private static Element emitScalarEncode(Field f) {
     // M4-C2b-2b-13: minimal MAP encode (placeholder — full wiring deferred).
     if (f.kind() == FieldKind.MAP) {
-      out.add(Element.comment("M4-C2b-2b-13: MAP encode for field " + f.javaName() + " deferred"));
-      return;
+      return Element.comment("M4-C2b-2b-13: MAP encode for field " + f.javaName() + " deferred");
     }
     if (f.kind() != FieldKind.SCALAR) {
-      out.add(Element.comment("unsupported kind " + f.kind() + " for field " + f.javaName()));
-      return;
+      return Element.comment("unsupported kind " + f.kind() + " for field " + f.javaName());
     }
     String getter = "v." + f.javaName() + "()";
     int num = f.number();
@@ -338,96 +336,83 @@ public final class CodecSourceMapping {
     String call = encodeCall(wire);
     if (f.isNullable()) {
       // M4-C2d-1: optional scalar / optional string → @Nullable wrapper → skip if null.
-      out.add(
-          If.condition("@0 != null", getter)
-              .body(Element.expr("out.@0(@1, @2)", call, num, getter))
-              .build());
-      return;
+      return If.condition("@0 != null", getter)
+          .body(Element.expr("out.@0(@1, @2)", call, num, getter))
+          .build();
     }
-    switch (wire) {
-      case STRING ->
-          out.add(
+    Element encoded =
+        switch (wire) {
+          case STRING ->
               If.condition("!@0.isEmpty()", getter)
                   .body(Element.expr("out.@0(@1, @2)", call, num, getter))
-                  .build());
-      case BYTES ->
-          out.add(
+                  .build();
+          case BYTES ->
               If.condition("!@0.isEmpty()", getter)
                   .body(Element.expr("out.@0(@1, @2.toByteArray())", call, num, getter))
-                  .build());
-      default ->
-          out.add(
+                  .build();
+          default ->
               If.condition("@0 != CodecDefaults.@1()", getter, defaultMethod(f))
                   .body(Element.expr("out.@0(@1, @2)", call, num, getter))
-                  .build());
-    }
+                  .build();
+        };
+    return encoded;
   }
 
   // --- Per-field MESSAGE encode/decode (M4-C2d-5) ---
 
   /** M4-C2d-5: singular MESSAGE encode — skip null, else writeByteArray(tag, Codec.encode(v)). */
-  private static void emitMessageEncode(
-      Field f, @Nullable Function<Field, String> typeResolver, List<Element> out) {
+  private static Element emitMessageEncode(
+      Field f, @Nullable Function<Field, String> typeResolver) {
     if (typeResolver == null) {
-      out.add(Element.of("// M4-C2d-5: typeResolver null; skip " + f.javaName()));
-      return;
+      return Element.of("// M4-C2d-5: typeResolver null; skip " + f.javaName());
     }
     String getter = "v." + f.javaName() + "()";
     int num = f.number();
     String codecRef = typeResolver.apply(f);
-    // Singular MESSAGE encode: skip when null, else write the nested codec bytes.
-    out.add(
-        If.condition("@0 != null", getter)
-            .body(Element.expr("out.writeByteArray(@0, @1.encode(@2))", num, codecRef, getter))
-            .build());
+    return If.condition("@0 != null", getter)
+        .body(Element.expr("out.writeByteArray(@0, @1.encode(@2))", num, codecRef, getter))
+        .build();
   }
 
   /** M4-C2d-5: repeated MESSAGE encode — one writeByteArray per element. */
-  private static void emitRepeatedMessageEncode(
-      Field f, @Nullable Function<Field, String> typeResolver, List<Element> out) {
+  private static Element emitRepeatedMessageEncode(
+      Field f, @Nullable Function<Field, String> typeResolver) {
     if (typeResolver == null) {
-      out.add(Element.of("// M4-C2d-5: typeResolver null; skip " + f.javaName()));
-      return;
+      return Element.of("// M4-C2d-5: typeResolver null; skip " + f.javaName());
     }
     String getter = "v." + f.javaName() + "()";
     int num = f.number();
     String codecRef = typeResolver.apply(f);
-    out.add(
-        For.enhanced("var _m", getter)
-            .body(Element.expr("out.writeByteArray(@0, @1.encode(_m))", num, codecRef))
-            .build());
+    return For.enhanced("var _m", getter)
+        .body(Element.expr("out.writeByteArray(@0, @1.encode(_m))", num, codecRef))
+        .build();
   }
 
   // --- Per-field ENUM encode/decode (M4-C2b-2b-9) ---
 
   /** M4-C2b-2b-9: singular ENUM encode — skip null, else writeEnum with getNumber(). */
-  private static void emitEnumEncode(
-      Field f, @Nullable Function<Field, String> typeResolver, List<Element> out) {
+  private static Element emitEnumEncode(Field f, @Nullable Function<Field, String> typeResolver) {
     if (typeResolver == null) {
-      out.add(Element.of("// M4-C2b-2b-9: typeResolver null; skip " + f.javaName()));
-      return;
+      return Element.of("// M4-C2b-2b-9: typeResolver null; skip " + f.javaName());
     }
     String getter = "v." + f.javaName() + "()";
     int num = f.number();
-    out.add(
-        If.condition("@0 != null", getter)
-            .body(Element.expr("out.writeEnum(@0, @1.getNumber())", num, getter))
-            .build());
+    return If.condition("@0 != null", getter)
+        .body(Element.expr("out.writeEnum(@0, @1.getNumber())", num, getter))
+        .build();
   }
 
   /** M4-C2b-2b-9: repeated ENUM encode — one writeEnum per element. */
-  private static void emitRepeatedEnumEncode(
-      Field f, @Nullable Function<Field, String> typeResolver, List<Element> out) {
+  private static Element emitRepeatedEnumEncode(
+      Field f, @Nullable Function<Field, String> typeResolver) {
     if (typeResolver == null) {
-      out.add(Element.of("// M4-C2b-2b-9: typeResolver null; skip " + f.javaName()));
-      return;
+      return Element.of("// M4-C2b-2b-9: typeResolver null; skip " + f.javaName());
     }
     String getter = "v." + f.javaName() + "()";
     int num = f.number();
-    out.add(
-        For.enhanced("var _e", getter)
-            .body(Element.expr("out.writeEnum(@0, _e.getNumber())", num))
-            .build());
+    return For.enhanced("var _e", getter)
+        .body(Element.expr("out.writeEnum(@0, _e.getNumber())", num))
+        .build();
   }
 
   /** M4-C2b-2b-9: singular ENUM decode — assign EnumName.forNumber(in.readEnum()). */
