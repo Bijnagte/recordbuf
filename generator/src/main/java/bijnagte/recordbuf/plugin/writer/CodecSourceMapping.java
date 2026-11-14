@@ -143,7 +143,7 @@ public final class CodecSourceMapping {
         var wkt0 = Objects.requireNonNull(wktEntry);
         WktSourceMapping.emitEncode(f, wkt0, "out", "v", ci, body);
       } else if (f.kind() == FieldKind.MAP) {
-        emitMapEncode(f, ci, body);
+        body.add(emitMapEncode(f, ci));
       } else if (f.kind() == FieldKind.MESSAGE) {
         if (f.label() == FieldLabel.REPEATED) {
           emitRepeatedMessageEncode(f, typeResolver, body);
@@ -157,7 +157,7 @@ public final class CodecSourceMapping {
           emitEnumEncode(f, typeResolver, body);
         }
       } else if (f.label() == FieldLabel.REPEATED) {
-        emitRepeatedScalarEncode(f, body);
+        body.add(emitRepeatedScalarEncode(f));
       } else {
         emitScalarEncode(f, body);
       }
@@ -245,7 +245,7 @@ public final class CodecSourceMapping {
           }
         }
       } else if (f.label() == FieldLabel.REPEATED) {
-        emitRepeatedLocalInit(f, body);
+        body.add(emitRepeatedLocalInit(f));
       } else if (f.isNullable()) {
         // M4-C2d-1: optional scalar → starts at null, set on tag.
         String localType = TypeRef.boxedFor(f.typeUrl()).render(ci.resolutionContext());
@@ -502,16 +502,15 @@ public final class CodecSourceMapping {
 
   /** M4-C2d-7: MAP encode — iterate the map's entry set, encode each entry via its entry codec. */
   @SuppressWarnings("java:S905")
-  private static void emitMapEncode(Field f, TypeCollector ci, List<Element> out) {
+  private static Element emitMapEncode(Field f, TypeCollector ci) {
     String entryName = mapEntryName(f);
-    out.add(
-        For.enhanced("var _e", "v.@0().entrySet()", f.javaName())
-            .body(
-                Element.expr(
-                    "out.writeByteArray(@0, @1.@1Codec.encode(new @1(_e.getKey(), _e.getValue())))",
-                    f.number(),
-                    entryName))
-            .build());
+    return For.enhanced("var _e", "v.@0().entrySet()", f.javaName())
+        .body(
+            Element.expr(
+                "out.writeByteArray(@0, @1.@1Codec.encode(new @1(_e.getKey(), _e.getValue())))",
+                f.number(),
+                entryName))
+        .build();
   }
 
   // --- Helpers ---
@@ -630,22 +629,20 @@ public final class CodecSourceMapping {
 
   // --- Repeated scalar encode / decode ---
 
-  private static void emitRepeatedScalarEncode(Field f, List<Element> out) {
+  private static Element emitRepeatedScalarEncode(Field f) {
     String getter = "v." + f.javaName() + "()";
     int num = f.number();
     WireScalar wire = wireScalar(f);
-    String readOp = decodeCall(wire);
     // Packed scalar: emit one length-delimited group when the list is non-empty.
-    out.add(
-        If.condition("!@0.isEmpty()", getter)
-            .body(
-                Element.expr("var body = @0.start()", ENCODER),
-                Element.expr("var _o = @0.out()", "body"),
-                For.enhanced("var _x", getter)
-                    .body(Element.expr("_o.@0(_x)", packedNoTag(wire)))
-                    .build(),
-                Element.expr("out.writeByteArray(@0, body.finish())", num))
-            .build());
+    return If.condition("!@0.isEmpty()", getter)
+        .body(
+            Element.expr("var body = @0.start()", ENCODER),
+            Element.expr("var _o = @0.out()", "body"),
+            For.enhanced("var _x", getter)
+                .body(Element.expr("_o.@0(_x)", packedNoTag(wire)))
+                .build(),
+            Element.expr("out.writeByteArray(@0, body.finish())", num))
+        .build();
   }
 
   private static void emitRepeatedScalarDecodeCase(Field f, Switch.Builder sw) {
@@ -659,10 +656,9 @@ public final class CodecSourceMapping {
         Element.of("in.popLimit(_lim);"));
   }
 
-  private static void emitRepeatedLocalInit(Field f, List<Element> out) {
-    out.add(
-        Element.expr(
-            "List<@0> @1 = new ArrayList<>()", TypeRef.boxedFor(f.typeUrl()), f.javaName()));
+  private static Element emitRepeatedLocalInit(Field f) {
+    return Element.expr(
+        "List<@0> @1 = new ArrayList<>()", TypeRef.boxedFor(f.typeUrl()), f.javaName());
   }
 
   /** The short-form boxed Java component type for a repeated scalar's element. */
@@ -727,8 +723,8 @@ public final class CodecSourceMapping {
     decBody.add(Element.expr("var dec = @0.start(inBytes);", decoderShort));
     decBody.add(Element.of("var in = dec.in();"));
     decBody.add(Element.expr("var unknown = @0.builder();", unknownFieldsShort));
-    emitFieldLocalInit(decBody, "key", keyWire, codecDefaultsShort);
-    emitFieldLocalInit(decBody, "value", valWire, codecDefaultsShort);
+    decBody.add(emitFieldLocalInit("key", keyWire, codecDefaultsShort));
+    decBody.add(emitFieldLocalInit("value", valWire, codecDefaultsShort));
     List<Element> tagLoop = new ArrayList<>();
     tagLoop.add(Element.expr("int tag = @0.readTag(in);", wireShort));
     tagLoop.add(If.condition("tag == 0").body(Element.of("break;")).build());
@@ -773,11 +769,11 @@ public final class CodecSourceMapping {
   }
 
   /** M4-C2d-12: emit a decode local-initializer line for a map entry's scalar field. */
-  private static void emitFieldLocalInit(List<Element> out, String name, WireScalar ws, String cd) {
+  private static Element emitFieldLocalInit(String name, WireScalar ws, String cd) {
     if (ws == WireScalar.STRING) {
-      out.add(Element.expr("String @0 = \"\"", name));
+      return Element.expr("String @0 = \"\"", name);
     } else {
-      out.add(Element.expr("@0 @1 = @2.@3()", localTypeForWire(ws), name, cd, defaultForWire(ws)));
+      return Element.expr("@0 @1 = @2.@3()", localTypeForWire(ws), name, cd, defaultForWire(ws));
     }
   }
 
