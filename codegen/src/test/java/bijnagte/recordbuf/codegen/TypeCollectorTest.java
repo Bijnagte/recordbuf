@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import bijnagte.recordbuf.codegen.source.TypeRef;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -26,7 +27,7 @@ class TypeCollectorTest {
   @Test
   void samePackageTypeIsShortWithoutImport() {
     TypeCollector ci = new TypeCollector(PKG);
-    String resolved = ci.use("bijnagte.recordbuf.fixture.iface.Sub");
+    String resolved = ci.use(TypeRef.of("bijnagte.recordbuf.fixture.iface.Sub"));
     assertEquals("Sub", resolved);
     assertEquals(List.of(), ci.importLines());
   }
@@ -34,38 +35,38 @@ class TypeCollectorTest {
   @Test
   void crossPackageTypeBecomesShortAndImported() {
     TypeCollector ci = new TypeCollector(PKG);
-    ci.use("com.example.other.Marker");
-    assertEquals("Marker", ci.use("com.example.other.Marker"));
+    ci.use(TypeRef.of("com.example.other.Marker"));
+    assertEquals("Marker", ci.use(TypeRef.of("com.example.other.Marker")));
     assertEquals(List.of("import com.example.other.Marker;"), ci.importLines());
   }
 
   @Test
   void javaLangTypesAreShortAndNeverImported() {
     TypeCollector ci = new TypeCollector(PKG);
-    assertEquals("String", ci.use("java.lang.String"));
-    assertEquals("Integer", ci.use("java.lang.Integer"));
+    assertEquals("String", ci.use(TypeRef.of("java.lang.String")));
+    assertEquals("Integer", ci.use(TypeRef.of("java.lang.Integer")));
     assertEquals(List.of(), ci.importLines());
   }
 
   @Test
   void collisionFallsBackToFqnAndIsNotImported() {
     TypeCollector ci = new TypeCollector(PKG);
-    ci.use("com.example.Marker");
-    ci.use("com.other.Marker");
+    ci.use(TypeRef.of("com.example.Marker"));
+    ci.use(TypeRef.of("com.other.Marker"));
     ci.finalizeResolution();
     // Both distinct FQNs share the short name, so neither is imported; both are emitted FQN.
-    assertEquals("com.example.Marker", ci.use("com.example.Marker"));
-    assertEquals("com.other.Marker", ci.use("com.other.Marker"));
+    assertEquals("com.example.Marker", ci.use(TypeRef.of("com.example.Marker")));
+    assertEquals("com.other.Marker", ci.use(TypeRef.of("com.other.Marker")));
     assertEquals(List.of(), ci.importLines());
   }
 
   @Test
   void importLinesAreGroupedJavaFirstThenOther() {
     TypeCollector ci = new TypeCollector(PKG);
-    ci.use("bijnagte.recordbuf.runtime.Encoder");
-    ci.use("bijnagte.recordbuf.runtime.CodecDefaults");
-    ci.use("org.jspecify.annotations.Nullable");
-    ci.use("java.util.List");
+    ci.use(TypeRef.of("bijnagte.recordbuf.runtime.Encoder"));
+    ci.use(TypeRef.of("bijnagte.recordbuf.runtime.CodecDefaults"));
+    ci.use(TypeRef.of("org.jspecify.annotations.Nullable"));
+    ci.use(TypeRef.of("java.util.List"));
     ci.finalizeResolution();
     List<String> lines = ci.importLines();
 
@@ -83,11 +84,11 @@ class TypeCollectorTest {
   @Test
   void finalizeResolutionRestoresUniqueShortNames() {
     TypeCollector ci = new TypeCollector(PKG);
-    ci.use("com.example.a.Sub");
-    ci.use("com.example.b.Marker");
+    ci.use(TypeRef.of("com.example.a.Sub"));
+    ci.use(TypeRef.of("com.example.b.Marker"));
     ci.finalizeResolution();
-    assertEquals("Sub", ci.use("com.example.a.Sub"));
-    assertEquals("Marker", ci.use("com.example.b.Marker"));
+    assertEquals("Sub", ci.use(TypeRef.of("com.example.a.Sub")));
+    assertEquals("Marker", ci.use(TypeRef.of("com.example.b.Marker")));
     assertTrue(ci.importLines().contains("import com.example.a.Sub;"));
     assertTrue(ci.importLines().contains("import com.example.b.Marker;"));
   }
@@ -95,10 +96,10 @@ class TypeCollectorTest {
   @Test
   void useIsIdempotentAfterFinalization() {
     TypeCollector ci = new TypeCollector(PKG);
-    ci.use("com.example.Marker");
-    ci.use("com.example.Marker");
+    ci.use(TypeRef.of("com.example.Marker"));
+    ci.use(TypeRef.of("com.example.Marker"));
     ci.finalizeResolution();
-    assertEquals("Marker", ci.use("com.example.Marker"));
+    assertEquals("Marker", ci.use(TypeRef.of("com.example.Marker")));
     assertEquals(List.of("import com.example.Marker;"), ci.importLines());
     assertFalse(ci.importLines().isEmpty());
   }
@@ -106,20 +107,22 @@ class TypeCollectorTest {
   @Test
   void genericSuffixIsPreservedForCrossPackageType() {
     TypeCollector ci = new TypeCollector(PKG);
-    String resolved = ci.use("java.util.List<java.lang.Integer>");
-    // The base type java.util.List is imported; the full generic suffix is preserved verbatim
-    // (the inner element type is NOT individually resolved, so it stays fully-qualified).
-    assertEquals("List<java.lang.Integer>", resolved);
+    String resolved = ci.use(TypeRef.of("java.util.List<java.lang.Integer>"));
+    // The base type java.util.List is imported; the generic arg is resolved through the
+    // structured TypeRef path, so java.lang.Integer collapses to its short form Integer.
+    // (The legacy string-based use preserved the generic suffix verbatim; the structured API
+    // resolves each arg, which is the desired behavior.)
+    assertEquals("List<Integer>", resolved);
     assertTrue(ci.importLines().contains("import java.util.List;"));
   }
 
   @Test
   void genericSuffixIsPreservedForInPackageType() {
     TypeCollector ci = new TypeCollector(PKG);
-    String resolved = ci.use("bijnagte.recordbuf.fixture.iface.Sub<java.lang.String>");
-    // Sub is in the same package, so the base short name Sub is returned (no import), and the
-    // generic suffix is preserved verbatim.
-    assertEquals("Sub<java.lang.String>", resolved);
+    String resolved = ci.use(TypeRef.of("bijnagte.recordbuf.fixture.iface.Sub<java.lang.String>"));
+    // Sub is in the same package; the generic arg java.lang.String resolves to its
+    // short form String via the structured TypeRef path.
+    assertEquals("Sub<String>", resolved);
     assertTrue(ci.importLines().isEmpty());
   }
 }

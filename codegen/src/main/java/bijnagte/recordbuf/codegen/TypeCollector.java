@@ -25,11 +25,11 @@ import java.util.TreeSet;
  * in fully-qualified form at every reference site and contributes no import, so the consumer's
  * compiler disambiguates by the distinct fully-qualified names themselves.
  *
- * <p><b>Resolution is phased.</b> {@link #use(String)} is called once per type reference while a
+ * <p><b>Resolution is phased.</b> {@link #use(TypeRef)} is called once per type reference while a
  * file is emitted; because a collision depends on the whole referral set (not any single
  * reference), the set is only known once the file is walked end to end. The caller therefore emits
  * the file into a throwaway collector to gather the set, calls {@link #finalizeResolution()}, and
- * emits again. After finalization {@link #use(String)} returns collision-aware names and {@link
+ * emits again. After finalization {@link #use(TypeRef)} returns collision-aware names and {@link
  * #importLines()} is final -- un-collided references are restored to their short form and the
  * behavior is idempotent.
  */
@@ -99,41 +99,8 @@ public final class TypeCollector {
   }
 
   /**
-   * Records one type reference and returns the name to emit at that site, preserving any generic
-   * suffix from {@code reference} (e.g. {@code java.util.List<java.lang.Integer>}). This is the
-   * primary <b>tree-walker entry point</b> — {@code SourceRenderer.collect()} walks the AST and
-   * calls {@code ci.use(type)} for each annotation, field, and parameter type it encounters. A bare
-   * name carrying no package segment — a primitive, a {@code byte[]} array, or a same-package /
-   * {@code java.lang} short name — is returned unchanged and never imported. Before {@code
-   * finalizeResolution()} the returned name is always the short name; afterwards it is the
-   * fully-qualified name only when that short name is shared by another distinct type.
-   */
-  public String use(String reference) {
-    int lt = reference.indexOf('<');
-    String genericSuffix = lt < 0 ? "" : reference.substring(lt);
-    String fullyQualified = stripGenericArguments(reference);
-    int lastDot = fullyQualified.lastIndexOf('.');
-    if (lastDot < 0) {
-      return reference; // primitive / array element / bare name -- no package segment
-    }
-    String owner = fullyQualified.substring(0, lastDot);
-    String shortName = fullyQualified.substring(lastDot + 1);
-    if (owner.equals("java.lang") || owner.equals(declaringPackage)) {
-      // in-package or java.lang: short, never imported
-      return shortName + genericSuffix;
-    }
-    importEligible.add(fullyQualified);
-    LinkedHashSet<String> seen = byShortName.computeIfAbsent(shortName, k -> new LinkedHashSet<>());
-    seen.add(fullyQualified);
-    if (seen.size() > 1) {
-      collidedShortNames.add(shortName);
-    }
-    return ((frozen && collidedShortNames.contains(shortName) ? fullyQualified : shortName)
-        + genericSuffix);
-  }
-
-  /**
-   * Marks the referral set complete; after this {@link #use(String)} returns collision-aware names.
+   * Marks the referral set complete; after this {@link #use(TypeRef)} returns collision-aware
+   * names.
    */
   public void finalizeResolution() {
     this.frozen = true;
@@ -164,13 +131,35 @@ public final class TypeCollector {
     if (n.pkg().isEmpty()) {
       base = n.shortName(); // bare name: no package, emitted as-is
     } else {
-      use(n.pkg() + "." + n.shortName()); // register for import / collision tracking
+      registerType(n.pkg() + "." + n.shortName()); // register for import / collision tracking
       base = n.shortName();
       if (frozen && collidedShortNames.contains(base)) {
         base = n.fqn(); // collided: emit the full qualified form
       }
     }
     return base + genericsOf(n);
+  }
+
+  /**
+   * Registers a fully-qualified type FQN as import-eligible and tracks collision by short name. No
+   * return value — registration is a side-effect consumed by {@link #importLines()} and by the
+   * frozen-state branch of {@link #resolveNamed(TypeRef.Named)}. {@code java.lang.*} and
+   * same-package types are deliberately excluded, so they contribute no import line.
+   */
+  private void registerType(String fullyQualified) {
+    int lastDot = fullyQualified.lastIndexOf('.');
+    if (lastDot < 0) return; // bare name -- skip
+    String owner = fullyQualified.substring(0, lastDot);
+    if (owner.equals("java.lang") || owner.equals(declaringPackage)) {
+      return; // in-package or java.lang: short, never imported
+    }
+    importEligible.add(fullyQualified);
+    String shortName = fullyQualified.substring(lastDot + 1);
+    LinkedHashSet<String> seen = byShortName.computeIfAbsent(shortName, k -> new LinkedHashSet<>());
+    seen.add(fullyQualified);
+    if (seen.size() > 1) {
+      collidedShortNames.add(shortName);
+    }
   }
 
   private String genericsOf(bijnagte.recordbuf.codegen.source.TypeRef.Named n) {
@@ -220,11 +209,6 @@ public final class TypeCollector {
   private static String shortNameOf(String fullyQualifiedName) {
     int lastDot = fullyQualifiedName.lastIndexOf('.');
     return lastDot < 0 ? fullyQualifiedName : fullyQualifiedName.substring(lastDot + 1);
-  }
-
-  private static String stripGenericArguments(String reference) {
-    int lt = reference.indexOf('<');
-    return lt < 0 ? reference : reference.substring(0, lt);
   }
 
   /**
