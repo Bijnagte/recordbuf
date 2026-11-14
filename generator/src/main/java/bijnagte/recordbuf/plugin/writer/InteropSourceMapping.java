@@ -86,7 +86,7 @@ public final class InteropSourceMapping {
       Message m, TypeCollector ci, String refPkg, String ref, String rec) {
     List<Element> body = new ArrayList<>();
     for (Field f : m.fields()) {
-      fromLocal(body, f, ci);
+      body.addAll(fromLocal(f, ci));
     }
     for (Oneof o : m.oneofs()) {
       body.addAll(emitOneofFrom(o, ci));
@@ -112,8 +112,9 @@ public final class InteropSourceMapping {
         .build();
   }
 
-  private static void fromLocal(List<Element> out, Field f, TypeCollector ci) {
+  private static List<Element> fromLocal(Field f, TypeCollector ci) {
     String cap = JavaNames.cap(f.javaName());
+    List<Element> out = new ArrayList<>();
     if (f.isMap()) {
       boolean hasBytes = "bytes".equals(f.mapKey()) || "bytes".equals(f.mapValue());
       if (!hasBytes) {
@@ -132,7 +133,7 @@ public final class InteropSourceMapping {
                 .body(Element.expr("_@0.put(@1, @2)", f.javaName(), keyExpr, valExpr))
                 .build());
       }
-      return;
+      return out;
     }
     if (f.isMessage() && f.isRepeated()) {
       String recSib = recordSiblingFqn(f);
@@ -148,7 +149,7 @@ public final class InteropSourceMapping {
           For.enhanced("var _e", "x.get@0List()", cap)
               .body(Element.expr("_@0.add(@1.Interop.from(_e))", f.javaName(), recSib))
               .build());
-      return;
+      return out;
     }
     if (f.isMessage()) {
       String recSib = recordSiblingFqn(f);
@@ -159,11 +160,11 @@ public final class InteropSourceMapping {
                   f.javaName(),
                   JavaNames.cap(f.javaName()),
                   TypeRef.of(recSib))));
-      return;
+      return out;
     }
     if (f.kind() == FieldKind.ENUM) {
       out.add(Element.expr("var _@0 = @1", f.javaName(), fromExpr(f)));
-      return;
+      return out;
     }
     if (f.isRepeated()) {
       if ("bytes".equals(f.typeUrl())) {
@@ -178,7 +179,7 @@ public final class InteropSourceMapping {
         // var infers the correct element type from x.getList().
         out.add(Element.expr("var _@0 = x.get@1List()", f.javaName(), cap));
       }
-      return;
+      return out;
     }
     // Singular scalar / bytes
     if ("bytes".equals(f.typeUrl())) {
@@ -191,6 +192,7 @@ public final class InteropSourceMapping {
     } else {
       out.add(Element.expr("var _@0 = @1", f.javaName(), fromExpr(f)));
     }
+    return out;
   }
 
   private static String fromExpr(Field f) {
@@ -210,7 +212,7 @@ public final class InteropSourceMapping {
     List<Element> body = new ArrayList<>();
     body.add(Element.expr("var _b = @0.newBuilder()", ref));
     for (Field f : m.fields()) {
-      toStmt(body, f, ci, refPkg);
+      body.addAll(toStmt(f, ci, refPkg));
     }
     for (Oneof o : m.oneofs()) {
       body.addAll(emitOneofTo(o, ci, refPkg));
@@ -226,14 +228,15 @@ public final class InteropSourceMapping {
         .build();
   }
 
-  private static void toStmt(List<Element> out, Field f, TypeCollector ci, String refPkg) {
+  private static List<Element> toStmt(Field f, TypeCollector ci, String refPkg) {
     String cap = JavaNames.cap(f.javaName());
+    List<Element> out = new ArrayList<>();
     if (f.isMap()) {
       out.add(
           For.enhanced("var _e", "r.@0().entrySet()", f.javaName())
               .body(Element.expr("_b.put@0(@1, @2)", cap, mapKeyTo(f, ci), mapValueTo(f, ci)))
               .build());
-      return;
+      return out;
     }
     if (f.isMessage() && f.isRepeated()) {
       String recSib = recordSiblingFqn(f);
@@ -241,7 +244,7 @@ public final class InteropSourceMapping {
           For.enhanced("var _e", "r.@0()", f.javaName())
               .body(Element.expr("_b.add@0(@1.Interop.to(_e))", cap, recSib))
               .build());
-      return;
+      return out;
     }
     if (f.isMessage()) {
       String recSib = recordSiblingFqn(f);
@@ -254,7 +257,7 @@ public final class InteropSourceMapping {
                   Element.expr("var @0 = @1", local, src),
                   Element.expr("_b.set@0(@1.Interop.to(@2))", cap, recSib, local))
               .build());
-      return;
+      return out;
     }
     if (f.isRepeated()) {
       if ("bytes".equals(f.typeUrl())) {
@@ -267,9 +270,10 @@ public final class InteropSourceMapping {
       } else {
         out.add(Element.expr("_b.addAll@0(r.@1())", cap, f.javaName()));
       }
-      return;
+      return out;
     }
     out.add(toSetStatement(f, "r." + f.javaName() + "()", ci, refPkg));
+    return out;
   }
 
   private static Element toSetStatement(Field f, String src, TypeCollector ci, String refPkg) {

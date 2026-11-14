@@ -1,11 +1,11 @@
 package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
+import bijnagte.recordbuf.codegen.source.Case;
 import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.For;
 import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.LocalVar;
-import bijnagte.recordbuf.codegen.source.Switch;
 import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
@@ -122,7 +122,7 @@ final class WktSourceMapping {
 
   // decode case: "case N -> field = Wkt.parseName(in.readByteArray());"
   //             "case N -> field = (Short) Wkt.parse(Wkt.Wrap.KIND, in.readByteArray());"
-  static void emitDecodeCase(Field f, Entry entry, String in, Switch.Builder sw, TypeCollector ci) {
+  static Case emitDecodeCase(Field f, Entry entry, String in, TypeCollector ci) {
     int num = f.number();
     String name = f.javaName();
     String read = in + ".readByteArray()";
@@ -164,7 +164,7 @@ final class WktSourceMapping {
               castRef,
               wrapKind(f.typeUrl()));
     }
-    sw.caseArm(String.valueOf(num), assignment);
+    return Case.of(String.valueOf(num), assignment);
   }
 
   private static String requireType(Entry entry) {

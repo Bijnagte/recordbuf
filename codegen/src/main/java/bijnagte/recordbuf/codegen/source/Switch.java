@@ -59,6 +59,12 @@ public record Switch(RawExpr subject, List<Case> cases, List<Element> defaultBod
       return this;
     }
 
+    /** Append a pre-built case arm; calls accumulate. */
+    public Builder caseArm(Case c) {
+      cases.add(c);
+      return this;
+    }
+
     /** Append an existing sequence of case arms; calls accumulate. */
     public Builder caseArm(List<Case> arms) {
       List<Case> next = new ArrayList<>(this.cases);
