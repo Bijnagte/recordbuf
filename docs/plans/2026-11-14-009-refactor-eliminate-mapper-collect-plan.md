@@ -80,7 +80,14 @@ waiting on it.
 - **U1 (Category A — redundant deletes): DONE.** `WktSourceMapping` reaches zero `.collect(ci)`; the 6 Wkt
   sites (`wktRef`/`castRef`/`requireType(entry)`/`java.util.List`/`java.util.ArrayList`) are deleted and the
   golden output is byte-identical.
-- **Next: U2 (Category B — short-name splices)** in `CodecSourceMapping`.
+- **U3 (Category C — two-pass splices): DONE.** The `.render(ctx)` + `collect(ci)` workaround is eliminated
+  across `CodecSourceMapping` (BYTES/ArrayList/HashMap literals + the `CODEC_DEFAULTS` concat),
+  `RecordSourceMapping` (the field-family initializer refs, incl. the `ufRef` builder carrier), and
+  `InteropSourceMapping` (the map key/value `BYTE_STRING` positionals and the `from` unknownFields carrier,
+  the last splice, joined via a new `CommaList` `Formattable` that comma-joins its elements at render
+  time). All byte-identical. Remaining: the `AvroConverterSourceMapping` parallel pipeline (conditional
+  collects L68–83 + their `Element.of` `Fragment` bodies) — the distinct, harder sub-part.
+- **Next: U4 (Category D — collision policy / retire `useFqn`)** or the AvroConverter pipeline.
 
 ## Approach
 
@@ -196,7 +203,7 @@ fallback** (`L861`): route both the `typeResolver` and the `ci.use` branch throu
 - **Do:** arg-swap + delete; settle the `typeResolver` sub-decision to keep the enum/codec-ref path byte-stable.
 - **Verify:** `./gradlew build` green; codec fixture + `RecordSourceMappingTest` byte-identical.
 
-### U3 — Category C: `Fragment`/concat + registration-only + conditional
+### U3 — Category C: `Fragment`/concat + registration-only + conditional — **two-pass splices DONE**; AvroConverter pipeline remains
 
 Convert positions that inline a type as a literal into `RawExpr`/`ExprStatement` with the `TypeRef` as an arg;
 retire the `Fragment` escape on those lines; delete the now-redundant collects. Covers
