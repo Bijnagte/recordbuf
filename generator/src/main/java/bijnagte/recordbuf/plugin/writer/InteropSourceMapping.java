@@ -28,11 +28,19 @@ import java.util.List;
  */
 public final class InteropSourceMapping {
 
-  private static final String LIST = "java.util.List";
-  private static final String ARRAY_LIST = "java.util.ArrayList";
-  private static final String HASH_MAP = "java.util.HashMap";
-  private static final String BYTE_STRING = "com.google.protobuf.ByteString";
-  private static final String RT = "bijnagte.recordbuf.runtime";
+  /**
+   * Static TypeRefs — one per runtime type referenced by an {@code Interop} body. Each is
+   * registered with {@link TypeRef#collect} on first use, so the constant's idempotency collapses
+   * the previously repeated {@code TypeRef.of(...)} calls into a single import per type.
+   */
+  private static final TypeRef LIST = TypeRef.of("java.util.List");
+
+  private static final TypeRef ARRAY_LIST = TypeRef.of("java.util.ArrayList");
+  private static final TypeRef HASH_MAP = TypeRef.of("java.util.HashMap");
+  private static final TypeRef BYTE_STRING = TypeRef.of("com.google.protobuf.ByteString");
+  private static final TypeRef UNKNOWN_FIELDS =
+      TypeRef.of("bijnagte.recordbuf.runtime.UnknownFields");
+  private static final TypeRef BYTES = TypeRef.of("bijnagte.recordbuf.runtime.Bytes");
 
   private InteropSourceMapping() {}
 
@@ -89,19 +97,19 @@ public final class InteropSourceMapping {
       body.addAll(fromLocal(f, ci));
     }
     for (Oneof o : m.oneofs()) {
-      body.addAll(emitOneofFrom(o, ci));
+      body.addAll(emitOneofFrom(o));
     }
-    body.add(Element.of("return new " + rec + "("));
+
+    List<String> ctorArgs = new ArrayList<>();
     for (Field f : m.fields()) {
-      body.add(Element.of("    _" + f.javaName() + ","));
+      ctorArgs.add("_" + f.javaName());
     }
     for (Oneof o : m.oneofs()) {
-      body.add(Element.of("    _" + o.name() + ","));
+      ctorArgs.add("_" + o.name());
     }
-    TypeRef ufRef = TypeRef.of(RT + ".UnknownFields");
-    ufRef.collect(ci);
-    body.add(Element.of("    " + ufRef.render(ci.resolutionContext()) + ".empty()"));
-    body.add(Element.of("    );"));
+    UNKNOWN_FIELDS.collect(ci);
+    ctorArgs.add(UNKNOWN_FIELDS.render(ci.resolutionContext()) + ".empty()");
+    body.add(Element.expr("return new @0(@1)", rec, String.join(", ", ctorArgs)));
 
     return Method.named("from")
         .public_()
@@ -121,13 +129,11 @@ public final class InteropSourceMapping {
         // Non-byte maps: copy the protobuf-java map directly (compatible key/value types)
         out.add(
             Element.expr(
-                RawExpr.of(
-                    "var _@0 = new @1<>(x.get@2Map())", f.javaName(), TypeRef.of(HASH_MAP), cap)));
+                RawExpr.of("var _@0 = new @1<>(x.get@2Map())", f.javaName(), HASH_MAP, cap)));
       } else {
         String keyExpr = mapKeyFrom(f);
         String valExpr = mapValueFrom(f, ci);
-        out.add(
-            Element.expr(RawExpr.of("var _@0 = new @1<>()", f.javaName(), TypeRef.of(HASH_MAP))));
+        out.add(Element.expr(RawExpr.of("var _@0 = new @1<>()", f.javaName(), HASH_MAP)));
         out.add(
             For.enhanced("var _e", "x.get@0Map().entrySet()", cap)
                 .body(Element.expr("_@0.put(@1, @2)", f.javaName(), keyExpr, valExpr))
@@ -140,11 +146,7 @@ public final class InteropSourceMapping {
       out.add(
           Element.expr(
               RawExpr.of(
-                  "@0<@2> _@3 = new @1<>()",
-                  TypeRef.of(LIST),
-                  TypeRef.of(ARRAY_LIST),
-                  TypeRef.of(recSib),
-                  f.javaName())));
+                  "@0<@2> _@3 = new @1<>()", LIST, ARRAY_LIST, TypeRef.of(recSib), f.javaName())));
       out.add(
           For.enhanced("var _e", "x.get@0List()", cap)
               .body(Element.expr("_@0.add(@1.Interop.from(_e))", f.javaName(), recSib))
@@ -168,8 +170,7 @@ public final class InteropSourceMapping {
     }
     if (f.isRepeated()) {
       if ("bytes".equals(f.typeUrl())) {
-        out.add(
-            Element.expr(RawExpr.of("var _@0 = new @1<>()", f.javaName(), TypeRef.of(ARRAY_LIST))));
+        out.add(Element.expr(RawExpr.of("var _@0 = new @1<>()", f.javaName(), ARRAY_LIST)));
         out.add(
             For.enhanced("var _e", "x.get@0List()", cap)
                 .body(Element.expr("_@0.add(_e.toByteArray())", f.javaName()))
@@ -183,10 +184,8 @@ public final class InteropSourceMapping {
     }
     // Singular scalar / bytes
     if ("bytes".equals(f.typeUrl())) {
-      out.add(
-          Element.expr(
-              RawExpr.of(
-                  "var _@0 = @1.of(@2)", f.javaName(), TypeRef.of(RT + ".Bytes"), fromExpr(f))));
+      out.add(Element.expr(RawExpr.of("var _@0 = @1.of(@2)", f.javaName(), BYTES, fromExpr(f))));
+
     } else if (f.isNullable()) {
       out.add(Element.expr("var _@0 = x.has@1() ? x.get@1() : null", f.javaName(), cap));
     } else {
@@ -263,9 +262,7 @@ public final class InteropSourceMapping {
       if ("bytes".equals(f.typeUrl())) {
         out.add(
             For.enhanced("byte[] _e", "r.@0()", f.javaName())
-                .body(
-                    Element.expr(
-                        RawExpr.of("_b.add@1(@0.copyFrom(_e))", TypeRef.of(BYTE_STRING), cap)))
+                .body(Element.expr(RawExpr.of("_b.add@1(@0.copyFrom(_e))", BYTE_STRING, cap)))
                 .build());
       } else {
         out.add(Element.expr("_b.addAll@0(r.@1())", cap, f.javaName()));
@@ -287,9 +284,7 @@ public final class InteropSourceMapping {
     }
     if ("bytes".equals(f.typeUrl())) {
       return Element.expr(
-          RawExpr.of(
-              "_b.set" + cap + "(@0.copyFrom(" + src + ".toByteArray()))",
-              TypeRef.of(BYTE_STRING)));
+          RawExpr.of("_b.set@0(@1.copyFrom(@2.toByteArray()))", cap, BYTE_STRING, src));
     }
     if (f.isNullable()) {
       return If.condition("@0 != null", src).body(Element.expr("_b.set@0(@1)", cap, src)).build();
@@ -297,47 +292,39 @@ public final class InteropSourceMapping {
     return Element.expr("_b.set@0(@1)", cap, src);
   }
 
-  private static List<Element> emitOneofFrom(Oneof o, TypeCollector ci) {
+  private static List<Element> emitOneofFrom(Oneof o) {
     String iface = o.ifaceName();
     List<Element> out = new ArrayList<>();
     out.add(
         Element.of(
             "@Nullable " + iface + " _" + o.name() + " = switch (x.get" + iface + "Case()) {"));
     for (Field f : o.members()) {
-      String cap = JavaNames.cap(f.name());
-      if (f.isMessage()) {
-        String recSib = recordSiblingFqn(f);
-        // The message member wraps the actual record in a per-member sealed value record.
-        out.add(
-            Element.of(
-                "  case "
-                    + JavaNames.snakeUpper(f.name())
-                    + " -> new "
-                    + iface
-                    + "."
-                    + cap
-                    + "Value("
-                    + recSib
-                    + ".Interop.from(x.get"
-                    + cap
-                    + "()));"));
-        continue;
-      }
-      out.add(
-          Element.of(
-              "  case "
-                  + JavaNames.snakeUpper(f.name())
-                  + " -> new "
-                  + iface
-                  + "."
-                  + cap
-                  + "Value("
-                  + fromExpr(f)
-                  + ");"));
+      out.add(oneofValueCase(o, f));
     }
     out.add(Element.of("  default -> null;"));
     out.add(Element.of("};"));
     return out;
+  }
+
+  /**
+   * Build one {@code case <NAME> -> new <Iface>.<Cap>Value(<arg>);} arm of the {@code from()} oneof
+   * switch expression. A message member wraps {@code <RecSibling>.Interop.from(x.get<Cap>())};
+   * every scalar/enum member passes {@link #fromExpr(Field)} directly.
+   */
+  private static Element oneofValueCase(Oneof o, Field f) {
+    String cap = JavaNames.cap(f.name());
+    String inner =
+        f.isMessage() ? recordSiblingFqn(f) + ".Interop.from(x.get" + cap + "())" : fromExpr(f);
+    return Element.of(
+        "  case "
+            + JavaNames.snakeUpper(f.name())
+            + " -> new "
+            + o.ifaceName()
+            + "."
+            + cap
+            + "Value("
+            + inner
+            + ");");
   }
 
   private static List<Element> emitOneofTo(Oneof o, TypeCollector ci, String refPkg) {
@@ -395,9 +382,8 @@ public final class InteropSourceMapping {
 
   private static String mapKeyTo(Field f, TypeCollector ci) {
     if ("bytes".equals(f.mapKey())) {
-      TypeRef bytesRef = TypeRef.of(BYTE_STRING);
-      bytesRef.collect(ci);
-      return bytesRef.render(ci.resolutionContext()) + ".copyFrom(_e.getKey())";
+      BYTE_STRING.collect(ci);
+      return BYTE_STRING.render(ci.resolutionContext()) + ".copyFrom(_e.getKey())";
     }
     return "_e.getKey()";
   }
@@ -406,9 +392,8 @@ public final class InteropSourceMapping {
     String t = f.mapValue();
     if (t == null) return "_e.getValue()";
     if ("bytes".equals(t)) {
-      TypeRef bytesRef = TypeRef.of(BYTE_STRING);
-      bytesRef.collect(ci);
-      return bytesRef.render(ci.resolutionContext()) + ".copyFrom(_e.getValue())";
+      BYTE_STRING.collect(ci);
+      return BYTE_STRING.render(ci.resolutionContext()) + ".copyFrom(_e.getValue())";
     }
     return "_e.getValue()";
   }
