@@ -67,20 +67,6 @@ public final class AvroConverterSourceMapping {
     if (!samePkg) {
       TypeRef.of(specificRecordPkg + "." + avroSpecific).collect(ci);
     }
-    boolean hasWkt =
-        message.fields().stream().anyMatch(f -> AvroSchemaGenerator.typeUrlIfWkt(f) != null);
-    if (hasWkt) {
-      TypeRefs.WKT_AVRO_BRIDGE.collect(ci);
-    }
-    boolean hasByteField =
-        message.fields().stream()
-            .anyMatch(f -> f.kind() == FieldKind.SCALAR && "bytes".equals(f.typeUrl()));
-    if (hasByteField) {
-      TypeRefs.BYTES.collect(ci);
-      TypeRefs.BYTE_BUFFER.collect(ci);
-      TypeRefs.ARRAYS.collect(ci);
-    }
-    TypeRefs.UNKNOWN_FIELDS.collect(ci);
 
     // --- class AST ---
     Constructor privateCtor = Constructor.builder().private_().body().build();
@@ -117,7 +103,7 @@ public final class AvroConverterSourceMapping {
     for (Field f : message.fields()) {
       body.add(toRecordFieldLine(f, "s"));
     }
-    body.add(Element.of("b.unknownFields(UnknownFields.empty());"));
+    body.add(Element.expr("@0.unknownFields(@1.empty())", "b", TypeRefs.UNKNOWN_FIELDS));
     body.add(Element.of("return b.build();"));
 
     return Method.named("toRecord")
@@ -133,18 +119,15 @@ public final class AvroConverterSourceMapping {
     String getter = param + ".get" + cap(f.javaName());
     String var = "b." + f.javaName();
     if (AvroSchemaGenerator.typeUrlIfWkt(f) != null) {
-      return Element.expr("@0(WktAvroBridge.fromAvro(@1()))", var, getter);
+      return Element.expr("@0(@1.fromAvro(@2()))", var, TypeRefs.WKT_AVRO_BRIDGE, getter);
     }
     if (f.kind() == FieldKind.SCALAR && "bytes".equals(f.typeUrl())) {
-      return Element.of(
-          var
-              + "("
-              + getter
-              + "() != null ? Bytes.of(Arrays.copyOf("
-              + getter
-              + "().array(), "
-              + getter
-              + "().remaining())) : Bytes.empty());");
+      return Element.expr(
+          "@0(@1() != null ? @2.of(@3.copyOf(@1().array(), @1().remaining())) : @2.empty())",
+          var,
+          getter,
+          TypeRefs.BYTES,
+          TypeRefs.ARRAYS);
     }
     if (f.kind() == FieldKind.SCALAR && "string".equals(f.typeUrl())) {
       return Element.expr("@0(@1().toString())", var, getter);
@@ -176,10 +159,10 @@ public final class AvroConverterSourceMapping {
     String setter = param + ".set" + cap(f.javaName());
     String accessor = record + "." + f.javaName() + "()";
     if (AvroSchemaGenerator.typeUrlIfWkt(f) != null) {
-      return Element.expr("@0(WktAvroBridge.toAvro(@1))", setter, accessor);
+      return Element.expr("@0(@1.toAvro(@2))", setter, TypeRefs.WKT_AVRO_BRIDGE, accessor);
     }
     if (f.kind() == FieldKind.SCALAR && "bytes".equals(f.typeUrl())) {
-      return Element.expr("@0(ByteBuffer.wrap(@1.toByteArray()))", setter, accessor);
+      return Element.expr("@0(@1.wrap(@2.toByteArray()))", setter, TypeRefs.BYTE_BUFFER, accessor);
     }
     return Element.expr("@0(@1)", setter, accessor);
   }
