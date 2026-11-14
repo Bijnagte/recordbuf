@@ -7,7 +7,7 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: requirements-only
 product_contract_source: ce-brainstorm
 execution: code
-status: partially-realized
+status: realized
 updated: 2026-11-13
 ---
 
@@ -29,8 +29,8 @@ temporally stale. Per-requirement status:
 | R7  Aggregate import + collision set | **Done** | `TypeCollector.finalizeResolution()` |
 | R8  Single render resolves short vs FQN | **Done** | `TypeRef.render(ResolutionContext)` + `SourceRenderer.render*` |
 | R9  Forced-FQN case, `useFqn` | **Done — settled as a default method `TypeRef.useFqn(collector)`** on the sealed interface; **not** a dedicated field/variant/flag (the earlier "open ergonomic choice" was resolved by the planner to a method on the interface with a default). See `TypeRef.useFqn` |
-| R10  AST's type positions hold `TypeRef`s | **Partially done** — done at the AST and mapper level. 70 `*SourceMapping` call sites still call the one-shot `TypeRef.of(String)` factory at creation, which is acceptable (the `TypeRef` is propagated through the AST, not as a raw string). Two `void emit*` helpers remain in `RecordSourceMapping` (`emitOneof`, `emitBuilder`); see 006. |
-| R11  Retire the `TypeImporter`/`TypeCollector` duplication | **First phase done** — `TypeImports` is deleted; `TypeCollector` gained a `use(TypeRef)` overload. **Second phase planned** — retiring the legacy `use(String)` overload, which is used only by `TypeCollectorTest` today. |
+| R10  AST's type positions hold `TypeRef`s | **Done** — done at the AST, mapper, and writer level. The last two `void emit*` helpers in `RecordSourceMapping` (`emitOneof`/`emitBuilder`) were migrated to returning `OneofEmission`/`BuilderEmission` in `007`. No `void emit*` remain in `writer/`. |
+| R11  Retire the `TypeImporter`/`TypeCollector` duplication | **Done** — `TypeImports` is deleted; `TypeCollector.use(TypeRef)` is the single structured resolver; the legacy `use(String)` overload and its `stripGenericArguments` helper were retired in `007` (the internal FQN-registration side-effect lives in a private `registerType` helper on the `use(TypeRef)` path). |
 | R12  `Annotation.type` is the first `TypeRef` the AST holds | **Done** via 2026-11-12-001 |
 
 **Downstream plans that realize this contract:**
@@ -43,10 +43,12 @@ temporally stale. Per-requirement status:
 - `2026-11-13-005-feature-call-site-postemplating-plan.md` — migrated `If`/`ElseIf`/
   `For`/`While`/`Switch` `condition`/`iterable`/`subject` to `RawExpr`; **status
   `implementation-ready` label is stale — this is done in code**.
-- `2026-11-13-006-refactor-mapper-type-ref-migration-plan.md` — in-progress plan to
-  migrate every `*SourceMapping` helper to return `TypeRef`/`Element`; two helpers remain
-  (`emitOneof`/`emitBuilder` in `RecordSourceMapping`) plus a new R11 second phase to
-  retire `TypeCollector.use(String)`.
+- `2026-11-13-006-refactor-mapper-type-ref-migration-plan.md` — `*SourceMapping` helpers
+  migrated to return `TypeRef`/`Element`; two helpers (`emitOneof`/`emitBuilder` in
+  `RecordSourceMapping`) were the only `void *` remaining and were retired in `007`.
+- `2026-11-13-007-refactor-finish-type-ref-migration-plan.md` — closed out the
+  R10 tail (the two `void emit*` helpers) and the R11 second phase (the legacy
+  `use(String)` overload + `stripGenericArguments`); **status `complete`**.
 
 ---
 
@@ -186,27 +188,27 @@ behavior, for cross-compilation-unit shadowing) is represented as a marker on
 `Named` and preserved.
 
 ### Migration and roadmap
+**R10.** **Done** (2026-11-13 via `007`). The AST's type positions — record
+component types, field types, method return and parameter types, and nested
+generic arguments — hold `TypeRef`s; the last two `void emit*` helpers in
+`RecordSourceMapping` were retired. The 2026-11-12-003 / `004` / `005` / `006`
+plans realized this contract across declaration and expression-spliced positions.
 
-**R10.** (Deferred to a later pass.) The AST's type positions — record component
-types, field types, method return and parameter types, `implements`/`extends`/
-`permits` lists, declared `throws`, and any nested generic arguments — will hold
-`TypeRef`s instead of resolved strings. This doc fixes the contract that migration
-honor; it is not this effort.
+**R11.** **Done** (2026-11-13 via `007`). The `TypeImporter`/`TypeImports`
+duplicate is retired; `TypeCollector.use(TypeRef)` is the single structured
+resolver (R6–R9). The legacy `use(String)` overload and its
+`stripGenericArguments` helper were deleted; the FQN-registration side-effect is
+now a private `registerType` on the `use(TypeRef)` path.
 
-**R11.** The `TypeImporter` and `TypeCollector` duplication is replaced by a single
-resolver implementing R6–R9; the duplicate is retired.
-
-**R12.** When the structural-AST prerequisite lands, the first `TypeRef` to hold in
-the AST is the `Annotation.type` field from the 2026-11-12-001 annotation brainstorm.
+**R12.** **Done** via 2026-11-12-001. The first `TypeRef` the AST holds is
+`Annotation.type`.
 
 ## Scope Boundaries
 
-**Deferred for later.**
-
-- **The structural-AST prerequisite itself** — making `*Mapper` classes produce
-  `TypeRef`s and the AST store them instead of resolved strings (R10). This is the
-  large part; it needs the "more structured AST nodes" and is a distinct pass.
-- **Wiring resolution into the render loop for every existing type position.**
+**Realized.**
+- The structural-AST prerequisite that made R10 real (the `*Mapper` classes
+  produce `TypeRef`s and the AST stores them instead of resolved strings) is
+done across `003` / `004` / `005` / `006` / `007`.
 
 **Outside this effort's identity.**
 
@@ -243,11 +245,12 @@ second time. *Covers R6, R7, R8.*
 
 ## Outstanding Questions
 
-**Deferred to planning / a later pass.**
+**Mostly resolved; remaining items are historical context.**
 
-- **Realization of R10.** When and how the `*Mapper` classes are reworked to produce
-  `TypeRef`s and the AST to store them is the subsequent structural-AST effort; this
-  doc is the contract it honors.
+- **Realization of R10.** **Resolved.** The `*Mapper` classes now produce `TypeRef`
+  and the AST stores them (done across `003` / `004` / `005` / `006` / `007`).
+  `RecordSourceMapping.emitOneof`/`emitBuilder` were the last `void emit*` helpers
+  and are now returning `OneofEmission`/`BuilderEmission`.
 - **The collision map's storage and the order of import groups** are inherited from
   the present resolver's behavior and pinned by `TypeCollectorTest`; the planner may
   confirm the exact data structures.
@@ -264,8 +267,8 @@ second time. *Covers R6, R7, R8.*
   `use(String)`, the two-pass `finalizeResolution()` design, `useFqn`, the grouped
   import lines, and the collision map. `codegen/src/main/java/bijnagte/recordbuf/
   codegen/TypeCollectorTest.java` pins its behavior.
-- `generator/src/main/java/bijnagte/recordbuf/plugin/writer/TypeImports.java` — the
-  parallel, near-identical duplicate this effort consolidates (R11).
+- `generator/src/main/java/bijnagte/recordbuf/plugin/writer/TypeImports.java` —
+  **deleted** (the duplicate `TypeCollector` consolidation from R11).
 - `docs/plans/2026-11-07-002-refactor-javapoet-writer-plan.md` — the plan that
   introduced `TypeCollector` in place of the `javapoet`-style writer; context for
   why resolution is string-based and phased today.
