@@ -154,6 +154,62 @@ public sealed interface TypeRef extends Formattable {
     return new Array(element);
   }
 
+  // --- boxed primitive constants -----------------------------------------------
+
+  /** {@code java.lang.Integer} — the boxed type for protobuf {@code int32}, {@code uint32}, etc. */
+  Named INTEGER = Named.ofBase("java.lang", "Integer", List.of());
+
+  /** {@code java.lang.Long} — the boxed type for protobuf {@code int64}, {@code uint64}, etc. */
+  Named LONG = Named.ofBase("java.lang", "Long", List.of());
+
+  /** {@code java.lang.Float} — the boxed type for protobuf {@code float}. */
+  Named FLOAT = Named.ofBase("java.lang", "Float", List.of());
+
+  /** {@code java.lang.Double} — the boxed type for protobuf {@code double}. */
+  Named DOUBLE = Named.ofBase("java.lang", "Double", List.of());
+
+  /** {@code java.lang.Boolean} — the boxed type for protobuf {@code bool}. */
+  Named BOOLEAN = Named.ofBase("java.lang", "Boolean", List.of());
+
+  /**
+   * {@code java.lang.Short} — the boxed type for protobuf {@code sint32}/{@code sfixed32} (32-bit).
+   */
+  Named SHORT = Named.ofBase("java.lang", "Short", List.of());
+
+  /** {@code java.lang.Byte} — the boxed type for a single proto byte. */
+  Named BYTE = Named.ofBase("java.lang", "Byte", List.of());
+
+  /** {@code java.lang.Character} — the boxed type for protobuf {@code uint32} as char. */
+  Named CHARACTER = Named.ofBase("java.lang", "Character", List.of());
+
+  /** {@code java.lang.String} — the boxed type for protobuf {@code string}. */
+  Named STRING = Named.ofBase("java.lang", "String", List.of());
+
+  /** {@code java.lang.Object} — the boxed type for an unresolvable scalar (default). */
+  Named OBJECT = Named.ofBase("java.lang", "Object", List.of());
+
+  /**
+   * Resolve the boxed {@link Named} for a protobuf scalar type URL.
+   *
+   * <p>Replaces the duplicate {@code boxedScalarType}, {@code boxedScalarComponent}, and {@code
+   * boxedScalarShortName} switch statements previously duplicated in {@code RecordSourceMapping}
+   * and {@code CodecSourceMapping}.
+   *
+   * @param typeUrl the protobuf scalar type URL (e.g. {@code "int32"}, {@code "uint64"})
+   * @return the shared {@link Named} boxed-primitive constant
+   */
+  static Named boxedFor(String typeUrl) {
+    return switch (typeUrl) {
+      case "int32", "uint32", "fixed32", "sfixed32", "sint32" -> INTEGER;
+      case "int64", "uint64", "fixed64", "sfixed64", "sint64" -> LONG;
+      case "float" -> FLOAT;
+      case "double" -> DOUBLE;
+      case "bool" -> BOOLEAN;
+      case "string" -> STRING;
+      default -> OBJECT;
+    };
+  }
+
   // --- implementations ---------------------------------------------------------
 
   /**

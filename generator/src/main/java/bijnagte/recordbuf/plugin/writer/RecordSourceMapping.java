@@ -62,7 +62,7 @@ public final class RecordSourceMapping {
     // the
     // component's type + javaName; a record's components render in its header via components().
     for (Field f : m.fields()) {
-      var comp = Component.named(scalarComponentType(f, ci), f.javaName());
+      var comp = Component.type(scalarComponentType(f, ci), f.javaName());
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       result.component(comp.build());
     }
@@ -104,7 +104,7 @@ public final class RecordSourceMapping {
             .javadoc(Javadoc.builder().text(m.comment()).build())
             .deprecated(m.deprecated());
     for (Field f : m.fields()) {
-      var comp = Component.named(scalarComponentType(f, ci), f.javaName());
+      var comp = Component.type(scalarComponentType(f, ci), f.javaName());
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       result.component(comp.build());
     }
@@ -207,21 +207,25 @@ public final class RecordSourceMapping {
    * scalars resolve to their Java primitive or boxed type. The {@link TypeCollector} collects
    * cross-package type references so the render pass can emit correct imports.
    */
-  private static String scalarComponentType(Field f, TypeCollector ci) {
+  private static TypeRef scalarComponentType(Field f, TypeCollector ci) {
     // M4-C2b-2b-13: map<K, V> field. Key + value are proto scalar type URLs;
     // each is rendered as its boxed Java type (primitives get boxed inside Map<>).
     // Must run BEFORE the REPEATED label check (maps use REPEATED but are not Lists).
     if (f.kind() == FieldKind.MAP) {
-      TypeRef.of("java.util.Map").collect(ci);
-      // MAP's mapKey/mapValue are @Nullable String; a MAP field always has both.
-      String keyType = boxedScalarType(Objects.requireNonNull(f.mapKey()));
-      String valueType = boxedScalarType(Objects.requireNonNull(f.mapValue()));
-      return "Map<" + keyType + ", " + valueType + ">";
+      var mapRef =
+          TypeRef.named(
+              "java.util",
+              "Map",
+              TypeRef.boxedFor(Objects.requireNonNull(f.mapKey())),
+              TypeRef.boxedFor(Objects.requireNonNull(f.mapValue())));
+      mapRef.collect(ci);
+      return mapRef;
     }
     // M4-C2d-2: repeated MESSAGE/ENUM → List<ElementType>, element resolved per kind.
     if (f.label() == FieldLabel.REPEATED) {
-      TypeRef.of("java.util.List").collect(ci);
-      return "List<" + elementComponentType(f, ci) + ">";
+      var listRef = TypeRef.named("java.util", "List", elementComponentType(f, ci));
+      listRef.collect(ci);
+      return listRef;
     }
     // M4-C2d-12: WKT fields → native Java type from WellKnownTypes (e.g. Timestamp→Instant,
     // Int32Value→Integer). Singular WKT fields are @Nullable (presence-tracked; null = unset).
@@ -229,7 +233,7 @@ public final class RecordSourceMapping {
     if (wkt != null) {
       TypeRef wktRef = TypeRef.of(Objects.requireNonNull(wkt.javaType()));
       wktRef.collect(ci);
-      return wktRef.render(ci.resolutionContext());
+      return wktRef;
     }
     // M4-C2d-2: singular MESSAGE/ENUM → the resolved short type name.
     // Singular message fields are presence-tracked, so they're @Nullable in the record;
@@ -240,26 +244,26 @@ public final class RecordSourceMapping {
         {
           TypeRef sibRef = TypeRef.of(javaSimpleName(f.typeUrl()));
           sibRef.collect(ci);
-          return sibRef.render(ci.resolutionContext());
+          return sibRef;
         }
       default:
         break;
     }
     // M4-C2d-1: optional scalar → @Nullable boxed wrapper.
     if (f.isNullable()) {
-      return boxedScalarComponent(f.typeUrl());
+      return TypeRef.boxedFor(f.typeUrl());
     }
     return switch (f.typeUrl()) {
-      case "int32", "uint32", "fixed32", "sfixed32", "sint32" -> "int";
-      case "int64", "uint64", "fixed64", "sfixed64", "sint64" -> "long";
-      case "float" -> "float";
-      case "double" -> "double";
-      case "bool" -> "boolean";
-      case "string" -> "String";
+      case "int32", "uint32", "fixed32", "sfixed32", "sint32" -> TypeRef.Primitive.INT;
+      case "int64", "uint64", "fixed64", "sfixed64", "sint64" -> TypeRef.Primitive.LONG;
+      case "float" -> TypeRef.Primitive.FLOAT;
+      case "double" -> TypeRef.Primitive.DOUBLE;
+      case "bool" -> TypeRef.Primitive.BOOLEAN;
+      case "string" -> TypeRef.STRING;
       case "bytes" -> {
         TypeRef bytesRef = TypeRef.of(RT + ".Bytes");
         bytesRef.collect(ci);
-        yield bytesRef.render(ci.resolutionContext());
+        yield bytesRef;
       }
       default ->
           throw new UnsupportedOperationException(
@@ -294,20 +298,20 @@ public final class RecordSourceMapping {
   }
 
   /** The inner element type of a {@code repeated X} field, resolved per {@link FieldKind}. */
-  private static String elementComponentType(Field f, TypeCollector ci) {
+  private static TypeRef elementComponentType(Field f, TypeCollector ci) {
     // M4-C2d-12: WKT elements use the native Java type.
     var wkt = WellKnownTypes.resolve(f.typeUrl());
     if (wkt != null) {
       TypeRef wktElemRef = TypeRef.of(Objects.requireNonNull(wkt.javaType()));
       wktElemRef.collect(ci);
-      return wktElemRef.render(ci.resolutionContext());
+      return wktElemRef;
     }
     if (f.kind() == FieldKind.MESSAGE || f.kind() == FieldKind.ENUM) {
       TypeRef sibElemRef = TypeRef.of(javaSimpleName(f.typeUrl()));
       sibElemRef.collect(ci);
-      return sibElemRef.render(ci.resolutionContext());
+      return sibElemRef;
     }
-    return boxedScalarComponent(f.typeUrl());
+    return TypeRef.boxedFor(f.typeUrl());
   }
 
   /**
@@ -356,26 +360,24 @@ public final class RecordSourceMapping {
       // identity subtypes in the source-AST path because each message is its own file.
       String valName = JavaNames.cap(member.name()) + "Value";
       iface.permitsFqn(ifaceName + "." + valName);
-      // The value component type: for enum → the enum's short name (same-package, no
+      // The value component type: for enum → the enum's short name (Same-package, no
       // import); for scalar → the boxed Java type; for message → the message's short type
       // reference (resolved via the type resolver).
-      String valType;
+      TypeRef valType;
       if (member.isMessage()) {
-        TypeRef msgRef = TypeRef.of(javaSimpleName(member.typeUrl()));
-        msgRef.collect(ci);
-        valType = msgRef.render(ci.resolutionContext());
+        valType = TypeRef.of(javaSimpleName(member.typeUrl()));
+        valType.collect(ci);
       } else if (member.kind() == FieldKind.ENUM) {
-        TypeRef enumRef = TypeRef.of(javaSimpleName(member.typeUrl()));
-        enumRef.collect(ci);
-        valType = enumRef.render(ci.resolutionContext());
+        valType = TypeRef.of(javaSimpleName(member.typeUrl()));
+        valType.collect(ci);
       } else {
-        valType = boxedScalarType(member.typeUrl());
+        valType = TypeRef.boxedFor(member.typeUrl());
       }
       Type.Record wr =
           Type.Record.named(valName)
               .public_()
               .implementsFqn(ifaceName)
-              .component(Component.named(valType, "value").build())
+              .component(Component.type(valType, "value").build())
               .build();
       iface.nested(wr);
     }
@@ -398,31 +400,6 @@ public final class RecordSourceMapping {
    * {@code @Nullable} wrapper). Primitives are boxed; {@code string}→{@code String}; {@code
    * bytes}→runtime {@code Bytes}.
    */
-  private static String boxedScalarType(String typeUrl) {
-    return switch (typeUrl) {
-      case "int32", "uint32", "fixed32", "sfixed32", "sint32" -> "Integer";
-      case "int64", "uint64", "fixed64", "sfixed64", "sint64" -> "Long";
-      case "float" -> "Float";
-      case "double" -> "Double";
-      case "bool" -> "Boolean";
-      case "string" -> "String";
-      default -> "Object";
-    };
-  }
-
-  /** The short-form boxed Java component type for a repeated scalar's element. */
-  private static String boxedScalarComponent(String typeUrl) {
-    return switch (typeUrl) {
-      case "int32", "uint32", "fixed32", "sfixed32", "sint32" -> "Integer";
-      case "int64", "uint64", "fixed64", "sfixed64", "sint64" -> "Long";
-      case "float" -> "Float";
-      case "double" -> "Double";
-      case "bool" -> "Boolean";
-      case "string" -> "String";
-      default -> "Object";
-    };
-  }
-
   // M4-C2b-2b-6: builder emission. A minimal value-only builder for scalar messages.
   // Returns Members: a static builder() factory + a nested Builder class.
   // The Builder is a public static final inner class with:
@@ -455,7 +432,7 @@ public final class RecordSourceMapping {
     for (Field f : m.fields()) {
       String fieldDefault = defaultFor(f);
       var comp =
-          Component.named(scalarComponentType(f, ci), f.javaName())
+          Component.type(scalarComponentType(f, ci), f.javaName())
               .initializer(fieldDefault)
               .private_();
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
@@ -511,7 +488,7 @@ public final class RecordSourceMapping {
           Method.named(fieldName)
               .public_()
               .returnType("Builder")
-              .param(scalarComponentType(f, ci), fieldName)
+              .param(Param.param(scalarComponentType(f, ci), fieldName))
               .body(Element.expr("this.@0 = @1", fieldName, fieldName), Element.of("return this;"))
               .build());
     }
@@ -630,12 +607,12 @@ public final class RecordSourceMapping {
         javaName.isEmpty() ? "" : Character.toUpperCase(javaName.charAt(0)) + javaName.substring(1);
     entryName += "Entry";
 
-    String keyType = boxedScalarType(Objects.requireNonNull(f.mapKey()));
-    String valueType = boxedScalarType(Objects.requireNonNull(f.mapValue()));
+    TypeRef keyTypeRef = TypeRef.boxedFor(Objects.requireNonNull(f.mapKey()));
+    TypeRef valueTypeRef = TypeRef.boxedFor(Objects.requireNonNull(f.mapValue()));
 
     Type.Record.Builder result = Type.Record.named(entryName).public_();
-    result.component(Component.named(keyType, "key").build());
-    result.component(Component.named(valueType, "value").build());
+    result.component(Component.type(keyTypeRef, "key").build());
+    result.component(Component.type(valueTypeRef, "value").build());
 
     Type.Class entryCodec = CodecSourceMapping.emitEntryCodec(entryName, f, ci);
     result.nested(entryCodec);

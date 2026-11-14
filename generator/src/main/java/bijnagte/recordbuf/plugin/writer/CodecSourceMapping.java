@@ -211,8 +211,10 @@ public final class CodecSourceMapping {
         var wkt0 = Objects.requireNonNull(wktEntry);
         body.add(WktSourceMapping.localInitElement(f, wkt0, ci));
       } else if (f.kind() == FieldKind.MAP) {
-        String keyType = boxedScalarShortName(Objects.requireNonNull(f.mapKey()));
-        String valueType = boxedScalarShortName(Objects.requireNonNull(f.mapValue()));
+        String keyType =
+            TypeRef.boxedFor(Objects.requireNonNull(f.mapKey())).render(ci.resolutionContext());
+        String valueType =
+            TypeRef.boxedFor(Objects.requireNonNull(f.mapValue())).render(ci.resolutionContext());
         body.add(
             Element.expr("Map<@0, @1> @2 = new HashMap<>();", keyType, valueType, f.javaName()));
       } else if (f.kind() == FieldKind.MESSAGE) {
@@ -246,7 +248,7 @@ public final class CodecSourceMapping {
         emitRepeatedLocalInit(f, body);
       } else if (f.isNullable()) {
         // M4-C2d-1: optional scalar → starts at null, set on tag.
-        String localType = boxedScalarShortName(f.typeUrl());
+        String localType = TypeRef.boxedFor(f.typeUrl()).render(ci.resolutionContext());
         body.add(Element.expr("@0 @1 = null;", localType, f.javaName()));
       } else {
         String localType = decodeLocalType(f);
@@ -660,22 +662,10 @@ public final class CodecSourceMapping {
   private static void emitRepeatedLocalInit(Field f, List<Element> out) {
     out.add(
         Element.expr(
-            "List<@0> @1 = new ArrayList<>()", boxedScalarShortName(f.typeUrl()), f.javaName()));
+            "List<@0> @1 = new ArrayList<>()", TypeRef.boxedFor(f.typeUrl()), f.javaName()));
   }
 
   /** The short-form boxed Java component type for a repeated scalar's element. */
-  private static String boxedScalarShortName(String typeUrl) {
-    return switch (typeUrl) {
-      case "int32", "uint32", "fixed32", "sfixed32", "sint32" -> "Integer";
-      case "int64", "uint64", "fixed64", "sfixed64", "sint64" -> "Long";
-      case "float" -> "Float";
-      case "double" -> "Double";
-      case "bool" -> "Boolean";
-      case "string" -> "String";
-      default -> "Object";
-    };
-  }
-
   /**
    * M4-C2d-7: emit a 2-field entry codec for a map entry record. The entry has exactly two fields:
    * {@code key} (field 1) and {@code value} (field 2). Both are scalar types.
