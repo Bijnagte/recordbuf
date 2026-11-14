@@ -92,7 +92,19 @@ waiting on it.
   registrations (`hasWkt`/`hasByteField`/always-`UNKNOWN_FIELDS`) are deleted. The one remaining registration
   is the `!samePkg` FQN — not a string inline but a short-name-vs-FQN resolution, which U4's collision/FQN
   policy addresses (a bare short-name `TypeRef` can't carry its package for the walk to register the import).
-- **Next: U4 (Category D — collision policy / retire `useFqn`).**
+- **U4 (Category D — collision policy / retire `useFqn`): DONE.** The `TypeCollector` collision policy now
+  tracks in-package short names for collision detection (without making them import-eligible), and
+  `resolveNamed` FQN's a collided type only when it is out-of-package — an in-package type occupies the
+  short name and stays short. `RecordSourceMapping` registers the record's own FQN when a protobuf-java
+  ref is present (occupying its short name), subsuming the hand-forced `TypeRef.of(ref).useFqn(ci)`.
+  The `useFqn` bridge (`TypeCollector.useFqn(String)`/`useFqn(TypeRef)` + the `Formattable.useFqn`
+  default) is deleted — no callers remain. `TypeCollectorTest.inPackageCollisionFqnsOutOfPackageOnly`
+  pins the new behavior. Generated output is byte-identical (verified against the pre-change fixtures).
+  The 3-tier policy's tier-3 (shortest-package-name tie-break) is a no-op for the current fixtures (no
+  genuine multi-way out-of-package collision), so it is not yet exercised; a fixture to lock it remains a
+  deferred follow-up.
+- **Next:** retire the remaining `@Deprecated` `TypeCollector` bridge methods (`use`/`register`) once
+  nothing but the renderer's walk calls them — or begin the full tree-walker (003 U6).
 
 ## Approach
 
@@ -222,7 +234,7 @@ L367/377, `UNKNOWN_FIELDS` L116), and `AvroConverterSourceMapping` (conditional 
 - **Verify:** `./gradlew build` green; Avro + record + interop fixtures byte-identical;
   `AvroConverterSourceMappingTest` byte-identical.
 
-### U4 — (distinct) generalize `TypeCollector` collision resolution; retire `useFqn`
+### U4 — (distinct) generalize `TypeCollector` collision resolution; retire `useFqn` — **DONE**
 
 Today `TypeCollector` resolves a collision on a short name by emitting **every** distinct FQN sharing that
 short name in fully-qualified form. `InteropSourceMapping:68` (`TypeRef.of(ref).useFqn(ci)`) pre-empts a
@@ -293,5 +305,6 @@ the walk register `ref` and the policy force its FQN form.
   including `RawExpr` args, which are the remaining escape hatch where types are spliced — and collapsing the
   `TypeCollector` API (`use`/`register`/`useFqn`/`finalizeResolution`) to a single walk-only contract. This
   plan is the **enabling prerequisite**: it removes every *mapper-side* direct call, leaving only the walk.
-- **Retiring the `@Deprecated` `TypeCollector` bridge methods** (`use`/`register`/`useFqn`) once U4 lands and
-  nothing calls them but the walk — a separate cleanup that follows U4.
+- **Retiring the remaining `@Deprecated` `TypeCollector` bridge methods** (`use`/`register`) once nothing
+  but the renderer's walk calls them. `useFqn` was retired in U4 (no callers remain); `use`/`register`
+  stay until the tree-walker (003 U6) makes the walk the sole collector.
