@@ -63,19 +63,15 @@ public final class CodecSourceMapping {
 
   private static Type.Class doToCodec(
       Message m, TypeCollector ci, @Nullable Function<Field, String> typeResolver) {
-    // Pre-resolve all runtime FQN references to short forms so the codec body uses imported
-    // short names, not fully-qualified names (satisfying the UnnecessarilyFullyQualified check).
-    // Tree-walker-aware: collect(ci) registers each FQN; resolve() gives the collision-aware short.
-    ENCODER.collect(ci);
-    String encoderShort = ENCODER.render(ci.resolutionContext());
-    DECODER.collect(ci);
-    String decoderShort = DECODER.render(ci.resolutionContext());
-    UNKNOWN_FIELDS.collect(ci);
-    String unknownFieldsShort = UNKNOWN_FIELDS.render(ci.resolutionContext());
+    // The encoder/decoder/unknownFields/wire short names are now passed as TypeRef positional
+    // args (the renderer's collect walk registers + resolves them), so they no longer need an
+    // explicit collect/render here. CODEC_DEFAULTS is still spliced in as a raw
+    // `CodecDefaults.<x>()`
+    // concat and HASH_MAP/ARRAY_LIST appear as `new HashMap<>()`/`new ArrayList<>()` literals --
+    // none
+    // of which the walk reaches -- so they are still registered here explicitly.
     CODEC_DEFAULTS.collect(ci);
     String codecDefaultsShort = CODEC_DEFAULTS.render(ci.resolutionContext());
-    WIRE.collect(ci);
-    String wireShort = WIRE.render(ci.resolutionContext());
     TypeRefs.HASH_MAP.collect(ci);
     TypeRefs.ARRAY_LIST.collect(ci);
     String codecName = m.name() + "Codec"; // M4-C2b-2b-8: align with old SampleCodec naming
@@ -89,22 +85,16 @@ public final class CodecSourceMapping {
                     .text("Wire codec for the ", m.name(), " record.")
                     .build()); // M4-C2b-2b-8: <Name>Codec to align with old path
     result.constructor(Constructor.builder().private_().build());
-    result.method(encode(m, ci, encoderShort, wireShort, typeResolver));
-    result.method(
-        decode(
-            m, ci, decoderShort, unknownFieldsShort, codecDefaultsShort, wireShort, typeResolver));
+    result.method(encode(m, ci, typeResolver));
+    result.method(decode(m, ci, codecDefaultsShort, typeResolver));
     return result.build();
   }
 
   /** The {@code byte[] encode(Message v) throws IOException} method body. */
   private static Method encode(
-      Message m,
-      TypeCollector ci,
-      String encoderShort,
-      String wireShort,
-      @Nullable Function<Field, String> typeResolver) {
+      Message m, TypeCollector ci, @Nullable Function<Field, String> typeResolver) {
     List<Element> body = new ArrayList<>();
-    body.add(Element.expr("var enc = @0.start();", encoderShort));
+    body.add(Element.expr("var enc = @0.start();", ENCODER));
     body.add(Element.of("var out = enc.out();"));
 
     // Sort by field number for wire-order correctness (OrderTest proves this).
@@ -144,7 +134,7 @@ public final class CodecSourceMapping {
     // M4-C2b-2b-5: re-emit the unknown-fields carrier, if any, preserving wire-order round-trip.
     body.add(
         If.condition("!v.unknownFields().isEmpty()")
-            .body(Element.expr("@0.writeUnknown(out, v.unknownFields());", wireShort))
+            .body(Element.expr("@0.writeUnknown(out, v.unknownFields());", WIRE))
             .build());
 
     body.add(Element.of("return enc.finish();"));
@@ -163,17 +153,14 @@ public final class CodecSourceMapping {
   private static Method decode(
       Message m,
       TypeCollector ci,
-      String decoderShort,
-      String unknownFieldsShort,
       String codecDefaultsShort,
-      String wireShort,
       @Nullable Function<Field, String> typeResolver) {
     List<Element> body = new ArrayList<>();
-    body.add(Element.expr("var dec = @0.start(inBytes);", decoderShort));
+    body.add(Element.expr("var dec = @0.start(inBytes);", DECODER));
     body.add(Element.of("var in = dec.in();"));
 
     // M4-C2b-2b-5: the unknown-fields accumulator, initialised as a fresh builder.
-    body.add(Element.expr("var unknown = @0.builder();", unknownFieldsShort));
+    body.add(Element.expr("var unknown = @0.builder();", UNKNOWN_FIELDS));
 
     // Per-field local default-init.
     for (Field f : m.fields()) {
@@ -236,9 +223,9 @@ public final class CodecSourceMapping {
 
     // Tag loop: a while-loop wrapping a pattern-matching switch of tag-case arms.
     List<Element> tagLoop = new ArrayList<>();
-    tagLoop.add(Element.expr("int tag = @0.readTag(in);", wireShort));
+    tagLoop.add(Element.expr("int tag = @0.readTag(in);", WIRE));
     tagLoop.add(If.condition("tag == 0").body(Element.of("break;")).build());
-    Switch.Builder switchB = Switch.on("@0.tagFieldNumber(tag)", wireShort);
+    Switch.Builder switchB = Switch.on("@0.tagFieldNumber(tag)", WIRE);
     for (Field f : m.fields()) {
       Entry wktEntry = WktSourceMapping.resolve(f);
       if (wktEntry != null) {
@@ -629,16 +616,11 @@ public final class CodecSourceMapping {
    */
   @SuppressWarnings("java:S905")
   public static Type.Class emitEntryCodec(String entryName, Field f, TypeCollector ci) {
-    ENCODER.collect(ci);
-    String encoderShort = ENCODER.render(ci.resolutionContext());
-    DECODER.collect(ci);
-    String decoderShort = DECODER.render(ci.resolutionContext());
-    UNKNOWN_FIELDS.collect(ci);
-    String unknownFieldsShort = UNKNOWN_FIELDS.render(ci.resolutionContext());
+    // CODEC_DEFAULTS (a `CodecDefaults.<x>()` concat) and BYTES (a `Bytes.of(...)` literal) are
+    // still spliced in as raw text the walk does not reach, so they are registered here; the
+    // encoder/decoder/unknownFields/wire short names are now TypeRef positional args.
     CODEC_DEFAULTS.collect(ci);
     String codecDefaultsShort = CODEC_DEFAULTS.render(ci.resolutionContext());
-    WIRE.collect(ci);
-    String wireShort = WIRE.render(ci.resolutionContext());
     BYTES.collect(ci);
 
     // M4-C2d-12: resolve key/value wire scalars from the Field's type URLs.
@@ -650,7 +632,7 @@ public final class CodecSourceMapping {
     result.constructor(Constructor.builder().private_().build());
 
     List<Element> encBody = new ArrayList<>();
-    encBody.add(Element.expr("var enc = @0.start();", encoderShort));
+    encBody.add(Element.expr("var enc = @0.start();", ENCODER));
     encBody.add(Element.of("var out = enc.out();"));
 
     // key: field 1 — always field 1 in a map entry; written unconditionally.
@@ -674,15 +656,15 @@ public final class CodecSourceMapping {
             .build());
 
     List<Element> decBody = new ArrayList<>();
-    decBody.add(Element.expr("var dec = @0.start(inBytes);", decoderShort));
+    decBody.add(Element.expr("var dec = @0.start(inBytes);", DECODER));
     decBody.add(Element.of("var in = dec.in();"));
-    decBody.add(Element.expr("var unknown = @0.builder();", unknownFieldsShort));
+    decBody.add(Element.expr("var unknown = @0.builder();", UNKNOWN_FIELDS));
     decBody.add(emitFieldLocalInit("key", keyWire, codecDefaultsShort));
     decBody.add(emitFieldLocalInit("value", valWire, codecDefaultsShort));
     List<Element> tagLoop = new ArrayList<>();
-    tagLoop.add(Element.expr("int tag = @0.readTag(in);", wireShort));
+    tagLoop.add(Element.expr("int tag = @0.readTag(in);", WIRE));
     tagLoop.add(If.condition("tag == 0").body(Element.of("break;")).build());
-    Switch.Builder switchB = Switch.on("@0.tagFieldNumber(tag)", wireShort);
+    Switch.Builder switchB = Switch.on("@0.tagFieldNumber(tag)", WIRE);
     switchB.caseArm(
         List.of(emitFieldDecodeCase(1, "key", keyWire), emitFieldDecodeCase(2, "value", valWire)));
     switchB.defaultBody(Element.of("unknown.add(in, tag);"));
