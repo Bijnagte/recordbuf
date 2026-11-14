@@ -60,6 +60,10 @@ updated: 2026-11-13
      and migrate if applicable.
    - `Component` / `Param` — audit call sites for residual `String` FQN usages that should use
      the `TypeRef` overloads.
+
+   - **R11 second phase**: after all `*SourceMapping` helpers return `TypeRef`, retire `TypeCollector.use(String)` — its only remaining callers are `TypeCollectorTest` assertions, which migrate to `use(TypeRef.of("..."))`. Closes 2026-11-12-002 R11.
+   - **Two residual `void emit*`**: `RecordSourceMapping.emitOneof` and `RecordSourceMapping.emitBuilder` — the plan's north-star is zero `void emit*`; complete both.
+
 4. **Scope out.**
    - No new `TypeRef` variants, no new `Formattable` implementations, no behavior changes.
    - No fixture proto changes; no new tests (existing 282 must pass unchanged).

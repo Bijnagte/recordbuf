@@ -6,12 +6,21 @@ topic: call-site-postemplating-migration
 artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: ce-brainstorm
-status: implementation-ready
+status: complete
+updated: 2026-11-13
 ---
 
 ## Goal Capsule
 
 **Objective.** Migrate all remaining Java `String`-concatenation in the writer mapping files to the `@N` positional system. By the end, zero lines in `*Mapping.java` use `+ "..." ` to build expression templates, conditions, or iterables; every dynamic value is a positional `@N` arg.
+
+
+**Completion.** Done. `If`/`ElseIf`/`For`/`While`/`Switch` `condition`/`iterable`/
+`subject` fields are `RawExpr`; positional `@N` overloads exist on each (`on`,
+`enhanced`, `condition`); `SourceRenderer` renders and collects from them; the writer
+mapping files use `Element.expr(template, args)` / `If.condition(template, args)` /
+`For.enhanced(...)` / `Switch.on(...)` throughout. Zero string-concatenation remains
+for expression templates in `*Mapping.java`.
 
 **Product authority.** Pure internal refactor — generated output must be byte-identical before and after. No new user-facing behavior.
 

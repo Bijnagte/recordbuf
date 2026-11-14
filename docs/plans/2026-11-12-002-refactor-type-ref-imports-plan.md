@@ -7,7 +7,49 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: requirements-only
 product_contract_source: ce-brainstorm
 execution: code
+status: partially-realized
+updated: 2026-11-13
 ---
+
+## Status Update (2026-11-13)
+
+This requirements-only plan was written before structural-AST realization landed. The
+requirements below have since been partially implemented across a series of subsequent
+plans; the plan's own shape (design-only contract, deferred realization) is now
+temporally stale. Per-requirement status:
+
+| Req | Status | Where realized |
+|-----|--------|----------------|
+| R1  sealed `TypeRef` with `Named`/`Primitive`/`Array` | **Done** | `codegen/.../source/TypeRef.java` |
+| R2  `Named` is a record `(pkg, shortName, List<TypeRef> generics)` | **Done** | same file |
+| R3  `Primitive` enum incl. `void` | **Done** | same file (`Primitive.VOID` exists) |
+| R4  `Array(TypeRef element)` | **Done** | `record Array(TypeRef element)` in `TypeRef.java` |
+| R5  Nested generics recurse | **Done** | `Named.generics()` is a `List<TypeRef>` |
+| R6  Tree-walk via per-node `collect(ci)` | **Done** | `SourceRenderer.collectBody` recurses; `collect(TypeCollector)` is the contract |
+| R7  Aggregate import + collision set | **Done** | `TypeCollector.finalizeResolution()` |
+| R8  Single render resolves short vs FQN | **Done** | `TypeRef.render(ResolutionContext)` + `SourceRenderer.render*` |
+| R9  Forced-FQN case, `useFqn` | **Done — settled as a default method `TypeRef.useFqn(collector)`** on the sealed interface; **not** a dedicated field/variant/flag (the earlier "open ergonomic choice" was resolved by the planner to a method on the interface with a default). See `TypeRef.useFqn` |
+| R10  AST's type positions hold `TypeRef`s | **Partially done** — done at the AST and mapper level. 70 `*SourceMapping` call sites still call the one-shot `TypeRef.of(String)` factory at creation, which is acceptable (the `TypeRef` is propagated through the AST, not as a raw string). Two `void emit*` helpers remain in `RecordSourceMapping` (`emitOneof`, `emitBuilder`); see 006. |
+| R11  Retire the `TypeImporter`/`TypeCollector` duplication | **First phase done** — `TypeImports` is deleted; `TypeCollector` gained a `use(TypeRef)` overload. **Second phase planned** — retiring the legacy `use(String)` overload, which is used only by `TypeCollectorTest` today. |
+| R12  `Annotation.type` is the first `TypeRef` the AST holds | **Done** via 2026-11-12-001 |
+
+**Downstream plans that realize this contract:**
+
+- `2026-11-12-003-refactor-ast-type-positions-plan.md` — the structural-AST prerequisite
+  that made R10 real across declaration and expression-spliced positions.
+- `2026-11-13-004-feature-rawexpr-positional-templating-plan.md` — positional `@N`
+  templating via `RawExpr.of(template, TypeRef...)`; the tree-walk collect contract
+  (R6) is what makes positional `TypeRef`s self-register on the `TypeCollector`.
+- `2026-11-13-005-feature-call-site-postemplating-plan.md` — migrated `If`/`ElseIf`/
+  `For`/`While`/`Switch` `condition`/`iterable`/`subject` to `RawExpr`; **status
+  `implementation-ready` label is stale — this is done in code**.
+- `2026-11-13-006-refactor-mapper-type-ref-migration-plan.md` — in-progress plan to
+  migrate every `*SourceMapping` helper to return `TypeRef`/`Element`; two helpers remain
+  (`emitOneof`/`emitBuilder` in `RecordSourceMapping`) plus a new R11 second phase to
+  retire `TypeCollector.use(String)`.
+
+---
+
 
 ## Goal Capsule
 
