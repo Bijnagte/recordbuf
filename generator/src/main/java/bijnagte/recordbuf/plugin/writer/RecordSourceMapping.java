@@ -143,7 +143,7 @@ public final class RecordSourceMapping {
 
     // M4-C2b-2b-6: the fluent builder. Emitted after the carrier and after the codec (a forward
     // reference to the codec's inner-class is resolved by javac's inner-class resolution).
-    BuilderEmission be = emitBuilder(m, ci, ufFqn);
+    BuilderEmission be = emitBuilder(m, ufFqn);
     result.method(be.factory());
     result.nested(be.nested());
     // M4-C2b-2b-8: toBuilder + fromBytes (old path parity)
@@ -393,7 +393,7 @@ public final class RecordSourceMapping {
   // - one fluent setter per component
   // - private unknownFields field with default empty()
   // - public build() terminal
-  private static BuilderEmission emitBuilder(Message m, TypeCollector ci, String ufFqn) {
+  private static BuilderEmission emitBuilder(Message m, String ufFqn) {
     String recName = m.name();
     // The nested static Builder class — header first, members accumulated below.
     Type.Class.Builder builderClz =
@@ -426,9 +426,8 @@ public final class RecordSourceMapping {
     }
     // Carrier storage field with default empty().
     TypeRef ufRef = TypeRef.of(ufFqn);
-    String ufShort = ufRef.render(ci.resolutionContext());
     builderClz.field(
-        Component.named(ufShort, "unknownFields")
+        Component.type(ufRef, "unknownFields")
             .initializer(RawExpr.of("@0.empty()", ufRef))
             .private_()
             .build());
@@ -484,7 +483,7 @@ public final class RecordSourceMapping {
         Method.named("unknownFields")
             .public_()
             .returnType(TypeRef.of("Builder"))
-            .param(TypeRef.of(ufShort), "unknownFields")
+            .param(ufRef, "unknownFields")
             .body(Element.of("this.unknownFields = unknownFields;"), Element.of("return this;"))
             .build());
 
