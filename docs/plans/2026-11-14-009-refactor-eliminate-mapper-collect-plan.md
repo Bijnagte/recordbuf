@@ -87,7 +87,12 @@ waiting on it.
   the last splice, joined via a new `CommaList` `Formattable` that comma-joins its elements at render
   time). All byte-identical. Remaining: the `AvroConverterSourceMapping` parallel pipeline (conditional
   collects L68–83 + their `Element.of` `Fragment` bodies) — the distinct, harder sub-part.
-- **Next: U4 (Category D — collision policy / retire `useFqn`)** or the AvroConverter pipeline.
+- **U3 (AvroConverter string-inlines): DONE.** `WktAvroBridge`/`Bytes`/`Arrays`/`ByteBuffer`/
+  `UnknownFields` are now `Element.expr` positionals in `AvroConverterSourceMapping`; the three conditional
+  registrations (`hasWkt`/`hasByteField`/always-`UNKNOWN_FIELDS`) are deleted. The one remaining registration
+  is the `!samePkg` FQN — not a string inline but a short-name-vs-FQN resolution, which U4's collision/FQN
+  policy addresses (a bare short-name `TypeRef` can't carry its package for the walk to register the import).
+- **Next: U4 (Category D — collision policy / retire `useFqn`).**
 
 ## Approach
 
