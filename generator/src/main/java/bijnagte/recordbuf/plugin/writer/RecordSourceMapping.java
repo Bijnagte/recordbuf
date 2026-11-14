@@ -309,7 +309,7 @@ public final class RecordSourceMapping {
    * <p>{@code permitsFqns} are <em>pre-resolved relative references</em> — the renderer emits them
    * verbatim (no type-collection call), because nested type qualifiers like {@code
    * Choice.NameValue} are not import-eligible. Message member permits are resolved via {@code
-   * TypeRef.of(typeUrl).collect(ci) + .render(ctx)} to get their short name.
+   * TypeRef.of(...)}; the renderer collects it and resolves it to a short name.
    */
   private static OneofEmission emitOneof(Oneof oneof) {
     String ifaceName = oneof.ifaceName();

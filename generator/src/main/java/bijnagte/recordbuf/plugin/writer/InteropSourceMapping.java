@@ -2,6 +2,7 @@ package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Annotation;
+import bijnagte.recordbuf.codegen.source.CommaList;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.For;
@@ -68,7 +69,7 @@ public final class InteropSourceMapping {
 
     var privateCtor = Constructor.builder().private_().build();
 
-    var fromMethod = emitFrom(m, ci, ref, rec);
+    var fromMethod = emitFrom(m, ref, rec);
     var toMethod = emitTo(m, refPkg, ref, rec);
 
     return Type.Class.named("Interop")
@@ -83,7 +84,7 @@ public final class InteropSourceMapping {
 
   // -- from(reference) -> record ------------------------------------------------
 
-  private static Method emitFrom(Message m, TypeCollector ci, String ref, String rec) {
+  private static Method emitFrom(Message m, String ref, String rec) {
     List<Element> body = new ArrayList<>();
     for (Field f : m.fields()) {
       body.addAll(fromLocal(f));
@@ -92,16 +93,15 @@ public final class InteropSourceMapping {
       body.add(emitOneofFrom(o));
     }
 
-    List<String> ctorArgs = new ArrayList<>();
+    List<Object> ctorArgs = new ArrayList<>();
     for (Field f : m.fields()) {
       ctorArgs.add("_" + f.javaName());
     }
     for (Oneof o : m.oneofs()) {
       ctorArgs.add("_" + o.name());
     }
-    TypeRefs.UNKNOWN_FIELDS.collect(ci);
-    ctorArgs.add(TypeRefs.UNKNOWN_FIELDS.render(ci.resolutionContext()) + ".empty()");
-    body.add(Element.expr("return new @0(@1)", rec, String.join(", ", ctorArgs)));
+    ctorArgs.add(RawExpr.of("@0.empty()", TypeRefs.UNKNOWN_FIELDS));
+    body.add(Element.expr("return new @0(@1)", rec, CommaList.of(ctorArgs)));
 
     return Method.named("from")
         .public_()
