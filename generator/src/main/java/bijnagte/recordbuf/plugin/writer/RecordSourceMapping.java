@@ -125,7 +125,6 @@ public final class RecordSourceMapping {
       result.nested(nestedRec);
     }
     // M4-C2b-2b-12: oneof groups.
-    // M4-C2b-2b-12: oneof groups.
     for (Oneof oneof : m.oneofs()) {
       OneofEmission oe = emitOneof(oneof, ci);
       result.component(oe.component());
@@ -149,7 +148,9 @@ public final class RecordSourceMapping {
 
     // M4-C2b-2b-6: the fluent builder. Emitted after the carrier and after the codec (a forward
     // reference to the codec's inner-class is resolved by javac's inner-class resolution).
-    emitBuilder(result, m, ci, ufFqn);
+    BuilderEmission be = emitBuilder(m, ci, ufFqn);
+    result.method(be.factory());
+    result.nested(be.nested());
     // M4-C2b-2b-8: toBuilder + fromBytes (old path parity)
     String codecName = m.name() + "Codec";
     result.method(
@@ -421,8 +422,7 @@ public final class RecordSourceMapping {
   // - one fluent setter per component
   // - private unknownFields field with default empty()
   // - public build() terminal
-  private static void emitBuilder(
-      Type.Record.Builder record, Message m, TypeCollector ci, String ufFqn) {
+  private static BuilderEmission emitBuilder(Message m, TypeCollector ci, String ufFqn) {
     String recName = m.name();
     // The nested static Builder class — header first, members accumulated below.
     Type.Class.Builder builderClz =
@@ -563,9 +563,16 @@ public final class RecordSourceMapping {
             .body(Element.expr("return new @0.Builder()", recName))
             .build();
 
-    record.method(builderFactory);
-    record.nested(nestedBuilder);
+    return new BuilderEmission(builderFactory, nestedBuilder);
   }
+
+  /**
+   * The product of {@link #emitBuilder}: the static {@code builder()} factory that becomes a method
+   * on the enclosing record plus the nested {@code Builder} class that gets nested on the record.
+   * The caller adds both; the helper is pure and returns them rather than mutating the caller's
+   * record builder.
+   */
+  private record BuilderEmission(Method factory, Type.Class nested) {}
 
   /**
    * The default initializer for a builder's storage field: "" for String, 0 for numeric, null for
