@@ -271,7 +271,7 @@ public final class ModelLoader {
     // Store the PROTO TYPE NAME (e.g. "int32"/"string"/"bool") for the scalar
     // key/value, not the Java type. The codec needs the proto name to pick the
     // right wire scalar (int32 vs uint32 vs sint32 are all "int" in Java but
-    // differ on the wire); TypeResolver boxes that name to the record component
+    // differ on the wire); RecordSourceMapping boxes that name to the record component
     // type (e.g. Map<String, Integer>). A message/enum value (out of scope for
     // this family) is resolved to its proto FQN for later resolution.
     String keyProtoType = mapMemberProtoType(keyP, typeScope(entry, protoScope));

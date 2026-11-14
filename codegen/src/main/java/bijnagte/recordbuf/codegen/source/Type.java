@@ -50,7 +50,7 @@ public sealed interface Type {
       Javadoc javadoc,
       List<Annotation> annotations,
       String name,
-      List<String> implementsFqns,
+      List<TypeRef> implementsFqns,
       List<Component> components,
       List<StaticBlock> staticBlocks,
       List<Constructor> constructors,
@@ -87,7 +87,7 @@ public sealed interface Type {
       private Javadoc javadoc;
       private final List<Annotation> annotations = new ArrayList<>();
       private final String name;
-      private final List<String> implementsFqns = new ArrayList<>();
+      private final List<TypeRef> implementsFqns = new ArrayList<>();
       private final List<Component> components = new ArrayList<>();
       private final List<StaticBlock> staticBlocks = new ArrayList<>();
       private final List<Constructor> constructors = new ArrayList<>();
@@ -118,15 +118,21 @@ public sealed interface Type {
         return this;
       }
 
-      /** Append one {@code implements} FQN. */
+      /** Append one {@code implements} FQN (convenience — parsed to {@link TypeRef}). */
       public Builder implementsFqn(String fqn) {
-        this.implementsFqns.add(fqn);
+        this.implementsFqns.add(TypeRef.of(fqn));
         return this;
       }
 
-      /** Append all {@code implements} FQNs from a list; calls accumulate. */
+      /** Append one {@code implements} {@link TypeRef}. */
+      public Builder impl(TypeRef ref) {
+        this.implementsFqns.add(ref);
+        return this;
+      }
+
+      /** Append {@code implements} FQN strings (convenience — parsed to {@link TypeRef}). */
       public Builder implementsFqns(List<String> fqns) {
-        if (fqns != null) this.implementsFqns.addAll(fqns);
+        if (fqns != null) fqns.forEach(f -> implementsFqns.add(TypeRef.of(f)));
         return this;
       }
 
@@ -241,8 +247,8 @@ public sealed interface Type {
       Javadoc javadoc,
       List<Annotation> annotations,
       String name,
-      List<String> extendsFqns,
-      List<String> implementsFqns,
+      List<TypeRef> extendsFqns,
+      List<TypeRef> implementsFqns,
       List<Component> fields,
       List<StaticBlock> staticBlocks,
       List<Constructor> constructors,
@@ -283,8 +289,8 @@ public sealed interface Type {
       private Javadoc javadoc;
       private final List<Annotation> annotations = new ArrayList<>();
       private final String name;
-      private final List<String> extendsFqns = new ArrayList<>();
-      private final List<String> implementsFqns = new ArrayList<>();
+      private final List<TypeRef> extendsFqns = new ArrayList<>();
+      private final List<TypeRef> implementsFqns = new ArrayList<>();
       private final List<Component> fields = new ArrayList<>();
       private final List<StaticBlock> staticBlocks = new ArrayList<>();
       private final List<Constructor> constructors = new ArrayList<>();
@@ -328,15 +334,39 @@ public sealed interface Type {
         return this;
       }
 
-      /** Append one {@code extends} FQN. */
+      /** Append one {@code extends} FQN (convenience — parsed to {@link TypeRef}). */
       public Builder extendsFqn(String fqn) {
-        this.extendsFqns.add(fqn);
+        this.extendsFqns.add(TypeRef.of(fqn));
         return this;
       }
 
-      /** Append one {@code implements} FQN. */
+      /** Append one {@code extends} {@link TypeRef}. */
+      public Builder extend(TypeRef ref) {
+        this.extendsFqns.add(ref);
+        return this;
+      }
+
+      /** Append {@code extends} FQN strings (convenience — parsed to {@link TypeRef}). */
+      public Builder extendsFqns(List<String> fqns) {
+        if (fqns != null) fqns.forEach(f -> extendsFqns.add(TypeRef.of(f)));
+        return this;
+      }
+
+      /** Append one {@code implements} FQN (convenience — parsed to {@link TypeRef}). */
       public Builder implementsFqn(String fqn) {
-        this.implementsFqns.add(fqn);
+        this.implementsFqns.add(TypeRef.of(fqn));
+        return this;
+      }
+
+      /** Append one {@code implements} {@link TypeRef}. */
+      public Builder impl(TypeRef ref) {
+        this.implementsFqns.add(ref);
+        return this;
+      }
+
+      /** Append {@code implements} FQN strings (convenience — parsed to {@link TypeRef}). */
+      public Builder implementsFqns(List<String> fqns) {
+        if (fqns != null) fqns.forEach(f -> implementsFqns.add(TypeRef.of(f)));
         return this;
       }
 
@@ -448,7 +478,7 @@ public sealed interface Type {
       Javadoc javadoc,
       List<Annotation> annotations,
       String name,
-      List<String> implementsFqns,
+      List<TypeRef> implementsFqns,
       List<EnumConstant> enumConstants,
       List<Component> fields,
       List<StaticBlock> staticBlocks,
@@ -487,7 +517,7 @@ public sealed interface Type {
       private Javadoc javadoc;
       private final List<Annotation> annotations = new ArrayList<>();
       private final String name;
-      private final List<String> implementsFqns = new ArrayList<>();
+      private final List<TypeRef> implementsFqns = new ArrayList<>();
       private final List<EnumConstant> enumConstants = new ArrayList<>();
       private final List<Component> fields = new ArrayList<>();
       private final List<StaticBlock> staticBlocks = new ArrayList<>();
@@ -519,15 +549,21 @@ public sealed interface Type {
         return this;
       }
 
-      /** Append one {@code implements} FQN. */
+      /** Append one {@code implements} FQN (convenience — parsed to {@link TypeRef}). */
       public Builder implementsFqn(String fqn) {
-        this.implementsFqns.add(fqn);
+        this.implementsFqns.add(TypeRef.of(fqn));
         return this;
       }
 
-      /** Append a {@code implements} FQN list. */
+      /** Append one {@code implements} {@link TypeRef}. */
+      public Builder impl(TypeRef ref) {
+        this.implementsFqns.add(ref);
+        return this;
+      }
+
+      /** Append {@code implements} FQN strings (convenience — parsed to {@link TypeRef}). */
       public Builder implementsFqns(List<String> fqns) {
-        if (fqns != null) this.implementsFqns.addAll(fqns);
+        if (fqns != null) fqns.forEach(f -> implementsFqns.add(TypeRef.of(f)));
         return this;
       }
 
@@ -644,8 +680,8 @@ public sealed interface Type {
       Javadoc javadoc,
       List<Annotation> annotations,
       String name,
-      List<String> extendsFqns,
-      List<String> permitsFqns,
+      List<TypeRef> extendsFqns,
+      List<TypeRef> permitsFqns,
       List<Method> methods,
       List<Type> nested)
       implements Type {
@@ -674,8 +710,8 @@ public sealed interface Type {
       private Javadoc javadoc;
       private final List<Annotation> annotations = new ArrayList<>();
       private final String name;
-      private final List<String> extendsFqns = new ArrayList<>();
-      private final List<String> permitsFqns = new ArrayList<>();
+      private final List<TypeRef> extendsFqns = new ArrayList<>();
+      private final List<TypeRef> permitsFqns = new ArrayList<>();
       private final List<Method> methods = new ArrayList<>();
       private final List<Type> nested = new ArrayList<>();
 
@@ -703,15 +739,39 @@ public sealed interface Type {
         return this;
       }
 
-      /** Append one {@code extends} FQN. */
+      /** Append one {@code extends} FQN (convenience — parsed to {@link TypeRef}). */
       public Builder extendsFqn(String fqn) {
-        this.extendsFqns.add(fqn);
+        this.extendsFqns.add(TypeRef.of(fqn));
         return this;
       }
 
-      /** Append one {@code permits} FQN. */
+      /** Append one {@code extends} {@link TypeRef}. */
+      public Builder extend(TypeRef ref) {
+        this.extendsFqns.add(ref);
+        return this;
+      }
+
+      /** Append {@code extends} FQN strings (convenience — parsed to {@link TypeRef}). */
+      public Builder extendsFqns(List<String> fqns) {
+        if (fqns != null) fqns.forEach(f -> extendsFqns.add(TypeRef.of(f)));
+        return this;
+      }
+
+      /** Append one {@code permits} FQN (convenience — parsed to {@link TypeRef}). */
       public Builder permitsFqn(String fqn) {
-        this.permitsFqns.add(fqn);
+        this.permitsFqns.add(TypeRef.of(fqn));
+        return this;
+      }
+
+      /** Append one {@code permits} {@link TypeRef}. */
+      public Builder permitsType(TypeRef ref) {
+        this.permitsFqns.add(ref);
+        return this;
+      }
+
+      /** Append {@code permits} FQN strings (convenience — parsed to {@link TypeRef}). */
+      public Builder permitsFqns(List<String> fqns) {
+        if (fqns != null) fqns.forEach(f -> permitsFqns.add(TypeRef.of(f)));
         return this;
       }
 

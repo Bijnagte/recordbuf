@@ -40,17 +40,38 @@ public sealed interface Element
   }
 
   static ExprStatement expr(String e) {
-    return new ExprStatement(e);
+    return new ExprStatement(RawExpr.of(e));
   }
 
-  static LocalVar local(String type, String name, String init) {
-    return new LocalVar(null, type, name, init);
+  /** Build an {@link ExprStatement} from a template string with {@code @N} positional args. */
+  static ExprStatement expr(String template, Object... args) {
+    return new ExprStatement(RawExpr.of(template, args));
+  }
+
+  /** Build an {@link ExprStatement} from a pre-built {@link RawExpr}. */
+  static ExprStatement expr(RawExpr rawExpr) {
+    return new ExprStatement(rawExpr);
+  }
+
+  static LocalVar local(String fqn, String name, String init) {
+    return new LocalVar(null, TypeRef.of(fqn), name, RawExpr.of(init));
   }
 
   /** A local declaration carrying annotations, rendered ahead of its type. */
-  static LocalVar local(String type, String name, String init, Annotation... annotations) {
+  static LocalVar local(String fqn, String name, String init, Annotation... annotations) {
     return new LocalVar(
-        annotations == null ? null : java.util.List.of(annotations), type, name, init);
+        annotations == null ? null : java.util.List.of(annotations),
+        TypeRef.of(fqn),
+        name,
+        RawExpr.of(init));
+  }
+
+  /**
+   * A local variable with an {@code @N}-templated initializer built via the {@link
+   * LocalVar.Builder}.
+   */
+  static LocalVar local(TypeRef type, String name, String initTemplate, Object... initArgs) {
+    return LocalVar.builder(type, name).build(initTemplate, initArgs);
   }
 
   static Comment comment(String text) {

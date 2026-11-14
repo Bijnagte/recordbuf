@@ -7,12 +7,16 @@ import java.util.Objects;
 /**
  * A for-each loop: {@code for (<pattern> : <iterable>) { ... }}. {@link #pattern()} holds the full
  * declaration pattern, e.g. {@code "var _e"} or {@code "byte[] _e"}; {@link #iterable()} is the
- * collection expression; {@link #body()} is the element list laid out at the next indent. The
- * renderer always braces the body (even a single element), a functional-equivalent style
- * normalisation. The entry point is {@link #enhanced(String, String)}, which seeds a {@link
- * Builder} with the pattern and iterable; the builder then offers {@link Builder#body(Element[])}.
+ * collection expression as a {@link RawExpr} (resolved at render time). {@link #body()} is the
+ * element list laid out at the next indent. The renderer always braces the body (even a single
+ * element), a functional-equivalent style normalisation.
+ *
+ * <p>Entry points: {@link #enhanced(String, String)} for a static iterable; {@link
+ * #enhanced(String, String, Object[])} for a {@code @N}-templated iterable. The {@link #iterable()}
+ * field is a {@link RawExpr}, so the collect phase can contribute type refs and the render phase
+ * can resolve positional args against the {@link ResolutionContext}.
  */
-public record For(String pattern, String iterable, List<Element> body) implements Element {
+public record For(String pattern, RawExpr iterable, List<Element> body) implements Element {
 
   public For {
     Objects.requireNonNull(pattern);
@@ -20,21 +24,26 @@ public record For(String pattern, String iterable, List<Element> body) implement
     body = body == null ? List.of() : List.copyOf(body);
   }
 
-  /** Entry point: seed a builder with the for-each pattern and iterable. */
+  /** Entry point: seed a builder with a static iterable string. */
   public static Builder enhanced(String pattern, String iterable) {
-    return new Builder(pattern, iterable);
+    return new Builder(pattern, RawExpr.of(iterable));
+  }
+
+  /** Entry point: seed a builder with a {@code @N}-templated iterable string. */
+  public static Builder enhanced(String pattern, String iterableTemplate, Object... iterArgs) {
+    return new Builder(pattern, RawExpr.of(iterableTemplate, iterArgs));
   }
 
   /**
-   * An accumulating, ergonomic {@link For} builder; the pattern and iterable are supplied at
-   * construction.
+   * An accumulating, ergonomic {@link For} builder; the pattern is static and the iterable is a
+   * {@link RawExpr} supplied at construction.
    */
   public static final class Builder {
     private final String pattern;
-    private final String iterable;
+    private final RawExpr iterable;
     private List<Element> body = List.of();
 
-    public Builder(String pattern, String iterable) {
+    public Builder(String pattern, RawExpr iterable) {
       this.pattern = pattern;
       this.iterable = iterable;
     }

@@ -21,10 +21,10 @@ public record Method(
     Javadoc javadoc,
     Modifiers mods,
     List<Annotation> annotations,
-    String returnType,
+    TypeRef returnType,
     String name,
     List<Param> params,
-    List<String> thrown,
+    List<TypeRef> thrown,
     List<Element> body,
     boolean abstractDecl) {
   // The builder leaves the optional fields unset (null); the compact constructor seeds them to
@@ -36,7 +36,7 @@ public record Method(
     params = params == null ? List.of() : params;
     thrown = thrown == null ? List.of() : thrown;
     body = body == null ? List.of() : body;
-    returnType = returnType == null ? "void" : returnType;
+    returnType = returnType == null ? TypeRef.Primitive.VOID : returnType;
   }
 
   /**
@@ -52,10 +52,10 @@ public record Method(
     private Javadoc javadoc;
     private final Modifiers.Builder mods = Modifiers.builder();
     private final List<Annotation> annotations = new ArrayList<>();
-    private String returnType;
+    private TypeRef returnType;
     private final String name;
     private final List<Param> params = new ArrayList<>();
-    private final List<String> thrown = new ArrayList<>();
+    private final List<TypeRef> thrown = new ArrayList<>();
     private final List<Element> body = new ArrayList<>();
     private boolean abstractDecl;
 
@@ -91,8 +91,14 @@ public record Method(
       return this;
     }
 
-    /** Set the return type. */
+    /** Set the return type as a bare FQN string (parsed to {@link TypeRef} internally). */
     public Builder returnType(String rt) {
+      this.returnType = TypeRef.of(rt);
+      return this;
+    }
+
+    /** Set the return type as a pre-structured {@link TypeRef}. */
+    public Builder returnType(TypeRef rt) {
       this.returnType = rt;
       return this;
     }
@@ -109,8 +115,14 @@ public record Method(
       return this;
     }
 
-    /** Append one {@code throws} type. */
+    /** Append one {@code throws} type (a bare FQN, parsed to {@link TypeRef} internally). */
     public Builder thrown(String t) {
+      this.thrown.add(TypeRef.of(t));
+      return this;
+    }
+
+    /** Append a {@code throws} type as a pre-structured {@link TypeRef}. */
+    public Builder thrown(TypeRef t) {
       this.thrown.add(t);
       return this;
     }

@@ -53,7 +53,7 @@ class EnumSourceMappingTest {
   @Test
   void maps_the_proto_enum_through_the_source_ast_and_compiles() throws Exception {
     TypeCollector ci = new TypeCollector(PKG);
-    Type.Enum e = EnumSourceMapping.toSource(color(), ci);
+    Type.Enum e = EnumSourceMapping.toSource(color(), ci, PKG);
     String src = SourceRenderer.render(new JavaFile(PKG, Javadoc.builder().build(), e, ci));
 
     assertTrue(src.contains("public enum Color {"), "enum header: " + src);

@@ -13,28 +13,36 @@ import java.util.Objects;
  * #defaultBody()} omits the terminal {@code default} clause. Modelled on {@link If} (where {@link
  * ElseIf} is the per-clause type and {@code elseBody} is the terminal alternative); the {@link
  * Case} arms and the terminal {@code default} clause are attached via {@link #on(String)}.
+ *
+ * <p>The {@link #subject()} is a {@link RawExpr}, so the collect phase can contribute type refs and
+ * the render phase can resolve positional args. Use {@link #on(String, Object[])} for
+ * {@code @N}-templated subjects.
  */
-public record Switch(String subject, List<Case> cases, List<Element> defaultBody)
+public record Switch(RawExpr subject, List<Case> cases, List<Element> defaultBody)
     implements Element {
 
   public Switch {
-    Objects.requireNonNull(subject);
     cases = cases == null ? List.of() : List.copyOf(cases);
     defaultBody = defaultBody == null ? List.of() : List.copyOf(defaultBody);
   }
 
-  /** Entry point: seed a builder with the switch subject expression. */
+  /** Entry point: seed a builder with a static subject expression string. */
   public static Builder on(String subject) {
-    return new Builder(subject);
+    return new Builder(RawExpr.of(subject));
+  }
+
+  /** Entry point: seed a builder with a {@code @N}-templated subject expression string. */
+  public static Builder on(String subjectTemplate, Object... subjectArgs) {
+    return new Builder(RawExpr.of(subjectTemplate, subjectArgs));
   }
 
   /** An accumulating, ergonomic {@link Switch} builder; the subject is supplied at construction. */
   public static final class Builder {
-    private final String subject;
+    private final RawExpr subject;
     private List<Case> cases = new ArrayList<>();
-    private List<Element> defaultBody = List.of();
+    private List<Element> defaultBody = new ArrayList<>();
 
-    public Builder(String subject) {
+    public Builder(RawExpr subject) {
       Objects.requireNonNull(subject);
       this.subject = subject;
     }

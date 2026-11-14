@@ -1,6 +1,5 @@
 package bijnagte.recordbuf.plugin.types;
 
-import bijnagte.recordbuf.plugin.types.TypeResolver.WireScalar;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;

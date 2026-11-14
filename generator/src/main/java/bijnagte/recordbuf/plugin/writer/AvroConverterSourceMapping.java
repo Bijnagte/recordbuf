@@ -8,6 +8,7 @@ import bijnagte.recordbuf.codegen.source.JavaFile;
 import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.SourceRenderer;
 import bijnagte.recordbuf.codegen.source.Type;
+import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.Message;
@@ -64,22 +65,22 @@ public final class AvroConverterSourceMapping {
     // --- conditional imports, resolved upfront in the TypeCollector ---
     boolean samePkg = recordPkg.equals(specificRecordPkg);
     if (!samePkg) {
-      ci.use(specificRecordPkg + "." + avroSpecific);
+      TypeRef.of(specificRecordPkg + "." + avroSpecific).collect(ci);
     }
     boolean hasWkt =
         message.fields().stream().anyMatch(f -> AvroSchemaGenerator.typeUrlIfWkt(f) != null);
     if (hasWkt) {
-      ci.use("bijnagte.recordbuf.avro.WktAvroBridge");
+      TypeRef.of("bijnagte.recordbuf.avro.WktAvroBridge").collect(ci);
     }
     boolean hasByteField =
         message.fields().stream()
             .anyMatch(f -> f.kind() == FieldKind.SCALAR && "bytes".equals(f.typeUrl()));
     if (hasByteField) {
-      ci.use("bijnagte.recordbuf.runtime.Bytes");
-      ci.use("java.nio.ByteBuffer");
-      ci.use("java.util.Arrays");
+      TypeRef.of("bijnagte.recordbuf.runtime.Bytes").collect(ci);
+      TypeRef.of("java.nio.ByteBuffer").collect(ci);
+      TypeRef.of("java.util.Arrays").collect(ci);
     }
-    ci.use("bijnagte.recordbuf.runtime.UnknownFields");
+    TypeRef.of("bijnagte.recordbuf.runtime.UnknownFields").collect(ci);
 
     // --- class AST ---
     Constructor privateCtor = Constructor.builder().private_().body().build();
@@ -117,7 +118,7 @@ public final class AvroConverterSourceMapping {
       boolean hasWkt,
       boolean hasByteField) {
     List<Element> body = new ArrayList<>();
-    body.add(Element.of(recordClass + ".Builder b = " + recordClass + ".builder();"));
+    body.add(Element.expr("@0.Builder b = @1.builder()", recordClass, recordClass));
     for (Field f : message.fields()) {
       body.add(toRecordFieldLine(f, "s", hasWkt, hasByteField));
     }
@@ -138,7 +139,7 @@ public final class AvroConverterSourceMapping {
     String getter = param + ".get" + cap(f.javaName());
     String var = "b." + f.javaName();
     if (AvroSchemaGenerator.typeUrlIfWkt(f) != null) {
-      return Element.of(var + "(WktAvroBridge.fromAvro(" + getter + "());");
+      return Element.expr("@0(WktAvroBridge.fromAvro(@1()))", var, getter);
     }
     if (f.kind() == FieldKind.SCALAR && "bytes".equals(f.typeUrl())) {
       return Element.of(
@@ -152,9 +153,9 @@ public final class AvroConverterSourceMapping {
               + "().remaining())) : Bytes.empty());");
     }
     if (f.kind() == FieldKind.SCALAR && "string".equals(f.typeUrl())) {
-      return Element.of(var + "(" + getter + "().toString());");
+      return Element.expr("@0(@1().toString())", var, getter);
     }
-    return Element.of(var + "(" + getter + "());");
+    return Element.expr("@0(@1())", var, getter);
   }
 
   // --- fromRecord body builder --------------------------------------------------------
@@ -162,7 +163,7 @@ public final class AvroConverterSourceMapping {
   private static Method buildFromRecord(
       Message message, String recordClass, String avroSpecific, boolean hasWkt) {
     List<Element> body = new ArrayList<>();
-    body.add(Element.of(avroSpecific + " s = new " + avroSpecific + "();"));
+    body.add(Element.expr("@0 s = new @1()", avroSpecific, avroSpecific));
     body.add(Element.of("")); // blank line between declaration and setters
     for (Field f : message.fields()) {
       body.add(fromRecordFieldLine(f, "s", "r", hasWkt));
@@ -182,12 +183,12 @@ public final class AvroConverterSourceMapping {
     String setter = param + ".set" + cap(f.javaName());
     String accessor = record + "." + f.javaName() + "()";
     if (AvroSchemaGenerator.typeUrlIfWkt(f) != null) {
-      return Element.of(setter + "(WktAvroBridge.toAvro(" + accessor + "));");
+      return Element.expr("@0(WktAvroBridge.toAvro(@1))", setter, accessor);
     }
     if (f.kind() == FieldKind.SCALAR && "bytes".equals(f.typeUrl())) {
-      return Element.of(setter + "(ByteBuffer.wrap(" + accessor + ".toByteArray()));");
+      return Element.expr("@0(ByteBuffer.wrap(@1.toByteArray()))", setter, accessor);
     }
-    return Element.of(setter + "(" + accessor + ");");
+    return Element.expr("@0(@1)", setter, accessor);
   }
 
   private static String cap(String s) {

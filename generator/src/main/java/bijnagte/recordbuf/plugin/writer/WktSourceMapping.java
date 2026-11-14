@@ -4,7 +4,9 @@ import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.For;
 import bijnagte.recordbuf.codegen.source.If;
+import bijnagte.recordbuf.codegen.source.LocalVar;
 import bijnagte.recordbuf.codegen.source.Switch;
+import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
 import bijnagte.recordbuf.plugin.types.WellKnownTypes;
@@ -38,19 +40,20 @@ final class WktSourceMapping {
   // /
   // "Integer i32 = null;" per Wkt.java type
 
-  static String localInit(Field f, Entry entry, TypeCollector ci) {
-    String type = ci.use(requireType(entry));
+  static Element localInitElement(Field f, Entry entry, TypeCollector ci) {
+    TypeRef type = TypeRef.of(requireType(entry));
     String name = f.javaName();
     if (f.label() == FieldLabel.REPEATED) {
-      ci.use("java.util.List");
-      ci.use("java.util.ArrayList");
-      return "List<" + type + "> " + name + " = new ArrayList<>();";
-    } else if (entry.hasZeroDefault()) {
-      return type + " " + name + " = " + entry.zeroDefault() + ";";
-    } else {
-      // Wrapper WKT (nullable)
-      return type + " " + name + " = null;";
+      TypeRef namedList =
+          TypeRef.named("java.util", "List", List.of(TypeRef.of(requireType(entry))));
+      return LocalVar.builder(namedList, name)
+          .build("new @0<>()", TypeRef.of("java.util.ArrayList"));
     }
+    if (entry.hasZeroDefault()) {
+      return LocalVar.builder(type, name).build(entry.zeroDefault());
+    }
+    // Wrapper WKT (nullable)
+    return LocalVar.builder(type, name).build("null");
   }
 
   // encode arm: for structured WKT, "if (!v.field().equals(ZERO)) out.writeByteArray(n,
@@ -61,30 +64,25 @@ final class WktSourceMapping {
 
   static void emitEncode(
       Field f, Entry entry, String out, String v, TypeCollector ci, List<Element> body) {
-    String wkt = ci.use(WKT_FQN);
-    ci.use(requireType(entry));
+    TypeRef wktRef = TypeRef.of(WKT_FQN);
+    wktRef.collect(ci);
+    TypeRef.of(requireType(entry)).collect(ci);
     int num = f.number();
     String g = v + "." + f.javaName() + "()";
-    String m =
-        encodeMethod(shortName(f.typeUrl()))
-            .replace("parse", "write") // normalize for switch: already normalized in encodeMethod
-        ; // no-op
-    // For structured WKT: the encode method is Wkt.timestamp/duration/fieldMask/empty;
-    // For wrapper:        the encode call is Wkt.wrap(Wkt.Wrap.KIND, value).
-    String wktShort = shortName(f.typeUrl());
-    String methodName = encodeMethod(f.typeUrl()); // already resolved below
-    String outExpr = out + ".writeByteArray(" + num + ", ";
+    String methodName = encodeMethod(f.typeUrl());
 
     if (f.label() == FieldLabel.REPEATED) {
-      ci.use("java.util.List");
+      TypeRef.of("java.util.List").collect(ci);
       if (entry.hasZeroDefault()) {
         String def = Objects.requireNonNull(entry.zeroDefault());
         // for (var e : v.field()) { if (!e.equals(def)) out.writeByteArray(n, Wkt.method(e)); }
         body.add(
             For.enhanced("var e", g)
                 .body(
-                    If.condition("!e.equals(" + def + ")")
-                        .body(Element.of(outExpr + wkt + "." + methodName + "(e));"))
+                    If.condition("!e.equals(@0)", def)
+                        .body(
+                            Element.expr(
+                                "@0.writeByteArray(@1, @2.@3(e));", out, num, wktRef, methodName))
                         .build())
                 .build());
       } else {
@@ -92,30 +90,37 @@ final class WktSourceMapping {
         body.add(
             For.enhanced("var e", g)
                 .body(
-                    Element.of(
-                        outExpr
-                            + wkt
-                            + ".wrap("
-                            + wkt
-                            + ".Wrap."
-                            + wrapKind(f.typeUrl())
-                            + ", e));"))
+                    Element.expr(
+                        "@0.writeByteArray(@1, @2.wrap(@2.Wrap.@3, e));",
+                        out,
+                        num,
+                        wktRef,
+                        wrapKind(f.typeUrl())))
                 .build());
       }
     } else if (entry.hasZeroDefault()) {
       String def = Objects.requireNonNull(entry.zeroDefault());
       // if (v.field() != null && !def.equals(v.field())) out.writeByteArray(n,
       // Wkt.method(v.field()));
-      String call = outExpr + wkt + "." + methodName + "(" + g + "));";
       body.add(
-          If.condition(g + " != null && !" + def + ".equals(" + g + ")")
-              .body(Element.of(call))
+          If.condition("@0 != null && !@1.equals(@0)", g, def)
+              .body(
+                  Element.expr(
+                      "@0.writeByteArray(@1, @2.@3(@4));", out, num, wktRef, methodName, g))
               .build());
     } else {
       // if (v.field() != null) out.writeByteArray(n, Wkt.wrap(Wkt.Wrap.KIND, v.field()));
-      String call =
-          outExpr + wkt + ".wrap(" + wkt + ".Wrap." + wrapKind(f.typeUrl()) + ", " + g + "));";
-      body.add(If.condition(g + " != null").body(Element.of(call)).build());
+      body.add(
+          If.condition("@0 != null", g)
+              .body(
+                  Element.expr(
+                      "@0.writeByteArray(@1, @2.wrap(@2.Wrap.@3, @4));",
+                      out,
+                      num,
+                      wktRef,
+                      wrapKind(f.typeUrl()),
+                      g))
+              .build());
     }
   }
 
@@ -124,54 +129,49 @@ final class WktSourceMapping {
 
   // decode case: "case N -> field = Wkt.parseName(in.readByteArray());"
   //             "case N -> field = (Short) Wkt.parse(Wkt.Wrap.KIND, in.readByteArray());"
-  static void emitDecodeCase(Field f, Entry entry, String in, String wkt, Switch.Builder sw) {
+  static void emitDecodeCase(Field f, Entry entry, String in, Switch.Builder sw, TypeCollector ci) {
     int num = f.number();
     String name = f.javaName();
     String read = in + ".readByteArray()";
+    TypeRef wktRef = TypeRef.of(WKT_FQN);
+    wktRef.collect(ci);
 
-    String assignment;
+    Element assignment;
     if (f.label() == FieldLabel.REPEATED) {
       if (entry.hasZeroDefault()) {
         // field.add(Wkt.parseName(in.readByteArray()));
-        assignment = name + ".add(" + wkt + "." + parseMethod(f.typeUrl()) + "(" + read + "));";
+        assignment =
+            Element.expr("@0.add(@1.@2(@3))", name, wktRef, parseMethod(f.typeUrl()), read);
       } else {
-        String javaShort = shortNameOf(requireType(entry));
+        TypeRef castRef = TypeRef.of(shortNameOf(requireType(entry)));
+        castRef.collect(ci);
         // field.add((Short) Wkt.parse(Wkt.Wrap.KIND, in.readByteArray()));
         assignment =
-            name
-                + ".add(("
-                + javaShort
-                + ") "
-                + wkt
-                + ".parse("
-                + wkt
-                + ".Wrap."
-                + wrapKind(f.typeUrl())
-                + ", "
-                + read
-                + "));";
+            Element.expr(
+                "@0.add((@3) @1.parse(@1.Wrap.@4, @2))",
+                name,
+                wktRef,
+                read,
+                castRef,
+                wrapKind(f.typeUrl()));
       }
     } else if (entry.hasZeroDefault()) {
       // field = Wkt.parseName(in.readByteArray());
-      assignment = name + " = " + wkt + "." + parseMethod(f.typeUrl()) + "(" + read + ");";
+      assignment = Element.expr("@0 = @1.@2(@3)", name, wktRef, parseMethod(f.typeUrl()), read);
     } else {
-      String javaShort = shortNameOf(requireType(entry));
+      TypeRef castRef = TypeRef.of(shortNameOf(requireType(entry)));
+      castRef.collect(ci);
       // field = (Short) Wkt.parse(Wkt.Wrap.KIND, in.readByteArray());
       assignment =
-          name
-              + " = ("
-              + javaShort
-              + ") "
-              + wkt
-              + ".parse("
-              + wkt
-              + ".Wrap."
-              + wrapKind(f.typeUrl())
-              + ", "
-              + read
-              + ");";
+          Element.expr(
+              "@0 = (@3) @1.parse(@1.Wrap.@4, @2)",
+              name,
+              wktRef,
+              read,
+              castRef,
+              wrapKind(f.typeUrl()));
     }
-    sw.caseArm(String.valueOf(num), Element.of(assignment));
+    sw.caseArm(String.valueOf(num), assignment);
   }
 
   private static String requireType(Entry entry) {

@@ -47,6 +47,12 @@ public final class TypeCollector {
   private final LinkedHashSet<String> collidedShortNames = new LinkedHashSet<>();
 
   private final String declaringPackage;
+
+  /** The declaring package. */
+  public String declaringPackage() {
+    return declaringPackage;
+  }
+
   private boolean frozen = false;
 
   /**
@@ -64,7 +70,12 @@ public final class TypeCollector {
    * <p>This is for reference types in a different compilation unit where a short-name import would
    * create a shadowing conflict, e.g. the protobuf-java reference type of a {@code
    * recordbuf.protobuf_java}-opted message. Returns the FQN as-is.
+   *
+   * @deprecated internal bridge for {@link
+   *     bijnagte.recordbuf.codegen.source.TypeRef#useFqn(TypeCollector)}; callers should use {@code
+   *     TypeRef.of(fqn).useFqn(ci)} instead.
    */
+  @Deprecated
   public String useFqn(String fqn) {
     int lastDot = fqn.lastIndexOf('.');
     if (lastDot < 0) return fqn; // prime number / bare name
@@ -75,19 +86,27 @@ public final class TypeCollector {
   }
 
   /**
-   * Records one type reference and returns the name to emit at that site.
+   * {@link #useFqn(String)} overload for a {@link bijnagte.recordbuf.codegen.source.TypeRef}. The
+   * base FQN is extracted via {@link bijnagte.recordbuf.codegen.source.TypeRef#fqn()} and marked as
+   * collided (no import emitted for its short name).
    *
-   * <p>A bare name carrying no package segment -- a primitive, a {@code byte[]} array, or a
-   * same-package {@literal /} {@code java.lang} short name -- is returned unchanged and never
-   * imported. Before {@link #finalizeResolution()} the returned name is always the short name;
-   * afterwards it is the fully-qualified name only when that short name is shared by another
-   * distinct type.
+   * @deprecated internal bridge for {@code TypeRef.useFqn(ci)}; callers should use {@code
+   *     TypeRef.of(fqn).useFqn(ci)} instead.
    */
+  @Deprecated
+  public void useFqn(bijnagte.recordbuf.codegen.source.TypeRef ref) {
+    useFqn(ref.fqn());
+  }
+
   /**
    * Records one type reference and returns the name to emit at that site, preserving any generic
-   * suffix from {@code reference} (e.g. {@code java.util.List<java.lang.Integer>}). The base type
-   * is resolved for import/collision handling, but the returned name keeps the original generic
-   * arguments so the render pass emits {@code List<Integer>} rather than a raw {@code List}.
+   * suffix from {@code reference} (e.g. {@code java.util.List<java.lang.Integer>}). This is the
+   * primary <b>tree-walker entry point</b> — {@code SourceRenderer.collect()} walks the AST and
+   * calls {@code ci.use(type)} for each annotation, field, and parameter type it encounters. A bare
+   * name carrying no package segment — a primitive, a {@code byte[]} array, or a same-package /
+   * {@code java.lang} short name — is returned unchanged and never imported. Before {@code
+   * finalizeResolution()} the returned name is always the short name; afterwards it is the
+   * fully-qualified name only when that short name is shared by another distinct type.
    */
   public String use(String reference) {
     int lt = reference.indexOf('<');
@@ -118,6 +137,52 @@ public final class TypeCollector {
    */
   public void finalizeResolution() {
     this.frozen = true;
+  }
+
+  /**
+   * Resolve a structured {@link TypeRef} to the form to emit at that position. During the collect
+   * pass this registers the base FQN (for import-line purposes) and returns the short name; after
+   * {@link #finalizeResolution()} it returns the collision-aware form (short or fully-qualified).
+   * Generic arguments are rendered recursively. A {@code java.lang} or same-package type renders as
+   * a bare short name; every other type is collected for an import line.
+   */
+  public String use(bijnagte.recordbuf.codegen.source.TypeRef ref) {
+    return resolveTypeRef(ref);
+  }
+
+  private String resolveTypeRef(bijnagte.recordbuf.codegen.source.TypeRef ref) {
+    return switch (ref) {
+      case bijnagte.recordbuf.codegen.source.TypeRef.Named n -> resolveNamed(n);
+      case bijnagte.recordbuf.codegen.source.TypeRef.Primitive p -> p.fqn();
+      case bijnagte.recordbuf.codegen.source.TypeRef.Array a -> resolveTypeRef(a.element()) + "[]";
+    };
+  }
+
+  private String resolveNamed(bijnagte.recordbuf.codegen.source.TypeRef.Named n) {
+    // Compute the resolved base (short or fully-qualified), then append generics.
+    String base;
+    if (n.pkg().isEmpty()) {
+      base = n.shortName(); // bare name: no package, emitted as-is
+    } else {
+      use(n.pkg() + "." + n.shortName()); // register for import / collision tracking
+      base = n.shortName();
+      if (frozen && collidedShortNames.contains(base)) {
+        base = n.fqn(); // collided: emit the full qualified form
+      }
+    }
+    return base + genericsOf(n);
+  }
+
+  private String genericsOf(bijnagte.recordbuf.codegen.source.TypeRef.Named n) {
+    if (n.generics().isEmpty()) return "";
+    StringBuilder sb = new StringBuilder();
+    sb.append('<');
+    for (int i = 0; i < n.generics().size(); i++) {
+      if (i > 0) sb.append(", ");
+      sb.append(resolveTypeRef(n.generics().get(i)));
+    }
+    sb.append('>');
+    return sb.toString();
   }
 
   /**
@@ -160,5 +225,27 @@ public final class TypeCollector {
   private static String stripGenericArguments(String reference) {
     int lt = reference.indexOf('<');
     return lt < 0 ? reference : reference.substring(0, lt);
+  }
+
+  /**
+   * The post-finalization {@code ResolutionContext} — used by mappers to build {@link
+   * bijnagte.recordbuf.codegen.source.ResolveableExpr}.
+   */
+  public bijnagte.recordbuf.codegen.source.ResolutionContext resolutionContext() {
+    return new bijnagte.recordbuf.codegen.source.ResolutionContext(
+        declaringPackage, java.util.Set.copyOf(collidedShortNames));
+  }
+
+  /**
+   * Registers the import for a {@link bijnagte.recordbuf.codegen.source.TypeRef} (no return — the
+   * import is a side-effect). This is an internal bridge for {@link
+   * bijnagte.recordbuf.codegen.source.Formattable#collect(TypeCollector)} which is the public API
+   * for collect-phase registration.
+   *
+   * @deprecated use {@code TypeRef.of(fqn).collect(ci)} or {@code Formattable.collect(ci)} instead.
+   */
+  @Deprecated
+  public void register(bijnagte.recordbuf.codegen.source.TypeRef ref) {
+    resolveTypeRef(ref);
   }
 }

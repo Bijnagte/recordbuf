@@ -7,8 +7,10 @@ import bijnagte.recordbuf.codegen.source.For;
 import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Method;
+import bijnagte.recordbuf.codegen.source.RawExpr;
 import bijnagte.recordbuf.codegen.source.Switch;
 import bijnagte.recordbuf.codegen.source.Type;
+import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.JavaNames;
@@ -48,7 +50,7 @@ public final class InteropSourceMapping {
     String refType = JavaNames.cap(m.name());
     // Register the ref FQN-only so no import is generated (avoids collision with the record).
     String ref = refFqn(refPkg, refType);
-    ci.useFqn(ref);
+    TypeRef.of(ref).useFqn(ci);
     String rec = m.name();
 
     Javadoc javadoc =
@@ -96,7 +98,9 @@ public final class InteropSourceMapping {
     for (Oneof o : m.oneofs()) {
       body.add(Element.of("    _" + o.name() + ","));
     }
-    body.add(Element.of("    " + ci.use(RT + ".UnknownFields") + ".empty()"));
+    TypeRef ufRef = TypeRef.of(RT + ".UnknownFields");
+    ufRef.collect(ci);
+    body.add(Element.of("    " + ufRef.render(ci.resolutionContext()) + ".empty()"));
     body.add(Element.of("    );"));
 
     return Method.named("from")
@@ -115,21 +119,17 @@ public final class InteropSourceMapping {
       if (!hasBytes) {
         // Non-byte maps: copy the protobuf-java map directly (compatible key/value types)
         out.add(
-            Element.of(
-                "var _"
-                    + f.javaName()
-                    + " = new "
-                    + ci.use(HASH_MAP)
-                    + "<>(x.get"
-                    + cap
-                    + "Map());"));
+            Element.expr(
+                RawExpr.of(
+                    "var _@0 = new @1<>(x.get@2Map())", f.javaName(), TypeRef.of(HASH_MAP), cap)));
       } else {
         String keyExpr = mapKeyFrom(f);
         String valExpr = mapValueFrom(f, ci);
-        out.add(Element.of("var _" + f.javaName() + " = new " + ci.use(HASH_MAP) + "<>();"));
         out.add(
-            For.enhanced("var _e", "x.get" + cap + "Map().entrySet()")
-                .body(Element.of("_" + f.javaName() + ".put(" + keyExpr + ", " + valExpr + ");"))
+            Element.expr(RawExpr.of("var _@0 = new @1<>()", f.javaName(), TypeRef.of(HASH_MAP))));
+        out.add(
+            For.enhanced("var _e", "x.get@0Map().entrySet()", cap)
+                .body(Element.expr("_@0.put(@1, @2)", f.javaName(), keyExpr, valExpr))
                 .build());
       }
       return;
@@ -137,71 +137,59 @@ public final class InteropSourceMapping {
     if (f.isMessage() && f.isRepeated()) {
       String recSib = recordSiblingFqn(f);
       out.add(
-          Element.of(
-              ci.use(LIST)
-                  + "<"
-                  + recSib
-                  + "> _"
-                  + f.javaName()
-                  + " = new "
-                  + ci.use(ARRAY_LIST)
-                  + "<>();"));
+          Element.expr(
+              RawExpr.of(
+                  "@0<@2> _@3 = new @1<>()",
+                  TypeRef.of(LIST),
+                  TypeRef.of(ARRAY_LIST),
+                  TypeRef.of(recSib),
+                  f.javaName())));
       out.add(
-          For.enhanced("var _e", "x.get" + cap + "List()")
-              .body(Element.of("_" + f.javaName() + ".add(" + recSib + ".Interop.from(_e));"))
+          For.enhanced("var _e", "x.get@0List()", cap)
+              .body(Element.expr("_@0.add(@1.Interop.from(_e))", f.javaName(), recSib))
               .build());
       return;
     }
     if (f.isMessage()) {
       String recSib = recordSiblingFqn(f);
       out.add(
-          Element.of(
-              "var _"
-                  + f.javaName()
-                  + " = x.has"
-                  + cap
-                  + "() ? "
-                  + recSib
-                  + ".Interop.from(x.get"
-                  + cap
-                  + "()) : null;"));
+          Element.expr(
+              RawExpr.of(
+                  "var _@0 = x.has@1() ? @2.Interop.from(x.get@1()) : null",
+                  f.javaName(),
+                  JavaNames.cap(f.javaName()),
+                  TypeRef.of(recSib))));
       return;
     }
     if (f.kind() == FieldKind.ENUM) {
-      out.add(Element.of("var _" + f.javaName() + " = " + fromExpr(f) + ";"));
+      out.add(Element.expr("var _@0 = @1", f.javaName(), fromExpr(f)));
       return;
     }
     if (f.isRepeated()) {
       if ("bytes".equals(f.typeUrl())) {
-        out.add(Element.of("var _" + f.javaName() + " = new " + ci.use(ARRAY_LIST) + "<>();"));
         out.add(
-            For.enhanced("var _e", "x.get" + cap + "List()")
-                .body(Element.of("_" + f.javaName() + ".add(_e.toByteArray());"))
+            Element.expr(RawExpr.of("var _@0 = new @1<>()", f.javaName(), TypeRef.of(ARRAY_LIST))));
+        out.add(
+            For.enhanced("var _e", "x.get@0List()", cap)
+                .body(Element.expr("_@0.add(_e.toByteArray())", f.javaName()))
                 .build());
       } else {
         // For non-bytes repeated fields, use the protobuf-java list directly;
         // var infers the correct element type from x.getList().
-        out.add(Element.of("var _" + f.javaName() + " = x.get" + cap + "List();"));
+        out.add(Element.expr("var _@0 = x.get@1List()", f.javaName(), cap));
       }
       return;
     }
     // Singular scalar / bytes
     if ("bytes".equals(f.typeUrl())) {
       out.add(
-          Element.of(
-              "var _"
-                  + f.javaName()
-                  + " = "
-                  + ci.use(RT + ".Bytes")
-                  + ".of("
-                  + fromExpr(f)
-                  + ");"));
+          Element.expr(
+              RawExpr.of(
+                  "var _@0 = @1.of(@2)", f.javaName(), TypeRef.of(RT + ".Bytes"), fromExpr(f))));
     } else if (f.isNullable()) {
-      out.add(
-          Element.of(
-              "var _" + f.javaName() + " = x.has" + cap + "() ? x.get" + cap + "() : null;"));
+      out.add(Element.expr("var _@0 = x.has@1() ? x.get@1() : null", f.javaName(), cap));
     } else {
-      out.add(Element.of("var _" + f.javaName() + " = " + fromExpr(f) + ";"));
+      out.add(Element.expr("var _@0 = @1", f.javaName(), fromExpr(f)));
     }
   }
 
@@ -220,7 +208,7 @@ public final class InteropSourceMapping {
 
   private static Method emitTo(Message m, TypeCollector ci, String refPkg, String ref, String rec) {
     List<Element> body = new ArrayList<>();
-    body.add(Element.of("var _b = " + ref + ".newBuilder();"));
+    body.add(Element.expr("var _b = @0.newBuilder()", ref));
     for (Field f : m.fields()) {
       toStmt(body, f, ci, refPkg);
     }
@@ -242,18 +230,16 @@ public final class InteropSourceMapping {
     String cap = JavaNames.cap(f.javaName());
     if (f.isMap()) {
       out.add(
-          For.enhanced("var _e", "r." + f.javaName() + "().entrySet()")
-              .body(
-                  Element.of(
-                      "_b.put" + cap + "(" + mapKeyTo(f, ci) + ", " + mapValueTo(f, ci) + ");"))
+          For.enhanced("var _e", "r.@0().entrySet()", f.javaName())
+              .body(Element.expr("_b.put@0(@1, @2)", cap, mapKeyTo(f, ci), mapValueTo(f, ci)))
               .build());
       return;
     }
     if (f.isMessage() && f.isRepeated()) {
       String recSib = recordSiblingFqn(f);
       out.add(
-          For.enhanced("var _e", "r." + f.javaName() + "()")
-              .body(Element.of("_b.add" + cap + "(" + recSib + ".Interop.to(_e));"))
+          For.enhanced("var _e", "r.@0()", f.javaName())
+              .body(Element.expr("_b.add@0(@1.Interop.to(_e))", cap, recSib))
               .build());
       return;
     }
@@ -263,21 +249,23 @@ public final class InteropSourceMapping {
       String src = "r." + f.javaName() + "()";
       String local = "n" + JavaNames.cap(f.javaName());
       out.add(
-          If.condition(src + " != null")
+          If.condition("@0 != null", src)
               .body(
-                  Element.of("var " + local + " = " + src + ";"),
-                  Element.of("_b.set" + cap + "(" + recSib + ".Interop.to(" + local + "));"))
+                  Element.expr("var @0 = @1", local, src),
+                  Element.expr("_b.set@0(@1.Interop.to(@2))", cap, recSib, local))
               .build());
       return;
     }
     if (f.isRepeated()) {
       if ("bytes".equals(f.typeUrl())) {
         out.add(
-            For.enhanced("byte[] _e", "r." + f.javaName() + "()")
-                .body(Element.of("_b.add" + cap + "(" + ci.use(BYTE_STRING) + ".copyFrom(_e));"))
+            For.enhanced("byte[] _e", "r.@0()", f.javaName())
+                .body(
+                    Element.expr(
+                        RawExpr.of("_b.add@1(@0.copyFrom(_e))", TypeRef.of(BYTE_STRING), cap)))
                 .build());
       } else {
-        out.add(Element.of("_b.addAll" + cap + "(r." + f.javaName() + "());"));
+        out.add(Element.expr("_b.addAll@0(r.@1())", cap, f.javaName()));
       }
       return;
     }
@@ -291,39 +279,19 @@ public final class InteropSourceMapping {
           refPkg.isEmpty()
               ? JavaNames.cap(lastSegment(f.typeUrl()))
               : refPkg + "." + JavaNames.cap(lastSegment(f.typeUrl()));
-      return Element.of("_b.set" + cap + "(" + refEnum + ".forNumber(" + src + ".getNumber()));");
+      return Element.expr("_b.set@0(@1.forNumber(@2.getNumber()))", cap, refEnum, src);
     }
     if ("bytes".equals(f.typeUrl())) {
-      return Element.of(
-          "_b.set" + cap + "(" + ci.use(BYTE_STRING) + ".copyFrom(" + src + ".toByteArray()));");
+      return Element.expr(
+          RawExpr.of(
+              "_b.set" + cap + "(@0.copyFrom(" + src + ".toByteArray()))",
+              TypeRef.of(BYTE_STRING)));
     }
     if (f.isNullable()) {
-      return If.condition(src + " != null")
-          .body(Element.of("_b.set" + cap + "(" + src + ");"))
-          .build();
+      return If.condition("@0 != null", src).body(Element.expr("_b.set@0(@1)", cap, src)).build();
     }
-    return Element.of("_b.set" + cap + "(" + src + ");");
+    return Element.expr("_b.set@0(@1)", cap, src);
   }
-
-  private static String toSet(Field f, String src, TypeCollector ci, String refPkg) {
-    String cap = JavaNames.cap(f.javaName());
-    if (f.kind() == FieldKind.ENUM) {
-      String refEnum =
-          refPkg.isEmpty()
-              ? JavaNames.cap(lastSegment(f.typeUrl()))
-              : refPkg + "." + JavaNames.cap(lastSegment(f.typeUrl()));
-      return "_b.set" + cap + "(" + refEnum + ".forNumber(" + src + ".getNumber()));";
-    }
-    if ("bytes".equals(f.typeUrl())) {
-      return "_b.set" + cap + "(" + ci.use(BYTE_STRING) + ".copyFrom(" + src + ".toByteArray()));";
-    }
-    if (f.isNullable()) {
-      return "if (" + src + " != null) _b.set" + cap + "(" + src + ");";
-    }
-    return "_b.set" + cap + "(" + src + ");";
-  }
-
-  // -- oneof --------------------------------------------------------------------
 
   private static void emitOneofFrom(List<Element> out, Oneof o, TypeCollector ci) {
     String iface = o.ifaceName();
@@ -376,9 +344,9 @@ public final class InteropSourceMapping {
       String pattern = iface + "." + cap + "Value v";
       if (f.isMessage()) {
         String recSib = recordSiblingFqn(f);
-        sw.caseArm(pattern, Element.of("_b.set" + cap + "(" + recSib + ".Interop.to(v.value()));"));
+        sw.caseArm(pattern, Element.expr("_b.set@0(@1.Interop.to(v.value()))", cap, recSib));
       } else {
-        sw.caseArm(pattern, Element.of(toSet(f, "v.value()", ci, refPkg)));
+        sw.caseArm(pattern, toSetStatement(f, "v.value()", ci, refPkg));
       }
     }
     out.add(sw.build());
@@ -420,15 +388,22 @@ public final class InteropSourceMapping {
   }
 
   private static String mapKeyTo(Field f, TypeCollector ci) {
-    return "bytes".equals(f.mapKey())
-        ? ci.use(BYTE_STRING) + ".copyFrom(_e.getKey())"
-        : "_e.getKey()";
+    if ("bytes".equals(f.mapKey())) {
+      TypeRef bytesRef = TypeRef.of(BYTE_STRING);
+      bytesRef.collect(ci);
+      return bytesRef.render(ci.resolutionContext()) + ".copyFrom(_e.getKey())";
+    }
+    return "_e.getKey()";
   }
 
   private static String mapValueTo(Field f, TypeCollector ci) {
     String t = f.mapValue();
     if (t == null) return "_e.getValue()";
-    if ("bytes".equals(t)) return ci.use(BYTE_STRING) + ".copyFrom(_e.getValue())";
+    if ("bytes".equals(t)) {
+      TypeRef bytesRef = TypeRef.of(BYTE_STRING);
+      bytesRef.collect(ci);
+      return bytesRef.render(ci.resolutionContext()) + ".copyFrom(_e.getValue())";
+    }
     return "_e.getValue()";
   }
 }

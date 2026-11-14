@@ -3,44 +3,45 @@ package bijnagte.recordbuf.codegen.source;
 import java.util.List;
 
 /**
- * A first-class AST annotation -- a reference to its type plus an ordered list of {@link Arg args}.
- *
- * <p>Every annotatable node (the {@link Type} variants, {@link Component}, {@link Method}, {@link
- * Param}, {@link LocalVar}, and {@link EnumConstant}) carries a {@code List<Annotation>}; a single
- * {@link SourceRenderer render path} emits the whole list -- one annotation per line, before the
- * node's Javadoc -- instead of the previous ad-hoc per-annotation handling: the {@code @Deprecated}
- * marker fields, the {@code @Override} marker on {@link Method}, the raw {@code List<String>}
- * annotation list on a {@link Type.Class}, and the {@code @Nullable} string splice on type
- * expressions, all of which are now instances of this one model.
- *
- * <p>The annotation's type is stored as an eager fully-qualified name string and resolved through
- * the collector's {@code ci.use(...)} at render time -- the same import mechanism that a type
- * string uses. Making this {@code type} a structured reference is the later AST-structuring pass's
- * job, not this migration's.
- *
- * <p>The no-argument annotations the generator emits today are exposed as constants; parameterized
- * forms such as {@code @SuppressWarnings({"a", "b"})} are constructed via {@link #of}.
+ * An annotation instance. The type is a {@link TypeRef} (typically a {@link TypeRef.Named} or a
+ * {@link TypeRef.Primitive}); the args are positional or named {@link Arg}s. The type is resolved
+ * through the collector at render time via {@link TypeRef#resolved(ResolutionContext)}.
  */
-public record Annotation(String type, List<Arg> args) {
+public record Annotation(TypeRef type, List<Arg> args) {
 
-  /** The {@code @Deprecated} marker (no arguments). */
-  public static final Annotation DEPRECATED = new Annotation("java.lang.Deprecated", List.of());
+  public static Annotation of(TypeRef type, Arg... args) {
+    return new Annotation(type, args == null ? List.of() : List.of(args));
+  }
 
-  /** The {@code @Override} marker (no arguments). */
-  public static final Annotation OVERRIDE = new Annotation("java.lang.Override", List.of());
-
-  /** The JSpecify {@code @Nullable} marker (a type-use annotation, no arguments). */
+  /** {@code @Nullable} (JSpecify present, no args). */
   public static final Annotation NULLABLE =
-      new Annotation("org.jspecify.annotations.Nullable", List.of());
+      new Annotation(TypeRef.of("org.jspecify.annotations.Nullable"), List.of());
+
+  /** {@code @Deprecated}. */
+  public static final Annotation DEPRECATED =
+      new Annotation(TypeRef.of("java.lang.Deprecated"), List.of());
+
+  /** {@code @Override}. */
+  public static final Annotation OVERRIDE =
+      new Annotation(TypeRef.of("java.lang.Override"), List.of());
 
   /**
-   * Build a parameterized annotation such as {@code @SuppressWarnings(...)}.
-   *
-   * @param type the fully-qualified annotation type (eager, resolved at render via {@code ci.use})
-   * @param args the ordered arguments, rendered inside the annotation's parentheses
-   * @return the annotation
+   * {@code @SuppressWarnings(names...)}. Each name is a {@link Arg} with a blank positional name
+   * and the list of strings as its values (rendered as a {@code {"a", "b"}} array literal).
    */
-  public static Annotation of(String type, Arg... args) {
-    return new Annotation(type, List.of(args));
+  public static Annotation suppressWarnings(String... names) {
+    if (names.length == 0)
+      return new Annotation(TypeRef.of("java.lang.SuppressWarnings"), List.of());
+    return new Annotation(
+        TypeRef.of("java.lang.SuppressWarnings"), List.of(new Arg(null, List.of(names))));
   }
+
+  /**
+   * {@code @SuppressWarnings("all")} -- the common suppress-all form. This is the canonical {@link
+   * Arg}/{@link Args} form the {@code @SuppressWarnings} escape hatch now delegates to: a single
+   * blank-named (positional) arg whose values carry the array literal.
+   */
+  public static final Annotation SUPPRESS_ALL =
+      new Annotation(
+          TypeRef.of("java.lang.SuppressWarnings"), List.of(new Arg(null, List.of("all"))));
 }

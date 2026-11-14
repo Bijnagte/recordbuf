@@ -8,9 +8,10 @@ import java.util.List;
  * non-blank it renders after the name as {@code = initializer} -- the {@code BY_NUMBER}
  * reverse-lookup field is {@code ... BY_NUMBER = new HashMap<>();}; blank means no initializer.
  *
- * <p>The {@code type} and {@code initializer} strings are <em>pre-resolved short form</em>: the
- * caller has already run their type references through the {@code TypeCollector} and inlined each
- * short name, and the renderer emits them verbatim.
+ * <p>The {@code type} holds a {@link TypeRef} resolved at render time; the renderer registers its
+ * FQN with the {@code TypeCollector} during the collect phase and resolves it to a short name or
+ * FQN at render time. The {@code initializer} string is an escape-hatch raw string rendered
+ * verbatim.
  *
  * <p>The {@link #annotations()} list is the uniform first-class annotation list (e.g. {@link
  * Annotation#NULLABLE} on a presence-tracked field). A builder {@code deprecated(boolean)} sugar
@@ -21,7 +22,7 @@ public record Component(
     Javadoc javadoc,
     Modifiers mods,
     List<Annotation> annotations,
-    String type,
+    TypeRef type,
     String name,
     String initializer) {
   // Optional fields stay null/empty when a builder leaves them unset; the compact ctor seeds
@@ -40,7 +41,12 @@ public record Component(
    * elements — taken at construction; the optional ones (Javadoc, modifiers, annotations,
    * initializer) accumulate as before.
    */
-  public static Builder named(String type, String name) {
+  public static Builder named(String fqn, String name) {
+    return new Builder(TypeRef.of(fqn), name);
+  }
+
+  /** Entry point with a pre-structured {@link TypeRef}. */
+  public static Builder type(TypeRef type, String name) {
     return new Builder(type, name);
   }
 
@@ -49,14 +55,21 @@ public record Component(
     private Javadoc javadoc;
     private final Modifiers.Builder mods = Modifiers.builder();
     private final List<Annotation> annotations = new ArrayList<>();
-    private final String type;
+    private final TypeRef type;
     private final String name;
     private String initializer;
 
-    /** Seed the two required fields ({@link #type}, {@link #name}); the rest accumulate. */
-    public Builder(String type, String name) {
+    /** Seed the two required fields ({@code type}, {@code name}); the rest accumulate. */
+    public Builder(TypeRef type, String name) {
       this.type = type;
       this.name = name;
+    }
+
+    /**
+     * Seed the two required fields from a bare FQN string (parsed to {@link TypeRef} internally).
+     */
+    public Builder(String fqn, String name) {
+      this(TypeRef.of(fqn), name);
     }
 
     /** The field's Javadoc. */

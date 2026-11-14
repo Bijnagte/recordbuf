@@ -46,6 +46,47 @@ class SourceAstClosednessTest {
     assertTrue(new Fragment("x;").text().equals("x;"));
   }
 
+  /**
+   * U3: every {@code Type.*} header FQN list must be a {@code List} of {@code TypeRef}, not {@code
+   * List} of {@code String}. Guards against regression to string-based FQN handling.
+   */
+  @Test
+  void typeHeaderListsAreTypeRef() throws Exception {
+    checkTypeRefList(
+        java.util.Arrays.asList(
+            Type.Record.class, Type.Class.class, Type.Enum.class, Type.Interface.class));
+  }
+
+  private static void checkTypeRefList(java.util.List<Class<?>> typeClasses) throws Exception {
+    for (Class<?> tc : typeClasses) {
+      for (String fieldName : Arrays.asList("extendsFqns", "implementsFqns", "permitsFqns")) {
+        java.lang.reflect.Field f = findField(tc, fieldName);
+        if (f == null) {
+          continue; // not every variant declares every list; skip absent fields
+        }
+        java.lang.reflect.ParameterizedType pType =
+            (java.lang.reflect.ParameterizedType) f.getGenericType();
+        Class<?> argType = (Class<?>) pType.getActualTypeArguments()[0];
+        assertEquals(
+            TypeRef.class,
+            argType,
+            tc.getSimpleName()
+                + "#"
+                + fieldName
+                + " must be List<TypeRef>, found "
+                + argType.getSimpleName());
+      }
+    }
+  }
+
+  private static java.lang.reflect.Field findField(Class<?> clazz, String name) {
+    try {
+      return clazz.getDeclaredField(name);
+    } catch (NoSuchFieldException e) {
+      return null;
+    }
+  }
+
   private static Set<String> simpleNames(Class<?>[] subtypes) {
     TreeSet<String> names = new TreeSet<>();
     for (Class<?> c : subtypes) {

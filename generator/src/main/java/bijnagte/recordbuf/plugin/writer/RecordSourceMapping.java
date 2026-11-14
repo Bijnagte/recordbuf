@@ -1,12 +1,15 @@
 package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
+import bijnagte.recordbuf.codegen.source.Annotation;
 import bijnagte.recordbuf.codegen.source.Component;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Method;
+import bijnagte.recordbuf.codegen.source.Param;
 import bijnagte.recordbuf.codegen.source.Type;
+import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Enum;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
@@ -59,14 +62,14 @@ public final class RecordSourceMapping {
     // the
     // component's type + javaName; a record's components render in its header via components().
     for (Field f : m.fields()) {
-      result.component(Component.named(scalarComponentType(f, ci), f.javaName()).build());
+      var comp = Component.named(scalarComponentType(f, ci), f.javaName());
+      if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
+      result.component(comp.build());
     }
-
-    // 2. The nested ENUMS -- each reuses the M4-C2a-ext enum mapping, so the nested enum renders
     // its
     // full core + its BY_NUMBER reverse-lookup cluster (with shared java.util.* imports).
     for (Enum e : m.nestedEnums()) {
-      result.nested(EnumSourceMapping.toSource(e, ci));
+      result.nested(EnumSourceMapping.toSource(e, ci, ci.declaringPackage()));
     }
     // M4-C2b-2b-12: oneof groups.
     for (Oneof oneof : m.oneofs()) {
@@ -101,10 +104,12 @@ public final class RecordSourceMapping {
             .javadoc(Javadoc.builder().text(m.comment()).build())
             .deprecated(m.deprecated());
     for (Field f : m.fields()) {
-      result.component(Component.named(scalarComponentType(f, ci), f.javaName()).build());
+      var comp = Component.named(scalarComponentType(f, ci), f.javaName());
+      if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
+      result.component(comp.build());
     }
     for (Enum e : m.nestedEnums()) {
-      result.nested(EnumSourceMapping.toSource(e, ci));
+      result.nested(EnumSourceMapping.toSource(e, ci, ci.declaringPackage()));
     }
     // M4-C2d-9: nested messages — emit each as an inner record via recursion.
     for (Message nested : m.nestedMessages()) {
@@ -129,11 +134,11 @@ public final class RecordSourceMapping {
     }
 
     // M4-C2b-2b-5: always-on unknown-field carrier: the record's last component.
+    // The import is registered by the collect() phase via component.type().
     String ufFqn = RT + ".UnknownFields";
-    ci.use(ufFqn);
     // M4-C2d-3: register java.util.ArrayList for the codec's repeated-local-init lines,
     // and java.util.List for the record's repeated-field components.
-    ci.use("java.util.ArrayList");
+    TypeRef.of("java.util.ArrayList").collect(ci);
     result.component(Component.named(ufFqn, "unknownFields").build());
 
     // M4-C2b-2b-6: the fluent builder. Emitted after the carrier and after the codec (a forward
@@ -145,7 +150,7 @@ public final class RecordSourceMapping {
         Method.named("toBuilder")
             .public_()
             .returnType("Builder")
-            .body(Element.of("return new " + m.name() + ".Builder(this);"))
+            .body(Element.expr("return new @0.Builder(this)", m.name()))
             .build());
     result.method(
         Method.named("fromBytes")
@@ -154,19 +159,18 @@ public final class RecordSourceMapping {
             .returnType(m.name())
             .param("byte[]", "in")
             .thrown("java.io.IOException")
-            .body(Element.of("return " + codecName + ".decode(in);"))
+            .body(Element.expr("return @0.decode(in)", codecName))
             .build());
 
     // M4-C2b-2b-5: the Layer A marshalling hook. Every record implements ProtobufMessage by
-    // delegating to its own nested Codec.encode.
-    String pbMsgFqn = RT + ".ProtobufMessage";
-    ci.use(pbMsgFqn);
+    // delegating to its own nested Codec.encode. Import is registered via implementsFqns by the
+    // collect() phase.
     var toByteArray =
         Method.named("toByteArray")
             .public_()
             .returnType("byte[]")
             .thrown("java.io.IOException")
-            .body(Element.of("return " + m.name() + "Codec.encode(this);"))
+            .body(Element.expr("return @0Codec.encode(this)", m.name()))
             .override(true)
             .build();
     result.method(toByteArray);
@@ -186,7 +190,7 @@ public final class RecordSourceMapping {
     // (matches the old JavaWriter ordering: option interfaces precede the runtime marker).
     List<String> implementsList = new ArrayList<>();
     implementsList.addAll(m.interfaces());
-    implementsList.add(pbMsgFqn);
+    implementsList.add(RT + ".ProtobufMessage");
     result.implementsFqns(implementsList);
 
     return result.build();
@@ -208,7 +212,7 @@ public final class RecordSourceMapping {
     // each is rendered as its boxed Java type (primitives get boxed inside Map<>).
     // Must run BEFORE the REPEATED label check (maps use REPEATED but are not Lists).
     if (f.kind() == FieldKind.MAP) {
-      ci.use("java.util.Map");
+      TypeRef.of("java.util.Map").collect(ci);
       // MAP's mapKey/mapValue are @Nullable String; a MAP field always has both.
       String keyType = boxedScalarType(Objects.requireNonNull(f.mapKey()));
       String valueType = boxedScalarType(Objects.requireNonNull(f.mapValue()));
@@ -216,15 +220,16 @@ public final class RecordSourceMapping {
     }
     // M4-C2d-2: repeated MESSAGE/ENUM → List<ElementType>, element resolved per kind.
     if (f.label() == FieldLabel.REPEATED) {
-      ci.use("java.util.List");
+      TypeRef.of("java.util.List").collect(ci);
       return "List<" + elementComponentType(f, ci) + ">";
     }
     // M4-C2d-12: WKT fields → native Java type from WellKnownTypes (e.g. Timestamp→Instant,
     // Int32Value→Integer). Singular WKT fields are @Nullable (presence-tracked; null = unset).
     var wkt = WellKnownTypes.resolve(f.typeUrl());
     if (wkt != null) {
-      ci.use("org.jspecify.annotations.Nullable");
-      return "@Nullable " + ci.use(Objects.requireNonNull(wkt.javaType()));
+      TypeRef wktRef = TypeRef.of(Objects.requireNonNull(wkt.javaType()));
+      wktRef.collect(ci);
+      return wktRef.render(ci.resolutionContext());
     }
     // M4-C2d-2: singular MESSAGE/ENUM → the resolved short type name.
     // Singular message fields are presence-tracked, so they're @Nullable in the record;
@@ -232,15 +237,17 @@ public final class RecordSourceMapping {
     switch (f.kind()) {
       case MESSAGE:
       case ENUM:
-        ci.use("org.jspecify.annotations.Nullable");
-        return "@Nullable " + ci.use(javaSimpleName(f.typeUrl()));
+        {
+          TypeRef sibRef = TypeRef.of(javaSimpleName(f.typeUrl()));
+          sibRef.collect(ci);
+          return sibRef.render(ci.resolutionContext());
+        }
       default:
         break;
     }
     // M4-C2d-1: optional scalar → @Nullable boxed wrapper.
     if (f.isNullable()) {
-      ci.use("org.jspecify.annotations.Nullable");
-      return "@Nullable " + boxedScalarComponent(f.typeUrl());
+      return boxedScalarComponent(f.typeUrl());
     }
     return switch (f.typeUrl()) {
       case "int32", "uint32", "fixed32", "sfixed32", "sint32" -> "int";
@@ -249,11 +256,41 @@ public final class RecordSourceMapping {
       case "double" -> "double";
       case "bool" -> "boolean";
       case "string" -> "String";
-      case "bytes" -> ci.use(RT + ".Bytes");
+      case "bytes" -> {
+        TypeRef bytesRef = TypeRef.of(RT + ".Bytes");
+        bytesRef.collect(ci);
+        yield bytesRef.render(ci.resolutionContext());
+      }
       default ->
           throw new UnsupportedOperationException(
               "scalar " + f.typeUrl() + " component type is not in the M4-C2b-1 subset");
     };
+  }
+
+  /**
+   * Whether a record component for a proto field should carry the {@code @Nullable} annotation:
+   * singular {@code MESSAGE}, {@code ENUM}, {@code WKT}, and {@code optional} scalars (the field's
+   * own {@link Field#isNullable()}) are presence-tracked, so their Java component is
+   * {@code @Nullable} in the record.
+   */
+  private static boolean isComponentNullable(Field f) {
+    // REPEATED fields render as List<> / Map<> which are non-null; only singular fields can be
+    // null.
+    if (f.label() == FieldLabel.REPEATED) return false;
+    if (isComponentNullableWkt(f)) return true;
+    switch (f.kind()) {
+      case MESSAGE:
+      case ENUM:
+        return true;
+      case MAP:
+        return false; // Map<K,V> is non-null
+      default:
+        return f.isNullable();
+    }
+  }
+
+  private static boolean isComponentNullableWkt(Field f) {
+    return WellKnownTypes.resolve(f.typeUrl()) != null;
   }
 
   /** The inner element type of a {@code repeated X} field, resolved per {@link FieldKind}. */
@@ -261,12 +298,16 @@ public final class RecordSourceMapping {
     // M4-C2d-12: WKT elements use the native Java type.
     var wkt = WellKnownTypes.resolve(f.typeUrl());
     if (wkt != null) {
-      return ci.use(Objects.requireNonNull(wkt.javaType()));
+      TypeRef wktElemRef = TypeRef.of(Objects.requireNonNull(wkt.javaType()));
+      wktElemRef.collect(ci);
+      return wktElemRef.render(ci.resolutionContext());
     }
-    return switch (f.kind()) {
-      case MESSAGE, ENUM -> ci.use(javaSimpleName(f.typeUrl()));
-      default -> boxedScalarComponent(f.typeUrl());
-    };
+    if (f.kind() == FieldKind.MESSAGE || f.kind() == FieldKind.ENUM) {
+      TypeRef sibElemRef = TypeRef.of(javaSimpleName(f.typeUrl()));
+      sibElemRef.collect(ci);
+      return sibElemRef.render(ci.resolutionContext());
+    }
+    return boxedScalarComponent(f.typeUrl());
   }
 
   /**
@@ -285,28 +326,26 @@ public final class RecordSourceMapping {
    * members), the {@code default Object value()} method, and the nested per-member records.
    *
    * <p>{@code permitsFqns} are <em>pre-resolved relative references</em> — the renderer emits them
-   * verbatim (no {@code ci.use()} call), because nested type qualifiers like {@code
+   * verbatim (no type-collection call), because nested type qualifiers like {@code
    * Choice.NameValue} are not import-eligible. Message member permits are resolved via {@code
-   * ci.use(typeUrl)} to get their short name.
+   * TypeRef.of(typeUrl).collect(ci) + .render(ctx)} to get their short name.
    */
   private static void emitOneof(Type.Record.Builder record, Oneof oneof, TypeCollector ci) {
     String ifaceName = oneof.ifaceName();
     String componentName = oneof.componentName();
 
     // 1. The @Nullable record component in the enclosing record.
-    ci.use("org.jspecify.annotations.Nullable");
-    record.component(Component.named("@Nullable " + ifaceName, componentName).build());
+    //    Import is registered by the collect() phase via Annotation.NULLABLE.type().
+    record.component(
+        Component.named(ifaceName, componentName).annotation(Annotation.NULLABLE).build());
 
     // 2. Build the sealed interface: extends clause + permits + per-member records + default
     // value().
     String unwrapFqn = RT + ".Unwrapable";
-    // Pre-resolve the extends FQN via ci.use() (it preserves generics and registers the import).
-    String ext = ci.use(unwrapFqn + "<Object>");
-
-    // Build the sealed interface: extends clause first, then permits + per-member nested records +
-    // default value() as we scan the members.
+    // The extendsFqn carries the full FQN; the collect() phase registers it via
+    // TypeRef.collect(ci).
     Type.Interface.Builder iface =
-        Type.Interface.named(ifaceName).public_().sealed_().extendsFqn(ext);
+        Type.Interface.named(ifaceName).public_().sealed_().extendsFqn(unwrapFqn + "<Object>");
 
     // Build permits and nested per-member records simultaneously. For each oneof member
     // (scalar, enum, or message), emit a nested public record <Cap>Value(<Type> value)
@@ -322,9 +361,13 @@ public final class RecordSourceMapping {
       // reference (resolved via the type resolver).
       String valType;
       if (member.isMessage()) {
-        valType = ci.use(javaSimpleName(member.typeUrl()));
+        TypeRef msgRef = TypeRef.of(javaSimpleName(member.typeUrl()));
+        msgRef.collect(ci);
+        valType = msgRef.render(ci.resolutionContext());
       } else if (member.kind() == FieldKind.ENUM) {
-        valType = ci.use(javaSimpleName(member.typeUrl()));
+        TypeRef enumRef = TypeRef.of(javaSimpleName(member.typeUrl()));
+        enumRef.collect(ci);
+        valType = enumRef.render(ci.resolutionContext());
       } else {
         valType = boxedScalarType(member.typeUrl());
       }
@@ -406,27 +449,31 @@ public final class RecordSourceMapping {
     // resolves field types (the builder's copy-constructor and fresh defaults may use
     // new ArrayList / new HashMap).
     for (Field f : m.fields()) {
-      if (f.label() == FieldLabel.REPEATED) ci.use("java.util.ArrayList");
-      if (f.kind() == FieldKind.MAP) ci.use("java.util.HashMap");
+      if (f.label() == FieldLabel.REPEATED) TypeRef.of("java.util.ArrayList").collect(ci);
+      if (f.kind() == FieldKind.MAP) TypeRef.of("java.util.HashMap").collect(ci);
     }
     for (Field f : m.fields()) {
       String fieldDefault = defaultFor(f);
-      builderClz.field(
+      var comp =
           Component.named(scalarComponentType(f, ci), f.javaName())
               .initializer(fieldDefault)
-              .private_()
-              .build());
+              .private_();
+      if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
+      builderClz.field(comp.build());
     }
     // M4-C2b-2b-12: oneof component storage fields. Each defaults to null.
     for (var oneof : m.oneofs()) {
       builderClz.field(
-          Component.named("@Nullable " + oneof.ifaceName(), oneof.componentName())
+          Component.named(oneof.ifaceName(), oneof.componentName())
+              .annotation(Annotation.NULLABLE)
               .initializer("null")
               .private_()
               .build());
     }
     // Carrier storage field with default empty().
-    String ufShort = ci.use(ufFqn);
+    TypeRef ufRef = TypeRef.of(ufFqn);
+    ufRef.collect(ci);
+    String ufShort = ufRef.render(ci.resolutionContext());
     builderClz.field(
         Component.named(ufShort, "unknownFields")
             .initializer(ufShort + ".empty()")
@@ -442,17 +489,16 @@ public final class RecordSourceMapping {
     for (Field f : m.fields()) {
       String fn = f.javaName();
       if (f.label() == FieldLabel.REPEATED) {
-        copyBody.add(Element.of("this." + fn + " = new ArrayList<>(x." + fn + "());"));
+        copyBody.add(Element.expr("this.@0 = new ArrayList<>(x.@1())", fn, fn));
       } else if (f.kind() == FieldKind.MAP) {
-        copyBody.add(Element.of("this." + fn + " = new HashMap<>(x." + fn + "());"));
+        copyBody.add(Element.expr("this.@0 = new HashMap<>(x.@1())", fn, fn));
       } else {
-        copyBody.add(Element.of("this." + fn + " = x." + fn + "();"));
+        copyBody.add(Element.expr("this.@0 = x.@1()", fn, fn));
       }
     }
     // M4-C2b-2b-12: oneof component copy.
     for (var oneof : m.oneofs()) {
-      copyBody.add(
-          Element.of("this." + oneof.componentName() + " = x." + oneof.componentName() + "();"));
+      copyBody.add(Element.expr("this.@0 = x.@1()", oneof.componentName(), oneof.componentName()));
     }
     copyBody.add(Element.of("this.unknownFields = x.unknownFields();"));
     builderClz.constructor(
@@ -466,9 +512,7 @@ public final class RecordSourceMapping {
               .public_()
               .returnType("Builder")
               .param(scalarComponentType(f, ci), fieldName)
-              .body(
-                  Element.of("this." + fieldName + " = " + fieldName + ";"),
-                  Element.of("return this;"))
+              .body(Element.expr("this.@0 = @1", fieldName, fieldName), Element.of("return this;"))
               .build());
     }
     // M4-C2b-2b-12: oneof fluent setter per component.
@@ -478,10 +522,8 @@ public final class RecordSourceMapping {
           Method.named(compName)
               .public_()
               .returnType("Builder")
-              .param("@Nullable " + oneof.ifaceName(), compName)
-              .body(
-                  Element.of("this." + compName + " = " + compName + ";"),
-                  Element.of("return this;"))
+              .param(Param.of(oneof.ifaceName(), compName, Annotation.NULLABLE))
+              .body(Element.expr("this.@0 = @1", compName, compName), Element.of("return this;"))
               .build());
     }
     // Carrier setter.
@@ -508,7 +550,7 @@ public final class RecordSourceMapping {
             .javadoc(Javadoc.builder().text("Builds a ", m.name(), " record.").build())
             .public_()
             .returnType(recName)
-            .body(Element.of("return new " + recName + "(" + String.join(", ", ctorArgs) + ");"))
+            .body(Element.expr("return new @0(@1)", recName, String.join(", ", ctorArgs)))
             .build());
 
     // The nested Builder class itself — with javadoc matching the old JavaWriter path.
@@ -527,7 +569,7 @@ public final class RecordSourceMapping {
             .public_()
             .static_()
             .returnType("Builder")
-            .body(Element.of("return new " + recName + ".Builder();"))
+            .body(Element.expr("return new @0.Builder()", recName))
             .build();
 
     record.method(builderFactory);

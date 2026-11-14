@@ -8,19 +8,25 @@ import java.util.List;
  * {@link #body()} is the element list laid out at the next indent. Unlike {@link If}, a {@code
  * while} has no branch and no optional {@code else} clause, so it always closes on its own brace;
  * an empty {@link #body()} renders the empty-loop case, {@code while (c) { }}. The entry point is
- * {@link #condition(String)}, which seeds a {@link Builder} with the guard expression; the builder
- * then offers {@link Builder#body(Element[])}.
+ * {@link #condition(String)} for static conditions; for {@code @N}-templated conditions use {@link
+ * #condition(String, Object[])}. The {@link #condition()} field is a {@link RawExpr}, so the
+ * collect phase can contribute type refs and the render phase can resolve positional args against
+ * the {@link ResolutionContext}.
  */
-public record While(String condition, List<Element> body) implements Element {
+public record While(RawExpr condition, List<Element> body) implements Element {
 
   public While {
-    condition = condition;
     body = body == null ? List.of() : List.copyOf(body);
   }
 
-  /** Entry point: seed a builder with the loop-condition expression. */
+  /** Entry point: seed a builder with a static loop-condition expression. */
   public static Builder condition(String condition) {
-    return new Builder(condition);
+    return new Builder(RawExpr.of(condition));
+  }
+
+  /** Entry point: seed a builder with a {@code @N}-templated loop-condition expression. */
+  public static Builder condition(String template, Object... args) {
+    return new Builder(RawExpr.of(template, args));
   }
 
   /**
@@ -28,10 +34,10 @@ public record While(String condition, List<Element> body) implements Element {
    * construction.
    */
   public static final class Builder {
-    private final String condition;
+    private final RawExpr condition;
     private List<Element> body = List.of();
 
-    public Builder(String condition) {
+    public Builder(RawExpr condition) {
       this.condition = condition;
     }
 
