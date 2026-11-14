@@ -71,9 +71,12 @@ public final class RecordSourceMapping {
     for (Enum e : m.nestedEnums()) {
       result.nested(EnumSourceMapping.toSource(e, ci, ci.declaringPackage()));
     }
-    // M4-C2b-2b-12: oneof groups.
+    // M4-C2b-2b-12: oneof groups. Each contributes one @Nullable record component and
+    // one nested sealed interface (the per-member value records live inside it).
     for (Oneof oneof : m.oneofs()) {
-      emitOneof(result, oneof, ci);
+      OneofEmission oe = emitOneof(oneof, ci);
+      result.component(oe.component());
+      result.nested(oe.iface());
     }
 
     return result.build();
@@ -122,8 +125,11 @@ public final class RecordSourceMapping {
       result.nested(nestedRec);
     }
     // M4-C2b-2b-12: oneof groups.
+    // M4-C2b-2b-12: oneof groups.
     for (Oneof oneof : m.oneofs()) {
-      emitOneof(result, oneof, ci);
+      OneofEmission oe = emitOneof(oneof, ci);
+      result.component(oe.component());
+      result.nested(oe.iface());
     }
     // M4-C2d-7: nested map entry records + their codecs, before the main Codec.
     for (Field f : m.fields()) {
@@ -334,14 +340,14 @@ public final class RecordSourceMapping {
    * Choice.NameValue} are not import-eligible. Message member permits are resolved via {@code
    * TypeRef.of(typeUrl).collect(ci) + .render(ctx)} to get their short name.
    */
-  private static void emitOneof(Type.Record.Builder record, Oneof oneof, TypeCollector ci) {
+  private static OneofEmission emitOneof(Oneof oneof, TypeCollector ci) {
     String ifaceName = oneof.ifaceName();
     String componentName = oneof.componentName();
 
     // 1. The @Nullable record component in the enclosing record.
     //    Import is registered by the collect() phase via Annotation.NULLABLE.type().
-    record.component(
-        Component.named(ifaceName, componentName).annotation(Annotation.NULLABLE).build());
+    var component =
+        Component.named(ifaceName, componentName).annotation(Annotation.NULLABLE).build();
 
     // 2. Build the sealed interface: extends clause + permits + per-member records + default
     // value().
@@ -392,8 +398,16 @@ public final class RecordSourceMapping {
             .build();
     iface.method(defaultMethod);
 
-    record.nested(iface.build());
+    return new OneofEmission(component, iface.build());
   }
+
+  /**
+   * The product of {@link #emitOneof}: the @Nullable component in the enclosing record and the
+   * nested sealed interface (with its per-member value records inside) that becomes part of the
+   * record's {@code nested} list. The caller adds both to the enclosing record; the helper is pure
+   * and returns both rather than mutating the caller's record builder.
+   */
+  private record OneofEmission(Component component, Type.Interface iface) {}
 
   /**
    * The boxed Java type for a proto scalar type URL (for use inside {@code Map<>, List<>}, or as a
