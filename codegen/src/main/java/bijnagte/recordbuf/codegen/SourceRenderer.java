@@ -212,8 +212,8 @@ public final class SourceRenderer {
     }
 
     private void renderRecord(Type.Record r, StringBuilder out) {
-      renderAnnotations(r.annotations(), out);
       if (r.javadoc().present()) out.append(javadoc(r.javadoc().raw())).append('\n');
+      renderAnnotations(r.annotations(), out);
       out.append(r.mods().withSpace()).append("record ").append(r.name()).append('(');
       var comps = r.components();
       if (comps.isEmpty()) {
@@ -222,10 +222,10 @@ public final class SourceRenderer {
         for (int i = 0; i < comps.size(); i++) {
           out.append('\n');
           Component f = comps.get(i);
-          renderAnnotations(f.annotations(), out);
           if (f.javadoc().present()) {
             out.append(javadoc(f.javadoc().raw())).append('\n');
           }
+          renderAnnotations(f.annotations(), out);
           out.append(ci.use(f.type())).append(' ').append(f.name());
           out.append(i + 1 == comps.size() ? "\n)" : ",");
         }
@@ -252,14 +252,16 @@ public final class SourceRenderer {
     }
 
     private void renderClass(Type.Class c, StringBuilder out) {
-      // The uniform annotation model renders first, then the legacy raw-annotation string escape
-      // hatch (rawAnnotations) -- each on its own line, before the Javadoc.
+      // Oracle-standard order (per the Oracle JavaDoc spec): the Javadoc block first, then the
+      // uniform annotation model, then the legacy raw-annotation string escape hatch
+      // (rawAnnotations) -- each annotation on its own line. The javadoc tool only recognizes a
+      // documentation comment placed immediately before the declaration, before any annotation.
+      if (c.javadoc().present()) {
+        out.append(javadoc(c.javadoc().raw())).append('\n');
+      }
       renderAnnotations(c.annotations(), out);
       for (String ann : c.rawAnnotations()) {
         out.append(ann).append('\n');
-      }
-      if (c.javadoc().present()) {
-        out.append(javadoc(c.javadoc().raw())).append('\n');
       }
       out.append(c.mods().withSpace()).append("class ").append(c.name());
       if (!c.extendsFqns().isEmpty()) {
@@ -289,8 +291,8 @@ public final class SourceRenderer {
     }
 
     private void renderEnum(Type.Enum e, StringBuilder out) {
-      renderAnnotations(e.annotations(), out);
       if (e.javadoc().present()) out.append(javadoc(e.javadoc().raw())).append('\n');
+      renderAnnotations(e.annotations(), out);
       out.append(e.mods().withSpace()).append("enum ").append(e.name());
       if (!e.implementsFqns().isEmpty()) {
         out.append(" implements ").append(joinResolved(e.implementsFqns()));
@@ -299,12 +301,13 @@ public final class SourceRenderer {
       var consts = e.enumConstants();
       for (int i = 0; i < consts.size(); i++) {
         EnumConstant c = consts.get(i);
-        // The optional per-constant Javadoc first (a formatter owns its alignment); the constant
+        // Oracle-standard order (per the Oracle JavaDoc spec): the per-constant Javadoc block first
+        // (a formatter owns its alignment), then the @Deprecated/other annotations; the constant
         // name + ctor args follow on the same line at zero indent.
-        renderAnnotations(c.annotations(), out);
         if (c.javadoc().present()) {
           out.append(javadoc(c.javadoc().raw())).append('\n');
         }
+        renderAnnotations(c.annotations(), out);
         out.append(c.name());
         if (!c.ctorArgs().isEmpty())
           out.append("(").append(String.join(", ", c.ctorArgs())).append(")");
@@ -336,10 +339,10 @@ public final class SourceRenderer {
     }
 
     private void renderInterface(Type.Interface iface, StringBuilder out) {
-      renderAnnotations(iface.annotations(), out);
       if (iface.javadoc().present()) {
         out.append(javadoc(iface.javadoc().raw())).append('\n');
       }
+      renderAnnotations(iface.annotations(), out);
       out.append(iface.mods().withSpace()).append("interface ").append(iface.name());
       if (!iface.extendsFqns().isEmpty()) {
         out.append(" extends ").append(joinResolved(iface.extendsFqns()));
@@ -416,8 +419,8 @@ public final class SourceRenderer {
      * position-template contract against the current {@code ResolutionContext}.
      */
     private void renderField(Component f, StringBuilder out) {
-      renderAnnotations(f.annotations(), out);
       if (f.javadoc().present()) out.append(javadoc(f.javadoc().raw())).append('\n');
+      renderAnnotations(f.annotations(), out);
       out.append(f.mods().withSpace());
       out.append(ci.use(f.type())).append(' ').append(f.name());
       if (f.initializer() != null) {
@@ -490,9 +493,11 @@ public final class SourceRenderer {
     }
 
     private void renderMethod(Method m, StringBuilder out) {
-      // Annotations render first (e.g. @Override), before the Javadoc + the modifier line.
-      renderAnnotations(m.annotations(), out);
+      // Oracle-standard order (per the Oracle JavaDoc spec): the Javadoc first, then annotations
+      // (e.g. @Override), then the modifier line -- the javadoc tool ignores a comment placed after
+      // an annotation.
       if (m.javadoc().present()) out.append(javadoc(m.javadoc().raw())).append('\n');
+      renderAnnotations(m.annotations(), out);
       String sig =
           m.mods().withSpace() + ci.use(m.returnType()) + " " + m.name() + renderParams(m.params());
       if (!m.thrown().isEmpty()) {

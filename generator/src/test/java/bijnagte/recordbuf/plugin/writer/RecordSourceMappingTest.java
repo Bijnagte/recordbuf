@@ -242,8 +242,6 @@ class RecordSourceMappingTest {
         new URLClassLoader(
             new URL[] {out.toUri().toURL()}, RecordSourceMappingTest.class.getClassLoader())) {
       Class<?> addressCls = ucl.loadClass("bijnagte.recordbuf.plugin.writer.it.Address");
-      Class<?> unknownFieldsCls = ucl.loadClass("bijnagte.recordbuf.runtime.UnknownFields");
-      var emptyUf = unknownFieldsCls.getMethod("empty").invoke(null);
 
       // Build via builder()
       var builderFactory = addressCls.getMethod("builder");
@@ -347,7 +345,12 @@ class RecordSourceMappingTest {
         compiler
             .getTask(null, null, diags, List.of("-d", out.toString()), null, List.of(unit))
             .call();
-    assertTrue(ok, "rendered record shell must compile:\n" + src + "\n-- diagnostics --\n" + diags);
+    assertTrue(
+        ok,
+        "rendered record shell must compile:\n"
+            + src
+            + "\n-- diagnostics --\n"
+            + diags.getDiagnostics());
   }
 
   /**
@@ -1093,9 +1096,4 @@ class RecordSourceMappingTest {
     assertTrue(src.contains("class Builder"), "builder: " + src);
     assertTrue(src.contains("class CompatCodec"), "codec: " + src);
   }
-
-  /**
-   * M4-C2d-9: nested messages are emitted as inner records of the parent record. Verifies that
-   * {@code toSourceWithCodec} emits nested Message types as a nested member.
-   */
 }

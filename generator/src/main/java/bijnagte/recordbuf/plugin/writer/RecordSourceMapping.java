@@ -374,13 +374,16 @@ public final class RecordSourceMapping {
       iface.nested(wr);
     }
 
-    // The default value() method (overrides the Unwrapable.value()). Use `default` keyword in an
-    // interface; @Override would be an abstract method WITH a body (illegal).
+    // The default value() method, which overrides Unwrapable.value(). It is a `default` (not
+    // abstract) interface method so the nested per-member records can implement the interface
+    // without
+    // a separate impl. @Override is correct: the method overrides the Unwrapable.value() supertype.
     var defaultMethod =
         Method.named("value")
             .default_()
             .returnType(TypeRef.OBJECT)
             .body(Element.of("return this;"))
+            .override(true)
             .build();
     iface.method(defaultMethod);
 

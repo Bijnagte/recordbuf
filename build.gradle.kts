@@ -103,3 +103,17 @@ subprojects {
             }
     }
 }
+// Compiler warnings as errors: promote every first-party javac compiler warning to a build failure
+// -- most importantly -Xlint:deprecation, the project's "no deprecated APIs unless explicitly
+// suppressed" gate. javac offers no per-category error severity, so the other default-on category
+// (-Xlint:unchecked) and every Error-Prone finding ride along. Wired once here and inherited by each
+// subproject with a `java` source set (runtime, generator, codegen, avro, fixtures); `options/` (proto
+// only) is skipped. The escape hatch is a scoped @SuppressWarnings -- see the two TypeRef internal-
+// bridge call sites, which delegate to the project's still-deprecated TypeCollector API.
+subprojects {
+    pluginManager.withPlugin("java") {
+        tasks.withType<JavaCompile>().configureEach {
+            options.compilerArgs.add("-Werror")
+        }
+    }
+}

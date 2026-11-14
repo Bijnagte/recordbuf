@@ -60,6 +60,9 @@ public sealed interface TypeRef extends Formattable {
    *
    * @param collector the collector to register the FQN-only reference with
    */
+  // Intentional internal bridge: the new useFqn(TypeCollector) entry point delegates to the
+  // (deprecated) TypeCollector.useFqn(TypeRef) implementation during migration.
+  @SuppressWarnings("deprecation")
   default void useFqn(bijnagte.recordbuf.codegen.TypeCollector collector) {
     collector.useFqn(this);
   }
@@ -273,7 +276,10 @@ public sealed interface TypeRef extends Formattable {
       return sb.toString();
     }
 
+    // Intentional internal bridge: this Formattable.collect override delegates to the (deprecated)
+    // TypeCollector.register(TypeRef) implementation during migration.
     @Override
+    @SuppressWarnings("deprecation")
     public void collect(bijnagte.recordbuf.codegen.TypeCollector collector) {
       if (pkg.isEmpty()) return; // bare name: no import
       collector.register(this);

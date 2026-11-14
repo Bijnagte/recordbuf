@@ -146,6 +146,29 @@ consult it when orienting to the codebase or discussing domain concepts.
     PUBLIC DTD id resolves to a copy bundled in the checkstyle jar, so no network fetch even with
     `enableExternalDtdLoad=false`), and a `<!-- comment -->` body **cannot contain `--`** (a SAX
     parse error); use "—" or a colon instead.
+- **Compiler warnings as errors (`-Werror`): WIRED project-wide.** The root `build.gradle.kts`
+  adds `options.compilerArgs.add("-Werror")` in the `subprojects { withPlugin("java") { … } }`
+  block — the equivalent of `options.allWarningsAsErrors = true`, which does **not** resolve in
+  this root `subprojects` DSL, so the raw javac flag is used instead. Every javac warning becomes
+  a build failure: most importantly `-Xlint:deprecation` (a use of a `@Deprecated` API), plus the
+  default-on `-Xlint:unchecked`, and — in the modules that run Error Prone (`:recordbuf-generator`,
+  `:recordbuf-runtime`, `:recordbuf-avro`, `:recordbuf-fixtures`; `:recordbuf-codegen` has no EP) —
+  every default EP finding on that module. Wired for **every** Java subproject; `:recordbuf-options`
+  (proto only) is skipped. **Why not Error Prone/Checkstyle:** there is *no* EP or Checkstyle check
+  for deprecated API usage — deprecation is a javac lint, so `-Werror` is the gate; EP's blanket
+  severity flags (`-XepAllWarningsAsErrors`, etc.) only rescale EP's *own* checks, and a Checkstyle
+  regex would be brittle. The escape hatch is a scoped `@SuppressWarnings("deprecation")` — currently
+  the two `TypeRef` internal-bridge call sites that delegate to the still-`@Deprecated` `TypeCollector`
+  API. Note the protobuf-gradle-plugin 0.10.0 `Configuration.setVisible(boolean)` deprecation
+  (documented in `fixtures/build.gradle`) is a Gradle *configuration-time* warning, unaffected by
+  this javac-level gate.
+  - **Javadoc-before-annotations (Oracle standard, this session):** `SourceRenderer` now emits the
+    Javadoc block *before* the annotation list at every site (record, component, class, enum,
+    enum-constant, interface, field, method), per the Oracle JavaDoc spec ("a documentation comment
+    should appear before any annotation, modifier, keyword, or other Java declaration"). This is
+    what made the fixtures' generated `.rec` enums `NotJavadoc`-clean, which `-Werror` (EP's
+    `NotJavadoc` in the fixtures' full default check set) now enforces.
+
 - **Logging: NOT WIRED.** No SLF4J / logging framework is on any module's classpath;
   generated code stays dependency-free. The *only* `System.out`/`System.err` usage in the
   codebase is in `Main.java`, where they **are** the protoc plugin's stdio protocol
@@ -208,7 +231,10 @@ consult it when orienting to the codebase or discussing domain concepts.
 the cross-project defaults; the overrides above win where they conflict. The
 former divergences — Spotless and Error Prone/NullAway — are now wired to those
 same defaults; this session additionally wired a **first-party Checkstyle quality gate**
-(a non-formatting layer complementary to Spotless — see the **Checkstyle** bullet above).
+(a non-formatting layer complementary to Spotless — see the **Checkstyle** bullet above), a
+**project-wide `-Werror` gate** (`options.compilerArgs.add("-Werror")` in the root `build.gradle.kts`,
+enforcing no `@Deprecated` API usage unless explicitly suppressed — see the **-Werror** bullet above),
+and flipped the `SourceRenderer` to emit Javadoc *before* annotations at every site (Oracle spec).
 So the **only** remaining aspirational cross-project default that is not yet wired is the
 SLF4J-only logging rule: no logging framework is present, and `Main.java`'s `System.out`/
 `System.err` are the sanctioned protoc-plugin stdio exception.

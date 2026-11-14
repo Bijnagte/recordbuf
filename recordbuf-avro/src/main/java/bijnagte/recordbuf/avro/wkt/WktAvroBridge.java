@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.avro.Schema;
+import org.apache.avro.SchemaParser;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -86,28 +87,31 @@ public final class WktAvroBridge {
 
   private static Map<String, Schema> fragmentMap() {
     Map<String, Schema> m = new LinkedHashMap<>();
-    m.put(TIMESTAMP, Schema.parse("{\"type\":\"long\",\"logicalType\":\"timestamp-micros\"}"));
+    m.put(
+        TIMESTAMP,
+        SchemaParser.parseSingle("{\"type\":\"long\",\"logicalType\":\"timestamp-micros\"}"));
     m.put(
         DURATION,
-        Schema.parse(
+        SchemaParser.parseSingle(
             "{\"type\":\"record\",\"name\":\"Duration\",\"fields\":["
                 + "{\"name\":\"seconds\",\"type\":\"long\"},"
                 + "{\"name\":\"nanos\",\"type\":\"int\"}]}"));
-    m.put(FIELD_MASK, Schema.parse("[\"null\",\"string\"]"));
+    m.put(FIELD_MASK, SchemaParser.parseSingle("[\"null\",\"string\"]"));
     m.put(
         NULL_VALUE,
-        Schema.parse(
+        SchemaParser.parseSingle(
             "[\"null\",{\"type\":\"enum\",\"name\":\"NullValue\",\"symbols\":[\"NULL_VALUE\",\"TRUE\",\"FALSE\"]}]"));
-    m.put(EMPTY, Schema.parse("{\"type\":\"record\",\"name\":\"Empty\",\"fields\":[]}"));
-    m.put(INT32_VALUE, Schema.parse("[\"null\",\"int\"]"));
-    m.put(INT64_VALUE, Schema.parse("[\"null\",\"long\"]"));
-    m.put(UINT32_VALUE, Schema.parse("[\"null\",\"int\"]"));
-    m.put(UINT64_VALUE, Schema.parse("[\"null\",\"long\"]"));
-    m.put(FLOAT_VALUE, Schema.parse("[\"null\",\"float\"]"));
-    m.put(DOUBLE_VALUE, Schema.parse("[\"null\",\"double\"]"));
-    m.put(BOOL_VALUE, Schema.parse("[\"null\",\"boolean\"]"));
-    m.put(STRING_VALUE, Schema.parse("[\"null\",\"string\"]"));
-    m.put(BYTES_VALUE, Schema.parse("[\"null\",\"bytes\"]"));
+    m.put(
+        EMPTY, SchemaParser.parseSingle("{\"type\":\"record\",\"name\":\"Empty\",\"fields\":[]}"));
+    m.put(INT32_VALUE, SchemaParser.parseSingle("[\"null\",\"int\"]"));
+    m.put(INT64_VALUE, SchemaParser.parseSingle("[\"null\",\"long\"]"));
+    m.put(UINT32_VALUE, SchemaParser.parseSingle("[\"null\",\"int\"]"));
+    m.put(UINT64_VALUE, SchemaParser.parseSingle("[\"null\",\"long\"]"));
+    m.put(FLOAT_VALUE, SchemaParser.parseSingle("[\"null\",\"float\"]"));
+    m.put(DOUBLE_VALUE, SchemaParser.parseSingle("[\"null\",\"double\"]"));
+    m.put(BOOL_VALUE, SchemaParser.parseSingle("[\"null\",\"boolean\"]"));
+    m.put(STRING_VALUE, SchemaParser.parseSingle("[\"null\",\"string\"]"));
+    m.put(BYTES_VALUE, SchemaParser.parseSingle("[\"null\",\"bytes\"]"));
     return Map.copyOf(m);
   }
 
