@@ -887,9 +887,10 @@ public final class CodecSourceMapping {
     }
     // Scalar or enum member: wrap the decoded value in the per-member record.
     if (f.kind() == FieldKind.ENUM) {
-      // Tree-walker deferred: ci.use(f.typeUrl()) is the interop fallback for when
-      // typeResolver is null. The tree-walker approach will handle this in a future unit.
-      String enumShort = typeResolver != null ? typeResolver.apply(f) : ci.use(f.typeUrl());
+      // The enum short name when a typeResolver is wired; otherwise the FQN's resolved short
+    // name via the structured TypeRef path (the interop-fallback branch that the original
+    // string-based ci.use(String) used to cover is now resolved by the tree-walker).
+      String enumShort = typeResolver != null ? typeResolver.apply(f) : ci.use(TypeRef.of(f.typeUrl()));
       return "new " + recName + "(" + enumShort + ".forNumber(in.readEnum()))";
     }
     // Scalar member.
