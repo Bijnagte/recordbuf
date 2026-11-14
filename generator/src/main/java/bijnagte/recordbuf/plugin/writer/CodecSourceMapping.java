@@ -160,10 +160,8 @@ public final class CodecSourceMapping {
         var wkt0 = Objects.requireNonNull(wktEntry);
         body.add(WktSourceMapping.localInitElement(f, wkt0, ci));
       } else if (f.kind() == FieldKind.MAP) {
-        String keyType =
-            TypeRef.boxedFor(Objects.requireNonNull(f.mapKey())).render(ci.resolutionContext());
-        String valueType =
-            TypeRef.boxedFor(Objects.requireNonNull(f.mapValue())).render(ci.resolutionContext());
+        TypeRef keyType = TypeRef.boxedFor(Objects.requireNonNull(f.mapKey()));
+        TypeRef valueType = TypeRef.boxedFor(Objects.requireNonNull(f.mapValue()));
         body.add(
             Element.expr(
                 "Map<@0, @1> @2 = new @3<>();",
@@ -206,7 +204,7 @@ public final class CodecSourceMapping {
         body.add(emitRepeatedLocalInit(f));
       } else if (f.isNullable()) {
         // M4-C2d-1: optional scalar → starts at null, set on tag.
-        String localType = TypeRef.boxedFor(f.typeUrl()).render(ci.resolutionContext());
+        TypeRef localType = TypeRef.boxedFor(f.typeUrl());
         body.add(Element.expr("@0 @1 = null;", localType, f.javaName()));
       } else {
         TypeRef localTypeRef = decodeLocalType(f);
