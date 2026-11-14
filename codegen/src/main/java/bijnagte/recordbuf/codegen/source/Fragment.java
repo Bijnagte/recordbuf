@@ -6,4 +6,15 @@ package bijnagte.recordbuf.codegen.source;
  * carries any local indent the old flat-line emitter hand-bookkept, so wrapping a legacy body line
  * for it is byte-identical.
  */
-public record Fragment(String text) implements Element {}
+public record Fragment(String text) implements Element {
+
+  /**
+   * Build a {@code Fragment} from a {@code @N}-templated string. The template is substituted at
+   * construction time with the positional args. Use only when all positional args are plain {@link
+   * String}s (no {@link TypeRef} or nested {@link Formattable} that would need a resolution
+   * context).
+   */
+  public static Fragment of(String template, Object... args) {
+    return new Fragment(RawExpr.of(template, args).render(null));
+  }
+}

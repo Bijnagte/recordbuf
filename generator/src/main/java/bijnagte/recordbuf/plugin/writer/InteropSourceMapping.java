@@ -4,6 +4,7 @@ import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.For;
+import bijnagte.recordbuf.codegen.source.Fragment;
 import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Method;
@@ -293,11 +294,8 @@ public final class InteropSourceMapping {
   }
 
   private static List<Element> emitOneofFrom(Oneof o) {
-    String iface = o.ifaceName();
     List<Element> out = new ArrayList<>();
-    out.add(
-        Element.of(
-            "@Nullable " + iface + " _" + o.name() + " = switch (x.get" + iface + "Case()) {"));
+    out.add(Fragment.of("@Nullable @0 _@1 = switch (x.get@0Case()) {", o.ifaceName(), o.name()));
     for (Field f : o.members()) {
       out.add(oneofValueCase(o, f));
     }
@@ -315,26 +313,22 @@ public final class InteropSourceMapping {
     String cap = JavaNames.cap(f.name());
     String inner =
         f.isMessage() ? recordSiblingFqn(f) + ".Interop.from(x.get" + cap + "())" : fromExpr(f);
-    return Element.of(
-        "  case "
-            + JavaNames.snakeUpper(f.name())
-            + " -> new "
-            + o.ifaceName()
-            + "."
-            + cap
-            + "Value("
-            + inner
-            + ");");
+    return Element.expr(
+        "  case @0 -> new @1.@2Value(@3)",
+        JavaNames.snakeUpper(f.name()),
+        o.ifaceName(),
+        cap,
+        inner);
   }
 
   private static List<Element> emitOneofTo(Oneof o, TypeCollector ci, String refPkg) {
     String iface = o.ifaceName();
-    Switch.Builder sw = Switch.on("r." + o.componentName() + "()");
+    Switch.Builder sw = Switch.on("r.@0()", o.componentName());
     // The null arm: an empty body auto-braces to `case null -> {}`.
     sw.caseArm("null");
     for (Field f : o.members()) {
       String cap = JavaNames.cap(f.name());
-      String pattern = iface + "." + cap + "Value v";
+      String pattern = RawExpr.of("@0.@1Value v", iface, cap).render(null);
       if (f.isMessage()) {
         String recSib = recordSiblingFqn(f);
         sw.caseArm(pattern, Element.expr("_b.set@0(@1.Interop.to(v.value()))", cap, recSib));
