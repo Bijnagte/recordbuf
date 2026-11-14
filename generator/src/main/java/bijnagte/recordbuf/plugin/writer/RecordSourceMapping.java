@@ -8,6 +8,7 @@ import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.Param;
+import bijnagte.recordbuf.codegen.source.RawExpr;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Enum;
@@ -447,7 +448,7 @@ public final class RecordSourceMapping {
       String fieldDefault = defaultFor(f);
       var comp =
           Component.type(scalarComponentType(f, ci), f.javaName())
-              .initializer(fieldDefault)
+              .initializer(RawExpr.of(fieldDefault))
               .private_();
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       builderClz.field(comp.build());
@@ -457,7 +458,7 @@ public final class RecordSourceMapping {
       builderClz.field(
           Component.named(oneof.ifaceName(), oneof.componentName())
               .annotation(Annotation.NULLABLE)
-              .initializer("null")
+              .initializer(RawExpr.of("null"))
               .private_()
               .build());
     }
@@ -467,7 +468,7 @@ public final class RecordSourceMapping {
     String ufShort = ufRef.render(ci.resolutionContext());
     builderClz.field(
         Component.named(ufShort, "unknownFields")
-            .initializer(ufShort + ".empty()")
+            .initializer(RawExpr.of("@0.empty()", ufRef))
             .private_()
             .build());
 

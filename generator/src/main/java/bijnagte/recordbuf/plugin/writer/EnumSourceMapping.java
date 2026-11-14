@@ -83,16 +83,13 @@ public final class EnumSourceMapping {
     TypeRef selfRef = TypeRef.named(declaringPkg, name);
     List<TypeRef> mapGenerics = List.of(TypeRef.of("java.lang.Integer"), selfRef);
     TypeRef mapType = TypeRef.named("java.util", "Map", mapGenerics);
-    // The initializer still needs a string for Component.initializer(String);
-    // TypeRef.collect handles the import; the RawExpr @0 resolves to the short name at render.
     TypeRef hashMapRef = TypeRef.of("java.util.HashMap");
-    hashMapRef.collect(ci);
     result.field(
         Component.type(mapType, "BY_NUMBER")
             .private_()
             .static_()
             .final_()
-            .initializer(RawExpr.of("new @0<>()", hashMapRef).render(ci.resolutionContext()))
+            .initializer(RawExpr.of("new @0<>()", hashMapRef))
             .build());
 
     List<Element> init = new ArrayList<>();

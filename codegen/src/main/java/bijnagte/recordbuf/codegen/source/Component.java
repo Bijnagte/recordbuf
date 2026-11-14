@@ -4,14 +4,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A record component ({@code type name}) or a type-body field. When {@code initializer} is
- * non-blank it renders after the name as {@code = initializer} -- the {@code BY_NUMBER}
- * reverse-lookup field is {@code ... BY_NUMBER = new HashMap<>();}; blank means no initializer.
+ * A record component ({@code type name}) or a type-body field. When {@code initializer} is non-null
+ * it renders after the name as {@code = initializer}; a null {@code initializer} means "no
+ * initializer" and is omitted from the rendered source.
  *
- * <p>The {@code type} holds a {@link TypeRef} resolved at render time; the renderer registers its
- * FQN with the {@code TypeCollector} during the collect phase and resolves it to a short name or
- * FQN at render time. The {@code initializer} string is an escape-hatch raw string rendered
- * verbatim.
+ * <p>The {@code type} is a {@link TypeRef} resolved at render time; the renderer registers its FQN
+ * with the {@code TypeCollector} during the collect phase and resolves it to a short name or FQN at
+ * render time. The {@code initializer} is a {@link Formattable} rendered through the positional
+ * {@code @N} contract (via {@link RawExpr}); its own contained {@code TypeRef}s are collected by
+ * the renderer automatically, so no pre-render + {@code .collect(ci)} workaround is needed.
  *
  * <p>The {@link #annotations()} list is the uniform first-class annotation list (e.g. {@link
  * Annotation#NULLABLE} on a presence-tracked field). A builder {@code deprecated(boolean)} sugar
@@ -24,16 +25,16 @@ public record Component(
     List<Annotation> annotations,
     TypeRef type,
     String name,
-    String initializer) {
+    Formattable initializer) {
   // Optional fields stay null/empty when a builder leaves them unset; the compact ctor seeds
-  // them:
-  // javadoc -> empty (renders nothing), mods -> none, annotations -> empty, initializer -> blank.
+  // them: javadoc -> empty (renders nothing), mods -> none, annotations -> empty. The
+  // initializer is a Formattable (null = "no initializer"); it is NOT coerced to a blank
+  // string -- the renderer treats null as the absence of an "= <init>" clause.
   // `type`/`name` are required.
   public Component {
     javadoc = javadoc == null ? Javadoc.empty() : javadoc;
     mods = mods == null ? Modifiers.none() : mods;
     annotations = annotations == null ? List.of() : annotations;
-    initializer = initializer == null ? "" : initializer;
   }
 
   /**
@@ -57,7 +58,7 @@ public record Component(
     private final List<Annotation> annotations = new ArrayList<>();
     private final TypeRef type;
     private final String name;
-    private String initializer;
+    private Formattable initializer;
 
     /** Seed the two required fields ({@code type}, {@code name}); the rest accumulate. */
     public Builder(TypeRef type, String name) {
@@ -96,8 +97,8 @@ public record Component(
       return this;
     }
 
-    /** Set the initializer expression (blank/absent means none). */
-    public Builder initializer(String i) {
+    /** Set the initializer Formattable (absent/null means none). */
+    public Builder initializer(Formattable i) {
       this.initializer = i;
       return this;
     }

@@ -77,6 +77,7 @@ public final class SourceRenderer {
               .forEach(c -> {
                 ci.use(c.type());
                 c.annotations().forEach(a -> ci.use(a.type()));
+                if (c.initializer() != null) c.initializer().collect(ci);
               });
           r.methods().forEach(this::collectMethod);
         }
@@ -87,6 +88,7 @@ public final class SourceRenderer {
               .forEach(f -> {
                 ci.use(f.type());
                 f.annotations().forEach(a -> ci.use(a.type()));
+                if (f.initializer() != null) f.initializer().collect(ci);
               });
           c.methods().forEach(this::collectMethod);
         }
@@ -97,6 +99,7 @@ public final class SourceRenderer {
               .forEach(f -> {
                 ci.use(f.type());
                 f.annotations().forEach(a -> ci.use(a.type()));
+                if (f.initializer() != null) f.initializer().collect(ci);
               });
           e.enumConstants().forEach(x -> x.annotations().forEach(a -> ci.use(a.type())));
           e.methods().forEach(this::collectMethod);
@@ -382,17 +385,18 @@ public final class SourceRenderer {
     /* ---- single member renderers --------------------------------------- */
 
     /**
-     * Render one class/enum body field. Its type + initializer are pre-resolved short form, so they
-     * are emitted verbatim -- a second {@code ci.use} would mangle a generic like {@code
-     * Map<Integer, Color>}.
+     * Render one class/enum body field. Its type is pre-resolved short form via {@code ci.use}, so
+     * it is emitted verbatim -- a second {@code ci.use} would mangle a generic like {@code
+     * Map<Integer, Color>}. The initializer (if present) is a {@link Formattable} rendered with the
+     * position-template contract against the current {@code ResolutionContext}.
      */
     private void renderField(Component f, StringBuilder out) {
       renderAnnotations(f.annotations(), out);
       if (f.javadoc().present()) out.append(javadoc(f.javadoc().raw())).append('\n');
       out.append(f.mods().withSpace());
       out.append(ci.use(f.type())).append(' ').append(f.name());
-      if (f.initializer() != null && !f.initializer().isBlank()) {
-        out.append(" = ").append(f.initializer());
+      if (f.initializer() != null) {
+        out.append(" = ").append(f.initializer().render(ci.resolutionContext()));
       }
       out.append(";\n");
     }
