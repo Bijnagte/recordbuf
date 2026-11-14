@@ -51,17 +51,17 @@ class ClassSourceTest {
                 Method.named("encode")
                     .public_()
                     .static_()
-                    .returnType("byte[]")
-                    .param("MessageRec", "v")
-                    .thrown("java.io.IOException")
+                    .returnType(TypeRef.BYTES)
+                    .param(TypeRef.of("MessageRec"), "v")
+                    .thrown(TypeRef.IO_EXCEPTION)
                     .body(Element.of("return new byte[0];"))
                     .build(),
                 Method.named("decode")
                     .public_()
                     .static_()
-                    .returnType("MessageRec")
-                    .param("byte[]", "inBytes")
-                    .thrown("java.io.IOException")
+                    .returnType(TypeRef.of("MessageRec"))
+                    .param(TypeRef.BYTES, "inBytes")
+                    .thrown(TypeRef.IO_EXCEPTION)
                     .body(Element.of("return new MessageRec(0);"))
                     .build())
             .build();
@@ -323,9 +323,9 @@ class ClassSourceTest {
                 Method.named("encode")
                     .public_()
                     .static_()
-                    .returnType("byte[]")
-                    .param("RecordWithRealMultiScalar", "v")
-                    .thrown("java.io.IOException")
+                    .returnType(TypeRef.BYTES)
+                    .param(TypeRef.of("RecordWithRealMultiScalar"), "v")
+                    .thrown(TypeRef.IO_EXCEPTION)
                     .body(
                         Element.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
                         Element.of("var out = enc.out();"),
@@ -344,9 +344,9 @@ class ClassSourceTest {
                 Method.named("decode")
                     .public_()
                     .static_()
-                    .returnType("RecordWithRealMultiScalar")
-                    .param("byte[]", "inBytes")
-                    .thrown("java.io.IOException")
+                    .returnType(TypeRef.of("RecordWithRealMultiScalar"))
+                    .param(TypeRef.BYTES, "inBytes")
+                    .thrown(TypeRef.IO_EXCEPTION)
                     .body(
                         Element.of("var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
                         Element.of("var in = dec.in();"),
@@ -395,9 +395,9 @@ class ClassSourceTest {
                 Method.named("encode")
                     .public_()
                     .static_()
-                    .returnType("byte[]")
-                    .param("RecordWithRealCodec", "v")
-                    .thrown("java.io.IOException")
+                    .returnType(TypeRef.BYTES)
+                    .param(TypeRef.of("RecordWithRealCodec"), "v")
+                    .thrown(TypeRef.IO_EXCEPTION)
                     .body(
                         Element.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
                         Element.of("var out = enc.out();"),
@@ -412,9 +412,9 @@ class ClassSourceTest {
                 Method.named("decode")
                     .public_()
                     .static_()
-                    .returnType("RecordWithRealCodec")
-                    .param("byte[]", "inBytes")
-                    .thrown("java.io.IOException")
+                    .returnType(TypeRef.of("RecordWithRealCodec"))
+                    .param(TypeRef.BYTES, "inBytes")
+                    .thrown(TypeRef.IO_EXCEPTION)
                     .body(
                         Element.of("var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
                         Element.of("var in = dec.in();"),
@@ -452,9 +452,9 @@ class ClassSourceTest {
         Method.named("encode")
             .public_()
             .static_()
-            .returnType("byte[]")
-            .param("RecordWithBytes", "v")
-            .thrown("java.io.IOException")
+            .returnType(TypeRef.BYTES)
+            .param(TypeRef.of("RecordWithBytes"), "v")
+            .thrown(TypeRef.IO_EXCEPTION)
             .body(
                 Element.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
                 Element.of("var out = enc.out();"),
@@ -466,9 +466,9 @@ class ClassSourceTest {
         Method.named("decode")
             .public_()
             .static_()
-            .returnType("RecordWithBytes")
-            .param("byte[]", "inBytes")
-            .thrown("java.io.IOException")
+            .returnType(TypeRef.of("RecordWithBytes"))
+            .param(TypeRef.BYTES, "inBytes")
+            .thrown(TypeRef.IO_EXCEPTION)
             .body(
                 Element.of("var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
                 Element.of("var in = dec.in();"),
@@ -511,9 +511,9 @@ class ClassSourceTest {
         Method.named("encode")
             .public_()
             .static_()
-            .returnType("byte[]")
-            .param("RecordWithBytes", "v")
-            .thrown("java.io.IOException")
+            .returnType(TypeRef.BYTES)
+            .param(TypeRef.of("RecordWithBytes"), "v")
+            .thrown(TypeRef.IO_EXCEPTION)
             .body(
                 Element.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
                 Element.of("var out = enc.out();"),
@@ -525,9 +525,9 @@ class ClassSourceTest {
         Method.named("decode")
             .public_()
             .static_()
-            .returnType("RecordWithBytes")
-            .param("byte[]", "inBytes")
-            .thrown("java.io.IOException")
+            .returnType(TypeRef.of("RecordWithBytes"))
+            .param(TypeRef.BYTES, "inBytes")
+            .thrown(TypeRef.IO_EXCEPTION)
             .body(
                 Element.of("var dec = bijnagte.recordbuf.runtime.Decoder.start(inBytes);"),
                 Element.of("var in = dec.in();"),

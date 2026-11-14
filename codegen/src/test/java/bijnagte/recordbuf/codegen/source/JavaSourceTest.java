@@ -36,13 +36,13 @@ class JavaSourceTest {
         .field(Component.named("int", "number").private_().build())
         .constructor(
             Constructor.builder()
-                .param("int", "number")
+                .param(TypeRef.Primitive.INT, "number")
                 .body(Element.of("this.number = number;"))
                 .build())
         .method(
             Method.named("getNumber")
                 .public_()
-                .returnType("int")
+                .returnType(TypeRef.Primitive.INT)
                 .body(Element.of("return number;"))
                 .build())
         .build();
@@ -61,15 +61,15 @@ class JavaSourceTest {
             Method.named("toByteArray")
                 .public_()
                 .static_()
-                .returnType("byte[]")
-                .param("Sample", "s")
+                .returnType(TypeRef.BYTES)
+                .param(TypeRef.of("Sample"), "s")
                 .body(Element.of("return new byte[] { 0 };"))
                 .build(),
             Method.named("fromBytes")
                 .public_()
                 .static_()
-                .returnType("Sample")
-                .param("byte[]", "b")
+                .returnType(TypeRef.of("Sample"))
+                .param(TypeRef.BYTES, "b")
                 .body(Element.of("return new Sample(0, new byte[0], SampleType.A);"))
                 .build())
         .build();

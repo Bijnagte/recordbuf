@@ -112,7 +112,7 @@ class SwitchRenderingTest {
                 .method(
                     Method.named("demo")
                         .public_()
-                        .param("Object", "n")
+                        .param(TypeRef.OBJECT, "n")
                         .body(
                             Switch.on("n.hashCode()")
                                 .caseArm("1", Element.of("System.out.println(1);"))

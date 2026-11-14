@@ -37,8 +37,8 @@ public record Constructor(Javadoc javadoc, Modifiers mods, List<Param> params, L
       return this;
     }
 
-    /** Append one parameter (type + name); calls accumulate, and no params renders {@code ()}. */
-    public Builder param(String type, String name) {
+    /** Append one parameter by type + name; calls accumulate, no params renders {@code ()}. */
+    public Builder param(TypeRef type, String name) {
       this.params.add(Param.of(type, name));
       return this;
     }

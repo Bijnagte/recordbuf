@@ -149,16 +149,16 @@ public final class RecordSourceMapping {
     result.method(
         Method.named("toBuilder")
             .public_()
-            .returnType("Builder")
+            .returnType(TypeRef.of("Builder"))
             .body(Element.expr("return new @0.Builder(this)", m.name()))
             .build());
     result.method(
         Method.named("fromBytes")
             .public_()
             .static_()
-            .returnType(m.name())
-            .param("byte[]", "in")
-            .thrown("java.io.IOException")
+            .returnType(TypeRef.of(m.name()))
+            .param(TypeRef.BYTES, "in")
+            .thrown(TypeRef.IO_EXCEPTION)
             .body(Element.expr("return @0.decode(in)", codecName))
             .build());
 
@@ -168,8 +168,8 @@ public final class RecordSourceMapping {
     var toByteArray =
         Method.named("toByteArray")
             .public_()
-            .returnType("byte[]")
-            .thrown("java.io.IOException")
+            .returnType(TypeRef.BYTES)
+            .thrown(TypeRef.IO_EXCEPTION)
             .body(Element.expr("return @0Codec.encode(this)", m.name()))
             .override(true)
             .build();
@@ -387,7 +387,7 @@ public final class RecordSourceMapping {
     var defaultMethod =
         Method.named("value")
             .default_()
-            .returnType("Object")
+            .returnType(TypeRef.OBJECT)
             .body(Element.of("return this;"))
             .build();
     iface.method(defaultMethod);
@@ -479,7 +479,7 @@ public final class RecordSourceMapping {
     }
     copyBody.add(Element.of("this.unknownFields = x.unknownFields();"));
     builderClz.constructor(
-        Constructor.builder().private_().param(recName, "x").body(copyBody).build());
+        Constructor.builder().private_().param(TypeRef.of(recName), "x").body(copyBody).build());
 
     // Fluent setter for each field.
     for (Field f : m.fields()) {
@@ -487,8 +487,8 @@ public final class RecordSourceMapping {
       builderClz.method(
           Method.named(fieldName)
               .public_()
-              .returnType("Builder")
-              .param(Param.param(scalarComponentType(f, ci), fieldName))
+              .returnType(TypeRef.of("Builder"))
+              .param(Param.of(scalarComponentType(f, ci), fieldName))
               .body(Element.expr("this.@0 = @1", fieldName, fieldName), Element.of("return this;"))
               .build());
     }
@@ -498,8 +498,8 @@ public final class RecordSourceMapping {
       builderClz.method(
           Method.named(compName)
               .public_()
-              .returnType("Builder")
-              .param(Param.of(oneof.ifaceName(), compName, Annotation.NULLABLE))
+              .returnType(TypeRef.of("Builder"))
+              .param(Param.of(TypeRef.of(oneof.ifaceName()), compName, Annotation.NULLABLE))
               .body(Element.expr("this.@0 = @1", compName, compName), Element.of("return this;"))
               .build());
     }
@@ -507,8 +507,8 @@ public final class RecordSourceMapping {
     builderClz.method(
         Method.named("unknownFields")
             .public_()
-            .returnType("Builder")
-            .param(ufShort, "unknownFields")
+            .returnType(TypeRef.of("Builder"))
+            .param(TypeRef.of(ufShort), "unknownFields")
             .body(Element.of("this.unknownFields = unknownFields;"), Element.of("return this;"))
             .build());
 
@@ -526,7 +526,7 @@ public final class RecordSourceMapping {
         Method.named("build")
             .javadoc(Javadoc.builder().text("Builds a ", m.name(), " record.").build())
             .public_()
-            .returnType(recName)
+            .returnType(TypeRef.of(recName))
             .body(Element.expr("return new @0(@1)", recName, String.join(", ", ctorArgs)))
             .build());
 
@@ -545,7 +545,7 @@ public final class RecordSourceMapping {
                     .build())
             .public_()
             .static_()
-            .returnType("Builder")
+            .returnType(TypeRef.of("Builder"))
             .body(Element.expr("return new @0.Builder()", recName))
             .build();
 

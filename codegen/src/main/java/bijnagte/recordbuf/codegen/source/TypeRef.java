@@ -188,6 +188,12 @@ public sealed interface TypeRef extends Formattable {
   /** {@code java.lang.Object} — the boxed type for an unresolvable scalar (default). */
   Named OBJECT = Named.ofBase("java.lang", "Object", List.of());
 
+  /** {@code byte[]} — the byte array type used throughout codecs. */
+  Array BYTES = array(Primitive.BYTE);
+
+  /** {@code java.io.IOException} — the standard thrown clause for codec I/O methods. */
+  Named IO_EXCEPTION = Named.ofBase("java.io", "IOException", List.of());
+
   /**
    * Resolve the boxed {@link Named} for a protobuf scalar type URL.
    *

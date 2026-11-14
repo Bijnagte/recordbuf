@@ -68,11 +68,15 @@ public final class EnumSourceMapping {
     result.field(Component.named("int", "number").private_().final_().build());
     result.constructor(
         Constructor.builder()
-            .param("int", "number")
+            .param(TypeRef.Primitive.INT, "number")
             .body(Element.expr("this.number = number"))
             .build());
     result.method(
-        Method.named("getNumber").public_().returnType("int").body(Element.ret("number")).build());
+        Method.named("getNumber")
+            .public_()
+            .returnType(TypeRef.Primitive.INT)
+            .body(Element.ret("number"))
+            .build());
 
     // 3. The reverse-lookup cluster — U5: BY_NUMBER field type and initializers are TypeRefs.
     //    Collected in the collect phase; resolved collision-aware at render time.
@@ -102,7 +106,7 @@ public final class EnumSourceMapping {
             .public_()
             .static_()
             .returnType(selfRef)
-            .param("int", "number")
+            .param(TypeRef.Primitive.INT, "number")
             .body(Element.ret("BY_NUMBER.getOrDefault(number, " + firstConstantName(proto) + ")"))
             .build());
 

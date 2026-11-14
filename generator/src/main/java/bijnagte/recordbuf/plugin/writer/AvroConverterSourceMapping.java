@@ -128,8 +128,8 @@ public final class AvroConverterSourceMapping {
     return Method.named("toRecord")
         .public_()
         .static_()
-        .returnType(recordClass)
-        .param(avroSpecific, "s")
+        .returnType(TypeRef.of(recordClass))
+        .param(TypeRef.of(avroSpecific), "s")
         .body(body)
         .build();
   }
@@ -173,8 +173,8 @@ public final class AvroConverterSourceMapping {
     return Method.named("fromRecord")
         .public_()
         .static_()
-        .returnType(avroSpecific)
-        .param(recordClass, "r")
+        .returnType(TypeRef.of(avroSpecific))
+        .param(TypeRef.of(recordClass), "r")
         .body(body)
         .build();
   }

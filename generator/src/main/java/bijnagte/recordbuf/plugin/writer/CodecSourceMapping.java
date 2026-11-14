@@ -180,9 +180,9 @@ public final class CodecSourceMapping {
     return Method.named("encode")
         .public_()
         .static_()
-        .returnType("byte[]")
-        .param(m.name(), "v")
-        .thrown("java.io.IOException")
+        .returnType(TypeRef.BYTES)
+        .param(TypeRef.of(m.name()), "v")
+        .thrown(TypeRef.IO_EXCEPTION)
         .body(body)
         .build();
   }
@@ -314,9 +314,9 @@ public final class CodecSourceMapping {
     return Method.named("decode")
         .public_()
         .static_()
-        .returnType(m.name())
-        .param("byte[]", "inBytes")
-        .thrown("java.io.IOException")
+        .returnType(TypeRef.of(m.name()))
+        .param(TypeRef.BYTES, "inBytes")
+        .thrown(TypeRef.IO_EXCEPTION)
         .body(body)
         .build();
   }
@@ -701,9 +701,9 @@ public final class CodecSourceMapping {
         Method.named("encode")
             .public_()
             .static_()
-            .returnType("byte[]")
-            .param(entryName, "v")
-            .thrown("java.io.IOException")
+            .returnType(TypeRef.BYTES)
+            .param(TypeRef.of(entryName), "v")
+            .thrown(TypeRef.IO_EXCEPTION)
             .body(encBody)
             .build());
 
@@ -729,9 +729,9 @@ public final class CodecSourceMapping {
         Method.named("decode")
             .public_()
             .static_()
-            .returnType(entryName)
-            .param("byte[]", "inBytes")
-            .thrown("java.io.IOException")
+            .returnType(TypeRef.of(entryName))
+            .param(TypeRef.BYTES, "inBytes")
+            .thrown(TypeRef.IO_EXCEPTION)
             .body(decBody)
             .build());
 

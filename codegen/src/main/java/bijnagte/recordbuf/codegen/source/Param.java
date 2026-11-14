@@ -13,21 +13,13 @@ public record Param(List<Annotation> annotations, TypeRef type, String name) {
     annotations = annotations == null ? List.of() : annotations;
   }
 
-  /** A parameter with no annotations. Takes a bare FQN string, parsed to a {@link TypeRef}. */
-  public static Param of(String fqn, String name) {
-    return new Param(null, TypeRef.of(fqn), name);
+  /** A parameter with no annotations. */
+  public static Param of(TypeRef type, String name) {
+    return new Param(null, type, name);
   }
 
-  /**
-   * A parameter carrying the given annotations. Takes a bare FQN string, parsed to a {@link
-   * TypeRef}.
-   */
-  public static Param of(String fqn, String name, Annotation... annotations) {
-    return new Param(annotations == null ? null : List.of(annotations), TypeRef.of(fqn), name);
-  }
-
-  /** Build from a pre-structured {@link TypeRef}. */
-  public static Param param(TypeRef type, String name, Annotation... annotations) {
+  /** A parameter carrying the given annotations. */
+  public static Param of(TypeRef type, String name, Annotation... annotations) {
     return new Param(annotations == null ? null : List.of(annotations), type, name);
   }
 }

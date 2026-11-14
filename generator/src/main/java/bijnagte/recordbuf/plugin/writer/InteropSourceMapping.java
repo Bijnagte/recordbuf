@@ -118,8 +118,8 @@ public final class InteropSourceMapping {
     return Method.named("from")
         .public_()
         .static_()
-        .returnType(rec)
-        .param(ref, "x")
+        .returnType(TypeRef.of(rec))
+        .param(TypeRef.of(ref), "x")
         .body(body)
         .build();
   }
@@ -225,8 +225,8 @@ public final class InteropSourceMapping {
     return Method.named("to")
         .public_()
         .static_()
-        .returnType(ref)
-        .param(rec, "r")
+        .returnType(TypeRef.of(ref))
+        .param(TypeRef.of(rec), "r")
         .body(body)
         .build();
   }

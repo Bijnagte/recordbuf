@@ -91,20 +91,14 @@ public record Method(
       return this;
     }
 
-    /** Set the return type as a bare FQN string (parsed to {@link TypeRef} internally). */
-    public Builder returnType(String rt) {
-      this.returnType = TypeRef.of(rt);
-      return this;
-    }
-
-    /** Set the return type as a pre-structured {@link TypeRef}. */
+    /** Set the return type. */
     public Builder returnType(TypeRef rt) {
       this.returnType = rt;
       return this;
     }
 
-    /** Append one parameter (type + name); calls accumulate, and no params renders {@code ()}. */
-    public Builder param(String type, String name) {
+    /** Append one parameter by type + name; calls accumulate, no params renders {@code ()}. */
+    public Builder param(TypeRef type, String name) {
       this.params.add(Param.of(type, name));
       return this;
     }
@@ -115,13 +109,7 @@ public record Method(
       return this;
     }
 
-    /** Append one {@code throws} type (a bare FQN, parsed to {@link TypeRef} internally). */
-    public Builder thrown(String t) {
-      this.thrown.add(TypeRef.of(t));
-      return this;
-    }
-
-    /** Append a {@code throws} type as a pre-structured {@link TypeRef}. */
+    /** Append one {@code throws} type. */
     public Builder thrown(TypeRef t) {
       this.thrown.add(t);
       return this;
