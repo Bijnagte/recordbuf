@@ -261,16 +261,13 @@ public final class SourceRenderer {
 
     private void renderClass(Type.Class c, StringBuilder out) {
       // Oracle-standard order (per the Oracle JavaDoc spec): the Javadoc block first, then the
-      // uniform annotation model, then the legacy raw-annotation string escape hatch
-      // (rawAnnotations) -- each annotation on its own line. The javadoc tool only recognizes a
-      // documentation comment placed immediately before the declaration, before any annotation.
+      // uniform annotation model -- each annotation on its own line. The javadoc tool only
+      // recognizes a documentation comment placed immediately before the declaration, before any
+      // annotation.
       if (c.javadoc().present()) {
         out.append(javadoc(c.javadoc().raw())).append('\n');
       }
       renderAnnotations(c.annotations(), out);
-      for (String ann : c.rawAnnotations()) {
-        out.append(ann).append('\n');
-      }
       out.append(c.mods().withSpace()).append("class ").append(c.name());
       if (!c.extendsFqns().isEmpty()) {
         out.append(" extends ").append(joinResolved(c.extendsFqns()));

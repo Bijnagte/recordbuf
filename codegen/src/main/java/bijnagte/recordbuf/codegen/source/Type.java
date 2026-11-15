@@ -238,10 +238,6 @@ public sealed interface Type {
    * (per-message encode/decode) renders as a {@code Type.Class} nested inside the message's record.
    * A class renders {@code extends} (unlike a record, which has no {@code extends}); a record has
    * no {@code extends} clause.
-   *
-   * <p>The {@code annotations} is the uniform {@link Annotation} list; {@code rawAnnotations} is
-   * the legacy {@code List<String>} of pre-formed annotation source lines the class rendered
-   * verbatim (kept for the escape hatch a raw annotation string may need today).
    */
   record Class(
       Modifiers mods,
@@ -254,12 +250,11 @@ public sealed interface Type {
       List<StaticBlock> staticBlocks,
       List<Constructor> constructors,
       List<Method> methods,
-      List<Type> nested,
-      List<String> rawAnnotations)
+      List<Type> nested)
       implements Type {
     // Optional fields stay null/empty when a builder leaves them unset; the compact ctor seeds
     // them:
-    // mods -> none, javadoc -> empty, annotations/implementsFqns/extendsFqns/rawAnnotations +
+    // mods -> none, javadoc -> empty, annotations/implementsFqns/extendsFqns +
     // every body list -> empty sets.
     public Class {
       mods = mods == null ? Modifiers.none() : mods;
@@ -272,7 +267,6 @@ public sealed interface Type {
       constructors = constructors == null ? List.of() : constructors;
       methods = methods == null ? List.of() : methods;
       nested = nested == null ? List.of() : nested;
-      rawAnnotations = rawAnnotations == null ? List.of() : rawAnnotations;
     }
 
     /** A fresh class builder. */
@@ -297,7 +291,6 @@ public sealed interface Type {
       private final List<Constructor> constructors = new ArrayList<>();
       private final List<Method> methods = new ArrayList<>();
       private final List<Type> nested = new ArrayList<>();
-      private final List<String> rawAnnotations = new ArrayList<>();
 
       /** The class's own Javadoc. */
       public Builder javadoc(Javadoc d) {
@@ -320,18 +313,6 @@ public sealed interface Type {
       /** Mark the class {@code @Deprecated} (adds the {@link Annotation#DEPRECATED} marker). */
       public Builder deprecated(boolean d) {
         if (d) annotations.add(Annotation.DEPRECATED);
-        return this;
-      }
-
-      /** Append the legacy raw annotation source lines (each rendered verbatim, one per line). */
-      public Builder rawAnnotations(List<String> anns) {
-        if (anns != null) rawAnnotations.addAll(anns);
-        return this;
-      }
-
-      /** Append one legacy raw annotation source line. */
-      public Builder rawAnnotation(String ann) {
-        this.rawAnnotations.add(ann);
         return this;
       }
 
@@ -462,8 +443,7 @@ public sealed interface Type {
             List.copyOf(staticBlocks),
             List.copyOf(constructors),
             List.copyOf(methods),
-            List.copyOf(nested),
-            List.copyOf(rawAnnotations));
+            List.copyOf(nested));
       }
     }
   }

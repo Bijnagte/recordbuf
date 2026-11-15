@@ -2,11 +2,14 @@ package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.SourceRenderer;
 import bijnagte.recordbuf.codegen.TypeCollector;
+import bijnagte.recordbuf.codegen.source.Annotation;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.Formatter;
 import bijnagte.recordbuf.codegen.source.JavaFile;
+import bijnagte.recordbuf.codegen.source.LocalVar;
 import bijnagte.recordbuf.codegen.source.Method;
+import bijnagte.recordbuf.codegen.source.RawExpr;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Field;
@@ -36,9 +39,9 @@ public final class AvroConverterSourceMapping {
   private AvroConverterSourceMapping() {}
 
   // Suppression annotation rendered on the class declaration.
-  private static final List<String> ANNOTATIONS =
-      List.of(
-          "@SuppressWarnings({\"checkstyle:HideUtilityClassConstructor\", \"checkstyle:MissingJavadoc\"})");
+  private static final Annotation ANNOTATION =
+      Annotation.suppressWarnings(
+          "checkstyle:HideUtilityClassConstructor", "checkstyle:MissingJavadoc");
 
   /**
    * Generate the Avro-interop converter class for {@code message}, returning the rendered Java
@@ -58,8 +61,8 @@ public final class AvroConverterSourceMapping {
       String specificRecordPkg,
       String recordPkg,
       Formatter formatter) {
-    String recordClass = protoRoot;
-    String avroSpecific = protoRoot + "Avro";
+    TypeRef recordClass = TypeRef.of(protoRoot);
+    TypeRef avroSpecific = TypeRef.of(protoRoot + "Avro");
 
     TypeCollector ci = new TypeCollector(recordPkg);
 
@@ -68,7 +71,7 @@ public final class AvroConverterSourceMapping {
     // lives in a different package. The renderer aggregates it into the collect pass. ---
     boolean samePkg = recordPkg.equals(specificRecordPkg);
     Set<TypeRef> externalRefs =
-        samePkg ? Set.of() : Set.of(TypeRef.of(specificRecordPkg + "." + avroSpecific));
+        samePkg ? Set.of() : Set.of(TypeRef.of(specificRecordPkg + "." + avroSpecific.shortName()));
 
     // --- class AST ---
     Constructor privateCtor = Constructor.builder().private_().body().build();
@@ -77,10 +80,10 @@ public final class AvroConverterSourceMapping {
     Method fromRecord = buildFromRecord(message, recordClass, avroSpecific);
 
     Type.Class converterClass =
-        Type.Class.named(recordClass + "AvroConverter")
+        Type.Class.named(recordClass.shortName() + "AvroConverter")
             .public_()
             .final_()
-            .rawAnnotations(ANNOTATIONS)
+            .annotation(ANNOTATION)
             .constructor(privateCtor)
             .method(toRecord, fromRecord)
             .build();
@@ -99,9 +102,11 @@ public final class AvroConverterSourceMapping {
 
   // --- toRecord body builder ----------------------------------------------------------
 
-  private static Method buildToRecord(Message message, String recordClass, String avroSpecific) {
+  private static Method buildToRecord(Message message, TypeRef recordClass, TypeRef avroSpecific) {
     List<Element> body = new ArrayList<>();
-    body.add(Element.expr("@0.Builder b = @1.builder()", recordClass, recordClass));
+    body.add(
+        LocalVar.builder(builderType(recordClass), "b")
+            .assigned(RawExpr.of("@0.builder()", recordClass)));
     for (Field f : message.fields()) {
       body.add(toRecordFieldLine(f, "s"));
     }
@@ -111,8 +116,8 @@ public final class AvroConverterSourceMapping {
     return Method.named("toRecord")
         .public_()
         .static_()
-        .returnType(TypeRef.of(recordClass))
-        .param(TypeRef.of(avroSpecific), "s")
+        .returnType(recordClass)
+        .param(avroSpecific, "s")
         .body(body)
         .build();
   }
@@ -139,9 +144,10 @@ public final class AvroConverterSourceMapping {
 
   // --- fromRecord body builder --------------------------------------------------------
 
-  private static Method buildFromRecord(Message message, String recordClass, String avroSpecific) {
+  private static Method buildFromRecord(
+      Message message, TypeRef recordClass, TypeRef avroSpecific) {
     List<Element> body = new ArrayList<>();
-    body.add(Element.expr("@0 s = new @1()", avroSpecific, avroSpecific));
+    body.add(LocalVar.builder(avroSpecific, "s").assigned(RawExpr.of("new @0()", avroSpecific)));
     body.add(Element.of("")); // blank line between declaration and setters
     for (Field f : message.fields()) {
       body.add(fromRecordFieldLine(f, "s", "r"));
@@ -151,8 +157,8 @@ public final class AvroConverterSourceMapping {
     return Method.named("fromRecord")
         .public_()
         .static_()
-        .returnType(TypeRef.of(avroSpecific))
-        .param(TypeRef.of(recordClass), "r")
+        .returnType(avroSpecific)
+        .param(recordClass, "r")
         .body(body)
         .build();
   }
@@ -167,6 +173,11 @@ public final class AvroConverterSourceMapping {
       return Element.expr("@0(@1.wrap(@2.toByteArray()))", setter, TypeRefs.BYTE_BUFFER, accessor);
     }
     return Element.expr("@0(@1)", setter, accessor);
+  }
+
+  /** The record's nested builder type — e.g. {@code Sample.Builder} for record {@code Sample}. */
+  private static TypeRef builderType(TypeRef recordClass) {
+    return TypeRef.named("", recordClass.shortName() + ".Builder", List.of());
   }
 
   private static String cap(String s) {
