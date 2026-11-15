@@ -2,6 +2,7 @@ package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Case;
+import bijnagte.recordbuf.codegen.source.ClassSpec;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.For;
@@ -10,8 +11,8 @@ import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.LocalVar;
 import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.RawExpr;
+import bijnagte.recordbuf.codegen.source.RecordSpec;
 import bijnagte.recordbuf.codegen.source.Switch;
-import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.codegen.source.While;
 import bijnagte.recordbuf.plugin.model.Field;
@@ -29,7 +30,7 @@ import java.util.function.Function;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Maps a proto {@link Message} model into a nested {@link Type.Class} {@code Codec} node for the
+ * Maps a proto {@link Message} model into a nested {@link ClassSpec} {@code Codec} node for the
  * source AST. Handles all field families: scalars, repeated scalars, optional scalars/strings,
  * maps, nested messages, singular/repeated enums, oneofs, and WKT fields.
  *
@@ -42,29 +43,29 @@ public final class CodecSourceMapping {
 
   /**
    * Map a message model to a nested {@code Codec} class node. The codec is scoped statically inside
-   * the enclosing record (attached via {@link Type.Record#nested}), and has a private constructor +
+   * the enclosing record (attached via {@link RecordSpec#nested}), and has a private constructor +
    * a static {@code encode} + a static {@code decode}.
    *
    * @param m the message model
    * @param ci the type collector (used to pre-register all runtime FQN references so the import
    *     block is correct)
-   * @return the nested {@code Type.Class} codec node
+   * @return the nested {@code ClassSpec} codec node
    */
-  public static Type.Class toCodec(
+  public static ClassSpec toCodec(
       Message m, TypeCollector ci, @Nullable Function<Field, String> typeResolver) {
     // Backwards compat: no typeResolver = scalar-only.
     return doToCodec(m, ci, typeResolver);
   }
 
-  private static Type.Class doToCodec(
+  private static ClassSpec doToCodec(
       Message m, TypeCollector ci, @Nullable Function<Field, String> typeResolver) {
     // Every type the codec body references (encoder/decoder/unknownFields/wire/codecDefaults,
     // plus the HashMap/ArrayList/Bytes constructors and CodecDefaults.<x>() default calls) is now
     // a TypeRef positional arg of a RawExpr, so the renderer's collect walk registers + resolves
     // it; no explicit collect/render is needed here.
     String codecName = m.name() + "Codec"; // M4-C2b-2b-8: align with old SampleCodec naming
-    Type.Class.Builder result =
-        Type.Class.named(codecName)
+    ClassSpec.Builder result =
+        ClassSpec.named(codecName)
             .public_()
             .static_()
             .final_()
@@ -655,12 +656,12 @@ public final class CodecSourceMapping {
    * @return the nested {@code <Entry>Codec} class
    */
   @SuppressWarnings("java:S905")
-  public static Type.Class emitEntryCodec(String entryName, Field f, TypeCollector ci) {
+  public static ClassSpec emitEntryCodec(String entryName, Field f, TypeCollector ci) {
     // M4-C2d-12: resolve key/value wire scalars from the Field's type URLs.
     WireScalar keyWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapKey()));
     WireScalar valWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapValue()));
     String codecName = entryName + "Codec";
-    Type.Class.Builder result = Type.Class.named(codecName).public_().static_().final_();
+    ClassSpec.Builder result = ClassSpec.named(codecName).public_().static_().final_();
 
     result.constructor(Constructor.builder().private_().build());
 

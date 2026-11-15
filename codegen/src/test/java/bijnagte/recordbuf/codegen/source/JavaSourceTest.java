@@ -29,8 +29,8 @@ import org.junit.jupiter.api.Test;
 class JavaSourceTest {
 
   /** The nested enum, fully specified as an AST. */
-  private static Type.Enum sampleType() {
-    return Type.Enum.named("SampleType")
+  private static EnumSpec sampleType() {
+    return EnumSpec.named("SampleType")
         .public_()
         .enumConstant(
             EnumConstant.named("A").ctorArgs("0").build(),
@@ -51,8 +51,8 @@ class JavaSourceTest {
   }
 
   /** The top-level record, with its nested type + two static methods as body members. */
-  private static Type.Record sample() {
-    return Type.Record.named("Sample")
+  private static RecordSpec sample() {
+    return RecordSpec.named("Sample")
         .public_()
         .component(
             Component.named("int", "value").build(),

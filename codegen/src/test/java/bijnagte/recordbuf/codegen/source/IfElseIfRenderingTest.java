@@ -28,7 +28,7 @@ class IfElseIfRenderingTest {
 
   private static final String PKG = "bijnagte.recordbuf.codegen.source";
 
-  private static String render(Type.Record r) {
+  private static String render(RecordSpec r) {
     return SourceRenderer.render(new JavaFile(PKG, new Javadoc(""), r, new TypeCollector(PKG)));
   }
 
@@ -36,7 +36,7 @@ class IfElseIfRenderingTest {
   void if_with_one_else_if_renders_a_two_clauses() throws Exception {
     String src =
         render(
-            Type.Record.named("WithElseIf")
+            RecordSpec.named("WithElseIf")
                 .public_()
                 .component(Component.named("int", "value").build())
                 .method(
@@ -61,7 +61,7 @@ class IfElseIfRenderingTest {
   void if_else_if_then_terminal_else_renders_all_three_blocks() throws Exception {
     String src =
         render(
-            Type.Record.named("FullChain")
+            RecordSpec.named("FullChain")
                 .public_()
                 .component(Component.named("int", "value").build())
                 .method(

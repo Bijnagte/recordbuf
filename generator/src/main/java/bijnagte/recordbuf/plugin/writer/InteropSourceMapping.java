@@ -2,6 +2,7 @@ package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Annotation;
+import bijnagte.recordbuf.codegen.source.ClassSpec;
 import bijnagte.recordbuf.codegen.source.CommaList;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
@@ -14,7 +15,6 @@ import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.RawExpr;
 import bijnagte.recordbuf.codegen.source.Switch;
 import bijnagte.recordbuf.codegen.source.SwitchExpr;
-import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
@@ -25,7 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Maps a {@code recordbuf.protobuf_java}-opted {@link Message} into a nested {@link Type.Class}
+ * Maps a {@code recordbuf.protobuf_java}-opted {@link Message} into a nested {@link ClassSpec}
  * {@code Interop} node for the source AST.
  *
  * <p>Protobuf-java reference types are emitted in fully-qualified form by the {@link TypeCollector}
@@ -36,14 +36,14 @@ public final class InteropSourceMapping {
   private InteropSourceMapping() {}
 
   /**
-   * Returns the nested {@code Interop} {@link Type.Class} node that converts {@code m} to and from
+   * Returns the nested {@code Interop} {@link ClassSpec} node that converts {@code m} to and from
    * its protobuf-java reference type.
    *
    * @param m the message model (must have {@code protobufJava()} non-null/non-empty)
    * @param sourceName the source {@code .proto} file name (used in the Javadoc)
-   * @return the nested {@code Interop} {@link Type.Class} node
+   * @return the nested {@code Interop} {@link ClassSpec} node
    */
-  public static Type.Class toInterop(Message m, String sourceName) {
+  public static ClassSpec toInterop(Message m, String sourceName) {
     String refPkg = m.protobufJava();
     if (refPkg == null || refPkg.isEmpty()) {
       throw new IllegalArgumentException("toInterop: protobufJava must be non-null/non-empty");
@@ -71,7 +71,7 @@ public final class InteropSourceMapping {
     var fromMethod = emitFrom(m, ref, rec);
     var toMethod = emitTo(m, refPkg, ref, rec);
 
-    return Type.Class.named("Interop")
+    return ClassSpec.named("Interop")
         .public_()
         .static_()
         .final_()

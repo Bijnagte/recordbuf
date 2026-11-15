@@ -30,7 +30,7 @@ class IfRenderingTest {
 
   private static final String PKG = "bijnagte.recordbuf.codegen.source";
 
-  private static String render(Type.Record r) {
+  private static String render(RecordSpec r) {
     return SourceRenderer.render(new JavaFile(PKG, new Javadoc(""), r, new TypeCollector(PKG)));
   }
 
@@ -38,7 +38,7 @@ class IfRenderingTest {
   void if_then_only_renders_a_single_braced_block() throws Exception {
     String src =
         render(
-            Type.Record.named("ThenOnly")
+            RecordSpec.named("ThenOnly")
                 .public_()
                 .component(Component.named("int", "value").build())
                 .method(
@@ -59,7 +59,7 @@ class IfRenderingTest {
   void if_with_terminal_else_renders_both_braced_blocks() throws Exception {
     String src =
         render(
-            Type.Record.named("ThenElse")
+            RecordSpec.named("ThenElse")
                 .public_()
                 .component(Component.named("int", "value").build())
                 .method(

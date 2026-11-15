@@ -9,7 +9,7 @@ import bijnagte.recordbuf.codegen.SourceRenderer;
 import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.JavaFile;
 import bijnagte.recordbuf.codegen.source.Javadoc;
-import bijnagte.recordbuf.codegen.source.Type;
+import bijnagte.recordbuf.codegen.source.RecordSpec;
 import bijnagte.recordbuf.plugin.model.Enum;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
@@ -421,7 +421,7 @@ class RecordSourceMappingTest {
             null);
 
     TypeCollector ci = new TypeCollector(PKG);
-    Type.Record ast = RecordSourceMapping.toSourceWithCodec(m, ci);
+    RecordSpec ast = RecordSourceMapping.toSourceWithCodec(m, ci);
     String source =
         SourceRenderer.render(
             new JavaFile(

@@ -31,7 +31,7 @@ class SwitchRenderingTest {
 
   private static final String PKG = "bijnagte.recordbuf.codegen.source";
 
-  private static String render(Type.Record r) {
+  private static String render(RecordSpec r) {
     return SourceRenderer.render(new JavaFile(PKG, new Javadoc(""), r, new TypeCollector(PKG)));
   }
 
@@ -39,7 +39,7 @@ class SwitchRenderingTest {
   void empty_arm_renders_empty_block() {
     String src =
         render(
-            Type.Record.named("SwitchEmpty")
+            RecordSpec.named("SwitchEmpty")
                 .public_()
                 .method(
                     Method.named("demo")
@@ -60,7 +60,7 @@ class SwitchRenderingTest {
   void single_statement_arm_renders_unbraced() {
     String src =
         render(
-            Type.Record.named("SwitchSingle")
+            RecordSpec.named("SwitchSingle")
                 .public_()
                 .method(
                     Method.named("demo")
@@ -85,7 +85,7 @@ class SwitchRenderingTest {
   void multi_pattern_arm_joins_with_comma_and_braces() {
     String src =
         render(
-            Type.Record.named("SwitchMulti")
+            RecordSpec.named("SwitchMulti")
                 .public_()
                 .method(
                     Method.named("demo")
@@ -108,7 +108,7 @@ class SwitchRenderingTest {
   void switch_statement_compiles() throws Exception {
     String src =
         render(
-            Type.Record.named("SwitchCompiles")
+            RecordSpec.named("SwitchCompiles")
                 .public_()
                 .method(
                     Method.named("demo")

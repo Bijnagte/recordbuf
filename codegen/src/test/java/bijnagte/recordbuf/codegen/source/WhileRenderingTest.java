@@ -31,7 +31,7 @@ class WhileRenderingTest {
 
   private static final String PKG = "bijnagte.recordbuf.codegen.source";
 
-  private static String render(Type.Record r) {
+  private static String render(RecordSpec r) {
     return SourceRenderer.render(new JavaFile(PKG, new Javadoc(""), r, new TypeCollector(PKG)));
   }
 
@@ -39,7 +39,7 @@ class WhileRenderingTest {
   void while_with_body_renders_braced_block() throws Exception {
     String src =
         render(
-            Type.Record.named("WhileLoop")
+            RecordSpec.named("WhileLoop")
                 .public_()
                 .component(Component.named("int", "value").build())
                 .method(
@@ -60,7 +60,7 @@ class WhileRenderingTest {
   void empty_body_renders_empty_loop() throws Exception {
     String src =
         render(
-            Type.Record.named("WhileEmpty")
+            RecordSpec.named("WhileEmpty")
                 .public_()
                 .component(Component.named("int", "value").build())
                 .method(

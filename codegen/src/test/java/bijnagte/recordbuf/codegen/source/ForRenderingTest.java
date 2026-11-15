@@ -29,7 +29,7 @@ class ForRenderingTest {
 
   private static final String PKG = "bijnagte.recordbuf.codegen.source";
 
-  private static String render(Type.Record r) {
+  private static String render(RecordSpec r) {
     return SourceRenderer.render(new JavaFile(PKG, new Javadoc(""), r, new TypeCollector(PKG)));
   }
 
@@ -37,7 +37,7 @@ class ForRenderingTest {
   void for_each_with_body_renders_braced_block() throws Exception {
     String src =
         render(
-            Type.Record.named("ForLoop")
+            RecordSpec.named("ForLoop")
                 .public_()
                 .component(Component.named("java.util.List<String>", "value").build())
                 .method(
@@ -56,7 +56,7 @@ class ForRenderingTest {
   void empty_body_renders_empty_loop() throws Exception {
     String src =
         render(
-            Type.Record.named("ForEmpty")
+            RecordSpec.named("ForEmpty")
                 .public_()
                 .component(Component.named("java.util.List<String>", "value").build())
                 .method(

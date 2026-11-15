@@ -3,22 +3,26 @@ package bijnagte.recordbuf.codegen;
 import bijnagte.recordbuf.codegen.source.Annotation;
 import bijnagte.recordbuf.codegen.source.Arg;
 import bijnagte.recordbuf.codegen.source.Case;
+import bijnagte.recordbuf.codegen.source.ClassSpec;
 import bijnagte.recordbuf.codegen.source.Comment;
 import bijnagte.recordbuf.codegen.source.Component;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.ElseIf;
 import bijnagte.recordbuf.codegen.source.EnumConstant;
+import bijnagte.recordbuf.codegen.source.EnumSpec;
 import bijnagte.recordbuf.codegen.source.ExprStatement;
 import bijnagte.recordbuf.codegen.source.For;
 import bijnagte.recordbuf.codegen.source.Formattable;
 import bijnagte.recordbuf.codegen.source.Formatter;
 import bijnagte.recordbuf.codegen.source.Fragment;
 import bijnagte.recordbuf.codegen.source.If;
+import bijnagte.recordbuf.codegen.source.InterfaceSpec;
 import bijnagte.recordbuf.codegen.source.JavaFile;
 import bijnagte.recordbuf.codegen.source.LocalVar;
 import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.Param;
+import bijnagte.recordbuf.codegen.source.RecordSpec;
 import bijnagte.recordbuf.codegen.source.Return;
 import bijnagte.recordbuf.codegen.source.StaticBlock;
 import bijnagte.recordbuf.codegen.source.Switch;
@@ -103,7 +107,7 @@ public final class SourceRenderer {
      */
     void collect(Type t) {
       switch (t) {
-        case Type.Record r -> {
+        case RecordSpec r -> {
           r.implementsFqns().forEach(accumulated::add);
           r.annotations().forEach(a -> accumulated.add(a.type()));
           r.components()
@@ -114,7 +118,7 @@ public final class SourceRenderer {
               });
           r.methods().forEach(this::collectMethod);
         }
-        case Type.Class c -> {
+        case ClassSpec c -> {
           c.implementsFqns().forEach(accumulated::add);
           c.annotations().forEach(a -> accumulated.add(a.type()));
           c.fields()
@@ -125,7 +129,7 @@ public final class SourceRenderer {
               });
           c.methods().forEach(this::collectMethod);
         }
-        case Type.Enum e -> {
+        case EnumSpec e -> {
           e.implementsFqns().forEach(accumulated::add);
           e.annotations().forEach(a -> accumulated.add(a.type()));
           e.fields()
@@ -137,7 +141,7 @@ public final class SourceRenderer {
           e.enumConstants().forEach(x -> x.annotations().forEach(a -> accumulated.add(a.type())));
           e.methods().forEach(this::collectMethod);
         }
-        case Type.Interface iface -> {
+        case InterfaceSpec iface -> {
           iface.extendsFqns().forEach(accumulated::add);
           iface.annotations().forEach(a -> accumulated.add(a.type()));
           iface.methods().forEach(this::collectMethod);
@@ -213,14 +217,14 @@ public final class SourceRenderer {
 
     void render(Type t, StringBuilder out) {
       switch (t) {
-        case Type.Record r -> renderRecord(r, out);
-        case Type.Class c -> renderClass(c, out);
-        case Type.Enum e -> renderEnum(e, out);
-        case Type.Interface iface -> renderInterface(iface, out);
+        case RecordSpec r -> renderRecord(r, out);
+        case ClassSpec c -> renderClass(c, out);
+        case EnumSpec e -> renderEnum(e, out);
+        case InterfaceSpec iface -> renderInterface(iface, out);
       }
     }
 
-    private void renderRecord(Type.Record r, StringBuilder out) {
+    private void renderRecord(RecordSpec r, StringBuilder out) {
       if (r.javadoc().present()) out.append(javadoc(r.javadoc().raw())).append('\n');
       renderAnnotations(r.annotations(), out);
       out.append(r.mods().withSpace()).append("record ").append(r.name()).append('(');
@@ -260,7 +264,7 @@ public final class SourceRenderer {
       out.append('}').append('\n');
     }
 
-    private void renderClass(Type.Class c, StringBuilder out) {
+    private void renderClass(ClassSpec c, StringBuilder out) {
       // Oracle-standard order (per the Oracle JavaDoc spec): the Javadoc block first, then the
       // uniform annotation model -- each annotation on its own line. The javadoc tool only
       // recognizes a documentation comment placed immediately before the declaration, before any
@@ -296,7 +300,7 @@ public final class SourceRenderer {
       out.append('}').append('\n');
     }
 
-    private void renderEnum(Type.Enum e, StringBuilder out) {
+    private void renderEnum(EnumSpec e, StringBuilder out) {
       if (e.javadoc().present()) out.append(javadoc(e.javadoc().raw())).append('\n');
       renderAnnotations(e.annotations(), out);
       out.append(e.mods().withSpace()).append("enum ").append(e.name());
@@ -344,7 +348,7 @@ public final class SourceRenderer {
       out.append('}').append('\n');
     }
 
-    private void renderInterface(Type.Interface iface, StringBuilder out) {
+    private void renderInterface(InterfaceSpec iface, StringBuilder out) {
       if (iface.javadoc().present()) {
         out.append(javadoc(iface.javadoc().raw())).append('\n');
       }

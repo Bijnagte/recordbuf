@@ -4,9 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import bijnagte.recordbuf.codegen.SourceRenderer;
 import bijnagte.recordbuf.codegen.TypeCollector;
+import bijnagte.recordbuf.codegen.source.EnumSpec;
 import bijnagte.recordbuf.codegen.source.JavaFile;
 import bijnagte.recordbuf.codegen.source.Javadoc;
-import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.plugin.model.Enum;
 import java.net.URI;
 import java.nio.file.Files;
@@ -53,7 +53,7 @@ class EnumSourceMappingTest {
   @Test
   void maps_the_proto_enum_through_the_source_ast_and_compiles() throws Exception {
     TypeCollector ci = new TypeCollector(PKG);
-    Type.Enum e = EnumSourceMapping.toSource(color(), ci, PKG);
+    EnumSpec e = EnumSourceMapping.toSource(color(), ci, PKG);
     String src = SourceRenderer.render(new JavaFile(PKG, Javadoc.builder().build(), e, ci));
 
     assertTrue(src.contains("public enum Color {"), "enum header: " + src);

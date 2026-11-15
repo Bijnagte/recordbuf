@@ -4,18 +4,18 @@ import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Component;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
+import bijnagte.recordbuf.codegen.source.EnumSpec;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.RawExpr;
 import bijnagte.recordbuf.codegen.source.StaticBlock;
-import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Enum;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Maps the generator's proto {@link Enum} model into a {@link Type.Enum} of the pure-Java,
+ * Maps the generator's proto {@link Enum} model into a {@link EnumSpec} of the pure-Java,
  * proto-agnostic {@code source} AST ({@code bijnagte.recordbuf.codegen.source}) — the M4 step that
  * replaces the string-concatenation {@link EnumGenerator} with a renderable, structural tree.
  *
@@ -36,7 +36,7 @@ public final class EnumSourceMapping {
   private EnumSourceMapping() {}
 
   /**
-   * Map a proto {@link Enum} model into a source-AST {@link Type.Enum}.
+   * Map a proto {@link Enum} model into a source-AST {@link EnumSpec}.
    *
    * @param proto the proto enum model
    * @param ci the file's type collector, used to register the cluster's {@code java.util.Map} /
@@ -44,11 +44,11 @@ public final class EnumSourceMapping {
    * @param declaringPkg the Java package the generated enum belongs to — used to resolve the
    *     self-reference {@code Name} inside {@code Map<Integer, Name>}
    */
-  public static Type.Enum toSource(Enum proto, TypeCollector ci, String declaringPkg) {
+  public static EnumSpec toSource(Enum proto, TypeCollector ci, String declaringPkg) {
     String name = proto.name();
 
-    Type.Enum.Builder result =
-        Type.Enum.named(proto.name())
+    EnumSpec.Builder result =
+        EnumSpec.named(proto.name())
             .public_()
             .javadoc(Javadoc.builder().text(proto.comment()).build())
             .deprecated(proto.deprecated())

@@ -23,7 +23,7 @@ class FormatterTest {
   private static JavaFile smallRecord() {
     TypeCollector ci = new TypeCollector(PKG);
     Type top =
-        Type.Record.named("Sample")
+        RecordSpec.named("Sample")
             .public_()
             .component(Component.named("int", "id").build())
             .build();

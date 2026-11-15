@@ -44,9 +44,9 @@ class ClassSourceTest {
   private static final String PKG = "bijnagte.recordbuf.codegen.source";
 
   /** A message shell record with a nested {@code public static final class Codec} skeleton. */
-  private static Type.Record messageWithCodec() {
-    Type.Class codec =
-        Type.Class.named("Codec")
+  private static RecordSpec messageWithCodec() {
+    ClassSpec codec =
+        ClassSpec.named("Codec")
             .public_()
             .static_()
             .final_()
@@ -73,7 +73,7 @@ class ClassSourceTest {
                     .body(Element.of("return new MessageRec(0);"))
                     .build())
             .build();
-    return Type.Record.named("MessageRec")
+    return RecordSpec.named("MessageRec")
         .public_()
         .component(Component.named("int", "id").build())
         .nested(codec)
@@ -313,9 +313,9 @@ class ClassSourceTest {
     }
   }
 
-  private static Type.Record recordWithRealMultiScalarCodec() {
-    Type.Class codec =
-        Type.Class.named("Codec")
+  private static RecordSpec recordWithRealMultiScalarCodec() {
+    ClassSpec codec =
+        ClassSpec.named("Codec")
             .public_()
             .static_()
             .final_()
@@ -374,7 +374,7 @@ class ClassSourceTest {
                         Element.of("return new RecordWithRealMultiScalar(id, value, text);"))
                     .build())
             .build();
-    return Type.Record.named("RecordWithRealMultiScalar")
+    return RecordSpec.named("RecordWithRealMultiScalar")
         .public_()
         .component(
             Component.named("int", "id").build(),
@@ -384,9 +384,9 @@ class ClassSourceTest {
         .build();
   }
 
-  private static Type.Record recordWithRealCodec() {
-    Type.Class codec =
-        Type.Class.named("Codec")
+  private static RecordSpec recordWithRealCodec() {
+    ClassSpec codec =
+        ClassSpec.named("Codec")
             .public_()
             .static_()
             .final_()
@@ -436,7 +436,7 @@ class ClassSourceTest {
                         Element.of("return new RecordWithRealCodec(id);"))
                     .build())
             .build();
-    return Type.Record.named("RecordWithRealCodec")
+    return RecordSpec.named("RecordWithRealCodec")
         .public_()
         .component(Component.named("int", "id").build())
         .nested(codec)
@@ -490,11 +490,11 @@ class ClassSourceTest {
                 Element.of("return new RecordWithBytes(data);"))
             .build();
 
-    Type.Class codec =
-        Type.Class.named("Codec").public_().static_().final_().method(encode, decode).build();
+    ClassSpec codec =
+        ClassSpec.named("Codec").public_().static_().final_().method(encode, decode).build();
 
     var record =
-        Type.Record.named("RecordWithBytes")
+        RecordSpec.named("RecordWithBytes")
             .public_()
             .final_()
             .component(dataField)
@@ -547,11 +547,11 @@ class ClassSourceTest {
                 Element.of("return new RecordWithBytes(data);"))
             .build();
 
-    Type.Class codec =
-        Type.Class.named("Codec").public_().static_().final_().method(encode, decode).build();
+    ClassSpec codec =
+        ClassSpec.named("Codec").public_().static_().final_().method(encode, decode).build();
 
     var record =
-        Type.Record.named("RecordWithBytes")
+        RecordSpec.named("RecordWithBytes")
             .public_()
             .final_()
             .component(dataField)

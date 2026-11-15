@@ -3,6 +3,7 @@ package bijnagte.recordbuf.plugin.writer;
 import bijnagte.recordbuf.codegen.SourceRenderer;
 import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Annotation;
+import bijnagte.recordbuf.codegen.source.ClassSpec;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.Formatter;
@@ -10,7 +11,6 @@ import bijnagte.recordbuf.codegen.source.JavaFile;
 import bijnagte.recordbuf.codegen.source.LocalVar;
 import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.RawExpr;
-import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
@@ -22,7 +22,7 @@ import java.util.Set;
 /**
  * Maps a top-level message's Avro {@code <X>AvroConverter} (record ↔ Avro-specific-record
  * conversion) through the source-AST, replacing the former string-concatenation implementation with
- * a {@link Type.Class} + {@link SourceRenderer} pipeline.
+ * a {@link ClassSpec} + {@link SourceRenderer} pipeline.
  *
  * <p>The converter handles both directions of a round-trip:
  *
@@ -79,8 +79,8 @@ public final class AvroConverterSourceMapping {
     Method toRecord = buildToRecord(message, recordClass, avroSpecific);
     Method fromRecord = buildFromRecord(message, recordClass, avroSpecific);
 
-    Type.Class converterClass =
-        Type.Class.named(recordClass.shortName() + "AvroConverter")
+    ClassSpec converterClass =
+        ClassSpec.named(recordClass.shortName() + "AvroConverter")
             .public_()
             .final_()
             .annotation(ANNOTATION)

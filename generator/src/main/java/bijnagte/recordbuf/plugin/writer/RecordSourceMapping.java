@@ -2,13 +2,16 @@ package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Annotation;
+import bijnagte.recordbuf.codegen.source.ClassSpec;
 import bijnagte.recordbuf.codegen.source.Component;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
+import bijnagte.recordbuf.codegen.source.InterfaceSpec;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.Param;
 import bijnagte.recordbuf.codegen.source.RawExpr;
+import bijnagte.recordbuf.codegen.source.RecordSpec;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Enum;
@@ -26,7 +29,7 @@ import java.util.function.Function;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Maps the generator's proto {@link Message} model into a {@link Type.Record} of the pure-Java,
+ * Maps the generator's proto {@link Message} model into a {@link RecordSpec} of the pure-Java,
  * proto-agnostic {@code source} AST ({@code bijnagte.recordbuf.codegen.source}), replacing the
  * string-concatenation record emission with a renderable, structural tree.
  *
@@ -35,7 +38,7 @@ import org.jspecify.annotations.Nullable;
  * as a nested {@link Type} (reusing {@link EnumSourceMapping} for full enum core + {@code
  * BY_NUMBER} cluster).
  *
- * <p>{@code toSourceWithCodec} extends the shell with a nested {@link Type.Class} codec that
+ * <p>{@code toSourceWithCodec} extends the shell with a nested {@link ClassSpec} codec that
  * dispatches through {@link CodecSourceMapping} (encode/decode for all field families: scalars,
  * repeated, map, optional, nested-message, singular/repeated-enum, oneof, and WKT via {@link
  * WktSourceMapping}). Messages with a {@code recordbuf.protobuf_java} option are handled by the
@@ -46,11 +49,11 @@ public final class RecordSourceMapping {
   private RecordSourceMapping() {}
 
   /**
-   * Map a proto {@link Message} model into a source-AST {@link Type.Record} for the record shell.
+   * Map a proto {@link Message} model into a source-AST {@link RecordSpec} for the record shell.
    */
-  public static Type.Record toSource(Message m, TypeCollector ci) {
-    Type.Record.Builder result =
-        Type.Record.named(m.name())
+  public static RecordSpec toSource(Message m, TypeCollector ci) {
+    RecordSpec.Builder result =
+        RecordSpec.named(m.name())
             .public_()
             .javadoc(Javadoc.builder().text(m.comment()).build())
             .deprecated(m.deprecated())
@@ -82,26 +85,26 @@ public final class RecordSourceMapping {
   }
 
   /**
-   * Map a message model to a source-AST {@link Type.Record} WITH the nested {@code Codec} included.
+   * Map a message model to a source-AST {@link RecordSpec} WITH the nested {@code Codec} included.
    * The codec (encode/decode static methods with real {@code List<Element>} bodies) is appended as
    * a nested {@link Type} to the record's nested list, so the rendered source contains both the
    * record shell and its codec.
    */
-  public static Type.Record toSourceWithCodec(Message m, TypeCollector ci) {
+  public static RecordSpec toSourceWithCodec(Message m, TypeCollector ci) {
     return toSourceWithCodec(m, ci, null);
   }
 
   /**
-   * Map a message model to a source-AST {@link Type.Record} WITH the nested codec and a {@code
+   * Map a message model to a source-AST {@link RecordSpec} WITH the nested codec and a {@code
    * typeResolver} that maps each nested-message field to its codec {@code <Type>Codec} FQN (e.g.
    * {@code Single.SingleCodec}). A {@code null} resolver means no nested-message codec wiring
    * (scalar-only message).
    */
-  public static Type.Record toSourceWithCodec(
+  public static RecordSpec toSourceWithCodec(
       Message m, TypeCollector ci, @Nullable Function<Field, String> typeResolver) {
     // Rebuild the member list from scratch with the codec appended, mirroring toSource's logic.
-    Type.Record.Builder result =
-        Type.Record.named(m.name())
+    RecordSpec.Builder result =
+        RecordSpec.named(m.name())
             .public_()
             .javadoc(Javadoc.builder().text(m.comment()).build())
             .deprecated(m.deprecated());
@@ -131,7 +134,7 @@ public final class RecordSourceMapping {
     // M4-C2d-7: nested map entry records + their codecs, before the main Codec.
     for (Field f : m.fields()) {
       if (f.kind() == FieldKind.MAP) {
-        Type.Record entry = mapEntryRecord(f, ci);
+        RecordSpec entry = mapEntryRecord(f, ci);
         result.nested(entry);
       }
     }
@@ -178,7 +181,7 @@ public final class RecordSourceMapping {
     result.method(toByteArray);
 
     // M4-C2b-2c: append the nested Codec, built from the same message model.
-    Type.Class codec = CodecSourceMapping.toCodec(m, ci, typeResolver);
+    ClassSpec codec = CodecSourceMapping.toCodec(m, ci, typeResolver);
     result.nested(codec);
 
     // M4-C2e: Layer B interop — nested Interop class when recordbuf.protobuf_java is set. The
@@ -329,8 +332,8 @@ public final class RecordSourceMapping {
     String unwrapFqn = TypeRefs.UNWRAPABLE.fqn();
     // The extendsFqn carries the full FQN; the collect() phase registers it via
     // TypeRef.referencedTypes().
-    Type.Interface.Builder iface =
-        Type.Interface.named(ifaceName).public_().sealed_().extendsFqn(unwrapFqn + "<Object>");
+    InterfaceSpec.Builder iface =
+        InterfaceSpec.named(ifaceName).public_().sealed_().extendsFqn(unwrapFqn + "<Object>");
 
     // Build permits and nested per-member records simultaneously. For each oneof member
     // (scalar, enum, or message), emit a nested public record <Cap>Value(<Type> value)
@@ -352,8 +355,8 @@ public final class RecordSourceMapping {
       } else {
         valType = TypeRef.boxedFor(member.typeUrl());
       }
-      Type.Record wr =
-          Type.Record.named(valName)
+      RecordSpec wr =
+          RecordSpec.named(valName)
               .public_()
               .implementsFqn(ifaceName)
               .component(Component.type(valType, "value").build())
@@ -383,7 +386,7 @@ public final class RecordSourceMapping {
    * record's {@code nested} list. The caller adds both to the enclosing record; the helper is pure
    * and returns both rather than mutating the caller's record builder.
    */
-  private record OneofEmission(Component component, Type.Interface iface) {}
+  private record OneofEmission(Component component, InterfaceSpec iface) {}
 
   /**
    * The boxed Java type for a proto scalar type URL (for use inside {@code Map<>, List<>}, or as a
@@ -400,8 +403,8 @@ public final class RecordSourceMapping {
   private static BuilderEmission emitBuilder(Message m, String ufFqn) {
     String recName = m.name();
     // The nested static Builder class — header first, members accumulated below.
-    Type.Class.Builder builderClz =
-        Type.Class.named("Builder")
+    ClassSpec.Builder builderClz =
+        ClassSpec.named("Builder")
             .javadoc(
                 Javadoc.builder()
                     .text("Fluent, value-only builder for the ", m.name(), " record.")
@@ -510,7 +513,7 @@ public final class RecordSourceMapping {
             .build());
 
     // The nested Builder class itself — with javadoc matching the old JavaWriter path.
-    Type.Class nestedBuilder = builderClz.build();
+    ClassSpec nestedBuilder = builderClz.build();
 
     // The static factory on the record, with javadoc.
     var builderFactory =
@@ -537,7 +540,7 @@ public final class RecordSourceMapping {
    * The caller adds both; the helper is pure and returns them rather than mutating the caller's
    * record builder.
    */
-  private record BuilderEmission(Method factory, Type.Class nested) {}
+  private record BuilderEmission(Method factory, ClassSpec nested) {}
 
   /**
    * The default initializer for a builder's storage field: "" for String, 0 for numeric, null for
@@ -587,7 +590,7 @@ public final class RecordSourceMapping {
    * CodecSourceMapping#emitEntryCodec}.
    */
   @SuppressWarnings("java:S905")
-  private static Type.Record mapEntryRecord(Field f, TypeCollector ci) {
+  private static RecordSpec mapEntryRecord(Field f, TypeCollector ci) {
     String javaName = f.javaName();
     String entryName =
         javaName.isEmpty() ? "" : Character.toUpperCase(javaName.charAt(0)) + javaName.substring(1);
@@ -596,11 +599,11 @@ public final class RecordSourceMapping {
     TypeRef keyTypeRef = TypeRef.boxedFor(Objects.requireNonNull(f.mapKey()));
     TypeRef valueTypeRef = TypeRef.boxedFor(Objects.requireNonNull(f.mapValue()));
 
-    Type.Record.Builder result = Type.Record.named(entryName).public_();
+    RecordSpec.Builder result = RecordSpec.named(entryName).public_();
     result.component(Component.type(keyTypeRef, "key").build());
     result.component(Component.type(valueTypeRef, "value").build());
 
-    Type.Class entryCodec = CodecSourceMapping.emitEntryCodec(entryName, f, ci);
+    ClassSpec entryCodec = CodecSourceMapping.emitEntryCodec(entryName, f, ci);
     result.nested(entryCodec);
 
     return result.build();

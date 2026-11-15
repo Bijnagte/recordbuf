@@ -56,7 +56,7 @@ class SourceAstClosednessTest {
   @Test
   void typeHeaderListsAreTypeRef() throws Exception {
     checkTypeRefList(
-        Arrays.asList(Type.Record.class, Type.Class.class, Type.Enum.class, Type.Interface.class));
+        Arrays.asList(RecordSpec.class, ClassSpec.class, EnumSpec.class, InterfaceSpec.class));
   }
 
   private static void checkTypeRefList(List<Class<?>> typeClasses) throws Exception {
