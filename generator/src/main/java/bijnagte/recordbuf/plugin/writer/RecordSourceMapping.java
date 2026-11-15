@@ -220,16 +220,14 @@ public final class RecordSourceMapping {
     // Must run BEFORE the REPEATED label check (maps use REPEATED but are not Lists).
     if (f.kind() == FieldKind.MAP) {
       var mapRef =
-          TypeRef.named(
-              "java.util",
-              "Map",
+          TypeRefs.MAP.withGenerics(
               TypeRef.boxedFor(Objects.requireNonNull(f.mapKey())),
               TypeRef.boxedFor(Objects.requireNonNull(f.mapValue())));
       return mapRef;
     }
     // M4-C2d-2: repeated MESSAGE/ENUM → List<ElementType>, element resolved per kind.
     if (f.label() == FieldLabel.REPEATED) {
-      var listRef = TypeRef.named("java.util", "List", elementComponentType(f));
+      var listRef = TypeRefs.LIST.withGenerics(elementComponentType(f));
       return listRef;
     }
     // M4-C2d-12: WKT fields → native Java type from WellKnownTypes (e.g. Timestamp→Instant,

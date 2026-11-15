@@ -117,7 +117,7 @@ class TypeRefTest {
   void named_withTypeArgs_createsWithGenerics() {
     TypeRef.Named m =
         ((TypeRef.Named) TypeRef.of("java.util.Map"))
-            .withTypeArgs(TypeRef.of("java.lang.Integer"), TypeRef.of("java.lang.String"));
+            .withGenerics(TypeRef.of("java.lang.Integer"), TypeRef.of("java.lang.String"));
     assertEquals("java.util.Map", m.fqn());
     assertEquals(2, m.generics().size());
     assertFalse(m.generics().isEmpty());

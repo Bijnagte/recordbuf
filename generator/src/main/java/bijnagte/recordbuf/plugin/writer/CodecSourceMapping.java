@@ -173,8 +173,7 @@ public final class CodecSourceMapping {
               if (f.label() == FieldLabel.REPEATED) {
                 body.add(
                     LocalVar.builder(
-                            TypeRef.named(
-                                "java.util", "List", List.of(TypeRef.of(messageShortName(f)))),
+                            TypeRefs.LIST.withGenerics(TypeRef.of(messageShortName(f))),
                             f.javaName())
                         .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)));
               } else {
@@ -192,8 +191,7 @@ public final class CodecSourceMapping {
               if (f.label() == FieldLabel.REPEATED) {
                 body.add(
                     LocalVar.builder(
-                            TypeRef.named("java.util", "List", List.of(TypeRef.of(enumShort))),
-                            f.javaName())
+                            TypeRefs.LIST.withGenerics(TypeRef.of(enumShort)), f.javaName())
                         .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)));
               } else {
                 body.add(
@@ -641,9 +639,7 @@ public final class CodecSourceMapping {
   }
 
   private static Element emitRepeatedLocalInit(Field f) {
-    return LocalVar.builder(
-            TypeRef.named("java.util", "List", List.of(TypeRef.boxedFor(f.typeUrl()))),
-            f.javaName())
+    return LocalVar.builder(TypeRefs.LIST.withGenerics(TypeRef.boxedFor(f.typeUrl())), f.javaName())
         .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST));
   }
 

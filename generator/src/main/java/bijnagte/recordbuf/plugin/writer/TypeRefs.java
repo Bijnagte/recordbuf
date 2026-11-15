@@ -33,10 +33,11 @@ final class TypeRefs {
   static final TypeRef WKT_AVRO_BRIDGE = TypeRef.of("bijnagte.recordbuf.avro.WktAvroBridge");
 
   // --- common Java / protobuf types ---
-  static final TypeRef LIST = TypeRef.of("java.util.List");
-  static final TypeRef ARRAY_LIST = TypeRef.of("java.util.ArrayList");
-  static final TypeRef HASH_MAP = TypeRef.of("java.util.HashMap");
-  static final TypeRef BYTE_BUFFER = TypeRef.of("java.nio.ByteBuffer");
+  static final TypeRef.Named LIST = TypeRef.named("java.util", "List");
+  static final TypeRef.Named ARRAY_LIST = TypeRef.named("java.util", "ArrayList");
+  static final TypeRef.Named MAP = TypeRef.named("java.util", "Map");
+  static final TypeRef.Named HASH_MAP = TypeRef.named("java.util", "HashMap");
+  static final TypeRef BYTE_BUFFER = TypeRef.named("java.nio", "ByteBuffer");
   static final TypeRef ARRAYS = TypeRef.of("java.util.Arrays");
   static final TypeRef BYTE_STRING = TypeRef.of("com.google.protobuf.ByteString");
 }

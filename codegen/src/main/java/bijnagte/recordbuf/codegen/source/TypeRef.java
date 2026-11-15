@@ -90,9 +90,9 @@ public sealed interface TypeRef extends Formattable {
     if (lt < 0) {
       int lastDot = ref.lastIndexOf('.');
       if (lastDot < 0) {
-        return Named.ofBase("", ref, List.of());
+        return Named.ofBase("", ref);
       }
-      return Named.ofBase(ref.substring(0, lastDot), ref.substring(lastDot + 1), List.of());
+      return Named.ofBase(ref.substring(0, lastDot), ref.substring(lastDot + 1));
     }
     String base = ref.substring(0, lt);
     String argsStr = ref.substring(lt + 1, ref.lastIndexOf('>'));
@@ -154,42 +154,42 @@ public sealed interface TypeRef extends Formattable {
   // --- boxed primitive constants -----------------------------------------------
 
   /** {@code java.lang.Integer} — the boxed type for protobuf {@code int32}, {@code uint32}, etc. */
-  Named INTEGER = Named.ofBase("java.lang", "Integer", List.of());
+  Named INTEGER = Named.ofBase("java.lang", "Integer");
 
   /** {@code java.lang.Long} — the boxed type for protobuf {@code int64}, {@code uint64}, etc. */
-  Named LONG = Named.ofBase("java.lang", "Long", List.of());
+  Named LONG = Named.ofBase("java.lang", "Long");
 
   /** {@code java.lang.Float} — the boxed type for protobuf {@code float}. */
-  Named FLOAT = Named.ofBase("java.lang", "Float", List.of());
+  Named FLOAT = Named.ofBase("java.lang", "Float");
 
   /** {@code java.lang.Double} — the boxed type for protobuf {@code double}. */
-  Named DOUBLE = Named.ofBase("java.lang", "Double", List.of());
+  Named DOUBLE = Named.ofBase("java.lang", "Double");
 
   /** {@code java.lang.Boolean} — the boxed type for protobuf {@code bool}. */
-  Named BOOLEAN = Named.ofBase("java.lang", "Boolean", List.of());
+  Named BOOLEAN = Named.ofBase("java.lang", "Boolean");
 
   /**
    * {@code java.lang.Short} — the boxed type for protobuf {@code sint32}/{@code sfixed32} (32-bit).
    */
-  Named SHORT = Named.ofBase("java.lang", "Short", List.of());
+  Named SHORT = Named.ofBase("java.lang", "Short");
 
   /** {@code java.lang.Byte} — the boxed type for a single proto byte. */
-  Named BYTE = Named.ofBase("java.lang", "Byte", List.of());
+  Named BYTE = Named.ofBase("java.lang", "Byte");
 
   /** {@code java.lang.Character} — the boxed type for protobuf {@code uint32} as char. */
-  Named CHARACTER = Named.ofBase("java.lang", "Character", List.of());
+  Named CHARACTER = Named.ofBase("java.lang", "Character");
 
   /** {@code java.lang.String} — the boxed type for protobuf {@code string}. */
-  Named STRING = Named.ofBase("java.lang", "String", List.of());
+  Named STRING = Named.ofBase("java.lang", "String");
 
   /** {@code java.lang.Object} — the boxed type for an unresolvable scalar (default). */
-  Named OBJECT = Named.ofBase("java.lang", "Object", List.of());
+  Named OBJECT = Named.ofBase("java.lang", "Object");
 
   /** {@code byte[]} — the byte array type used throughout codecs. */
   Array BYTES = array(Primitive.BYTE);
 
   /** {@code java.io.IOException} — the standard thrown clause for codec I/O methods. */
-  Named IO_EXCEPTION = Named.ofBase("java.io", "IOException", List.of());
+  Named IO_EXCEPTION = Named.ofBase("java.io", "IOException");
 
   /**
    * Resolve the boxed {@link Named} for a protobuf scalar type URL.
@@ -225,11 +225,15 @@ public sealed interface TypeRef extends Formattable {
    */
   record Named(String pkg, String shortName, List<TypeRef> generics) implements TypeRef {
 
+    public Named {
+      generics = List.copyOf(generics);
+    }
+
     /**
      * Internal factory that does not copy generics. Used by {@link #of(String)} for the base path.
      */
-    static Named ofBase(String pkg, String shortName, List<TypeRef> generics) {
-      return new Named(pkg, shortName, generics);
+    static Named ofBase(String pkg, String shortName) {
+      return new Named(pkg, shortName, List.of());
     }
 
     @Override
@@ -278,9 +282,14 @@ public sealed interface TypeRef extends Formattable {
       return Set.of((TypeRef) this);
     }
 
-    /** A fully-qualified reference with no generics. */
-    public Named withTypeArgs(TypeRef... args) {
+    /** A fully-qualified reference with generics. */
+    public Named withGenerics(TypeRef... args) {
       return new Named(pkg, shortName, List.of(args));
+    }
+
+    /** A fully-qualified reference with generics. */
+    public Named withGenerics(List<TypeRef> generics) {
+      return new Named(pkg, shortName, generics);
     }
   }
 

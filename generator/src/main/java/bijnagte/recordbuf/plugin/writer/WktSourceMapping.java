@@ -12,7 +12,6 @@ import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
 import bijnagte.recordbuf.plugin.types.WellKnownTypes;
 import bijnagte.recordbuf.plugin.types.WellKnownTypes.Entry;
-import java.util.List;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
@@ -43,8 +42,7 @@ final class WktSourceMapping {
     TypeRef type = TypeRef.of(requireType(entry));
     String name = f.javaName();
     if (f.label() == FieldLabel.REPEATED) {
-      TypeRef namedList =
-          TypeRef.named("java.util", "List", List.of(TypeRef.of(requireType(entry))));
+      TypeRef namedList = TypeRefs.LIST.withGenerics(TypeRef.of(requireType(entry)));
       return LocalVar.builder(namedList, name)
           .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST));
     }

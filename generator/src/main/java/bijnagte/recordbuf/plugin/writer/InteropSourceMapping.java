@@ -135,9 +135,7 @@ public final class InteropSourceMapping {
     if (f.isMessage() && f.isRepeated()) {
       String recSib = recordSiblingFqn(f);
       out.add(
-          LocalVar.builder(
-                  TypeRef.named("java.util", "List", List.of(TypeRef.of(recSib))),
-                  "_" + f.javaName())
+          LocalVar.builder(TypeRefs.LIST.withGenerics(TypeRef.of(recSib)), "_" + f.javaName())
               .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)));
       out.add(
           For.enhanced("var _e", "x.get@0List()", cap)
