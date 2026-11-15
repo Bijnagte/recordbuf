@@ -7,7 +7,6 @@ import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.For;
 import bijnagte.recordbuf.codegen.source.If;
-import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.LocalVar;
 import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.RawExpr;
@@ -70,9 +69,11 @@ public final class CodecSourceMapping {
             .static_()
             .final_()
             .javadoc(
-                Javadoc.builder()
-                    .text("Wire codec for the ", m.name(), " record.")
-                    .build()); // M4-C2b-2b-8: <Name>Codec to align with old path
+                GeneratedDocs.type(
+                    null,
+                    "Wire codec for the "
+                        + m.name()
+                        + " record.")); // M4-C2b-2b-8: <Name>Codec to align with old path
     result.constructor(Constructor.builder().private_().build());
     result.method(encode(m, ci, typeResolver));
     result.method(decode(m, ci, typeResolver));
@@ -659,7 +660,14 @@ public final class CodecSourceMapping {
     WireScalar keyWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapKey()));
     WireScalar valWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapValue()));
     String codecName = entryName + "Codec";
-    ClassSpec.Builder result = ClassSpec.named(codecName).public_().static_().final_();
+    ClassSpec.Builder result =
+        ClassSpec.named(codecName)
+            .javadoc(
+                GeneratedDocs.type(
+                    null, "Auto-generated codec for the " + entryName + " map entry."))
+            .public_()
+            .static_()
+            .final_();
 
     result.constructor(Constructor.builder().private_().build());
 

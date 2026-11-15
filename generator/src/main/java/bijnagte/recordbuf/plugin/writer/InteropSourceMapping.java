@@ -55,16 +55,15 @@ public final class InteropSourceMapping {
     String rec = m.name();
 
     Javadoc javadoc =
-        Javadoc.builder()
-            .text(
-                "Structural X <-> R converter between ",
-                rec,
-                " (record) and ",
-                ref,
-                " (protobuf-java), generated from ",
-                sourceName,
-                ". Field-by-field conversion only.")
-            .build();
+        GeneratedDocs.type(
+            null,
+            "Structural X <-> R converter between "
+                + rec
+                + " (record) and "
+                + ref
+                + " (protobuf-java), generated from "
+                + sourceName
+                + ". Field-by-field conversion only.");
 
     var privateCtor = Constructor.builder().private_().build();
 

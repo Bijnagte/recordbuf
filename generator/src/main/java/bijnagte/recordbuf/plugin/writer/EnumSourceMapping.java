@@ -5,7 +5,6 @@ import bijnagte.recordbuf.codegen.source.Component;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.EnumSpec;
-import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.RawExpr;
 import bijnagte.recordbuf.codegen.source.StaticBlock;
@@ -50,7 +49,10 @@ public final class EnumSourceMapping {
     EnumSpec.Builder result =
         EnumSpec.named(proto.name())
             .public_()
-            .javadoc(Javadoc.builder().text(proto.comment()).build())
+            .javadoc(
+                GeneratedDocs.type(
+                    proto.comment(),
+                    "Auto-generated enum for the " + proto.name() + " proto enum."))
             .deprecated(proto.deprecated())
             .implementsFqns(proto.interfaces());
 
@@ -59,7 +61,7 @@ public final class EnumSourceMapping {
       result.enumConstant(
           bijnagte.recordbuf.codegen.source.EnumConstant.named(c.name())
               .ctorArgs(Integer.toString(c.number()))
-              .javadoc(Javadoc.builder().text(c.comment()).build())
+              .javadoc(GeneratedDocs.type(c.comment(), "Enum constant " + c.name() + "."))
               .deprecated(c.deprecated())
               .build());
     }

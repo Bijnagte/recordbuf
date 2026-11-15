@@ -7,7 +7,6 @@ import bijnagte.recordbuf.codegen.source.Component;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.InterfaceSpec;
-import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.Param;
 import bijnagte.recordbuf.codegen.source.RawExpr;
@@ -55,7 +54,9 @@ public final class RecordSourceMapping {
     RecordSpec.Builder result =
         RecordSpec.named(m.name())
             .public_()
-            .javadoc(Javadoc.builder().text(m.comment()).build())
+            .javadoc(
+                GeneratedDocs.type(
+                    m.comment(), "Auto-generated record for the " + m.name() + " proto message."))
             .deprecated(m.deprecated())
             .implementsFqns(m.interfaces());
 
@@ -106,7 +107,9 @@ public final class RecordSourceMapping {
     RecordSpec.Builder result =
         RecordSpec.named(m.name())
             .public_()
-            .javadoc(Javadoc.builder().text(m.comment()).build())
+            .javadoc(
+                GeneratedDocs.type(
+                    m.comment(), "Auto-generated record for the " + m.name() + " proto message."))
             .deprecated(m.deprecated());
     for (Field f : m.fields()) {
       var comp = Component.type(scalarComponentType(f), f.javaName());
@@ -333,7 +336,13 @@ public final class RecordSourceMapping {
     // The extendsFqn carries the full FQN; the collect() phase registers it via
     // TypeRef.referencedTypes().
     InterfaceSpec.Builder iface =
-        InterfaceSpec.named(ifaceName).public_().sealed_().extendsFqn(unwrapFqn + "<Object>");
+        InterfaceSpec.named(ifaceName)
+            .javadoc(
+                GeneratedDocs.type(
+                    null, "Auto-generated sealed interface for the " + ifaceName + " oneof."))
+            .public_()
+            .sealed_()
+            .extendsFqn(unwrapFqn + "<Object>");
 
     // Build permits and nested per-member records simultaneously. For each oneof member
     // (scalar, enum, or message), emit a nested public record <Cap>Value(<Type> value)
@@ -357,6 +366,9 @@ public final class RecordSourceMapping {
       }
       RecordSpec wr =
           RecordSpec.named(valName)
+              .javadoc(
+                  GeneratedDocs.type(
+                      null, "Auto-generated record for the " + valName + " oneof value."))
               .public_()
               .implementsFqn(ifaceName)
               .component(Component.type(valType, "value").build())
@@ -406,9 +418,8 @@ public final class RecordSourceMapping {
     ClassSpec.Builder builderClz =
         ClassSpec.named("Builder")
             .javadoc(
-                Javadoc.builder()
-                    .text("Fluent, value-only builder for the ", m.name(), " record.")
-                    .build())
+                GeneratedDocs.type(
+                    null, "Fluent, value-only builder for the " + m.name() + " record."))
             .public_()
             .static_()
             .final_();
@@ -506,7 +517,7 @@ public final class RecordSourceMapping {
     ctorArgs.add("unknownFields");
     builderClz.method(
         Method.named("build")
-            .javadoc(Javadoc.builder().text("Builds a ", m.name(), " record.").build())
+            .javadoc(GeneratedDocs.type(null, "Builds a " + m.name() + " record."))
             .public_()
             .returnType(TypeRef.of(recName))
             .body(Element.ret("new @0(@1)", recName, String.join(", ", ctorArgs)))
@@ -519,12 +530,11 @@ public final class RecordSourceMapping {
     var builderFactory =
         Method.named("builder")
             .javadoc(
-                Javadoc.builder()
-                    .text(
-                        "Static factory for a fresh ",
-                        m.name(),
-                        " {@link Builder}. Build it fluently, then call {@link Builder#build()}.")
-                    .build())
+                GeneratedDocs.type(
+                    null,
+                    "Static factory for a fresh "
+                        + m.name()
+                        + " {@link Builder}. Build it fluently, then call {@link Builder#build()}."))
             .public_()
             .static_()
             .returnType(TypeRef.of("Builder"))
@@ -598,7 +608,12 @@ public final class RecordSourceMapping {
     TypeRef keyTypeRef = TypeRef.boxedFor(Objects.requireNonNull(f.mapKey()));
     TypeRef valueTypeRef = TypeRef.boxedFor(Objects.requireNonNull(f.mapValue()));
 
-    RecordSpec.Builder result = RecordSpec.named(entryName).public_();
+    RecordSpec.Builder result =
+        RecordSpec.named(entryName)
+            .javadoc(
+                GeneratedDocs.type(
+                    null, "Auto-generated record for the " + entryName + " map entry."))
+            .public_();
     result.component(Component.type(keyTypeRef, "key").build());
     result.component(Component.type(valueTypeRef, "value").build());
 
