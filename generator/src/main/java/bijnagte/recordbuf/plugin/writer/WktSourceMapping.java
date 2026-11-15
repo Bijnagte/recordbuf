@@ -6,6 +6,7 @@ import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.For;
 import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.LocalVar;
+import bijnagte.recordbuf.codegen.source.RawExpr;
 import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
@@ -44,13 +45,15 @@ final class WktSourceMapping {
     if (f.label() == FieldLabel.REPEATED) {
       TypeRef namedList =
           TypeRef.named("java.util", "List", List.of(TypeRef.of(requireType(entry))));
-      return LocalVar.builder(namedList, name).build("new @0<>()", TypeRefs.ARRAY_LIST);
+      return LocalVar.builder(namedList, name)
+          .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST));
     }
     if (entry.hasZeroDefault()) {
-      return LocalVar.builder(type, name).build(entry.zeroDefault());
+      return LocalVar.builder(type, name)
+          .assigned(RawExpr.of(Objects.requireNonNull(entry.zeroDefault())));
     }
     // Wrapper WKT (nullable)
-    return LocalVar.builder(type, name).build("null");
+    return LocalVar.builder(type, name).assigned(RawExpr.of("null"));
   }
 
   // encode arm: for structured WKT, "if (!v.field().equals(ZERO)) out.writeByteArray(n,

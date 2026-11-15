@@ -152,7 +152,7 @@ public final class RecordSourceMapping {
         Method.named("toBuilder")
             .public_()
             .returnType(TypeRef.of("Builder"))
-            .body(Element.expr("return new @0.Builder(this)", m.name()))
+            .body(Element.ret("new @0.Builder(this)", m.name()))
             .build());
     result.method(
         Method.named("fromBytes")
@@ -161,7 +161,7 @@ public final class RecordSourceMapping {
             .returnType(TypeRef.of(m.name()))
             .param(TypeRef.BYTES, "in")
             .thrown(TypeRef.IO_EXCEPTION)
-            .body(Element.expr("return @0.decode(in)", codecName))
+            .body(Element.ret("@0.decode(in)", codecName))
             .build());
 
     // M4-C2b-2b-5: the Layer A marshalling hook. Every record implements ProtobufMessage by
@@ -172,7 +172,7 @@ public final class RecordSourceMapping {
             .public_()
             .returnType(TypeRef.BYTES)
             .thrown(TypeRef.IO_EXCEPTION)
-            .body(Element.expr("return @0Codec.encode(this)", m.name()))
+            .body(Element.ret("@0Codec.encode(this)", m.name()))
             .override(true)
             .build();
     result.method(toByteArray);
@@ -369,7 +369,7 @@ public final class RecordSourceMapping {
         Method.named("value")
             .default_()
             .returnType(TypeRef.OBJECT)
-            .body(Element.of("return this;"))
+            .body(Element.ret("this"))
             .override(true)
             .build();
     iface.method(defaultMethod);
@@ -468,7 +468,7 @@ public final class RecordSourceMapping {
               .public_()
               .returnType(TypeRef.of("Builder"))
               .param(Param.of(scalarComponentType(f), fieldName))
-              .body(Element.expr("this.@0 = @1", fieldName, fieldName), Element.of("return this;"))
+              .body(Element.expr("this.@0 = @1", fieldName, fieldName), Element.ret("this"))
               .build());
     }
     // M4-C2b-2b-12: oneof fluent setter per component.
@@ -479,7 +479,7 @@ public final class RecordSourceMapping {
               .public_()
               .returnType(TypeRef.of("Builder"))
               .param(Param.of(TypeRef.of(oneof.ifaceName()), compName, Annotation.NULLABLE))
-              .body(Element.expr("this.@0 = @1", compName, compName), Element.of("return this;"))
+              .body(Element.expr("this.@0 = @1", compName, compName), Element.ret("this"))
               .build());
     }
     // Carrier setter.
@@ -488,7 +488,7 @@ public final class RecordSourceMapping {
             .public_()
             .returnType(TypeRef.of("Builder"))
             .param(ufRef, "unknownFields")
-            .body(Element.of("this.unknownFields = unknownFields;"), Element.of("return this;"))
+            .body(Element.of("this.unknownFields = unknownFields;"), Element.ret("this"))
             .build());
 
     // build(): constructs the record.
@@ -506,7 +506,7 @@ public final class RecordSourceMapping {
             .javadoc(Javadoc.builder().text("Builds a ", m.name(), " record.").build())
             .public_()
             .returnType(TypeRef.of(recName))
-            .body(Element.expr("return new @0(@1)", recName, String.join(", ", ctorArgs)))
+            .body(Element.ret("new @0(@1)", recName, String.join(", ", ctorArgs)))
             .build());
 
     // The nested Builder class itself — with javadoc matching the old JavaWriter path.
@@ -525,7 +525,7 @@ public final class RecordSourceMapping {
             .public_()
             .static_()
             .returnType(TypeRef.of("Builder"))
-            .body(Element.expr("return new @0.Builder()", recName))
+            .body(Element.ret("new @0.Builder()", recName))
             .build();
 
     return new BuilderEmission(builderFactory, nestedBuilder);

@@ -7,6 +7,7 @@ import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.For;
 import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.Javadoc;
+import bijnagte.recordbuf.codegen.source.LocalVar;
 import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.RawExpr;
 import bijnagte.recordbuf.codegen.source.Switch;
@@ -131,7 +132,7 @@ public final class CodecSourceMapping {
             .body(Element.expr("@0.writeUnknown(out, v.unknownFields());", WIRE))
             .build());
 
-    body.add(Element.of("return enc.finish();"));
+    body.add(Element.ret("enc.finish()"));
 
     return Method.named("encode")
         .public_()
@@ -171,14 +172,17 @@ public final class CodecSourceMapping {
                 TypeRefs.HASH_MAP));
       } else if (f.kind() == FieldKind.MESSAGE) {
         if (typeResolver != null) {
-          // The TYPE short name for the local init.
-          String typeShort = f.typeUrl().substring(f.typeUrl().lastIndexOf('.') + 1);
           if (f.label() == FieldLabel.REPEATED) {
             body.add(
-                Element.expr(
-                    "List<@0> @1 = new @2<>();", typeShort, f.javaName(), TypeRefs.ARRAY_LIST));
+                LocalVar.builder(
+                        TypeRef.named(
+                            "java.util", "List", List.of(TypeRef.of(messageShortName(f)))),
+                        f.javaName())
+                    .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)));
           } else {
-            body.add(Element.expr("@0 @1 = null;", typeShort, f.javaName()));
+            body.add(
+                LocalVar.builder(TypeRef.of(messageShortName(f)), f.javaName())
+                    .assigned(RawExpr.of("null")));
           }
         }
       } else if (f.kind() == FieldKind.ENUM) {
@@ -197,7 +201,7 @@ public final class CodecSourceMapping {
           if (f.label() == FieldLabel.REPEATED) {
             body.add(Element.expr("List<?> @0 = new @1<>();", f.javaName(), TypeRefs.ARRAY_LIST));
           } else {
-            body.add(Element.expr("Object @0 = null;", f.javaName()));
+            body.add(LocalVar.builder(TypeRef.OBJECT, f.javaName()).assigned(RawExpr.of("null")));
           }
         }
       } else if (f.label() == FieldLabel.REPEATED) {
@@ -265,7 +269,7 @@ public final class CodecSourceMapping {
     // M4-C2b-2b-12: oneof components: pass the oneof local (assigned in the tag loop, or null).
     for (var oneof : m.oneofs()) allNames.add(oneof.componentName());
     allNames.add("unknown.build()");
-    body.add(Element.expr("return new @0(@1)", m.name(), joinCommas(allNames)));
+    body.add(Element.ret("new @0(@1)", m.name(), joinCommas(allNames)));
 
     return Method.named("decode")
         .public_()
@@ -316,6 +320,18 @@ public final class CodecSourceMapping {
   }
 
   // --- Per-field MESSAGE encode/decode (M4-C2d-5) ---
+
+  /**
+   * The bare short name (last path segment) of a message/enum field's type URL — e.g. {@code
+   * "bijnagte.recordbuf.fixture.message.Item"} → {@code "Item"}. Building the sibling local's
+   * {@link TypeRef} from the short name (rather than the protobuf FQN) keeps it in-package, so it
+   * renders as a bare name without importing the sibling's protobuf FQN (which would shadow the
+   * same-package record).
+   */
+  private static String messageShortName(Field f) {
+    String url = f.typeUrl();
+    return url.substring(url.lastIndexOf('.') + 1);
+  }
 
   /** M4-C2d-5: singular MESSAGE encode — skip null, else writeByteArray(tag, Codec.encode(v)). */
   private static Element emitMessageEncode(
@@ -638,7 +654,7 @@ public final class CodecSourceMapping {
     // value: field 2 — always field 2; written unconditionally, same unwrapping rule.
     String valArg = valWire == WireScalar.BYTES ? "v.value().toByteArray()" : "v.value()";
     encBody.add(Element.expr("out.@0(2, @1);", encodeCall(valWire), valArg));
-    encBody.add(Element.of("return enc.finish();"));
+    encBody.add(Element.ret("enc.finish()"));
 
     result.method(
         Method.named("encode")
@@ -666,7 +682,7 @@ public final class CodecSourceMapping {
     tagLoop.add(switchB.build());
     tagLoop.add(Element.of(""));
     decBody.add(While.condition("true").body(tagLoop).build());
-    decBody.add(Element.expr("return new @0(key, value);", entryName));
+    decBody.add(Element.ret("new @0(key, value)", entryName));
 
     result.method(
         Method.named("decode")

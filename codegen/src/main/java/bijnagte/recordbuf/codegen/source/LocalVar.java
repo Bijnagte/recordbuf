@@ -35,16 +35,16 @@ public record LocalVar(List<Annotation> annotations, TypeRef type, String name, 
    *
    * <pre>{@code
    * // With initializer:
-   * LocalVar.builder(TypeRef.of("java.util.HashMap"), "_m").build(
+   * LocalVar.builder(TypeRef.of("java.util.HashMap"), "_m").assigned(
    *     "new @0<>()", TypeRef.of("java.util.HashMap"));
    *
    * // Without initializer:
-   * LocalVar.builder(TypeRef.int_(), "count").build();
+   * LocalVar.builder(TypeRef.int_(), "count").unassigned();
    *
    * // With a @Nullable annotation:
    * LocalVar.builder(TypeRef.of("com.example.Foo"), "f")
    *     .annotation(Annotation.NULLABLE)
-   *     .build("switch (s) { ... }");
+   *     .assigned("switch (s) { ... }");
    * }</pre>
    */
   public static final class Builder {
@@ -66,31 +66,34 @@ public record LocalVar(List<Annotation> annotations, TypeRef type, String name, 
       return this;
     }
 
-    /** Build with no initializer — renders as {@code <type> <name>;}. */
-    public LocalVar build() {
+    /**
+     * Build with no initializer — renders as {@code <type> <name>;} (an unassigned declaration).
+     */
+    public LocalVar unassigned() {
       return new LocalVar(List.copyOf(annotations), type, name, null);
     }
 
     /**
-     * Build with an {@code @N}-templated initializer expression.
+     * Build with an {@code @N}-templated initializer expression (an assigned declaration).
      *
      * @param initTemplate the template string with {@code @N} positional placeholders
      * @param initArgs the positional args — each a {@link Formattable} or a bare {@link String}
      * @return a {@link LocalVar} with the initializer set
      * @throws IllegalArgumentException if the template contains out-of-bounds {@code @N}
      */
-    public LocalVar build(String initTemplate, Object... initArgs) {
+    public LocalVar assigned(String initTemplate, Object... initArgs) {
       return new LocalVar(List.copyOf(annotations), type, name, RawExpr.of(initTemplate, initArgs));
     }
 
     /**
-     * Build with a pre-built {@link Formattable} initializer. Use this when the initializer is a
-     * composite node (e.g. a {@link SwitchExpr}) rather than a {@code @N}-templated string.
+     * Build with a pre-built {@link Formattable} initializer (an assigned declaration). Use this
+     * when the initializer is a composite node (e.g. a {@link SwitchExpr}) rather than a
+     * {@code @N}-templated string.
      *
      * @param init the initializer expression
      * @return a {@link LocalVar} with the initializer set
      */
-    public LocalVar build(Formattable init) {
+    public LocalVar assigned(Formattable init) {
       return new LocalVar(List.copyOf(annotations), type, name, init);
     }
   }

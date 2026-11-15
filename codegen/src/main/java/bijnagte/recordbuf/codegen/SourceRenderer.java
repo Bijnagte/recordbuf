@@ -170,6 +170,10 @@ public final class SourceRenderer {
           if (lv.init() != null) accumulated.addAll(lv.init().referencedTypes());
         }
         case ExprStatement es -> collectExpr(es.expr());
+        case Return r -> {
+          if (r.expr() != null) collectExpr(r.expr());
+        }
+        case Throw t -> collectExpr(t.expr());
         case If i -> {
           accumulated.addAll(i.condition().referencedTypes());
           i.body().forEach(this::collectBody);
@@ -526,9 +530,25 @@ public final class SourceRenderer {
       var ctx = ci.resolutionContext();
       switch (s) {
         case Fragment fr -> out.append(fr.text()).append('\n');
-        case Return r ->
-            out.append(r.expr() == null ? "return;" : "return " + r.expr() + ";").append('\n');
-        case Throw t -> out.append("throw ").append(t.expr()).append(';').append('\n');
+        case Return r -> {
+          if (r.expr() == null) {
+            out.append("return;\n");
+          } else {
+            String rendered = r.expr().render(ctx);
+            // Strip a trailing ';' if the template already includes one, to avoid double-;; .
+            if (rendered.endsWith(";")) {
+              rendered = rendered.substring(0, rendered.length() - 1);
+            }
+            out.append("return ").append(rendered).append(";\n");
+          }
+        }
+        case Throw t -> {
+          String rendered = t.expr().render(ctx);
+          if (rendered.endsWith(";")) {
+            rendered = rendered.substring(0, rendered.length() - 1);
+          }
+          out.append("throw ").append(rendered).append(";\n");
+        }
         case ExprStatement e -> {
           String rendered = e.expr().render(ctx);
           // Strip a trailing ';

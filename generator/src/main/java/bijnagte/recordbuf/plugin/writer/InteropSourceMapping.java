@@ -100,7 +100,7 @@ public final class InteropSourceMapping {
       ctorArgs.add("_" + o.name());
     }
     ctorArgs.add(RawExpr.of("@0.empty()", TypeRefs.UNKNOWN_FIELDS));
-    body.add(Element.expr("return new @0(@1)", rec, CommaList.of(ctorArgs)));
+    body.add(Element.ret("new @0(@1)", rec, CommaList.of(ctorArgs)));
 
     return Method.named("from")
         .public_()
@@ -136,13 +136,10 @@ public final class InteropSourceMapping {
     if (f.isMessage() && f.isRepeated()) {
       String recSib = recordSiblingFqn(f);
       out.add(
-          Element.expr(
-              RawExpr.of(
-                  "@0<@2> _@3 = new @1<>()",
-                  TypeRefs.LIST,
-                  TypeRefs.ARRAY_LIST,
-                  TypeRef.of(recSib),
-                  f.javaName())));
+          LocalVar.builder(
+                  TypeRef.named("java.util", "List", List.of(TypeRef.of(recSib))),
+                  "_" + f.javaName())
+              .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)));
       out.add(
           For.enhanced("var _e", "x.get@0List()", cap)
               .body(Element.expr("_@0.add(@1.Interop.from(_e))", f.javaName(), recSib))
@@ -215,7 +212,7 @@ public final class InteropSourceMapping {
     for (Oneof o : m.oneofs()) {
       body.addAll(emitOneofTo(o, refPkg));
     }
-    body.add(Element.of("return _b.build();"));
+    body.add(Element.ret("_b.build()"));
 
     return Method.named("to")
         .public_()
@@ -308,7 +305,7 @@ public final class InteropSourceMapping {
     sw.defaultArm(RawExpr.of("null"));
     return LocalVar.builder(TypeRef.of(o.ifaceName()), "_" + o.name())
         .annotation(Annotation.NULLABLE)
-        .build(sw.build());
+        .assigned(sw.build());
   }
 
   private static List<Element> emitOneofTo(Oneof o, String refPkg) {

@@ -106,7 +106,7 @@ public final class AvroConverterSourceMapping {
       body.add(toRecordFieldLine(f, "s"));
     }
     body.add(Element.expr("@0.unknownFields(@1.empty())", "b", TypeRefs.UNKNOWN_FIELDS));
-    body.add(Element.of("return b.build();"));
+    body.add(Element.ret("b.build()"));
 
     return Method.named("toRecord")
         .public_()
@@ -146,7 +146,7 @@ public final class AvroConverterSourceMapping {
     for (Field f : message.fields()) {
       body.add(fromRecordFieldLine(f, "s", "r"));
     }
-    body.add(Element.of("return s;"));
+    body.add(Element.ret("s"));
 
     return Method.named("fromRecord")
         .public_()

@@ -29,7 +29,11 @@ public sealed interface Element
     return new Fragment(text);
   }
 
-  static Return ret(String expr) {
+  static Return ret(String template, Object... args) {
+    return new Return(RawExpr.of(template, args));
+  }
+
+  static Return ret(RawExpr expr) {
     return new Return(expr);
   }
 
@@ -37,7 +41,11 @@ public sealed interface Element
     return new Return(null);
   }
 
-  static Throw throwOf(String expr) {
+  static Throw throwOf(String template, Object... args) {
+    return new Throw(RawExpr.of(template, args));
+  }
+
+  static Throw throwOf(RawExpr expr) {
     return new Throw(expr);
   }
 
@@ -73,7 +81,7 @@ public sealed interface Element
    * LocalVar.Builder}.
    */
   static LocalVar local(TypeRef type, String name, String initTemplate, Object... initArgs) {
-    return LocalVar.builder(type, name).build(initTemplate, initArgs);
+    return LocalVar.builder(type, name).assigned(initTemplate, initArgs);
   }
 
   static Comment comment(String text) {
