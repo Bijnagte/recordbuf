@@ -1,8 +1,9 @@
 package bijnagte.recordbuf.codegen.source;
 
 import bijnagte.recordbuf.codegen.ResolutionContext;
-import bijnagte.recordbuf.codegen.TypeCollector;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * An escape-hatch raw expression: a source-code template string with positional {@code @N}
@@ -25,8 +26,9 @@ import java.util.List;
  *   <li>{@link String} — {@code toString()}
  * </ul>
  *
- * <p>At collect time ({@link #collect(TypeCollector)}), {@link Formattable} args call their own
- * {@code collect}; {@code String} args are skipped (no import needed).
+ * <p>At collect time ({@link #referencedTypes()}), {@link Formattable} args contribute their own
+ * {@code referencedTypes()} (unioned into the result); {@code String} args are skipped (no import
+ * needed).
  *
  * <p>Fail-fast: {@link #of(String, Object...)} throws {@link IllegalArgumentException} at
  * construction if the template contains a positional {@code @N} whose index is out of bounds for
@@ -117,16 +119,17 @@ public record RawExpr(String template, List<Object> args) implements Formattable
   }
 
   /**
-   * Collect type references from this expression's args.
-   *
-   * @param collector the import collector to register type refs with
+   * The type references this expression's args contribute, unioned from each {@link Formattable}
+   * arg. {@code String} args are skipped (no import needed).
    */
   @Override
-  public void collect(TypeCollector collector) {
+  public Set<TypeRef> referencedTypes() {
+    Set<TypeRef> refs = new LinkedHashSet<>();
     for (Object arg : args()) {
-      if (arg instanceof Formattable f) f.collect(collector);
+      if (arg instanceof Formattable f) refs.addAll(f.referencedTypes());
       // String / primitives: skip — no import needed
     }
+    return refs;
   }
 
   private static String renderArg(Object arg, ResolutionContext ctx) {

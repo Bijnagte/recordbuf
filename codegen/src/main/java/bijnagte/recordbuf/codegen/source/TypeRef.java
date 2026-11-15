@@ -262,13 +262,13 @@ public sealed interface TypeRef extends Formattable {
       return sb.toString();
     }
 
-    // Intentional internal bridge: this Formattable.collect override delegates to the (deprecated)
-    // TypeCollector.register(TypeRef) implementation during migration.
+    // A qualified ref contributes itself: the collector resolves it and its generics when it
+    // resolves the set. A bare short name (no package) contributes nothing — it is in-package or a
+    // java.lang type, neither of which needs an import.
     @Override
-    @SuppressWarnings("deprecation")
-    public void collect(bijnagte.recordbuf.codegen.TypeCollector collector) {
-      if (pkg.isEmpty()) return; // bare name: no import
-      collector.register(this);
+    public Set<TypeRef> referencedTypes() {
+      if (pkg.isEmpty()) return Set.of();
+      return Set.of((TypeRef) this);
     }
 
     /** A fully-qualified reference with no generics. */
@@ -314,8 +314,9 @@ public sealed interface TypeRef extends Formattable {
     }
 
     @Override
-    public void collect(bijnagte.recordbuf.codegen.TypeCollector collector) {
+    public Set<TypeRef> referencedTypes() {
       // Primitives have no package — no import needed.
+      return Set.of();
     }
   }
 
@@ -344,8 +345,8 @@ public sealed interface TypeRef extends Formattable {
     }
 
     @Override
-    public void collect(bijnagte.recordbuf.codegen.TypeCollector collector) {
-      element().collect(collector);
+    public Set<TypeRef> referencedTypes() {
+      return element().referencedTypes();
     }
   }
 }

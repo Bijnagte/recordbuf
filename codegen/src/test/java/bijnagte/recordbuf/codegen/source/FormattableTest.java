@@ -16,9 +16,8 @@ import org.junit.jupiter.api.Test;
  * <ul>
  *   <li>{@link TypeRef#render(ResolutionContext)} delegates to {@code resolved(...)} for all
  *       variants.
- *   <li>{@link TypeRef#collect(TypeCollector)} registers the FQN for a {@link TypeRef.Named}, is a
- *       no-op for {@link TypeRef.Primitive}, and recurses into the element for {@link
- *       TypeRef.Array}.
+ *   <li>{@link TypeRef#referencedTypes()} returns the FQN for a {@link TypeRef.Named}, is empty for
+ *       a {@link TypeRef.Primitive}, and recurses into the element for a {@link TypeRef.Array}.
  * </ul>
  */
 class FormattableTest {
@@ -30,7 +29,8 @@ class FormattableTest {
   void named_collect_registersImport() {
     TypeCollector ci = new TypeCollector("com.example");
     TypeRef.Named ref = TypeRef.named("java.util", "HashMap", List.of());
-    ref.collect(ci);
+    ci.accumulate(ref.referencedTypes());
+    ci.finalizeResolution();
     List<String> lines = ci.importLines();
     assertTrue(
         lines.stream().anyMatch(l -> l.contains("java.util.HashMap")),
@@ -41,7 +41,8 @@ class FormattableTest {
   void named_collect_skipsJavaLang() {
     TypeCollector ci = new TypeCollector("com.example");
     TypeRef.Named ref = TypeRef.named("java.lang", "String", List.of());
-    ref.collect(ci);
+    ci.accumulate(ref.referencedTypes());
+    ci.finalizeResolution();
     List<String> lines = ci.importLines();
     assertTrue(
         lines.stream().noneMatch(l -> l.contains("java.lang.String")),
@@ -51,7 +52,8 @@ class FormattableTest {
   @Test
   void primitive_collect_isNoOp() {
     TypeCollector ci = new TypeCollector("com.example");
-    TypeRef.Primitive.INT.collect(ci);
+    ci.accumulate(TypeRef.Primitive.INT.referencedTypes());
+    ci.finalizeResolution();
     List<String> lines = ci.importLines();
     assertTrue(lines.isEmpty(), "primitive collection should produce no imports, got: " + lines);
   }
@@ -61,7 +63,8 @@ class FormattableTest {
     TypeCollector ci = new TypeCollector("com.example");
     TypeRef.Named map = TypeRef.named("java.util", "Map", List.of());
     TypeRef.Array arr = new TypeRef.Array(map);
-    arr.collect(ci);
+    ci.accumulate(arr.referencedTypes());
+    ci.finalizeResolution();
     List<String> lines = ci.importLines();
     assertTrue(
         lines.stream().anyMatch(l -> l.contains("java.util.Map")),
@@ -102,7 +105,8 @@ class FormattableTest {
             "java.util",
             "Map",
             List.of(TypeRef.of("java.lang.String"), TypeRef.of("java.lang.Integer")));
-    map.collect(ci);
+    ci.accumulate(map.referencedTypes());
+    ci.finalizeResolution();
     List<String> lines = ci.importLines();
     assertTrue(
         lines.stream().anyMatch(l -> l.contains("java.util.Map")),
@@ -121,14 +125,14 @@ class FormattableTest {
 
   @Test
   void collect_and_render_areIndependent() {
-    // collect() is a side-effect; render() does not return anything.
+    // referencedTypes() is pure; render() does not depend on the collector.
     // Verify they can be called in either order without interaction.
     TypeCollector ci = new TypeCollector("com.example");
     TypeRef.Named ref = TypeRef.named("java.util", "HashMap", List.of());
     String r1 = ref.render(CTX); // render first
-    ref.collect(ci);
-    String r2 = ref.render(CTX); // render after collect
+    ci.accumulate(ref.referencedTypes());
+    String r2 = ref.render(CTX); // render after accumulate
     assertEquals(r1, r2, "render is deterministic, unaffected by collect");
-    assertDoesNotThrow(() -> ref.collect(ci));
+    assertDoesNotThrow(() -> ref.referencedTypes());
   }
 }

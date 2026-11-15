@@ -65,7 +65,7 @@ public final class AvroConverterSourceMapping {
     // --- conditional imports, resolved upfront in the TypeCollector ---
     boolean samePkg = recordPkg.equals(specificRecordPkg);
     if (!samePkg) {
-      TypeRef.of(specificRecordPkg + "." + avroSpecific).collect(ci);
+      ci.accumulate(TypeRef.of(specificRecordPkg + "." + avroSpecific).referencedTypes());
     }
 
     // --- class AST ---

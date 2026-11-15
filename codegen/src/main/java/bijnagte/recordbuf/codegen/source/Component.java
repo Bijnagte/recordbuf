@@ -12,7 +12,7 @@ import java.util.List;
  * with the {@code TypeCollector} during the collect phase and resolves it to a short name or FQN at
  * render time. The {@code initializer} is a {@link Formattable} rendered through the positional
  * {@code @N} contract (via {@link RawExpr}); its own contained {@code TypeRef}s are collected by
- * the renderer automatically, so no pre-render + {@code .collect(ci)} workaround is needed.
+ * the renderer automatically, so no pre-render + {@code accumulate} workaround is needed.
  *
  * <p>The {@link #annotations()} list is the uniform first-class annotation list (e.g. {@link
  * Annotation#NULLABLE} on a presence-tracked field). A builder {@code deprecated(boolean)} sugar

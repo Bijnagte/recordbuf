@@ -86,7 +86,8 @@ class RawExprTest {
   void collect_registersTypeRefs() {
     TypeCollector ci = new TypeCollector("com.example");
     RawExpr r = RawExpr.of("var x = new @0<>()", TypeRef.of("java.util.HashMap"));
-    r.collect(ci);
+    ci.accumulate(r.referencedTypes());
+    ci.finalizeResolution();
     assertTrue(
         ci.importLines().stream().anyMatch(l -> l.contains("java.util.HashMap")),
         "collect should register HashMap import");
@@ -108,7 +109,8 @@ class RawExprTest {
     TypeCollector ci = new TypeCollector("com.example");
     // String arg should produce no import
     RawExpr r = RawExpr.of("return @0;", "someString");
-    r.collect(ci);
+    ci.accumulate(r.referencedTypes());
+    ci.finalizeResolution();
     assertTrue(ci.importLines().isEmpty(), "string args produce no imports");
   }
 }

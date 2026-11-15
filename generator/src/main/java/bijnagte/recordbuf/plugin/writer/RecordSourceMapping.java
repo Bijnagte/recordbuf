@@ -188,7 +188,7 @@ public final class RecordSourceMapping {
       // Declare the record's own FQN so its short name occupies the declaring package; the
       // TypeCollector then FQN's any out-of-package type sharing the name (the protobuf-java
       // reference type of this same message), so the ref and the record never collide.
-      TypeRef.of(ci.declaringPackage() + "." + m.name()).collect(ci);
+      ci.accumulate(TypeRef.of(ci.declaringPackage() + "." + m.name()).referencedTypes());
       result.nested(InteropSourceMapping.toInterop(m, ""));
     }
 
@@ -328,7 +328,7 @@ public final class RecordSourceMapping {
     // value().
     String unwrapFqn = TypeRefs.UNWRAPABLE.fqn();
     // The extendsFqn carries the full FQN; the collect() phase registers it via
-    // TypeRef.collect(ci).
+    // TypeRef.referencedTypes().
     Type.Interface.Builder iface =
         Type.Interface.named(ifaceName).public_().sealed_().extendsFqn(unwrapFqn + "<Object>");
 

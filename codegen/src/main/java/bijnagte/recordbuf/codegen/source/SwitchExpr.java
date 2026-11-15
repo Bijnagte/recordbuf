@@ -1,9 +1,10 @@
 package bijnagte.recordbuf.codegen.source;
 
 import bijnagte.recordbuf.codegen.ResolutionContext;
-import bijnagte.recordbuf.codegen.TypeCollector;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * A switch-expression node, usable as an initializer in a {@link LocalVar}. Unlike {@link Switch}
@@ -72,12 +73,14 @@ public final class SwitchExpr implements Formattable {
   }
 
   @Override
-  public void collect(TypeCollector ci) {
-    if (subject instanceof RawExpr r) r.collect(ci);
+  public Set<TypeRef> referencedTypes() {
+    Set<TypeRef> refs = new LinkedHashSet<>();
+    if (subject instanceof RawExpr r) refs.addAll(r.referencedTypes());
     for (Arm arm : arms) {
-      if (arm.body() instanceof RawExpr r) r.collect(ci);
+      if (arm.body() instanceof RawExpr r) refs.addAll(r.referencedTypes());
     }
-    if (defaultArm instanceof RawExpr r) r.collect(ci);
+    if (defaultArm instanceof RawExpr r) refs.addAll(r.referencedTypes());
+    return refs;
   }
 
   @Override

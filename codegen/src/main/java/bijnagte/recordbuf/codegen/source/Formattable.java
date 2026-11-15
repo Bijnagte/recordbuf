@@ -1,37 +1,39 @@
 package bijnagte.recordbuf.codegen.source;
 
 import bijnagte.recordbuf.codegen.ResolutionContext;
-import bijnagte.recordbuf.codegen.TypeCollector;
+import java.util.Set;
 
 /**
- * A renderable expression piece in a generated source file, supporting both the render phase and
- * the import-collection phase via the same tree.
+ * A node in the source-generation AST that can both contribute its type references to a {@link
+ * bijnagte.recordbuf.codegen.TypeCollector} and render itself to a string under a {@link
+ * ResolutionContext}. Implemented by the AST types that the renderer walks (e.g. {@link TypeRef},
+ * {@link RawExpr}).
  *
- * <p>Two methods:
- *
- * <ul>
- *   <li>{@link #render(ResolutionContext)} — produces the source text for this piece, resolving any
- *       type references against {@code ctx}.
- *   <li>{@link #collect(TypeCollector)} — contributes type references to an import collector.
- * </ul>
- *
- * <p>Implementations: {@link TypeRef} (resolves a type name), {@link RawExpr} (substitutes
- * positional {@code @N} args in a template string).
+ * <p>The {@link #referencedTypes()} / {@link #render(ResolutionContext)} pair is the two-pass
+ * contract: {@code referencedTypes()} is called in the <em>collect</em> pass to gather every import
+ * reference (returning the {@link TypeRef}s this node contributes, unioning its children), and
+ * {@code render} is called in the <em>render</em> pass to produce the source text. This pull shape
+ * (returning refs) keeps the {@link bijnagte.recordbuf.codegen.TypeCollector} <em>out</em> of the
+ * AST: a node reports what it references rather than mutating a collector that is threaded through
+ * the whole tree — the renderer aggregates the returned sets and resolves them.
  */
 public interface Formattable {
 
   /**
-   * Render this piece to source text, resolving any type references against {@code ctx}.
+   * The type references this node contributes to the import set, unioning any children. A node with
+   * no import reference (e.g. a {@link TypeRef.Primitive}) returns an empty set. The renderer
+   * aggregates these sets across the tree and resolves them in a single pass.
    *
-   * @param ctx the render-time resolution context
-   * @return the rendered source text
+   * @return the {@link TypeRef}s this node references (never {@code null}; empty if none)
    */
-  String render(ResolutionContext ctx);
+  Set<TypeRef> referencedTypes();
 
   /**
-   * Contribute any type references to the import collector.
+   * Renders this node to a single-line Java expression string under the given resolution context.
    *
-   * @param collector the collector to register type references with
+   * @param ctx the resolution context (provides collision-aware short-name vs. FQN resolution); may
+   *     be {@code null} when no resolution is required (e.g. a bare string {@link RawExpr})
+   * @return the rendered source expression, never {@code null}
    */
-  void collect(TypeCollector collector);
+  String render(ResolutionContext ctx);
 }

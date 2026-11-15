@@ -26,7 +26,9 @@ import bijnagte.recordbuf.codegen.source.Throw;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.codegen.source.While;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Renders a {@link Type} tree to Java source, top-down. Import resolution is two-phase (collect the
@@ -65,6 +67,7 @@ public final class SourceRenderer {
   public static String render(JavaFile file, Formatter formatter) {
     Pass p = new Pass(file.ci());
     p.collect(file.top());
+    file.ci().accumulate(p.accumulated);
     file.ci().finalizeResolution();
 
     StringBuilder out = new StringBuilder(8192);
@@ -83,6 +86,9 @@ public final class SourceRenderer {
   private static final class Pass {
     private final TypeCollector ci;
 
+    /** The type refs aggregated by the collect phase; resolved once via {@code ci.accumulate}. */
+    private final Set<TypeRef> accumulated = new LinkedHashSet<>();
+
     Pass(TypeCollector ci) {
       this.ci = ci;
     }
@@ -96,42 +102,42 @@ public final class SourceRenderer {
     void collect(Type t) {
       switch (t) {
         case Type.Record r -> {
-          r.implementsFqns().forEach(ci::use);
-          r.annotations().forEach(a -> ci.use(a.type()));
+          r.implementsFqns().forEach(accumulated::add);
+          r.annotations().forEach(a -> accumulated.add(a.type()));
           r.components()
               .forEach(c -> {
-                ci.use(c.type());
-                c.annotations().forEach(a -> ci.use(a.type()));
-                if (c.initializer() != null) c.initializer().collect(ci);
+                accumulated.add(c.type());
+                c.annotations().forEach(a -> accumulated.add(a.type()));
+                if (c.initializer() != null) accumulated.addAll(c.initializer().referencedTypes());
               });
           r.methods().forEach(this::collectMethod);
         }
         case Type.Class c -> {
-          c.implementsFqns().forEach(ci::use);
-          c.annotations().forEach(a -> ci.use(a.type()));
+          c.implementsFqns().forEach(accumulated::add);
+          c.annotations().forEach(a -> accumulated.add(a.type()));
           c.fields()
               .forEach(f -> {
-                ci.use(f.type());
-                f.annotations().forEach(a -> ci.use(a.type()));
-                if (f.initializer() != null) f.initializer().collect(ci);
+                accumulated.add(f.type());
+                f.annotations().forEach(a -> accumulated.add(a.type()));
+                if (f.initializer() != null) accumulated.addAll(f.initializer().referencedTypes());
               });
           c.methods().forEach(this::collectMethod);
         }
         case Type.Enum e -> {
-          e.implementsFqns().forEach(ci::use);
-          e.annotations().forEach(a -> ci.use(a.type()));
+          e.implementsFqns().forEach(accumulated::add);
+          e.annotations().forEach(a -> accumulated.add(a.type()));
           e.fields()
               .forEach(f -> {
-                ci.use(f.type());
-                f.annotations().forEach(a -> ci.use(a.type()));
-                if (f.initializer() != null) f.initializer().collect(ci);
+                accumulated.add(f.type());
+                f.annotations().forEach(a -> accumulated.add(a.type()));
+                if (f.initializer() != null) accumulated.addAll(f.initializer().referencedTypes());
               });
-          e.enumConstants().forEach(x -> x.annotations().forEach(a -> ci.use(a.type())));
+          e.enumConstants().forEach(x -> x.annotations().forEach(a -> accumulated.add(a.type())));
           e.methods().forEach(this::collectMethod);
         }
         case Type.Interface iface -> {
-          iface.extendsFqns().forEach(ci::use);
-          iface.annotations().forEach(a -> ci.use(a.type()));
+          iface.extendsFqns().forEach(accumulated::add);
+          iface.annotations().forEach(a -> accumulated.add(a.type()));
           iface.methods().forEach(this::collectMethod);
         }
       }
@@ -139,51 +145,50 @@ public final class SourceRenderer {
     }
 
     private void collectMethod(Method m) {
-      m.annotations().forEach(a -> ci.use(a.type()));
-      ci.use(m.returnType());
+      m.annotations().forEach(a -> accumulated.add(a.type()));
+      accumulated.add(m.returnType());
       m.params()
           .forEach(p -> {
-            ci.use(p.type());
-            p.annotations().forEach(a -> ci.use(a.type()));
+            accumulated.add(p.type());
+            p.annotations().forEach(a -> accumulated.add(a.type()));
           });
-      m.thrown().forEach(ci::use);
+      m.thrown().forEach(accumulated::add);
       m.body().forEach(this::collectBody);
     }
 
     /**
-     * Walk a method/static-block body and register {@link TypeRef}s found in {@link LocalVar} and
-     * {@link ExprStatement} nodes. This ensures imports for types used inside method bodies (e.g.
-     * {@code var x = new ArrayList<>()}) are registered in the collect phase alongside declaration
-     * types. {@link Fragment} and control-flow nodes ({@link If}, {@link For}, etc.) recurse into
-     * their nested bodies.
+     * Walk a method/static-block body and aggregate {@link TypeRef}s found in {@link LocalVar} and
+     * {@link ExprStatement} nodes into {@link #accumulated}, alongside declaration types. {@link
+     * Fragment} and control-flow nodes ({@link If}, {@link For}, etc.) recurse into their nested
+     * bodies.
      */
     private void collectBody(Element e) {
       switch (e) {
         case LocalVar lv -> {
-          ci.use(lv.type());
-          if (lv.init() != null) lv.init().collect(ci);
+          accumulated.add(lv.type());
+          if (lv.init() != null) accumulated.addAll(lv.init().referencedTypes());
         }
         case ExprStatement es -> collectExpr(es.expr());
         case If i -> {
-          i.condition().collect(ci);
+          accumulated.addAll(i.condition().referencedTypes());
           i.body().forEach(this::collectBody);
           i.elseIf()
               .forEach(ei -> {
-                ei.condition().collect(ci);
+                accumulated.addAll(ei.condition().referencedTypes());
                 ei.body().forEach(this::collectBody);
               });
           i.elseBody().forEach(this::collectBody);
         }
         case While w -> {
-          w.condition().collect(ci);
+          accumulated.addAll(w.condition().referencedTypes());
           w.body().forEach(this::collectBody);
         }
         case For f -> {
-          f.iterable().collect(ci);
+          accumulated.addAll(f.iterable().referencedTypes());
           f.body().forEach(this::collectBody);
         }
         case Switch sw -> {
-          sw.subject().collect(ci);
+          accumulated.addAll(sw.subject().referencedTypes());
           sw.cases().forEach(c -> c.body().forEach(this::collectBody));
           sw.defaultBody().forEach(this::collectBody);
         }
@@ -192,12 +197,10 @@ public final class SourceRenderer {
     }
 
     /**
-     * Walk a {@link RawExpr} and register {@link type references} from its args via {@code
-     * Formattable.collect}.
+     * Aggregate any type references a {@link Formattable} contributes into {@link #accumulated}.
      */
-    /** Walk a {@link Formattable} and register any type references it contributes. */
     private void collectExpr(Formattable f) {
-      f.collect(ci);
+      accumulated.addAll(f.referencedTypes());
     }
 
     /* ---- render dispatch & per-variant renderers ------------------------ */
