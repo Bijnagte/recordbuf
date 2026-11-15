@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
@@ -45,8 +46,9 @@ class TypeRefTest {
   @Test
   void primitive_rendersAsKeyword() {
     for (TypeRef.Primitive p : TypeRef.Primitive.values()) {
-      assertEquals(p.name().toLowerCase(), p.fqn(), p.name() + " should render lowercase");
-      assertEquals(p.name().toLowerCase(), p.shortName());
+      assertEquals(
+          p.name().toLowerCase(Locale.ROOT), p.fqn(), p.name() + " should render lowercase");
+      assertEquals(p.name().toLowerCase(Locale.ROOT), p.shortName());
     }
   }
 

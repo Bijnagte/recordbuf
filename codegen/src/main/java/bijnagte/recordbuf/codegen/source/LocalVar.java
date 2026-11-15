@@ -53,7 +53,8 @@ public record LocalVar(List<Annotation> annotations, TypeRef type, String name, 
     private final List<Annotation> annotations = new ArrayList<>();
 
     /**
-     * @param type the resolved type reference; @param name the local variable name
+     * @param type the resolved type reference
+     * @param name the local variable name
      */
     Builder(TypeRef type, String name) {
       this.type = type;

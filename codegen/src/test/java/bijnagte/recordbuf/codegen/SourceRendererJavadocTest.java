@@ -8,9 +8,9 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Javadoc emission on the {@link SourceRenderer} level: a {@code Javadoc} block is emitted as a
- * clean {@code /** ... *&#47;} comment (no {@code <pre>}/{@code <code>} protobuf boilerplate) with
- * only the HTML-significant characters {@code & / < / >} escaped at render time. A bare {@code @}
- * in the comment body stays intact, matching recordbuf's clean-output style.
+ * clean block comment (no {@code <pre>}/{@code <code>} protobuf boilerplate) with only the
+ * HTML-significant characters {@code & / < / >} escaped at render time. A bare {@code @} in the
+ * comment body stays intact, matching recordbuf's clean-output style.
  *
  * <p>Proto source comments come from {@code source_code_info} and are raw text; nothing in the
  * model is HTML-escaped, so the escaping must land in the renderer.

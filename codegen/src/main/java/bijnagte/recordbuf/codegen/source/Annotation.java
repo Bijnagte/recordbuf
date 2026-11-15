@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * An annotation instance. The type is a {@link TypeRef} (typically a {@link TypeRef.Named} or a
  * {@link TypeRef.Primitive}); the args are positional or named {@link Arg}s. The type is resolved
- * through the collector at render time via {@link TypeRef#resolved(ResolutionContext)}.
+ * through the collector at render time via {@link TypeRef#render}.
  */
 public record Annotation(TypeRef type, List<Arg> args) {
 

@@ -3,7 +3,10 @@ package bijnagte.recordbuf.codegen.source;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.ParameterizedType;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import org.junit.jupiter.api.Test;
@@ -53,19 +56,17 @@ class SourceAstClosednessTest {
   @Test
   void typeHeaderListsAreTypeRef() throws Exception {
     checkTypeRefList(
-        java.util.Arrays.asList(
-            Type.Record.class, Type.Class.class, Type.Enum.class, Type.Interface.class));
+        Arrays.asList(Type.Record.class, Type.Class.class, Type.Enum.class, Type.Interface.class));
   }
 
-  private static void checkTypeRefList(java.util.List<Class<?>> typeClasses) throws Exception {
+  private static void checkTypeRefList(List<Class<?>> typeClasses) throws Exception {
     for (Class<?> tc : typeClasses) {
       for (String fieldName : Arrays.asList("extendsFqns", "implementsFqns", "permitsFqns")) {
-        java.lang.reflect.Field f = findField(tc, fieldName);
+        Field f = findField(tc, fieldName);
         if (f == null) {
           continue; // not every variant declares every list; skip absent fields
         }
-        java.lang.reflect.ParameterizedType pType =
-            (java.lang.reflect.ParameterizedType) f.getGenericType();
+        ParameterizedType pType = (ParameterizedType) f.getGenericType();
         Class<?> argType = (Class<?>) pType.getActualTypeArguments()[0];
         assertEquals(
             TypeRef.class,
@@ -79,7 +80,7 @@ class SourceAstClosednessTest {
     }
   }
 
-  private static java.lang.reflect.Field findField(Class<?> clazz, String name) {
+  private static Field findField(Class<?> clazz, String name) {
     try {
       return clazz.getDeclaredField(name);
     } catch (NoSuchFieldException e) {

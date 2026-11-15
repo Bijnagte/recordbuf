@@ -4,13 +4,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A method. {@code mods returnType name(params)[ throws thrown] { body }}. Built via the
+ * A method. {@code mods returnType name(params)[ throws <exceptions>] { body }}. Built via the
  * hand-written fluent {@link Builder}, so a caller sets only the elements it needs; the <em>compact
- * constructor</em> seeds the optional fields (javadoc, modifiers, {@code throws} types, body) to
- * their defaults when the caller leaves them unset, which keeps the record's accessors non-null.
- * Each {@code thrown} type is resolved through the collector; a non-empty list renders a {@code
- * throws} clause between the params and the block. An {@code abstract} method (the {@code
- * interface} case) renders the declaration followed by {@code ;} and no block.
+ * constructor</em> seeds the optional fields (javadoc, modifiers, the exception list, and the body)
+ * to their defaults when the caller leaves them unset, which keeps the record's accessors non-null.
+ * Each exception type in the list is resolved through the collector; a non-empty list renders the
+ * throws clause between the params and the block. An {@code abstract} method (the {@code interface}
+ * case) renders the declaration followed by {@code ;} and no block.
  *
  * <p>The {@link #annotations()} list is the uniform first-class annotation list (e.g. {@link
  * Annotation#OVERRIDE} on an overriding method). A builder {@code override(boolean)} sugar adds the

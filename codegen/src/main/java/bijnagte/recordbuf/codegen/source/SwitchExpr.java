@@ -75,7 +75,7 @@ public final class SwitchExpr implements Formattable {
   @Override
   public Set<TypeRef> referencedTypes() {
     Set<TypeRef> refs = new LinkedHashSet<>();
-    if (subject instanceof RawExpr r) refs.addAll(r.referencedTypes());
+    refs.addAll(subject.referencedTypes());
     for (Arm arm : arms) {
       if (arm.body() instanceof RawExpr r) refs.addAll(r.referencedTypes());
     }

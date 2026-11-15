@@ -8,11 +8,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import bijnagte.recordbuf.codegen.SourceRenderer;
 import bijnagte.recordbuf.codegen.TypeCollector;
+import bijnagte.recordbuf.runtime.Bytes;
+import java.io.File;
 import java.net.URI;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 import javax.tools.DiagnosticCollector;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
@@ -119,9 +126,7 @@ class ClassSourceTest {
             .getTask(null, null, diags, List.of("-d", out.toString()), null, List.of(unit))
             .call();
     String diagStr =
-        diags.getDiagnostics().stream()
-            .map(d -> d.toString())
-            .collect(java.util.stream.Collectors.joining("\n"));
+        diags.getDiagnostics().stream().map(d -> d.toString()).collect(Collectors.joining("\n"));
     assertTrue(
         ok,
         "rendered source must compile:\n"
@@ -129,7 +134,7 @@ class ClassSourceTest {
             + "\n-- diagnostics --\n"
             + diagStr
             + "\n-- raw --\n"
-            + diags);
+            + diags.getDiagnostics());
   }
 
   /**
@@ -180,7 +185,6 @@ class ClassSourceTest {
     assertCompilesWithRuntime("RecordWithRealCodec", src);
   }
 
-  /** A record that owns a nested {@code Codec} with real scalar encode/decode bodies. */
   /**
    * M4-C2b-2b-3 gate: a record with THREE scalar fields (int, long, String) and a nested {@code
    * Codec} whose encode/decode bodies are real multi-scalar codec bodies -- proving the shape works
@@ -250,9 +254,9 @@ class ClassSourceTest {
     assertNotNull(compiler, "a JDK (not JRE) is required to run this structural test");
     var diags = new DiagnosticCollector<JavaFileObject>();
     var fm = compiler.getStandardFileManager(diags, null, null);
-    List<java.io.File> cp =
-        Arrays.stream(System.getProperty("java.class.path").split(java.io.File.pathSeparator))
-            .map(java.io.File::new)
+    List<File> cp =
+        Arrays.stream(System.getProperty("java.class.path").split(File.pathSeparator))
+            .map(File::new)
             .toList();
     fm.setLocation(StandardLocation.CLASS_PATH, cp);
     JavaFileObject unit =
@@ -269,18 +273,17 @@ class ClassSourceTest {
         compiler
             .getTask(null, fm, diags, List.of("-d", outDir.toString()), null, List.of(unit))
             .call();
-    assertTrue(ok, "multi-scalar codec must compile:\n" + src + "\n" + diags);
+    assertTrue(ok, "multi-scalar codec must compile:\n" + src + "\n" + diags.getDiagnostics());
 
     // 2. Load the compiled classes + the runtime via a URLClassLoader with the compile classpath.
-    List<java.net.URL> urlList = new java.util.ArrayList<>();
-    for (java.io.File f : cp) {
+    List<URL> urlList = new ArrayList<>();
+    for (File f : cp) {
       urlList.add(f.toURI().toURL());
     }
     urlList.add(outDir.toUri().toURL());
 
     try (var loader =
-        new java.net.URLClassLoader(
-            urlList.toArray(new java.net.URL[0]), ClassLoader.getSystemClassLoader())) {
+        new URLClassLoader(urlList.toArray(new URL[0]), ClassLoader.getSystemClassLoader())) {
       Class<?> recordClass = loader.loadClass(pkg + ".RecordWithRealMultiScalar");
       Class<?> codecClass = loader.loadClass(pkg + ".RecordWithRealMultiScalar$Codec");
 
@@ -504,8 +507,6 @@ class ClassSourceTest {
 
   @Test
   void record_with_bytes_round_trips_via_urlclassloader_and_reflection() throws Exception {
-    TypeCollector ci = new TypeCollector(PKG);
-
     var dataField = Component.named("bijnagte.recordbuf.runtime.Bytes", "data").build();
 
     var encode =
@@ -558,7 +559,7 @@ class ClassSourceTest {
             .build();
 
     String pkg = "bijnagte.recordbuf.codegen.source.roundtrip";
-    ci = new TypeCollector(pkg);
+    TypeCollector ci = new TypeCollector(pkg);
     String src = SourceRenderer.render(new JavaFile(pkg, new Javadoc(""), record, ci));
 
     // 1. Compile to a temp dir with the runtime on the classpath.
@@ -566,9 +567,9 @@ class ClassSourceTest {
     assertNotNull(compiler, "a JDK (not JRE) is required to run this structural test");
     var diags = new DiagnosticCollector<JavaFileObject>();
     var fm = compiler.getStandardFileManager(diags, null, null);
-    List<java.io.File> cp =
-        Arrays.stream(System.getProperty("java.class.path").split(java.io.File.pathSeparator))
-            .map(java.io.File::new)
+    List<File> cp =
+        Arrays.stream(System.getProperty("java.class.path").split(File.pathSeparator))
+            .map(File::new)
             .toList();
     fm.setLocation(StandardLocation.CLASS_PATH, cp);
     JavaFileObject unit =
@@ -585,23 +586,19 @@ class ClassSourceTest {
         compiler
             .getTask(null, fm, diags, List.of("-d", outDir.toString()), null, List.of(unit))
             .call();
-    assertTrue(ok, "bytes codec must compile:\n" + src + "\n" + diags);
+    assertTrue(ok, "bytes codec must compile:\n" + src + "\n" + diags.getDiagnostics());
 
     // 2. Load + run the round-trip.
-    List<java.net.URL> urlList = new java.util.ArrayList<>();
-    for (java.io.File f : cp) urlList.add(f.toURI().toURL());
+    List<URL> urlList = new ArrayList<>();
+    for (File f : cp) urlList.add(f.toURI().toURL());
     urlList.add(outDir.toUri().toURL());
 
     try (var loader =
-        new java.net.URLClassLoader(
-            urlList.toArray(new java.net.URL[0]), ClassLoader.getSystemClassLoader())) {
+        new URLClassLoader(urlList.toArray(new URL[0]), ClassLoader.getSystemClassLoader())) {
       Class<?> recordClass = loader.loadClass(pkg + ".RecordWithBytes");
       Class<?> codecClass = loader.loadClass(pkg + ".RecordWithBytes$Codec");
-      bijnagte.recordbuf.runtime.Bytes originalBytes =
-          bijnagte.recordbuf.runtime.Bytes.of(
-              "hello world".getBytes(java.nio.charset.StandardCharsets.UTF_8));
-      java.lang.reflect.Constructor<?> ctor =
-          recordClass.getDeclaredConstructor(bijnagte.recordbuf.runtime.Bytes.class);
+      Bytes originalBytes = Bytes.of("hello world".getBytes(StandardCharsets.UTF_8));
+      java.lang.reflect.Constructor<?> ctor = recordClass.getDeclaredConstructor(Bytes.class);
       Object original = ctor.newInstance(originalBytes);
       java.lang.reflect.Method encodeMethod = codecClass.getMethod("encode", recordClass);
       byte[] encoded = (byte[]) encodeMethod.invoke(null, original);
@@ -610,11 +607,8 @@ class ClassSourceTest {
       java.lang.reflect.Method decodeMethod = codecClass.getMethod("decode", byte[].class);
       Object decoded = decodeMethod.invoke(null, encoded);
       assertNotNull(decoded, "decode must produce a record");
-      bijnagte.recordbuf.runtime.Bytes decodedBytes =
-          (bijnagte.recordbuf.runtime.Bytes) recordClass.getMethod("data").invoke(decoded);
-      assertArrayEquals(
-          "hello world".getBytes(java.nio.charset.StandardCharsets.UTF_8),
-          decodedBytes.toByteArray());
+      Bytes decodedBytes = (Bytes) recordClass.getMethod("data").invoke(decoded);
+      assertArrayEquals("hello world".getBytes(StandardCharsets.UTF_8), decodedBytes.toByteArray());
     }
   }
 
@@ -625,9 +619,9 @@ class ClassSourceTest {
     var fm = compiler.getStandardFileManager(diags, null, null);
     // Pass the test module's runtime classpath (which includes :recordbuf-runtime + protobuf-java
     // transitively) as the compiler's CLASS_PATH so the codec's FQN references resolve.
-    List<java.io.File> cp =
-        Arrays.stream(System.getProperty("java.class.path").split(java.io.File.pathSeparator))
-            .map(java.io.File::new)
+    List<File> cp =
+        Arrays.stream(System.getProperty("java.class.path").split(File.pathSeparator))
+            .map(File::new)
             .toList();
     fm.setLocation(StandardLocation.CLASS_PATH, cp);
     JavaFileObject unit =
@@ -645,9 +639,7 @@ class ClassSourceTest {
             .getTask(null, fm, diags, List.of("-d", out.toString()), null, List.of(unit))
             .call();
     String diagStr =
-        diags.getDiagnostics().stream()
-            .map(d -> d.toString())
-            .collect(java.util.stream.Collectors.joining("\n"));
+        diags.getDiagnostics().stream().map(d -> d.toString()).collect(Collectors.joining("\n"));
     assertTrue(
         ok,
         "rendered source must compile:\n"
@@ -655,6 +647,6 @@ class ClassSourceTest {
             + "\n-- diagnostics --\n"
             + diagStr
             + "\n-- raw --\n"
-            + diags);
+            + diags.getDiagnostics());
   }
 }

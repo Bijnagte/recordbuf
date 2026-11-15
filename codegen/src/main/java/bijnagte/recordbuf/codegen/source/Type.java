@@ -4,6 +4,14 @@ import bijnagte.recordbuf.codegen.SourceRenderer;
 import java.util.ArrayList;
 import java.util.List;
 
+// AvoidCommonTypeNames is suppressed on this type: Record/Class/Enum are the source-AST's
+// deliberate
+// domain names, modeling Java's own 'record'/'class'/'enum' declaration keywords. They are
+// referenced
+// as Type.Record/Type.Class/Type.Enum throughout every mapper and the renderer, so renaming them
+// would
+// ripple across the codebase with no readability gain.
+
 /**
  * The source-AST node for a single top-level or nested type declaration. Each variant ({@link
  * Record}, {@link Class}, {@link Enum}, {@link Interface}) carries its own header fields and its
@@ -25,6 +33,7 @@ import java.util.List;
  * {@link Annotation#DEPRECATED} marker to that node's list -- the previous per-node boolean flag
  * now lives as an {@link Annotation} instance, not a parallel field.
  */
+@SuppressWarnings("AvoidCommonTypeNames")
 public sealed interface Type {
   String name();
 

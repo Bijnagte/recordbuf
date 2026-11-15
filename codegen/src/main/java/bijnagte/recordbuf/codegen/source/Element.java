@@ -1,6 +1,7 @@
 package bijnagte.recordbuf.codegen.source;
 
 import bijnagte.recordbuf.codegen.SourceRenderer;
+import java.util.List;
 
 /**
  * A single element inside a method, constructor, or {@code static {}} body. A body is a {@link
@@ -70,10 +71,7 @@ public sealed interface Element
   /** A local declaration carrying annotations, rendered ahead of its type. */
   static LocalVar local(String fqn, String name, String init, Annotation... annotations) {
     return new LocalVar(
-        annotations == null ? null : java.util.List.of(annotations),
-        TypeRef.of(fqn),
-        name,
-        RawExpr.of(init));
+        annotations == null ? null : List.of(annotations), TypeRef.of(fqn), name, RawExpr.of(init));
   }
 
   /**

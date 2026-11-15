@@ -1,8 +1,14 @@
 package bijnagte.recordbuf.codegen.source;
 
 import bijnagte.recordbuf.codegen.ResolutionContext;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+
+// ClassInitializationDeadlock is suppressed on this type: the boxed-primitive constants declared
+// below are initialized by the nested Named/Array/Primitive constructors, which reference neither
+// each other nor these constants, so no static-initialization cycle exists and the
+// conservatively-flagged deadlock cannot occur.
 
 /**
  * A structured type reference that the source AST can hold in a position instead of a pre-resolved
@@ -23,6 +29,7 @@ import java.util.Set;
  * suffix). At a type position {@link #resolved(String, Set) resolved} returns the form that should
  * be emitted at that site — short (when uncollided) or fully-qualified (when collided).
  */
+@SuppressWarnings("ClassInitializationDeadlock")
 public sealed interface TypeRef extends Formattable {
 
   /** The bare fully-qualified name, with no generic suffix (for {@code import} lines). */
@@ -103,7 +110,7 @@ public sealed interface TypeRef extends Formattable {
    * depth-tracked scanning, not simple comma splitting.
    */
   private static List<TypeRef> parseGenericArgs(String argsStr) {
-    List<TypeRef> args = new java.util.ArrayList<>();
+    List<TypeRef> args = new ArrayList<>();
     int depth = 0;
     int start = 0;
     for (int i = 0; i < argsStr.length(); i++) {

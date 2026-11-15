@@ -1,10 +1,15 @@
 package bijnagte.recordbuf.codegen;
 
+import bijnagte.recordbuf.codegen.source.TypeRef;
+import bijnagte.recordbuf.codegen.source.TypeRef.Array;
+import bijnagte.recordbuf.codegen.source.TypeRef.Named;
+import bijnagte.recordbuf.codegen.source.TypeRef.Primitive;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 
 /**
@@ -78,7 +83,7 @@ public final class TypeCollector {
    * Generic arguments are rendered recursively. A {@code java.lang} or same-package type renders as
    * a bare short name; every other type is collected for an import line.
    */
-  public String use(bijnagte.recordbuf.codegen.source.TypeRef ref) {
+  public String use(TypeRef ref) {
     return resolveTypeRef(ref);
   }
 
@@ -88,21 +93,21 @@ public final class TypeCollector {
    * with the set aggregated from the tree's {@code referencedTypes()} results. Order within the
    * batch is irrelevant: {@link #importLines()} sorts, and collision is set-based.
    */
-  public void accumulate(java.util.Set<bijnagte.recordbuf.codegen.source.TypeRef> refs) {
-    for (bijnagte.recordbuf.codegen.source.TypeRef ref : refs) {
+  public void accumulate(Set<TypeRef> refs) {
+    for (TypeRef ref : refs) {
       resolveTypeRef(ref);
     }
   }
 
-  private String resolveTypeRef(bijnagte.recordbuf.codegen.source.TypeRef ref) {
+  private String resolveTypeRef(TypeRef ref) {
     return switch (ref) {
-      case bijnagte.recordbuf.codegen.source.TypeRef.Named n -> resolveNamed(n);
-      case bijnagte.recordbuf.codegen.source.TypeRef.Primitive p -> p.fqn();
-      case bijnagte.recordbuf.codegen.source.TypeRef.Array a -> resolveTypeRef(a.element()) + "[]";
+      case Named n -> resolveNamed(n);
+      case Primitive p -> p.fqn();
+      case Array a -> resolveTypeRef(a.element()) + "[]";
     };
   }
 
-  private String resolveNamed(bijnagte.recordbuf.codegen.source.TypeRef.Named n) {
+  private String resolveNamed(Named n) {
     // Compute the resolved base (short or fully-qualified), then append generics.
     String base;
     if (n.pkg().isEmpty()) {
@@ -148,7 +153,7 @@ public final class TypeCollector {
     }
   }
 
-  private String genericsOf(bijnagte.recordbuf.codegen.source.TypeRef.Named n) {
+  private String genericsOf(Named n) {
     if (n.generics().isEmpty()) return "";
     StringBuilder sb = new StringBuilder();
     sb.append('<');
@@ -201,8 +206,7 @@ public final class TypeCollector {
    * The post-finalization {@code ResolutionContext} — used by mappers to build {@link
    * bijnagte.recordbuf.codegen.source.ResolveableExpr}.
    */
-  public bijnagte.recordbuf.codegen.ResolutionContext resolutionContext() {
-    return new bijnagte.recordbuf.codegen.ResolutionContext(
-        declaringPackage, java.util.Set.copyOf(collidedShortNames));
+  public ResolutionContext resolutionContext() {
+    return new ResolutionContext(declaringPackage, Set.copyOf(collidedShortNames));
   }
 }

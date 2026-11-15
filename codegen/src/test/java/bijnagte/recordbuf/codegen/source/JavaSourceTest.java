@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import bijnagte.recordbuf.codegen.SourceRenderer;
+import bijnagte.recordbuf.codegen.TypeCollector;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -84,7 +85,7 @@ class JavaSourceTest {
                 "bijnagte.recordbuf.fixture",
                 new Javadoc(""),
                 sample(),
-                new bijnagte.recordbuf.codegen.TypeCollector("bijnagte.recordbuf.fixture")));
+                new TypeCollector("bijnagte.recordbuf.fixture")));
 
     assertTrue(src.contains("public record Sample("), "record header: " + src);
     assertTrue(src.contains("byte[] items"), "a byte[] component: " + src);
@@ -98,9 +99,6 @@ class JavaSourceTest {
     assertCompiles(src);
   }
 
-  /**
-   * Compile the rendered source in-memory; fail loudly if there is no compiler (JRE) or any error.
-   */
   /**
    * Compile the rendered source to a temp dir (never the current working directory); fail loudly on
    * a missing compiler (a JRE) or any diagnostic. The class output is redirected with {@code -d} so
@@ -124,6 +122,11 @@ class JavaSourceTest {
         compiler
             .getTask(null, null, diags, List.of("-d", out.toString()), null, List.of(unit))
             .call();
-    assertTrue(ok, "rendered source must compile:\n" + source + "\n-- diagnostics --\n" + diags);
+    assertTrue(
+        ok,
+        "rendered source must compile:\n"
+            + source
+            + "\n-- diagnostics --\n"
+            + diags.getDiagnostics());
   }
 }

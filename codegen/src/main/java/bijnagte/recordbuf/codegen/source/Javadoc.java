@@ -2,7 +2,7 @@ package bijnagte.recordbuf.codegen.source;
 
 /**
  * A Javadoc block comment for a declaration -- the proto field/enum/doc messages. {@code null} or
- * blank renders nothing; otherwise it renders as a {@code /** ... *&#47;} block, HTML-escaped.
+ * blank renders nothing; otherwise it renders as a {@code /**}-delimited block comment.
  */
 public record Javadoc(String raw) {
 
