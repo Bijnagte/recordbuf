@@ -10,12 +10,11 @@
 
   Location: config/checkstyle/checkstyle.xml — the Gradle `checkstyle` plugin's default
   `configDirectory`/`config` resolution, resolved relative to the ROOT project, so this
-  single file is inherited by every subproject with a `java` source set. The generator emits
-  `@SuppressWarnings({"checkstyle:HideUtilityClassConstructor","checkstyle:MissingJavadoc"})` on
-  generated XAvroConverter classes. `HideUtilityClassConstructor` below is the matching live check;
-  `MissingJavadoc` below is the modern `MissingJavadocType` (the annotation's legacy string is a
-  harmless no-op). Both sit outside this gate's scope for now, so the annotations are a ready-made
-  guard rather than a live failure.
+  single file is inherited by every subproject with a `java` source set. The recordbuf generator
+  emits a minimal Javadoc on every generated type (record, enum, map-entry, codec, converter), so
+  the recordbuf `.rec` output is checkstyle-clean and is in scope; the protobuf-java/Avro reference
+  output (the natural, un-suffixed package) and the protocol shim stay out: see the root build's
+  `checkstyle` source scope.
 
   The <!DOCTYPE> is required: checkstyle's XmlLoader validates the root element against the
   DOCTYPE and rejects a bare root module. Its PUBLIC id resolves to a DTD Checkstyle bundles in
@@ -31,11 +30,10 @@
 
   <module name="TreeWalker">
     <!--
-      The generator pre-suppresses the Javadoc-family check on generated converters via an
-      @SuppressWarnings "checkstyle:MissingJavadoc" annotation; that string is a legacy no-op
-      (the modern check name is MissingJavadocType), kept for backwards compatibility. The check
-      below is present so that if scope ever reaches generated output, utility classes are already
-      suppressed rather than failing loudly.
+      Generated types are Javadoc-clean by construction (the generator emits a minimal Javadoc on
+      every one), so MissingJavadocType below is a live check that passes on the recordbuf `.rec`
+      output with no suppression. HideUtilityClassConstructor is live too: the generated converter's
+      private constructor satisfies it. The generator emits no @SuppressWarnings.
     -->
     <module name="HideUtilityClassConstructor"/>
     <module name="MissingJavadocType">

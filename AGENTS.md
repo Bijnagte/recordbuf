@@ -126,15 +126,20 @@ consult it when orienting to the codebase or discussing domain concepts.
   to the catalog (`checkstyle = "14.4.0"`; checkstyle 14.x needs JDK 21+, satisfied by the
   project's Java 25 toolchain — no separate `javaLauncher`). It runs as part of
   `./gradlew check`/`build` via `checkstyleMain`/`checkstyleTest`.
-  - **Scope is first-party `src/` only.** Generated protobuf/recordbuf/avro output under
-    `build/generated/**` is out of scope: because Gradle adds that output as its **own source
-    root**, the source-root-relative `exclude("**/build/generated/**")` cannot see the prefix —
-    the wiring instead sets each task's `source` to the module's `src/` tree
-    (`project.fileTree(dir="src", include="**/*.java", exclude="**/com/google/protobuf/compiler/**")`),
-    which excludes generated output as a side effect and is the one in-`src` exclusion (the
-    `com.google.protobuf.compiler` shim). The generator emits `@SuppressWarnings("checkstyle:MissingJavadoc")` on
-    generated converters, but `MissingJavadoc` is **not** a checkstyle 14 module name (the live check is
-    `MissingJavadocType`), so that annotation is a **legacy no-op** while scope is first-party only.
+  - **Scope is first-party `src/` plus the recordbuf-generated `.rec` output.** The wiring sets
+    each task's `source` to its own source set (`src/main`/`src/test`) **plus** the `.rec` output
+    that set produces — `project.fileTree(dir="…", include=["src/${seg}/**/*.java",
+    "build/generated/sources/proto/${seg}/recordbuf/**/rec/**/*.java"], exclude=["**/com/google/
+    protobuf/compiler/**"])` with `seg` = `main`/`test` per task — so `checkstyleMain`/`checkstyleTest`
+    each read only their own generated output (no cross-task dependency on the other set's
+    `generateProto`). A source-root-relative `exclude("**/build/generated/**")` cannot see that
+    prefix (Gradle adds the generated dir as its own source root), so the `.rec` dir is listed
+    explicitly. The protobuf-java/Avro reference output (the natural, un-suffixed package) and the
+    `com.google.protobuf.compiler` shim stay out: they are not the project's own generated code.
+    The generator now emits a minimal Javadoc on **every** generated type (record, enum, map-entry,
+    codec, converter — see `writer/GeneratedDocs`), so the `.rec` output is `MissingJavadocType`-clean
+    and needs no suppression; the former `@SuppressWarnings("checkstyle:MissingJavadoc")` it emitted
+    on converters was a legacy no-op (the live check is `MissingJavadocType`) and has been removed.
   - **Curated non-formatting set (chosen to pass the current codebase with zero churn):**
     `HideUtilityClassConstructor`, `MissingJavadocType(scope=public)`, `UnusedImports`,
     `RedundantImport`, `ConstantName`, `MemberName`, `ParameterName`, `TypeName`. **Deliberately

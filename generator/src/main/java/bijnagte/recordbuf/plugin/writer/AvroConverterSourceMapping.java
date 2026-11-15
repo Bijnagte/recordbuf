@@ -2,7 +2,6 @@ package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.SourceRenderer;
 import bijnagte.recordbuf.codegen.TypeCollector;
-import bijnagte.recordbuf.codegen.source.Annotation;
 import bijnagte.recordbuf.codegen.source.ClassSpec;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
@@ -37,11 +36,6 @@ import java.util.Set;
 public final class AvroConverterSourceMapping {
 
   private AvroConverterSourceMapping() {}
-
-  // Suppression annotation rendered on the class declaration.
-  private static final Annotation ANNOTATION =
-      Annotation.suppressWarnings(
-          "checkstyle:HideUtilityClassConstructor", "checkstyle:MissingJavadoc");
 
   /**
    * Generate the Avro-interop converter class for {@code message}, returning the rendered Java
@@ -83,7 +77,7 @@ public final class AvroConverterSourceMapping {
         ClassSpec.named(recordClass.shortName() + "AvroConverter")
             .public_()
             .final_()
-            .annotation(ANNOTATION)
+            .javadoc(GeneratedDocs.type(recordClass.shortName(), "Avro converter for the %s type."))
             .constructor(privateCtor)
             .method(toRecord, fromRecord)
             .build();

@@ -70,12 +70,13 @@ subprojects {
 // plugin entry), but its tool otherwise defaults to a stale 10.24.0, so its version is pinned
 // to the catalog's `checkstyle` pin (14.4.0, JDK 21+; our Java 25 toolchain satisfies it).
 //
-// Task source is scoped to first-party `src/` to match Spotless: generated output lives under
-// build/generated/** (only :recordbuf-fixtures actually carries generated dirs on its source
-// set) and the com.google.protobuf.compiler protocol shim -- both excluded, so the generator's
-// pre-emitted `@SuppressWarnings("checkstyle:…")` on generated converters stay a harmless
-// no-op guard rather than a live failure. The exclusion is applied uniformly; it is a no-op
-// for the modules without generated dirs.
+// Task source is first-party `src/` plus the recordbuf-generated `.rec` output under
+// build/generated/**/recordbuf/**/rec/ (only :recordbuf-fixtures carries generated dirs). The
+// recordbuf output now emits a minimal Javadoc on every generated type, so it is checkstyle-clean
+// and is brought into scope -- closing the last gap that left MissingJavadocType un-enforced on
+// generated code. The protobuf-java/Avro reference output (the natural, un-suffixed package) and
+// the com.google.protobuf.compiler protocol shim stay out: they are not the project's own generated
+// code. The includes are applied uniformly and are a no-op for modules without a generated `.rec` dir.
 subprojects {
     pluginManager.withPlugin("java") {
         // Built-in plugin, no catalog entry; `withPlugin("java")` fires for the same
@@ -85,18 +86,27 @@ subprojects {
             // The plugin otherwise defaults its tool to a stale 10.24.0; pin to the catalog.
             toolVersion = libs.versions.checkstyle.get()
         }
-        // Scope each task's source to the module's first-party `src/` tree (see the header
-        // block above): a source-root-relative glob cannot see the build/generated prefix of
-        // generated source roots, so scoping to `src/` excludes generated output as a side
-        // effect; the one `src`-tree exclusion is the com.google.protobuf.compiler shim.
+        // Scope each task to its OWN source set plus the recordbuf-generated `.rec` output that
+        // that set produces (see the header block above): a source-root-relative glob cannot see
+        // the build/generated prefix of a generated source root, so the `.rec` dir is listed
+        // explicitly. Main and test are scoped separately so checkstyleMain/checkstyleTest each
+        // read only their own generated output -- no cross-task dependency on the other set's
+        // generateProto. The protobuf-java/Avro reference output (the natural, un-suffixed package)
+        // and the com.google.protobuf.compiler protocol shim stay out; the `.rec` includes are a
+        // no-op for modules without a generated dir.
         tasks
             .withType(org.gradle.api.plugins.quality.Checkstyle::class.java)
             .configureEach {
+                val seg = if (name == "checkstyleTest") "test" else "main"
                 source =
                     project.fileTree(
                         mapOf(
-                            "dir" to project.file("src"),
-                            "include" to arrayOf("**/*.java"),
+                            "dir" to project.projectDir,
+                            "include" to
+                                arrayOf(
+                                    "src/${seg}/**/*.java",
+                                    "build/generated/sources/proto/${seg}/recordbuf/**/rec/**/*.java",
+                                ),
                             "exclude" to arrayOf("**/com/google/protobuf/compiler/**"),
                         )
                     )
