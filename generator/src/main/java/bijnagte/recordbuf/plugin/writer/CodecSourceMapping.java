@@ -83,9 +83,15 @@ public final class CodecSourceMapping {
   /** The {@code byte[] encode(Message v) throws IOException} method body. */
   private static Method encode(
       Message m, TypeCollector ci, @Nullable Function<Field, String> typeResolver) {
-    List<Element> body = new ArrayList<>();
-    body.add(Element.expr("var enc = @0.start();", TypeRefs.ENCODER));
-    body.add(Element.of("var out = enc.out();"));
+    var method =
+        Method.named("encode")
+            .public_()
+            .static_()
+            .returnType(TypeRef.BYTES)
+            .param(TypeRef.of(m.name()), "v")
+            .thrown(TypeRef.IO_EXCEPTION)
+            .body(Element.expr("var enc = @0.start();", TypeRefs.ENCODER))
+            .body(Element.of("var out = enc.out();"));
 
     // Sort by field number for wire-order correctness (OrderTest proves this).
     var sortedFields = m.fields().stream().sorted(Comparator.comparingInt(Field::number)).toList();
@@ -94,7 +100,7 @@ public final class CodecSourceMapping {
       Entry wktEntry = WktSourceMapping.resolve(f);
       if (wktEntry != null) {
         var wkt0 = Objects.requireNonNull(wktEntry);
-        body.add(WktSourceMapping.emitEncode(f, wkt0, "out", "v", ci));
+        method.body(WktSourceMapping.emitEncode(f, wkt0, "out", "v", ci));
       } else {
         Element e =
             switch (f.kind()) {
@@ -112,55 +118,54 @@ public final class CodecSourceMapping {
                       ? emitRepeatedScalarEncode(f)
                       : emitScalarEncode(f);
             };
-        body.add(e);
+        method.body(e);
       }
     }
 
     // Oneof members: pattern-matching switch on the sealed-interface component.
     for (Oneof o : m.oneofs()) {
-      body.add(emitOneofEncode(o));
+      method.body(emitOneofEncode(o));
     }
 
     // M4-C2b-2b-5: re-emit the unknown-fields carrier, if any, preserving wire-order round-trip.
-    body.add(
+    method.body(
         If.condition("!v.unknownFields().isEmpty()")
             .body(Element.expr("@0.writeUnknown(out, v.unknownFields());", TypeRefs.WIRE))
             .build());
 
-    body.add(Element.ret("enc.finish()"));
-
-    return Method.named("encode")
-        .public_()
-        .static_()
-        .returnType(TypeRef.BYTES)
-        .param(TypeRef.of(m.name()), "v")
-        .thrown(TypeRef.IO_EXCEPTION)
-        .body(body)
-        .build();
+    return method.body(Element.ret("enc.finish()")).build();
   }
 
   /** The {@code Message decode(byte[] inBytes) throws IOException} method body. */
   private static Method decode(
       Message m, TypeCollector ci, @Nullable Function<Field, String> typeResolver) {
-    List<Element> body = new ArrayList<>();
-    body.add(Element.expr("var dec = @0.start(inBytes);", TypeRefs.DECODER));
-    body.add(Element.of("var in = dec.in();"));
+    var method =
+        Method.named("decode")
+            .public_()
+            .static_()
+            .returnType(TypeRef.of(m.name()))
+            .param(TypeRef.BYTES, "inBytes")
+            .thrown(TypeRef.IO_EXCEPTION)
+            .body(Element.expr("var dec = @0.start(inBytes)", TypeRefs.DECODER))
+            .body(Element.expr("var in = dec.in()"))
 
-    // M4-C2b-2b-5: the unknown-fields accumulator, initialised as a fresh builder.
-    body.add(Element.expr("var unknown = @0.builder();", TypeRefs.UNKNOWN_FIELDS));
+            // M4-C2b-2b-5: the unknown-fields accumulator, initialised as a fresh builder.
+            .body(Element.expr("var unknown = @0.builder()", TypeRefs.UNKNOWN_FIELDS));
 
     // Per-field local default-init.
     for (Field f : m.fields()) {
       Entry wktEntry = WktSourceMapping.resolve(f);
       if (wktEntry != null) {
         var wkt0 = Objects.requireNonNull(wktEntry);
-        body.add(WktSourceMapping.localInitElement(f, wkt0, ci));
+        method.body(WktSourceMapping.localInitElement(f, wkt0, ci));
       } else {
         switch (f.kind()) {
           case FieldKind.MAP -> {
             TypeRef keyType = TypeRef.boxedFor(Objects.requireNonNull(f.mapKey()));
             TypeRef valueType = TypeRef.boxedFor(Objects.requireNonNull(f.mapValue()));
-            body.add(
+            // TypeRef mapType = TypeRefs.MAP.withGenerics(keyType, valueType);
+
+            method.body(
                 Element.expr(
                     "Map<@0, @1> @2 = new @3<>();",
                     keyType,
@@ -171,13 +176,13 @@ public final class CodecSourceMapping {
           case FieldKind.MESSAGE -> {
             if (typeResolver != null) {
               if (f.label() == FieldLabel.REPEATED) {
-                body.add(
+                method.body(
                     LocalVar.builder(
                             TypeRefs.LIST.withGenerics(TypeRef.of(messageShortName(f))),
                             f.javaName())
                         .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)));
               } else {
-                body.add(
+                method.body(
                     LocalVar.builder(TypeRef.of(messageShortName(f)), f.javaName())
                         .assigned(RawExpr.of("null")));
               }
@@ -189,35 +194,35 @@ public final class CodecSourceMapping {
             if (typeResolver != null) {
               String enumShort = typeResolver.apply(f);
               if (f.label() == FieldLabel.REPEATED) {
-                body.add(
+                method.body(
                     LocalVar.builder(
                             TypeRefs.LIST.withGenerics(TypeRef.of(enumShort)), f.javaName())
                         .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)));
               } else {
-                body.add(
+                method.body(
                     LocalVar.builder(TypeRef.of(enumShort), f.javaName())
                         .assigned(RawExpr.of("null")));
               }
             } else {
               if (f.label() == FieldLabel.REPEATED) {
-                body.add(
+                method.body(
                     Element.expr("List<?> @0 = new @1<>();", f.javaName(), TypeRefs.ARRAY_LIST));
               } else {
-                body.add(
+                method.body(
                     LocalVar.builder(TypeRef.OBJECT, f.javaName()).assigned(RawExpr.of("null")));
               }
             }
           }
           case FieldKind.SCALAR -> {
             if (f.label() == FieldLabel.REPEATED) {
-              body.add(emitRepeatedLocalInit(f));
+              method.body(emitRepeatedLocalInit(f));
             } else if (f.isNullable()) {
               // M4-C2d-1: optional scalar → starts at null, set on tag.
               TypeRef localType = TypeRef.boxedFor(f.typeUrl());
-              body.add(Element.expr("@0 @1 = null;", localType, f.javaName()));
+              method.body(Element.expr("@0 @1 = null;", localType, f.javaName()));
             } else {
               TypeRef localTypeRef = decodeLocalType(f);
-              body.add(
+              method.body(
                   Element.expr(
                       "@0 @1 = @2.@3()",
                       localTypeRef,
@@ -233,14 +238,11 @@ public final class CodecSourceMapping {
     // Oneof locals: each defaults to null (the absent case). Proto3 oneof semantics: last
     // same-tag member seen wins, so a repeated same-tag member overwrites the prior value.
     for (Oneof o : m.oneofs()) {
-      body.add(Element.expr("@0 @1 = null;", o.ifaceName(), o.componentName()));
+      method.body(Element.expr("@0 @1 = null;", o.ifaceName(), o.componentName()));
     }
 
     // Tag loop: a while-loop wrapping a pattern-matching switch of tag-case arms.
-    List<Element> tagLoop = new ArrayList<>();
-    tagLoop.add(
-        LocalVar.builder(TypeRef.Primitive.INT, "tag").assigned("@0.readTag(in)", TypeRefs.WIRE));
-    tagLoop.add(If.condition("tag == 0").body(Element.of("break;")).build());
+
     Switch.Builder switchB = Switch.on("@0.tagFieldNumber(tag)", TypeRefs.WIRE);
     for (Field f : m.fields()) {
       Entry wktEntry = WktSourceMapping.resolve(f);
@@ -280,8 +282,16 @@ public final class CodecSourceMapping {
     }
     // M4-C2b-2b-5: the default case captures the unknown field into the builder.
     switchB.defaultBody(Element.of("unknown.add(in, tag);"));
-    tagLoop.add(switchB.build());
-    body.add(While.condition("true").body(tagLoop).build());
+
+    var whileB =
+        While.condition("true")
+            .body(
+                LocalVar.builder(TypeRef.Primitive.INT, "tag")
+                    .assigned("@0.readTag(in)", TypeRefs.WIRE))
+            .body(If.condition("tag == 0").body(Element.of("break;")).build())
+            .body(switchB.build())
+            .build();
+    method.body(whileB);
 
     // Construct the record, passing the carrier as the last argument.
     List<String> allNames = new ArrayList<>();
@@ -289,16 +299,7 @@ public final class CodecSourceMapping {
     // M4-C2b-2b-12: oneof components: pass the oneof local (assigned in the tag loop, or null).
     for (var oneof : m.oneofs()) allNames.add(oneof.componentName());
     allNames.add("unknown.build()");
-    body.add(Element.ret("new @0(@1)", m.name(), joinCommas(allNames)));
-
-    return Method.named("decode")
-        .public_()
-        .static_()
-        .returnType(TypeRef.of(m.name()))
-        .param(TypeRef.BYTES, "inBytes")
-        .thrown(TypeRef.IO_EXCEPTION)
-        .body(body)
-        .build();
+    return method.body(Element.ret("new @0(@1)", m.name(), joinCommas(allNames))).build();
   }
 
   // --- Per-field encode ---
@@ -656,71 +657,64 @@ public final class CodecSourceMapping {
     WireScalar keyWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapKey()));
     WireScalar valWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapValue()));
     String codecName = entryName + "Codec";
-    ClassSpec.Builder result =
-        ClassSpec.named(codecName)
-            .javadoc(
-                GeneratedDocs.type(
-                    null, "Auto-generated codec for the " + entryName + " map entry."))
-            .public_()
-            .static_()
-            .final_();
-
-    result.constructor(Constructor.builder().private_().build());
-
-    List<Element> encBody = new ArrayList<>();
-    encBody.add(Element.expr("var enc = @0.start();", TypeRefs.ENCODER));
-    encBody.add(Element.of("var out = enc.out();"));
 
     // key: field 1 — always field 1 in a map entry; written unconditionally.
     // A bytes-valued key unwraps to the raw array (Bytes.toByteArray()); every other writes
     // through.
     String keyArg = keyWire == WireScalar.BYTES ? "v.key().toByteArray()" : "v.key()";
-    encBody.add(Element.expr("out.@0(1, @1);", encodeCall(keyWire), keyArg));
+
     // value: field 2 — always field 2; written unconditionally, same unwrapping rule.
     String valArg = valWire == WireScalar.BYTES ? "v.value().toByteArray()" : "v.value()";
-    encBody.add(Element.expr("out.@0(2, @1);", encodeCall(valWire), valArg));
-    encBody.add(Element.ret("enc.finish()"));
 
-    result.method(
-        Method.named("encode")
-            .public_()
-            .static_()
-            .returnType(TypeRef.BYTES)
-            .param(TypeRef.of(entryName), "v")
-            .thrown(TypeRef.IO_EXCEPTION)
-            .body(encBody)
-            .build());
-
-    List<Element> decBody = new ArrayList<>();
-    decBody.add(Element.expr("var dec = @0.start(inBytes);", TypeRefs.DECODER));
-    decBody.add(Element.of("var in = dec.in();"));
-    decBody.add(Element.expr("var unknown = @0.builder();", TypeRefs.UNKNOWN_FIELDS));
-    decBody.add(emitFieldLocalInit("key", keyWire, TypeRefs.CODEC_DEFAULTS));
-    decBody.add(emitFieldLocalInit("value", valWire, TypeRefs.CODEC_DEFAULTS));
-    List<Element> tagLoop = new ArrayList<>();
-    tagLoop.add(
-        LocalVar.builder(TypeRef.Primitive.INT, "tag").assigned("@0.readTag(in)", TypeRefs.WIRE));
-    tagLoop.add(If.condition("tag == 0").body(Element.of("break;")).build());
-    Switch.Builder switchB = Switch.on("@0.tagFieldNumber(tag)", TypeRefs.WIRE);
-    switchB.caseArm(
-        List.of(emitFieldDecodeCase(1, "key", keyWire), emitFieldDecodeCase(2, "value", valWire)));
-    switchB.defaultBody(Element.of("unknown.add(in, tag);"));
-    tagLoop.add(switchB.build());
-    tagLoop.add(Element.of(""));
-    decBody.add(While.condition("true").body(tagLoop).build());
-    decBody.add(Element.ret("new @0(key, value)", entryName));
-
-    result.method(
-        Method.named("decode")
-            .public_()
-            .static_()
-            .returnType(TypeRef.of(entryName))
-            .param(TypeRef.BYTES, "inBytes")
-            .thrown(TypeRef.IO_EXCEPTION)
-            .body(decBody)
-            .build());
-
-    return result.build();
+    return ClassSpec.named(codecName)
+        .javadoc(
+            GeneratedDocs.type(null, "Auto-generated codec for the " + entryName + " map entry."))
+        .public_()
+        .static_()
+        .final_()
+        .constructor(Constructor.builder().private_().build())
+        .method(
+            Method.named("encode")
+                .public_()
+                .static_()
+                .returnType(TypeRef.BYTES)
+                .param(TypeRef.of(entryName), "v")
+                .thrown(TypeRef.IO_EXCEPTION)
+                .body(
+                    Element.expr("var enc = @0.start()", TypeRefs.ENCODER),
+                    Element.expr("var out = enc.out()"),
+                    Element.expr("out.@0(1, @1)", encodeCall(keyWire), keyArg),
+                    Element.expr("out.@0(2, @1)", encodeCall(valWire), valArg),
+                    Element.ret("enc.finish()"))
+                .build())
+        .method(
+            Method.named("decode")
+                .public_()
+                .static_()
+                .returnType(TypeRef.of(entryName))
+                .param(TypeRef.BYTES, "inBytes")
+                .thrown(TypeRef.IO_EXCEPTION)
+                .body(
+                    Element.expr("var dec = @0.start(inBytes)", TypeRefs.DECODER),
+                    Element.expr("var in = dec.in()"),
+                    Element.expr("var unknown = @0.builder()", TypeRefs.UNKNOWN_FIELDS),
+                    emitFieldLocalInit("key", keyWire, TypeRefs.CODEC_DEFAULTS),
+                    emitFieldLocalInit("value", valWire, TypeRefs.CODEC_DEFAULTS),
+                    While.condition("true")
+                        .body(
+                            LocalVar.builder(TypeRef.Primitive.INT, "tag")
+                                .assigned("@0.readTag(in)", TypeRefs.WIRE),
+                            If.condition("tag == 0").body(Element.of("break;")).build(),
+                            Switch.on("@0.tagFieldNumber(tag)", TypeRefs.WIRE)
+                                .caseArm(emitFieldDecodeCase(1, "key", keyWire))
+                                .caseArm(emitFieldDecodeCase(2, "value", valWire))
+                                .defaultBody(Element.expr("unknown.add(in, tag)"))
+                                .build(),
+                            Element.of(""))
+                        .build(),
+                    Element.ret("new @0(key, value)", entryName))
+                .build())
+        .build();
   }
 
   /** M4-C2d-12: resolve a {@link WireScalar} from a proto scalar type URL string. */
