@@ -17,7 +17,6 @@ import bijnagte.recordbuf.plugin.model.FileTable;
 import bijnagte.recordbuf.plugin.model.JavaNames;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.ModelLoader;
-import bijnagte.recordbuf.plugin.model.Oneof;
 import bijnagte.recordbuf.plugin.model.ProtoFile;
 import bijnagte.recordbuf.plugin.types.WellKnownTypes;
 import bijnagte.recordbuf.plugin.writer.EnumSourceMapping;
@@ -29,7 +28,6 @@ import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse.Feature;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import org.jspecify.annotations.Nullable;
@@ -136,29 +134,6 @@ public final class CodeGenerator {
     // contributes nothing, exactly as an absent one would.
     files.addAll(bridgeRegistry.emitAll(pf, bridgeContext, formatter));
     return files;
-  }
-
-  /**
-   * Record, for a top-level (or nested) message's oneof message members, that each member's record
-   * must implement the enclosing record's nested oneof interface. Walks nested messages so a oneof
-   * declared on a nested message registers too. A member whose Java FQN is unresolved contributes
-   * nothing.
-   */
-  private void collectOneofInterfaces(Message m, Map<String, Set<String>> registry) {
-    String ifaceBase = m.fullName();
-    for (Oneof oneof : m.oneofs()) {
-      String ifaceFqn = ifaceBase + "." + oneof.ifaceName();
-      for (Field member : oneof.members()) {
-        if (!member.isMessage()) continue; // scalar/enum fold into the Scalar wrapper
-        // The member's proto FQN resolves through the same file table the
-        // generator's TypeCollector uses, so the key lines up with the
-        // member record's own fullName() at its emission site.
-        String memberFqn = table.javaFqn(member.typeUrl());
-        if (memberFqn == null) continue; // unresolved external type: no interface to implement
-        registry.computeIfAbsent(memberFqn, k -> new LinkedHashSet<>()).add(ifaceFqn);
-      }
-    }
-    for (Message nested : m.nestedMessages()) collectOneofInterfaces(nested, registry);
   }
 
   /**
