@@ -478,7 +478,6 @@ class RecordSourceMappingTest {
    * M4-C2d-2: a message with nested-message singular + repeated fields renders via the source AST.
    */
   @Test
-  @SuppressWarnings("java:S905")
   void source_ast_emits_nested_message_singular_and_repeated() {
     var single =
         new Field(
@@ -530,7 +529,6 @@ class RecordSourceMappingTest {
 
   /** M4-C2b-2b-12: a message with one group renders the sealed interface + @Nullable component. */
   @Test
-  @SuppressWarnings("java:S905")
   void source_ast_emits_oneof_sealed_interface() {
     var oneofDescriptor = OneofDescriptorProto.newBuilder().setName("choice").build();
     var parentDescriptor = DescriptorProto.newBuilder().setName("Parent").build();
@@ -561,7 +559,6 @@ class RecordSourceMappingTest {
 
   /** M4-C2b-2b-13: a message with a map field renders {@code Map<K, V>} via the source AST. */
   @Test
-  @SuppressWarnings("java:S905")
   void source_ast_emits_map_field() throws Exception {
     var tags =
         new Field(
@@ -604,7 +601,6 @@ class RecordSourceMappingTest {
    * pipeline.
    */
   @Test
-  @SuppressWarnings("java:S905")
   void nested_message_codec_routes_through_type_resolver() throws Exception {
     // A Parent message with a nested Single message (singular, nullable).
     var single =
@@ -654,7 +650,6 @@ class RecordSourceMappingTest {
    * and a main codec that dispatches the map field to the entry codec.
    */
   @Test
-  @SuppressWarnings("java:S905")
   void map_field_emits_entry_type_and_codec_through_source_ast() throws Exception {
     var mapField =
         new Field(
@@ -704,7 +699,6 @@ class RecordSourceMappingTest {
    * suffix).
    */
   @Test
-  @SuppressWarnings("java:S905")
   void enum_field_codec_dispatches_to_forNumber() throws Exception {
     var colorField =
         new Field(
@@ -758,7 +752,6 @@ class RecordSourceMappingTest {
    * default -> "0"}. This pins the fix: singular MESSAGE/ENUM fields default to {@code null}.
    */
   @Test
-  @SuppressWarnings("java:S905")
   void required_enum_field_defaults_to_null_not_zero() {
     var colorField =
         new Field(
@@ -810,7 +803,6 @@ class RecordSourceMappingTest {
    * items}) renders through the source-AST path and compiles via {@code javac}.
    */
   @Test
-  @SuppressWarnings("java:S905")
   void nested_message_message_integration_test() throws Exception {
     String pkg = PKG;
     // Build the Item model (a 2-field scalar-only message).
@@ -930,7 +922,6 @@ class RecordSourceMappingTest {
    * to have the expected structure.
    */
   @Test
-  @SuppressWarnings("java:S905")
   void all_families_compat_message_renders_source_ast() throws Exception {
     String pkg = PKG;
     // int32 i = 1;

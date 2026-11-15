@@ -484,7 +484,6 @@ public final class CodecSourceMapping {
   }
 
   /** M4-C2d-7: MAP encode — iterate the map's entry set, encode each entry via its entry codec. */
-  @SuppressWarnings("java:S905")
   private static Element emitMapEncode(Field f) {
     String entryName = mapEntryName(f);
     return For.enhanced("var _e", "v.@0().entrySet()", f.javaName())
@@ -655,7 +654,6 @@ public final class CodecSourceMapping {
    * @param ci the type collector
    * @return the nested {@code <Entry>Codec} class
    */
-  @SuppressWarnings("java:S905")
   public static ClassSpec emitEntryCodec(String entryName, Field f, TypeCollector ci) {
     // M4-C2d-12: resolve key/value wire scalars from the Field's type URLs.
     WireScalar keyWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapKey()));
@@ -784,7 +782,6 @@ public final class CodecSourceMapping {
   /**
    * M4-C2d-7: decode case for a MAP field — read length-delimited entry, decode via entry codec.
    */
-  @SuppressWarnings("java:S905")
   private static Case emitMapDecodeCase(Field f) {
     String entryName = mapEntryName(f);
     String local = f.javaName();

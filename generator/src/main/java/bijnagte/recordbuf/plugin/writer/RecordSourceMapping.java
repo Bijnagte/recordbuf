@@ -589,7 +589,6 @@ public final class RecordSourceMapping {
    * contains a nested {@code <Field>EntryCodec} class via {@link
    * CodecSourceMapping#emitEntryCodec}.
    */
-  @SuppressWarnings("java:S905")
   private static RecordSpec mapEntryRecord(Field f, TypeCollector ci) {
     String javaName = f.javaName();
     String entryName =
