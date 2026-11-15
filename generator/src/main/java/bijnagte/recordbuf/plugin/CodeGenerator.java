@@ -6,6 +6,7 @@ import bijnagte.recordbuf.codegen.source.Formatter;
 import bijnagte.recordbuf.codegen.source.JavaFile;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Type;
+import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.bridge.BridgeContext;
 import bijnagte.recordbuf.plugin.bridge.BridgeRegistry;
 import bijnagte.recordbuf.plugin.model.Enum;
@@ -226,7 +227,15 @@ public final class CodeGenerator {
           return f.kind() == FieldKind.MESSAGE ? shortName + "." + shortName + "Codec" : shortName;
         };
     Type.Record ast = RecordSourceMapping.toSourceWithCodec(m, ci, typeResolver);
-    JavaFile javaFile = new JavaFile(javaPkg, header, ast, ci);
+    // The collision-seed travels via the JavaFile side channel: when this message opts into
+    // recordbuf.protobuf_java interop, register the record's own FQN so its short name occupies the
+    // declaring package and the out-of-package protobuf-java reference type (same short name) is
+    // emitted fully-qualified by the TypeCollector's collision policy. Empty otherwise.
+    Set<TypeRef> externalRefs =
+        m.protobufJava() != null
+            ? Set.of(TypeRef.of(ci.declaringPackage() + "." + m.name()))
+            : Set.of();
+    JavaFile javaFile = new JavaFile(javaPkg, header, ast, ci, externalRefs);
     String source = SourceRenderer.render(javaFile, formatter);
     return CodeGeneratorResponse.File.newBuilder().setName(outName).setContent(source).build();
   }

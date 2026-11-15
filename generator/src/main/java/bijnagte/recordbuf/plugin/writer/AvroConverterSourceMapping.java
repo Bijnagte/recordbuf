@@ -14,6 +14,7 @@ import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.Message;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Maps a top-level message's Avro {@code <X>AvroConverter} (record ↔ Avro-specific-record
@@ -62,11 +63,12 @@ public final class AvroConverterSourceMapping {
 
     TypeCollector ci = new TypeCollector(recordPkg);
 
-    // --- conditional imports, resolved upfront in the TypeCollector ---
+    // --- the Avro specific-record FQN travels via the JavaFile side channel (externalRefs), not a
+    // TypeCollector registration: it is an import the converter needs only when the specific record
+    // lives in a different package. The renderer aggregates it into the collect pass. ---
     boolean samePkg = recordPkg.equals(specificRecordPkg);
-    if (!samePkg) {
-      ci.accumulate(TypeRef.of(specificRecordPkg + "." + avroSpecific).referencedTypes());
-    }
+    Set<TypeRef> externalRefs =
+        samePkg ? Set.of() : Set.of(TypeRef.of(specificRecordPkg + "." + avroSpecific));
 
     // --- class AST ---
     Constructor privateCtor = Constructor.builder().private_().body().build();
@@ -83,7 +85,7 @@ public final class AvroConverterSourceMapping {
             .method(toRecord, fromRecord)
             .build();
 
-    JavaFile javaFile = new JavaFile(recordPkg, null, converterClass, ci);
+    JavaFile javaFile = new JavaFile(recordPkg, null, converterClass, ci, externalRefs);
     String rendered = SourceRenderer.render(javaFile, formatter);
 
     // Prepend the generated-file comment block.

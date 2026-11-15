@@ -185,10 +185,10 @@ public final class RecordSourceMapping {
     // protobuf-java ref type is emitted fully-qualified by the TypeCollector's collision policy, so
     // its short name never collides with the record's own name in the same compilation unit.
     if (m.protobufJava() != null && !m.protobufJava().isEmpty()) {
-      // Declare the record's own FQN so its short name occupies the declaring package; the
-      // TypeCollector then FQN's any out-of-package type sharing the name (the protobuf-java
-      // reference type of this same message), so the ref and the record never collide.
-      ci.accumulate(TypeRef.of(ci.declaringPackage() + "." + m.name()).referencedTypes());
+      // The record's own FQN is registered via the JavaFile side channel (see
+      // CodeGenerator.generateRecord), so its short name occupies the declaring package and the
+      // out-of-package protobuf-java reference type sharing the name is emitted fully-qualified by
+      // the TypeCollector's collision policy — the ref and the record never collide.
       result.nested(InteropSourceMapping.toInterop(m, ""));
     }
 

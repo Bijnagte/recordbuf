@@ -1,7 +1,7 @@
 # Refactor: invert `Formattable` collection from push to pull
 
 - **Plan type:** refactor
-- **Status:** active
+- **Status:** done (all three units landed: U1 f9e4d0c; U2/U3 this commit)
 - **Date:** 2026-11-14
 - **Supersedes:** —
 - **Related:** `docs/plans/2026-11-14-009-refactor-eliminate-mapper-collect-plan.md` (eliminated
@@ -131,7 +131,7 @@ registered (push→pull), not *when*.
 
 ## Units
 
-### U1 — Invert the `Formattable` contract — PENDING
+### U1 — Invert the `Formattable` contract — DONE (f9e4d0c)
 
 Replace `void collect(TypeCollector)` with `Set<TypeRef> referencedTypes()` on the interface and all 4
 implementers. Add a batch resolution entry point on `TypeCollector` (e.g. `accumulate(Set<TypeRef>)`
@@ -142,8 +142,7 @@ pass to aggregate a `LinkedHashSet<TypeRef>` and resolve it once before `finaliz
   `SourceRenderer.Pass.collect` aggregation.
 - **Verify:** `./gradlew build` green; fixture `.rec` output byte-identical.
 
-### U2 — Side-channel for the two seeds — PENDING
-
+### U2 — Side-channel for the two seeds — DONE
 Add `externalRefs(): Set<TypeRef>` to `JavaFile` (empty by default; an `empty()`-friendly
 constructor/default). Migrate the collision-seed (`RecordSourceMapping:191`) and the Avro-seed
 (`AvroConverterSourceMapping:68`) to contribute to it. The renderer aggregates `file.externalRefs()`
@@ -154,7 +153,7 @@ alongside the AST walk.
 - **Verify:** `./gradlew build` green; the `order` fixture (collision) and the Avro converter
   byte-identical.
 
-### U3 — Retire the bridge + migrate tests — PENDING
+### U3 — Retire the bridge + migrate tests — DONE
 
 Delete `TypeCollector.register(TypeRef)` (the `@Deprecated` public bridge — its sole caller, the
 `Formattable.collect` override, is gone). Migrate the 8 test call sites to the pull shape.

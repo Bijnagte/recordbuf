@@ -67,6 +67,7 @@ public final class SourceRenderer {
   public static String render(JavaFile file, Formatter formatter) {
     Pass p = new Pass(file.ci());
     p.collect(file.top());
+    p.accumulated.addAll(file.externalRefs());
     file.ci().accumulate(p.accumulated);
     file.ci().finalizeResolution();
 

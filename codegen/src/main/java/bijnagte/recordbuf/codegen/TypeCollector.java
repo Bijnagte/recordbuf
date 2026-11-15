@@ -85,9 +85,8 @@ public final class TypeCollector {
   /**
    * Resolves every {@link bijnagte.recordbuf.codegen.source.TypeRef} in the batch, registering
    * imports and updating collision state — the collect-phase entry point the renderer calls once
-   * with the set aggregated from the tree's {@code referencedTypes()} results, instead of threading
-   * this collector through the AST via a {@code Formattable.collect} bridge. Order within the batch
-   * is irrelevant: {@link #importLines()} sorts, and collision is set-based.
+   * with the set aggregated from the tree's {@code referencedTypes()} results. Order within the
+   * batch is irrelevant: {@link #importLines()} sorts, and collision is set-based.
    */
   public void accumulate(java.util.Set<bijnagte.recordbuf.codegen.source.TypeRef> refs) {
     for (bijnagte.recordbuf.codegen.source.TypeRef ref : refs) {
