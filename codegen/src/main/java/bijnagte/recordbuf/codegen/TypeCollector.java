@@ -111,13 +111,15 @@ public final class TypeCollector {
     // Compute the resolved base (short or fully-qualified), then append generics.
     String base;
     if (n.pkg().isEmpty()) {
-      base = n.shortName(); // bare name: no package, emitted as-is
+      base = n.renderedShort(); // no package: emitted in its nesting form, no import
     } else {
-      registerType(n.pkg() + "." + n.shortName()); // register for import / collision tracking
-      base = n.shortName();
+      registerType(n); // register for import / collision tracking
+      base = n.renderedShort();
       // A collided short name is emitted fully-qualified for the out-of-package type; an in-package
       // type occupies the short name in the declaring package and stays short.
-      if (frozen && collidedShortNames.contains(base) && !n.pkg().equals(declaringPackage)) {
+      if (frozen
+          && collidedShortNames.contains(n.collisionKey())
+          && !n.pkg().equals(declaringPackage)) {
         base = n.fqn(); // collided out-of-package: emit the full qualified form
       }
     }
@@ -125,31 +127,38 @@ public final class TypeCollector {
   }
 
   /**
-   * Registers a fully-qualified type FQN as import-eligible and tracks collision by short name. No
-   * return value — registration is a side-effect consumed by {@link #importLines()} and by the
-   * frozen-state branch of {@link #resolveNamed(TypeRef.Named)}. {@code java.lang.*} and
+   * Registers a type as import-eligible and tracks collision by its {@link Named#collisionKey()}
+   * (the outermost short name in the nesting chain). No return value — registration is a
+   * side-effect consumed by {@link #importLines()} and by the frozen-state branch of {@link
+   * #resolveNamed(TypeRef.Named)}. For a nested type the import target is the enclosing type's FQN
+   * (Java imports {@code Outer} and references {@code Outer.Inner}); {@code java.lang.*} and
    * same-package types are deliberately excluded, so they contribute no import line.
    */
-  private void registerType(String fullyQualified) {
-    int lastDot = fullyQualified.lastIndexOf('.');
+  private void registerType(Named n) {
+    String importFqn = n.importFqn();
+    int lastDot = importFqn.lastIndexOf('.');
     if (lastDot < 0) return; // bare name -- skip
-    String owner = fullyQualified.substring(0, lastDot);
+    String owner = importFqn.substring(0, lastDot);
     if (owner.equals("java.lang")) {
       return; // java.lang: short, never imported, and never a collision source
     }
-    String shortName = fullyQualified.substring(lastDot + 1);
-    // Track every non-java.lang short name for collision detection, including in-package types: an
-    // in-package type's short name can collide with an out-of-package type that shares it (e.g. the
-    // protobuf-java reference type of a recordbuf message), and that collision must be detected so
+    String collisionKey = n.collisionKey();
+    // Track every non-java.lang collision key for collision detection, including in-package types:
+    // an
+    // in-package type's outer short name can collide with an out-of-package type that shares it
+    // (e.g.
+    // the protobuf-java reference type of a recordbuf message), and that collision must be detected
+    // so
     // the out-of-package type is emitted fully-qualified.
-    LinkedHashSet<String> seen = byShortName.computeIfAbsent(shortName, k -> new LinkedHashSet<>());
-    seen.add(fullyQualified);
+    LinkedHashSet<String> seen =
+        byShortName.computeIfAbsent(collisionKey, k -> new LinkedHashSet<>());
+    seen.add(importFqn);
     if (seen.size() > 1) {
-      collidedShortNames.add(shortName);
+      collidedShortNames.add(collisionKey);
     }
     // Only out-of-package types contribute an import line; in-package types stay short.
     if (!owner.equals(declaringPackage)) {
-      importEligible.add(fullyQualified);
+      importEligible.add(importFqn);
     }
   }
 

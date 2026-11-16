@@ -139,4 +139,29 @@ class TypeCollectorTest {
     assertEquals("Sub<String>", resolved);
     assertTrue(ci.importLines().isEmpty());
   }
+
+  @Test
+  void nestedTypeRendersNestedShortAndImportsEnclosing() {
+    TypeCollector ci = new TypeCollector(PKG);
+    var nested = TypeRef.named("com.example.other", "Bar").sub("Marker");
+    ci.use(nested);
+    ci.finalizeResolution();
+    // Un-collided: the nested reference renders as Bar.Marker and imports the enclosing type Bar.
+    assertEquals("Bar.Marker", ci.use(nested));
+    assertTrue(ci.importLines().contains("import com.example.other.Bar;"));
+  }
+
+  @Test
+  void nestedCollisionFqnsOnOuterShort() {
+    TypeCollector ci = new TypeCollector(PKG);
+    var a = TypeRef.named("com.example.a", "Bar").sub("Marker");
+    var b = TypeRef.named("com.example.b", "Bar").sub("Marker");
+    ci.use(a);
+    ci.use(b);
+    ci.finalizeResolution();
+    // Both share the outer short "Bar" -> collided -> emitted fully-qualified, no import.
+    assertEquals("com.example.a.Bar.Marker", ci.use(a));
+    assertEquals("com.example.b.Bar.Marker", ci.use(b));
+    assertEquals(List.of(), ci.importLines());
+  }
 }

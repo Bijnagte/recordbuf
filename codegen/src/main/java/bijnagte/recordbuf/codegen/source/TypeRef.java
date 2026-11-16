@@ -138,12 +138,12 @@ public sealed interface TypeRef extends Formattable {
    * @return a new {@link Named} reference
    */
   static Named named(String pkg, String shortName, List<TypeRef> generics) {
-    return new Named(pkg, shortName, List.copyOf(generics));
+    return new Named(pkg, List.of(), shortName, generics);
   }
 
   /** Convenience: {@link #named(String, String, List)} with varargs. */
   static Named named(String pkg, String shortName, TypeRef... generics) {
-    return new Named(pkg, shortName, List.of(generics));
+    return new Named(pkg, List.of(), shortName, List.of(generics));
   }
 
   /** Construct an {@link Array} reference wrapping an element type. */
@@ -216,16 +216,23 @@ public sealed interface TypeRef extends Formattable {
   // --- implementations ---------------------------------------------------------
 
   /**
-   * A fully-qualified type reference such as {@code java.util.HashMap} or {@code
-   * java.util.List<String>}. Generic arguments are stored as a list of nested {@link TypeRef}s.
+   * A fully-qualified type reference such as {@code java.util.HashMap}, {@code
+   * java.util.List<String>}, or a nested type {@code foo.Bar.Baz}. Generic arguments are stored as
+   * a list of nested {@link TypeRef}s; nesting is stored as the ordered chain of enclosing type
+   * short names in {@link #enclosing()} (outermost first).
    *
-   * @param pkg the package prefix (empty string for the default package)
-   * @param shortName the simple class/interface name
+   * @param pkg the declaring package (empty string for the default package)
+   * @param enclosing the chain of enclosing type short names, outermost first; empty for a
+   *     top-level type. A nested type {@code foo.Bar.Baz} is {@code pkg="foo", enclosing=["Bar"],
+   *     shortName="Baz"}.
+   * @param shortName the innermost (own) simple type name
    * @param generics the generic type arguments (empty for a non-generic type)
    */
-  record Named(String pkg, String shortName, List<TypeRef> generics) implements TypeRef {
+  record Named(String pkg, List<String> enclosing, String shortName, List<TypeRef> generics)
+      implements TypeRef {
 
     public Named {
+      enclosing = List.copyOf(enclosing);
       generics = List.copyOf(generics);
     }
 
@@ -233,15 +240,12 @@ public sealed interface TypeRef extends Formattable {
      * Internal factory that does not copy generics. Used by {@link #of(String)} for the base path.
      */
     static Named ofBase(String pkg, String shortName) {
-      return new Named(pkg, shortName, List.of());
+      return new Named(pkg, List.of(), shortName, List.of());
     }
 
     @Override
     public String fqn() {
-      if (pkg.isEmpty()) {
-        return shortName;
-      }
-      return pkg + "." + shortName;
+      return joinWithDot(pkg, enclosing, shortName);
     }
 
     @Override
@@ -249,17 +253,46 @@ public sealed interface TypeRef extends Formattable {
       return shortName;
     }
 
+    /**
+     * The FQN this type contributes as an import line: the type's own FQN for a top-level type, or
+     * — for a nested type — the package plus its OUTERMOST enclosing type (Java imports that outer
+     * type and references the nested path from it), so {@code com.foo.Bar.Baz.Qux} imports {@code
+     * com.foo.Bar}.
+     */
+    public String importFqn() {
+      if (enclosing.isEmpty()) return fqn();
+      return joinWithDot(pkg, List.of(enclosing.get(0)), "");
+    }
+
+    /**
+     * The collision key — the short name an import line is keyed on, i.e. the outermost type in the
+     * nesting chain. For a top-level type that is {@link #shortName()}; for a nested type {@code
+     * foo.Bar.Baz} it is {@code Bar} (the imported outer type), not {@code Baz}.
+     */
+    public String collisionKey() {
+      return enclosing.isEmpty() ? shortName : enclosing.get(0);
+    }
+
+    /**
+     * The form emitted at a use site when the type is un-collided (thus importable or in-package):
+     * the nesting chain plus the short name (e.g. {@code Bar.Baz}), or just the short name for a
+     * top-level type.
+     */
+    public String renderedShort() {
+      return joinWithDot("", enclosing, shortName);
+    }
+
     @Override
     public String resolved(String declaringPackage, Set<String> collidedShortNames) {
       boolean isShort;
       if (pkg.equals("java.lang") || pkg.equals(declaringPackage)) {
         isShort = true; // java.lang or in-package: always short with no import
-      } else if (collidedShortNames.contains(this.shortName)) {
+      } else if (collidedShortNames.contains(collisionKey())) {
         isShort = false; // collided: emit fully-qualified everywhere
       } else {
         isShort = true; // uncollided non-java.lang: emitted as short + imported
       }
-      String base = isShort ? this.shortName : fqn();
+      String base = isShort ? renderedShort() : fqn();
       if (generics.isEmpty()) {
         return base;
       }
@@ -275,7 +308,8 @@ public sealed interface TypeRef extends Formattable {
 
     // A qualified ref contributes itself: the collector resolves it and its generics when it
     // resolves the set. A bare short name (no package) contributes nothing — it is in-package or a
-    // java.lang type, neither of which needs an import.
+    // java.lang type, neither of which needs an import. A nested type in the default package is the
+    // same: its enclosing type is in-package, so it too contributes no import.
     @Override
     public Set<TypeRef> referencedTypes() {
       if (pkg.isEmpty()) return Set.of();
@@ -284,12 +318,44 @@ public sealed interface TypeRef extends Formattable {
 
     /** A fully-qualified reference with generics. */
     public Named withGenerics(TypeRef... args) {
-      return new Named(pkg, shortName, List.of(args));
+      return new Named(pkg, enclosing, shortName, List.of(args));
     }
 
     /** A fully-qualified reference with generics. */
     public Named withGenerics(List<TypeRef> generics) {
-      return new Named(pkg, shortName, generics);
+      return new Named(pkg, enclosing, shortName, generics);
+    }
+
+    /**
+     * A nested type declared inside this one. Returns a new {@link Named} that extends this type's
+     * nesting chain with {@link #shortName()} and uses {@code name} as the new innermost short
+     * name, so {@code Named.named("foo", "Bar").sub("Baz")} is {@code foo.Bar.Baz}. The child
+     * inherits the parent's package and nesting but starts its own (empty) generics — generics are
+     * a render-time concern, not an import one, so a nested type does not carry the parent's
+     * generics.
+     */
+    public Named sub(String name) {
+      List<String> chain = new ArrayList<>(enclosing);
+      chain.add(shortName);
+      return new Named(pkg, chain, name, List.of());
+    }
+
+    /**
+     * Join {@code pkg}, each {@code enclosing} segment, and {@code tail} with dots, dropping
+     * blanks.
+     */
+    private static String joinWithDot(String pkg, List<String> enclosing, String tail) {
+      StringBuilder sb = new StringBuilder();
+      if (!pkg.isEmpty()) sb.append(pkg);
+      for (String e : enclosing) {
+        if (sb.length() > 0) sb.append('.');
+        sb.append(e);
+      }
+      if (!tail.isEmpty()) {
+        if (sb.length() > 0) sb.append('.');
+        sb.append(tail);
+      }
+      return sb.toString();
     }
   }
 

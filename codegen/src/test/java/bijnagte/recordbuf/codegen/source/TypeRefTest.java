@@ -122,4 +122,56 @@ class TypeRefTest {
     assertEquals(2, m.generics().size());
     assertFalse(m.generics().isEmpty());
   }
+
+  @Test
+  void named_sub_extendsNestingChain() {
+    TypeRef.Named nested = TypeRef.named("com.foo", "Bar").sub("Baz");
+    assertEquals("com.foo.Bar.Baz", nested.fqn());
+    assertEquals("Baz", nested.shortName());
+    // The collision key and import target key off the OUTER type (Bar), not the innermost (Baz).
+    assertEquals("Bar", nested.collisionKey());
+    assertEquals("com.foo.Bar", nested.importFqn());
+    // The un-collided use-site form is the nested short (Bar.Baz), not just Baz.
+    assertEquals("Bar.Baz", nested.renderedShort());
+    assertEquals(List.of("Bar"), nested.enclosing());
+  }
+
+  @Test
+  void named_sub_chainsMultipleLevels() {
+    TypeRef.Named nested = TypeRef.named("com.foo", "Bar").sub("Baz").sub("Qux");
+    assertEquals("com.foo.Bar.Baz.Qux", nested.fqn());
+    assertEquals(List.of("Bar", "Baz"), nested.enclosing());
+    assertEquals("com.foo.Bar", nested.importFqn());
+    assertEquals("Bar", nested.collisionKey());
+    assertEquals("Bar.Baz.Qux", nested.renderedShort());
+  }
+
+  @Test
+  void named_sub_dropsGenericsOfTheParent() {
+    TypeRef.Named parent = TypeRef.named("com.foo", "Bar", List.of(TypeRef.of("java.lang.String")));
+    TypeRef.Named nested = parent.sub("Baz");
+    assertTrue(nested.generics().isEmpty());
+    assertEquals(List.of("Bar"), nested.enclosing());
+  }
+
+  @Test
+  void named_nested_resolvedUncollidedRendersNestedShort() {
+    TypeRef.Named nested = TypeRef.named("com.foo", "Bar").sub("Baz");
+    assertEquals("Bar.Baz", nested.resolved("bijnagte.recordbuf", Set.of()));
+  }
+
+  @Test
+  void named_nested_resolvedCollidedFqnsOnOuterShort() {
+    TypeRef.Named nested = TypeRef.named("com.foo", "Bar").sub("Baz");
+    // A collision on the outer short (Bar) falls the whole nested reference back to its full FQN.
+    assertEquals("com.foo.Bar.Baz", nested.resolved("bijnagte.recordbuf", Set.of("Bar")));
+  }
+
+  @Test
+  void named_topLevel_collisionKeyIsShortName() {
+    TypeRef.Named top = TypeRef.named("com.foo", "Bar");
+    assertEquals("Bar", top.collisionKey());
+    assertEquals("com.foo.Bar", top.importFqn());
+    assertEquals("Bar", top.renderedShort());
+  }
 }
