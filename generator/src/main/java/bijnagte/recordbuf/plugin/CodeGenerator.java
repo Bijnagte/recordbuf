@@ -202,14 +202,12 @@ public final class CodeGenerator {
           return f.kind() == FieldKind.MESSAGE ? shortName + "." + shortName + "Codec" : shortName;
         };
 
-    TypeRef.Named recordRef = TypeRef.named(javaPkg, JavaNames.cap(m.name()));
-
-    RecordSpec ast = RecordSourceMapping.toSourceWithCodec(recordRef, m, typeResolver);
+    RecordSpec ast = RecordSourceMapping.toSourceWithCodec(m, typeResolver);
     // The collision-seed travels via the JavaFile side channel: when this message opts into
     // recordbuf.protobuf_java interop, register the record's own FQN so its short name occupies the
     // declaring package and the out-of-package protobuf-java reference type (same short name) is
     // emitted fully-qualified by the TypeCollector's collision policy. Empty otherwise.
-    Set<TypeRef> externalRefs = m.protobufJava() != null ? Set.of(recordRef) : Set.of();
+    Set<TypeRef> externalRefs = m.protobufJava() != null ? Set.of(m.type()) : Set.of();
     JavaFile javaFile =
         new JavaFile(javaPkg, header, ast, new TypeCollector(javaPkg), externalRefs);
     String source = SourceRenderer.render(javaFile, formatter);

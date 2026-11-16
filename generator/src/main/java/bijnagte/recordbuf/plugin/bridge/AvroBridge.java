@@ -66,7 +66,7 @@ public final class AvroBridge implements FormatBridge {
     List<CodeGeneratorResponse.File> out = new ArrayList<>();
 
     // The standalone .avsc output (R6)
-    String avscPath = root.fullName() + "AvroSchema.avsc";
+    String avscPath = root.type().fqn() + "AvroSchema.avsc";
     out.add(CodeGeneratorResponse.File.newBuilder().setName(avscPath).setContent(schema).build());
 
     // The specific record (option B): generate it in-process by delegating to Avro's own

@@ -92,9 +92,8 @@ public final class RecordSourceMapping {
    * a nested {@link Type} to the record's nested list, so the rendered source contains both the
    * record shell and its codec.
    */
-  public static RecordSpec toSourceWithCodec(Message m, TypeCollector ci) {
-    TypeRef.Named recordRef = TypeRef.named(ci.declaringPackage(), JavaNames.cap(m.name()));
-    return toSourceWithCodec(recordRef, m, null);
+  public static RecordSpec toSourceWithCodec(Message m) {
+    return toSourceWithCodec(m, null);
   }
 
   /**
@@ -104,7 +103,8 @@ public final class RecordSourceMapping {
    * (scalar-only message).
    */
   public static RecordSpec toSourceWithCodec(
-      TypeRef.Named recordRef, Message m, @Nullable Function<Field, String> typeResolver) {
+      Message m, @Nullable Function<Field, String> typeResolver) {
+    TypeRef.Named recordRef = m.type();
     // Rebuild the member list from scratch with the codec appended, mirroring toSource's logic.
     RecordSpec.Builder result =
         RecordSpec.named(m.name())
@@ -128,11 +128,9 @@ public final class RecordSourceMapping {
     for (Message nested : m.nestedMessages()) {
       var nestedRec =
           toSourceWithCodec(
-              recordRef,
-              nested,
-              f -> f.kind() == FieldKind.MESSAGE ? f.typeUrl() + ".Codec" : null);
-      // The nested record is emitted in the parent's declaring package: threading recordRef down
-      // carries that package so its FQN stays <Parent>.<Nested>.
+              nested, f -> f.kind() == FieldKind.MESSAGE ? f.typeUrl() + ".Codec" : null);
+      // The nested record's own type (its FQN, <Parent>.<Nested>) is carried on nested.type() —
+      // built via the parent's type.sub(...) in the loader — so no package is threaded here.
       result.nested(nestedRec);
     }
 

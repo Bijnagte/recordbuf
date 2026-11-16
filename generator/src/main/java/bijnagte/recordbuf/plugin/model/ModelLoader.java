@@ -1,5 +1,6 @@
 package bijnagte.recordbuf.plugin.model;
 
+import bijnagte.recordbuf.codegen.source.TypeRef;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.EnumDescriptorProto;
@@ -137,6 +138,14 @@ public final class ModelLoader {
   // --- messages ---
 
   private Message loadMessage(DescriptorProto m, String protoScope, List<Integer> basePath) {
+    // Top-level messages are named in the file's java package; nested messages chain off their
+    // parent's type via sub() (the enclosing chain, generics dropped).
+    return loadMessageWithParent(
+        m, TypeRef.named(javaPkgOf, JavaNames.cap(m.getName())), protoScope, basePath);
+  }
+
+  private Message loadMessageWithParent(
+      DescriptorProto m, TypeRef.Named type, String protoScope, List<Integer> basePath) {
     // Real oneof members are routed OUT of the flat fields() list and grouped by
     // their (raw) oneofIndex into Oneof entries (K1): a proto3 oneof{...} becomes
     // one nested sealed interface, and its members live only there. A proto3-optional
@@ -184,7 +193,11 @@ public final class ModelLoader {
       DescriptorProto nested = m.getNestedType(j); // raw index: source_code_info keys on it
       if (isMapEntryDescriptor(nested)) continue; // don't surface Entry records
       nestedMsgs.add(
-          loadMessage(nested, protoScopeForNested(m, protoScope), child(basePath, 3, j)));
+          loadMessageWithParent(
+              nested,
+              type.sub(JavaNames.cap(nested.getName())),
+              protoScopeForNested(m, protoScope),
+              child(basePath, 3, j)));
     }
     List<Enum> nestedEnums = new ArrayList<>();
     for (int j = 0; j < m.getEnumTypeCount(); j++) {
@@ -192,10 +205,9 @@ public final class ModelLoader {
       nestedEnums.add(loadEnum(nested, child(basePath, 4, j)));
     }
 
-    String javaScope = join(javaPkgOf, JavaNames.cap(m.getName()));
     return MessageBuilder.builder()
         .name(m.getName())
-        .fullName(javaScope)
+        .type(type)
         .fields(List.copyOf(fields))
         .nestedMessages(List.copyOf(nestedMsgs))
         .nestedEnums(List.copyOf(nestedEnums))

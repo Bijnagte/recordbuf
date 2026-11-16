@@ -1,5 +1,6 @@
 package bijnagte.recordbuf.plugin.model;
 
+import bijnagte.recordbuf.codegen.source.TypeRef;
 import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
@@ -8,7 +9,11 @@ import org.jspecify.annotations.Nullable;
  * Immutable view of a protobuf message.
  *
  * @param name short name (last path component)
- * @param fullName fully-qualified name within this file (e.g. {@code foo.Bar.Baz})
+ * @param type the record's own Java type as a {@link TypeRef.Named} — the declaring java package
+ *     plus this message's short name, with any enclosing messages carried in its nesting chain (a
+ *     nested message {@code Outer.Inner} is built as {@code ...Outer.sub("Inner")}). The writer
+ *     layer reads it in place of reconstructing {@code named(pkg, cap(name))} per site; its {@link
+ *     TypeRef.Named#fqn() fqn} is the fully-qualified name within this file.
  * @param fields direct fields, exclusive of oneof members: real {@code oneof{...}} members are
  *     routed into {@link #oneofs} (one nested sealed interface per oneof), while a proto3 {@code
  *     optional} scalar/enum's synthetic oneof stays a top-level field here. Map fields are expanded
@@ -32,7 +37,7 @@ import org.jspecify.annotations.Nullable;
 @RecordBuilder
 public record Message(
     String name,
-    String fullName,
+    TypeRef.Named type,
     List<Field> fields,
     List<Message> nestedMessages,
     List<Enum> nestedEnums,

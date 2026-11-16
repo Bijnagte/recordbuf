@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.bridge.AvroUnsupportedException;
 import bijnagte.recordbuf.plugin.model.AvroToggle;
 import bijnagte.recordbuf.plugin.model.Field;
@@ -48,7 +49,7 @@ class AvroSchemaGeneratorTest {
     // nestedEnums, comment). Built the same shape the emitter + converter tests use.
     return new Message(
         "Sample",
-        "p.Sample",
+        TypeRef.named("p", "Sample"),
         fields,
         List.of(),
         List.of(),

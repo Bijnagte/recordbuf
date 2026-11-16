@@ -3,6 +3,7 @@ package bijnagte.recordbuf.plugin.writer;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import bijnagte.recordbuf.codegen.source.Formatter;
+import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
@@ -49,7 +50,7 @@ class AvroConverterSourceMappingTest {
     Message m =
         new Message(
             "Sample",
-            "bijnagte.recordbuf.fixture.Sample",
+            TypeRef.named("bijnagte.recordbuf.fixture", "Sample"),
             List.of(scalar("a", "int32"), wktField("ts")),
             List.of(),
             List.of(),
@@ -115,7 +116,7 @@ class AvroConverterSourceMappingTest {
     Message m =
         new Message(
             "Sample",
-            "bijnagte.recordbuf.fixture.Sample",
+            TypeRef.named("bijnagte.recordbuf.fixture", "Sample"),
             List.of(bytesField),
             List.of(),
             List.of(),

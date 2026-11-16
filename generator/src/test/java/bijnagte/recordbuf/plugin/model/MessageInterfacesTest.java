@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import bijnagte.recordbuf.codegen.source.TypeRef;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -19,7 +20,7 @@ class MessageInterfacesTest {
     Message m =
         MessageBuilder.builder()
             .name("Sample")
-            .fullName("bijnagte.recordbuf.Sample")
+            .type(TypeRef.named("bijnagte.recordbuf", "Sample"))
             .fields(List.of())
             .nestedMessages(List.of())
             .nestedEnums(List.of())
@@ -37,7 +38,7 @@ class MessageInterfacesTest {
     Message m =
         MessageBuilder.builder()
             .name("Plain")
-            .fullName("bijnagte.recordbuf.Plain")
+            .type(TypeRef.named("bijnagte.recordbuf", "Plain"))
             .fields(List.of())
             .nestedMessages(List.of())
             .nestedEnums(List.of())
