@@ -51,16 +51,14 @@ public final class InteropSourceMapping {
     // The ref is used below as TypeRef.of(ref); the TypeCollector's collision policy emits it
     // fully-qualified, since its short name collides with the record's own name.
 
-    String rec = m.name();
-
-    TypeRef recType = TypeRef.of(m.name());
-    TypeRef.Named refType = TypeRef.named(refPkg, m.type().shortName());
+    TypeRef.Named recType = m.type();
+    TypeRef.Named refType = TypeRef.named(refPkg, recType.shortName());
 
     Javadoc javadoc =
         GeneratedDocs.type(
             null,
             "Structural X <-> R converter between "
-                + rec
+                + recType.shortName()
                 + " (record) and "
                 + refType.fqn()
                 + " (protobuf-java), generated from "

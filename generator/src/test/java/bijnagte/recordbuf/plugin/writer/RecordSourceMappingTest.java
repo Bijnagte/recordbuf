@@ -410,7 +410,7 @@ class RecordSourceMappingTest {
     Message m =
         new Message(
             "RepeatedMsg",
-            TypeRef.named("test", "RepeatedMsg"),
+            TypeRef.named(PKG, "RepeatedMsg"),
             List.of(nums),
             List.of(),
             List.of(),
@@ -440,7 +440,7 @@ class RecordSourceMappingTest {
     var m =
         new Message(
             "OptionalMsg",
-            TypeRef.named("test", "OptionalMsg"),
+            TypeRef.named(PKG, "OptionalMsg"),
             List.of(
                 new Field(
                     "opt",
@@ -510,7 +510,7 @@ class RecordSourceMappingTest {
     var parent =
         new Message(
             "Parent",
-            TypeRef.named("test", "Parent"),
+            TypeRef.named(PKG, "Parent"),
             List.of(single, items),
             List.of(),
             List.of(),
@@ -536,7 +536,7 @@ class RecordSourceMappingTest {
     var parent =
         new Message(
             "Parent",
-            TypeRef.named("test", "Parent"),
+            TypeRef.named(PKG, "Parent"),
             List.of(),
             List.of(),
             List.of(),
@@ -577,7 +577,7 @@ class RecordSourceMappingTest {
     var m =
         new Message(
             "HasMap",
-            TypeRef.named("test", "HasMap"),
+            TypeRef.named(PKG, "HasMap"),
             List.of(tags),
             List.of(),
             List.of(),

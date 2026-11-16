@@ -2,6 +2,7 @@ package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.source.Case;
 import bijnagte.recordbuf.codegen.source.ClassSpec;
+import bijnagte.recordbuf.codegen.source.CommaList;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.For;
@@ -60,17 +61,13 @@ public final class CodecSourceMapping {
     // plus the HashMap/ArrayList/Bytes constructors and CodecDefaults.<x>() default calls) is now
     // a TypeRef positional arg of a RawExpr, so the renderer's collect walk registers + resolves
     // it; no explicit collect/render is needed here.
-    String codecName = m.name() + "Codec"; // M4-C2b-2b-8: align with old SampleCodec naming
+    String recName = m.type().shortName();
+    String codecName = recName + "Codec";
     return ClassSpec.named(codecName)
         .public_()
         .static_()
         .final_()
-        .javadoc(
-            GeneratedDocs.type(
-                null,
-                "Wire codec for the "
-                    + m.name()
-                    + " record.")) // M4-C2b-2b-8: <Name>Codec to align with old path
+        .javadoc(GeneratedDocs.type(null, "Wire codec for the " + recName + " record."))
         .constructor(Constructor.builder().private_().build())
         .method(encode(m, typeResolver))
         .method(decode(m, pkg, typeResolver))
@@ -141,7 +138,7 @@ public final class CodecSourceMapping {
         Method.named("decode")
             .public_()
             .static_()
-            .returnType(TypeRef.of(m.name()))
+            .returnType(m.type())
             .param(TypeRef.BYTES, "inBytes")
             .thrown(TypeRef.IO_EXCEPTION)
             .body(
@@ -274,7 +271,7 @@ public final class CodecSourceMapping {
     for (Oneof o : m.oneofs()) {
       switchB.caseArm(emitOneofDecodeCase(o, pkg));
     }
-    // M4-C2b-2b-5: the default case captures the unknown field into the builder.
+    // the default case captures the unknown field into the builder.
     switchB.defaultBody(Element.expr("unknown.add(in, tag)"));
 
     method.body(
@@ -289,10 +286,10 @@ public final class CodecSourceMapping {
     // Construct the record, passing the carrier as the last argument.
     List<String> allNames = new ArrayList<>();
     for (Field f : m.fields()) allNames.add(f.javaName());
-    // M4-C2b-2b-12: oneof components: pass the oneof local (assigned in the tag loop, or null).
+    // oneof components: pass the oneof local (assigned in the tag loop, or null).
     for (var oneof : m.oneofs()) allNames.add(oneof.componentName());
     allNames.add("unknown.build()");
-    return method.body(Element.ret("new @0(@1)", m.name(), joinCommas(allNames))).build();
+    return method.body(Element.ret("new @0(@1)", m.type(), CommaList.of(allNames))).build();
   }
 
   // --- Per-field encode ---
@@ -511,10 +508,6 @@ public final class CodecSourceMapping {
       case BOOL -> TypeRef.Primitive.BOOLEAN;
       default -> TypeRef.OBJECT;
     };
-  }
-
-  private static String joinCommas(List<String> names) {
-    return String.join(", ", names);
   }
 
   /** The wire scalar type of a proto scalar field, by its typeUrl. */
