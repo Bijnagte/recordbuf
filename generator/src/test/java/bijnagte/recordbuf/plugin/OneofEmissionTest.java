@@ -2,7 +2,6 @@ package bijnagte.recordbuf.plugin;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import bijnagte.recordbuf.plugin.writer.*;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;

@@ -10,10 +10,12 @@ import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.JavaFile;
 import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.RecordSpec;
+import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Enum;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
+import bijnagte.recordbuf.plugin.model.JavaNames;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.Oneof;
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
@@ -55,7 +57,7 @@ class RecordSourceMappingTest {
   @Test
   void maps_the_message_shell_through_the_source_ast_and_compiles() throws Exception {
     TypeCollector ci = new TypeCollector(PKG);
-    var rec = RecordSourceMapping.toSource(address(), ci);
+    var rec = RecordSourceMapping.toSource(address(), PKG);
     String src = SourceRenderer.render(new JavaFile(PKG, Javadoc.builder().build(), rec, ci));
 
     // The record shell -- header + scalar components + the message's Javadoc; no codec yet.
@@ -520,7 +522,7 @@ class RecordSourceMappingTest {
             List.of(),
             null);
     TypeCollector ci = new TypeCollector(PKG);
-    var rec = RecordSourceMapping.toSource(parent, ci);
+    var rec = RecordSourceMapping.toSource(parent, PKG);
     var file = new JavaFile(PKG, Javadoc.builder().build(), rec, ci);
     var src = SourceRenderer.render(file);
     assertTrue(src.contains("Sub single"), "singular nested-message field:\n" + src);
@@ -546,7 +548,7 @@ class RecordSourceMappingTest {
             List.of(),
             null);
     TypeCollector ci = new TypeCollector(PKG);
-    var rec = RecordSourceMapping.toSource(parent, ci);
+    var rec = RecordSourceMapping.toSource(parent, PKG);
     var file = new JavaFile(PKG, Javadoc.builder().build(), rec, ci);
     var src = SourceRenderer.render(file);
     // M4-C2b-2b-12: @Nullable Choice choice component + nested sealed interface.
@@ -587,7 +589,7 @@ class RecordSourceMappingTest {
             List.of(),
             null);
     TypeCollector ci = new TypeCollector(PKG);
-    var rec = RecordSourceMapping.toSource(m, ci);
+    var rec = RecordSourceMapping.toSource(m, PKG);
     var file = new JavaFile(PKG, Javadoc.builder().build(), rec, ci);
     var src = SourceRenderer.render(file);
     assertTrue(
@@ -633,7 +635,7 @@ class RecordSourceMappingTest {
     Function<Field, String> typeResolver =
         (Field f) -> f.typeUrl().substring(f.typeUrl().lastIndexOf('.') + 1) + "Codec";
     var ci = new TypeCollector(PKG);
-    var rec = RecordSourceMapping.toSourceWithCodec(parent, ci, typeResolver);
+    var rec = RecordSourceMapping.toSourceWithCodec(recordRefFor(ci, parent), parent, typeResolver);
     var file = new JavaFile(PKG, Javadoc.builder().build(), rec, ci);
     var src = SourceRenderer.render(file);
     // The generated source should contain the nested-message codec dispatch.
@@ -733,7 +735,7 @@ class RecordSourceMappingTest {
           String shortName = dot < 0 ? ff.typeUrl() : ff.typeUrl().substring(dot + 1);
           return ff.kind() == FieldKind.MESSAGE ? shortName + "Codec" : shortName;
         };
-    var rec = RecordSourceMapping.toSourceWithCodec(m, ci, typeResolver);
+    var rec = RecordSourceMapping.toSourceWithCodec(recordRefFor(ci, m), m, typeResolver);
     var file = new JavaFile(PKG, Javadoc.builder().build(), rec, ci);
     var src = SourceRenderer.render(file);
     // The codec should reference Color.forNumber for the decode path
@@ -786,7 +788,7 @@ class RecordSourceMappingTest {
           String shortName = dot < 0 ? ff.typeUrl() : ff.typeUrl().substring(dot + 1);
           return ff.kind() == FieldKind.MESSAGE ? shortName + "Codec" : shortName;
         };
-    var rec = RecordSourceMapping.toSourceWithCodec(m, ci, typeResolver);
+    var rec = RecordSourceMapping.toSourceWithCodec(recordRefFor(ci, m), m, typeResolver);
     var src = SourceRenderer.render(new JavaFile(PKG, Javadoc.builder().build(), rec, ci));
 
     // The record component is @Nullable Color, and the builder-storage default is null -- not 0.
@@ -847,7 +849,8 @@ class RecordSourceMappingTest {
             List.of(),
             null);
     var itemCi = new TypeCollector(pkg);
-    var itemAst = RecordSourceMapping.toSourceWithCodec(itemModel, itemCi, null);
+    var itemAst =
+        RecordSourceMapping.toSourceWithCodec(recordRefFor(itemCi, itemModel), itemModel, null);
     var itemFile = new JavaFile(pkg, Javadoc.builder().build(), itemAst, itemCi);
     var itemSrc = SourceRenderer.render(itemFile);
 
@@ -894,7 +897,9 @@ class RecordSourceMappingTest {
             null);
     var sampleCi = new TypeCollector(pkg);
     Function<Field, String> sampleResolver = (Field ff) -> ff.typeUrl() + "Codec";
-    var sampleAst = RecordSourceMapping.toSourceWithCodec(sampleModel, sampleCi, sampleResolver);
+    var sampleAst =
+        RecordSourceMapping.toSourceWithCodec(
+            recordRefFor(sampleCi, sampleModel), sampleModel, sampleResolver);
     var sampleFile = new JavaFile(pkg, Javadoc.builder().build(), sampleAst, sampleCi);
     var sampleSrc = SourceRenderer.render(sampleFile);
 
@@ -1076,7 +1081,7 @@ class RecordSourceMappingTest {
     var ci = new TypeCollector(pkg);
     Function<Field, String> resolver =
         f -> f.kind() == FieldKind.MESSAGE ? f.typeUrl() + "Codec" : "";
-    var rec = RecordSourceMapping.toSourceWithCodec(m, ci, resolver);
+    var rec = RecordSourceMapping.toSourceWithCodec(recordRefFor(ci, m), m, resolver);
     var file = new JavaFile(pkg, Javadoc.builder().build(), rec, ci);
     var src = SourceRenderer.render(file);
     System.out.println("=== COMPAT SRC ===");
@@ -1086,5 +1091,10 @@ class RecordSourceMappingTest {
     assertTrue(src.contains("record Compat"), "record header: " + src);
     assertTrue(src.contains("class Builder"), "builder: " + src);
     assertTrue(src.contains("class CompatCodec"), "codec: " + src);
+  }
+
+  /** Build the record's own {@link TypeRef.Named} ref, mirroring the mapping's internal idiom. */
+  private static TypeRef.Named recordRefFor(TypeCollector ci, Message m) {
+    return TypeRef.named(ci.declaringPackage(), JavaNames.cap(m.name()));
   }
 }

@@ -48,11 +48,13 @@ public final class InteropSourceMapping {
     if (refPkg == null || refPkg.isEmpty()) {
       throw new IllegalArgumentException("toInterop: protobufJava must be non-null/non-empty");
     }
-    String refType = JavaNames.cap(m.name());
     // The ref is used below as TypeRef.of(ref); the TypeCollector's collision policy emits it
     // fully-qualified, since its short name collides with the record's own name.
-    String ref = refFqn(refPkg, refType);
+
     String rec = m.name();
+
+    TypeRef recType = TypeRef.of(m.name());
+    TypeRef.Named refType = TypeRef.named(refPkg, JavaNames.cap(m.name()));
 
     Javadoc javadoc =
         GeneratedDocs.type(
@@ -60,35 +62,28 @@ public final class InteropSourceMapping {
             "Structural X <-> R converter between "
                 + rec
                 + " (record) and "
-                + ref
+                + refType.fqn()
                 + " (protobuf-java), generated from "
                 + sourceName
                 + ". Field-by-field conversion only.");
 
-    var privateCtor = Constructor.builder().private_().build();
-
-    var fromMethod = emitFrom(m, ref, rec);
-    var toMethod = emitTo(m, refPkg, ref, rec);
+    var fromMethod = emitFrom(m, refType, recType);
+    var toMethod = emitTo(m, refType, recType);
 
     return ClassSpec.named("Interop")
         .public_()
         .static_()
         .final_()
         .javadoc(javadoc)
-        .constructor(privateCtor)
+        .constructor(Constructor.builder().private_().build())
         .method(fromMethod, toMethod)
         .build();
   }
 
   // -- from(reference) -> record ------------------------------------------------
 
-  private static Method emitFrom(Message m, String ref, String rec) {
-    var method =
-        Method.named("from")
-            .public_()
-            .static_()
-            .returnType(TypeRef.of(rec))
-            .param(TypeRef.of(ref), "x");
+  private static Method emitFrom(Message m, TypeRef ref, TypeRef rec) {
+    var method = Method.named("from").public_().static_().returnType(rec).param(ref, "x");
     for (Field f : m.fields()) {
       method.body(fromLocal(f));
     }
@@ -197,68 +192,65 @@ public final class InteropSourceMapping {
 
   // -- to(record) -> reference --------------------------------------------------
 
-  private static Method emitTo(Message m, String refPkg, String ref, String rec) {
+  private static Method emitTo(Message m, TypeRef.Named ref, TypeRef rec) {
     var method =
         Method.named("to")
             .public_()
             .static_()
-            .returnType(TypeRef.of(ref))
-            .param(TypeRef.of(rec), "r")
+            .returnType(ref)
+            .param(rec, "r")
             .body(Element.expr("var _b = @0.newBuilder()", ref));
     for (Field f : m.fields()) {
-      method.body(toStmt(f, refPkg));
+      method.body(toStmt(f, ref.pkg()));
     }
     for (Oneof o : m.oneofs()) {
-      method.body(emitOneofTo(o, refPkg));
+      method.body(emitOneofTo(o, ref.pkg()));
     }
     return method.body(Element.ret("_b.build()")).build();
   }
 
-  private static List<Element> toStmt(Field f, String refPkg) {
+  private static Element toStmt(Field f, String refPkg) {
     String cap = JavaNames.cap(f.javaName());
-    List<Element> out = new ArrayList<>();
+    final Element out;
+    String src = "r." + f.javaName() + "()";
+
     if (f.isMap()) {
-      out.add(
-          For.enhanced("var _e", "r.@0().entrySet()", f.javaName())
+      out =
+          For.enhanced("var _e", "@0.entrySet()", src)
               .body(Element.expr("_b.put@0(@1, @2)", cap, mapKeyTo(f), mapValueTo(f)))
-              .build());
-      return out;
-    }
-    if (f.isMessage() && f.isRepeated()) {
+              .build();
+    } else if (f.isMessage() && f.isRepeated()) {
       String recSib = recordSiblingFqn(f);
-      out.add(
-          For.enhanced("var _e", "r.@0()", f.javaName())
+      out =
+          For.enhanced("var _e", src)
               .body(Element.expr("_b.add@0(@1.Interop.to(_e))", cap, recSib))
-              .build());
-      return out;
-    }
-    if (f.isMessage()) {
+              .build();
+    } else if (f.isMessage()) {
       String recSib = recordSiblingFqn(f);
       // Use a local variable so NullAway can track the non-null guard
-      String src = "r." + f.javaName() + "()";
-      String local = "n" + JavaNames.cap(f.javaName());
-      out.add(
+
+      String local = "n" + cap;
+      out =
           If.condition("@0 != null", src)
               .body(
                   Element.expr("var @0 = @1", local, src),
                   Element.expr("_b.set@0(@1.Interop.to(@2))", cap, recSib, local))
-              .build());
-      return out;
-    }
-    if (f.isRepeated()) {
+              .build();
+    } else if (f.isRepeated()) {
       if ("bytes".equals(f.typeUrl())) {
-        out.add(
-            For.enhanced("byte[] _e", "r.@0()", f.javaName())
+        out =
+            For.enhanced("byte[] _e", src)
                 .body(
                     Element.expr(
                         RawExpr.of("_b.add@1(@0.copyFrom(_e))", TypeRefs.BYTE_STRING, cap)))
-                .build());
+                .build();
       } else {
-        out.add(Element.expr("_b.addAll@0(r.@1())", cap, f.javaName()));
+        out = Element.expr("_b.addAll@0(@1)", cap, src);
       }
-      return out;
+
+    } else {
+      out = toSetStatement(f, src, refPkg);
     }
-    out.add(toSetStatement(f, "r." + f.javaName() + "()", refPkg));
     return out;
   }
 
@@ -328,10 +320,6 @@ public final class InteropSourceMapping {
     if (fqn == null) return "";
     int dot = fqn.lastIndexOf('.');
     return dot < 0 ? fqn : fqn.substring(dot + 1);
-  }
-
-  private static String refFqn(String refPkg, String refType) {
-    return refPkg.isEmpty() ? refType : refPkg + "." + refType;
   }
 
   private static String mapKeyFrom(Field f) {

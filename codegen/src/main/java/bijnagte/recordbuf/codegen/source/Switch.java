@@ -73,6 +73,16 @@ public record Switch(RawExpr subject, List<Case> cases, List<Element> defaultBod
       return this;
     }
 
+    /** Append a vararg of pre-built case arms; calls accumulate. */
+    public Builder caseArms(Case... arms) {
+      List<Case> next = new ArrayList<>(this.cases);
+      if (arms != null) {
+        for (Case c : arms) next.add(c);
+      }
+      this.cases = next;
+      return this;
+    }
+
     /** Append one or more default-arm body elements; calls accumulate. */
     public Builder defaultBody(Element... s) {
       List<Element> next = new ArrayList<>(this.defaultBody);

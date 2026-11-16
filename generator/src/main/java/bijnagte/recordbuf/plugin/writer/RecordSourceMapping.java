@@ -3,6 +3,7 @@ package bijnagte.recordbuf.plugin.writer;
 import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Annotation;
 import bijnagte.recordbuf.codegen.source.ClassSpec;
+import bijnagte.recordbuf.codegen.source.CommaList;
 import bijnagte.recordbuf.codegen.source.Component;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
@@ -50,7 +51,7 @@ public final class RecordSourceMapping {
   /**
    * Map a proto {@link Message} model into a source-AST {@link RecordSpec} for the record shell.
    */
-  public static RecordSpec toSource(Message m, TypeCollector ci) {
+  public static RecordSpec toSource(Message m, String pkg) {
     RecordSpec.Builder result =
         RecordSpec.named(m.name())
             .public_()
@@ -72,7 +73,7 @@ public final class RecordSourceMapping {
     // its
     // full core + its BY_NUMBER reverse-lookup cluster (with shared java.util.* imports).
     for (Enum e : m.nestedEnums()) {
-      result.nested(EnumSourceMapping.toSource(e, ci, ci.declaringPackage()));
+      result.nested(EnumSourceMapping.toSource(e, pkg));
     }
     // M4-C2b-2b-12: oneof groups. Each contributes one @Nullable record component and
     // one nested sealed interface (the per-member value records live inside it).
@@ -92,7 +93,8 @@ public final class RecordSourceMapping {
    * record shell and its codec.
    */
   public static RecordSpec toSourceWithCodec(Message m, TypeCollector ci) {
-    return toSourceWithCodec(m, ci, null);
+    TypeRef.Named recordRef = TypeRef.named(ci.declaringPackage(), JavaNames.cap(m.name()));
+    return toSourceWithCodec(recordRef, m, null);
   }
 
   /**
@@ -102,7 +104,7 @@ public final class RecordSourceMapping {
    * (scalar-only message).
    */
   public static RecordSpec toSourceWithCodec(
-      Message m, TypeCollector ci, @Nullable Function<Field, String> typeResolver) {
+      TypeRef.Named recordRef, Message m, @Nullable Function<Field, String> typeResolver) {
     // Rebuild the member list from scratch with the codec appended, mirroring toSource's logic.
     RecordSpec.Builder result =
         RecordSpec.named(m.name())
@@ -110,84 +112,89 @@ public final class RecordSourceMapping {
             .javadoc(
                 GeneratedDocs.type(
                     m.comment(), "Auto-generated record for the " + m.name() + " proto message."))
-            .deprecated(m.deprecated());
+            .deprecated(m.deprecated())
+            .implementsFqns(m.interfaces())
+            .impl(TypeRefs.PROTOBUF_MESSAGE);
+
     for (Field f : m.fields()) {
       var comp = Component.type(scalarComponentType(f), f.javaName());
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       result.component(comp.build());
     }
     for (Enum e : m.nestedEnums()) {
-      result.nested(EnumSourceMapping.toSource(e, ci, ci.declaringPackage()));
+      result.nested(EnumSourceMapping.toSource(e, recordRef.pkg()));
     }
     // M4-C2d-9: nested messages — emit each as an inner record via recursion.
     for (Message nested : m.nestedMessages()) {
       var nestedRec =
           toSourceWithCodec(
-              nested, ci, f -> f.kind() == FieldKind.MESSAGE ? f.typeUrl() + ".Codec" : null);
-      // The nested type's FQN must be <Parent>.<Nested> — the TypeCollector handles the
-      // package qualification, so just ensure the ci knows about it.
+              recordRef,
+              nested,
+              f -> f.kind() == FieldKind.MESSAGE ? f.typeUrl() + ".Codec" : null);
+      // The nested record is emitted in the parent's declaring package: threading recordRef down
+      // carries that package so its FQN stays <Parent>.<Nested>.
       result.nested(nestedRec);
     }
-    // M4-C2b-2b-12: oneof groups.
+
     for (Oneof oneof : m.oneofs()) {
       OneofEmission oe = emitOneof(oneof);
       result.component(oe.component());
       result.nested(oe.iface());
     }
-    // M4-C2d-7: nested map entry records + their codecs, before the main Codec.
+    // nested map entry records + their codecs, before the main Codec.
     for (Field f : m.fields()) {
       if (f.kind() == FieldKind.MAP) {
-        RecordSpec entry = mapEntryRecord(f, ci);
+        RecordSpec entry = mapEntryRecord(f);
         result.nested(entry);
       }
     }
 
-    // M4-C2b-2b-5: always-on unknown-field carrier: the record's last component.
+    // always-on unknown-field carrier: the record's last component.
     // The import is registered by the collect() phase via component.type().
-    String ufFqn = TypeRefs.UNKNOWN_FIELDS.fqn();
-    result.component(Component.named(ufFqn, "unknownFields").build());
 
-    // M4-C2b-2b-6: the fluent builder. Emitted after the carrier and after the codec (a forward
+    result.component(Component.type(TypeRefs.UNKNOWN_FIELDS, "unknownFields").build());
+
+    // the fluent builder. Emitted after the carrier and after the codec (a forward
     // reference to the codec's inner-class is resolved by javac's inner-class resolution).
-    BuilderEmission be = emitBuilder(m, ufFqn);
-    result.method(be.factory());
-    result.nested(be.nested());
-    // M4-C2b-2b-8: toBuilder + fromBytes (old path parity)
+    BuilderEmission be = emitBuilder(m);
+
     String codecName = m.name() + "Codec";
-    result.method(
-        Method.named("toBuilder")
-            .public_()
-            .returnType(TypeRef.of("Builder"))
-            .body(Element.ret("new @0.Builder(this)", m.name()))
-            .build());
-    result.method(
-        Method.named("fromBytes")
-            .public_()
-            .static_()
-            .returnType(TypeRef.of(m.name()))
-            .param(TypeRef.BYTES, "in")
-            .thrown(TypeRef.IO_EXCEPTION)
-            .body(Element.ret("@0.decode(in)", codecName))
-            .build());
 
-    // M4-C2b-2b-5: the Layer A marshalling hook. Every record implements ProtobufMessage by
-    // delegating to its own nested Codec.encode. Import is registered via implementsFqns by the
-    // collect() phase.
-    var toByteArray =
-        Method.named("toByteArray")
-            .public_()
-            .returnType(TypeRef.BYTES)
-            .thrown(TypeRef.IO_EXCEPTION)
-            .body(Element.ret("@0Codec.encode(this)", m.name()))
-            .override(true)
-            .build();
-    result.method(toByteArray);
+    result
+        .method(be.factory())
+        .nested(be.nested())
+        .method(
+            Method.named("toBuilder")
+                .public_()
+                .returnType(TypeRef.of("Builder"))
+                .body(Element.ret("new @0.Builder(this)", m.name()))
+                .build())
+        .method(
+            Method.named("fromBytes")
+                .public_()
+                .static_()
+                .returnType(TypeRef.of(m.name()))
+                .param(TypeRef.BYTES, "in")
+                .thrown(TypeRef.IO_EXCEPTION)
+                .body(Element.ret("@0.decode(in)", codecName))
+                .build())
 
-    // M4-C2b-2c: append the nested Codec, built from the same message model.
-    ClassSpec codec = CodecSourceMapping.toCodec(m, ci, typeResolver);
-    result.nested(codec);
+        // The Layer A marshalling hook. Every record implements ProtobufMessage by
+        // delegating to its own nested Codec.encode. Import is registered via implementsFqns by the
+        // collect() phase.
+        .method(
+            Method.named("toByteArray")
+                .public_()
+                .returnType(TypeRef.BYTES)
+                .thrown(TypeRef.IO_EXCEPTION)
+                .body(Element.ret("@0Codec.encode(this)", m.name()))
+                .override(true)
+                .build())
 
-    // M4-C2e: Layer B interop — nested Interop class when recordbuf.protobuf_java is set. The
+        // Append the nested Codec, built from the same message model.
+        .nested(CodecSourceMapping.toCodec(m, recordRef.pkg(), typeResolver));
+
+    // Layer B interop — nested Interop class when recordbuf.protobuf_java is set. The
     // protobuf-java ref type is emitted fully-qualified by the TypeCollector's collision policy, so
     // its short name never collides with the record's own name in the same compilation unit.
     if (m.protobufJava() != null && !m.protobufJava().isEmpty()) {
@@ -197,14 +204,6 @@ public final class RecordSourceMapping {
       // the TypeCollector's collision policy — the ref and the record never collide.
       result.nested(InteropSourceMapping.toInterop(m, ""));
     }
-
-    // Build the implements list: user-declared interfaces first, then ProtobufMessage
-    // (matches the old JavaWriter ordering: option interfaces precede the runtime marker).
-    List<String> implementsList = new ArrayList<>();
-    implementsList.addAll(m.interfaces());
-    implementsList.add(TypeRefs.PROTOBUF_MESSAGE.fqn());
-    result.implementsFqns(implementsList);
-
     return result.build();
   }
 
@@ -410,7 +409,7 @@ public final class RecordSourceMapping {
   // - one fluent setter per component
   // - private unknownFields field with default empty()
   // - public build() terminal
-  private static BuilderEmission emitBuilder(Message m, String ufFqn) {
+  private static BuilderEmission emitBuilder(Message m) {
     String recName = m.name();
     // The nested static Builder class — header first, members accumulated below.
     ClassSpec.Builder builderClz =
@@ -421,6 +420,7 @@ public final class RecordSourceMapping {
             .public_()
             .static_()
             .final_();
+    TypeRef builderType = TypeRef.of("Builder");
 
     // Storage fields with codec defaults for each component field.
     for (Field f : m.fields()) {
@@ -441,16 +441,16 @@ public final class RecordSourceMapping {
               .build());
     }
     // Carrier storage field with default empty().
-    TypeRef ufRef = TypeRef.of(ufFqn);
-    builderClz.field(
-        Component.type(ufRef, "unknownFields")
-            .initializer(RawExpr.of("@0.empty()", ufRef))
-            .private_()
-            .build());
+    builderClz
+        .field(
+            Component.type(TypeRefs.UNKNOWN_FIELDS, "unknownFields")
+                .initializer(RawExpr.of("@0.empty()", TypeRefs.UNKNOWN_FIELDS))
+                .private_()
+                .build())
 
-    // The no-arg constructor (Java does not generate an implicit one when a parametered ctor
-    // exists).
-    builderClz.constructor(Constructor.builder().private_().body().build());
+        // The no-arg constructor (Java does not generate an implicit one when a parametered ctor
+        // exists).
+        .constructor(Constructor.builder().private_().body().build());
 
     // The toBuilder copy constructor.
     var copyCtor = Constructor.builder().private_().param(TypeRef.of(recName), "x");
@@ -477,7 +477,7 @@ public final class RecordSourceMapping {
       builderClz.method(
           Method.named(fieldName)
               .public_()
-              .returnType(TypeRef.of("Builder"))
+              .returnType(builderType)
               .param(Param.of(scalarComponentType(f), fieldName))
               .body(Element.expr("this.@0 = @1", fieldName, fieldName), Element.ret("this"))
               .build());
@@ -488,7 +488,7 @@ public final class RecordSourceMapping {
       builderClz.method(
           Method.named(compName)
               .public_()
-              .returnType(TypeRef.of("Builder"))
+              .returnType(builderType)
               .param(Param.of(TypeRef.of(oneof.ifaceName()), compName, Annotation.NULLABLE))
               .body(Element.expr("this.@0 = @1", compName, compName), Element.ret("this"))
               .build());
@@ -497,9 +497,9 @@ public final class RecordSourceMapping {
     builderClz.method(
         Method.named("unknownFields")
             .public_()
-            .returnType(TypeRef.of("Builder"))
-            .param(ufRef, "unknownFields")
-            .body(Element.of("this.unknownFields = unknownFields;"), Element.ret("this"))
+            .returnType(builderType)
+            .param(TypeRefs.UNKNOWN_FIELDS, "unknownFields")
+            .body(Element.expr("this.unknownFields = unknownFields"), Element.ret("this"))
             .build());
 
     // build(): constructs the record.
@@ -507,7 +507,7 @@ public final class RecordSourceMapping {
     for (Field f : m.fields()) {
       ctorArgs.add(f.javaName());
     }
-    // M4-C2b-2b-12: oneof build args.
+
     for (var oneof : m.oneofs()) {
       ctorArgs.add(oneof.componentName());
     }
@@ -517,10 +517,9 @@ public final class RecordSourceMapping {
             .javadoc(GeneratedDocs.type(null, "Builds a " + m.name() + " record."))
             .public_()
             .returnType(TypeRef.of(recName))
-            .body(Element.ret("new @0(@1)", recName, String.join(", ", ctorArgs)))
+            .body(Element.ret("new @0(@1)", recName, CommaList.of(ctorArgs)))
             .build());
 
-    // The nested Builder class itself — with javadoc matching the old JavaWriter path.
     ClassSpec nestedBuilder = builderClz.build();
 
     // The static factory on the record, with javadoc.
@@ -534,7 +533,7 @@ public final class RecordSourceMapping {
                         + " {@link Builder}. Build it fluently, then call {@link Builder#build()}."))
             .public_()
             .static_()
-            .returnType(TypeRef.of("Builder"))
+            .returnType(builderType)
             .body(Element.ret("new @0.Builder()", recName))
             .build();
 
@@ -596,7 +595,7 @@ public final class RecordSourceMapping {
    * contains a nested {@code <Field>EntryCodec} class via {@link
    * CodecSourceMapping#emitEntryCodec}.
    */
-  private static RecordSpec mapEntryRecord(Field f, TypeCollector ci) {
+  private static RecordSpec mapEntryRecord(Field f) {
     String javaName = f.javaName();
     String entryName =
         javaName.isEmpty() ? "" : Character.toUpperCase(javaName.charAt(0)) + javaName.substring(1);
@@ -605,18 +604,15 @@ public final class RecordSourceMapping {
     TypeRef keyTypeRef = TypeRef.boxedFor(Objects.requireNonNull(f.mapKey()));
     TypeRef valueTypeRef = TypeRef.boxedFor(Objects.requireNonNull(f.mapValue()));
 
-    RecordSpec.Builder result =
-        RecordSpec.named(entryName)
-            .javadoc(
-                GeneratedDocs.type(
-                    null, "Auto-generated record for the " + entryName + " map entry."))
-            .public_();
-    result.component(Component.type(keyTypeRef, "key").build());
-    result.component(Component.type(valueTypeRef, "value").build());
+    ClassSpec entryCodec = CodecSourceMapping.emitEntryCodec(entryName, f);
 
-    ClassSpec entryCodec = CodecSourceMapping.emitEntryCodec(entryName, f, ci);
-    result.nested(entryCodec);
-
-    return result.build();
+    return RecordSpec.named(entryName)
+        .javadoc(
+            GeneratedDocs.type(null, "Auto-generated record for the " + entryName + " map entry."))
+        .public_()
+        .component(Component.type(keyTypeRef, "key").build())
+        .component(Component.type(valueTypeRef, "value").build())
+        .nested(entryCodec)
+        .build();
   }
 }

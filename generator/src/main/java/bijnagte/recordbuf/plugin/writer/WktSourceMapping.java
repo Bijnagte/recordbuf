@@ -1,6 +1,5 @@
 package bijnagte.recordbuf.plugin.writer;
 
-import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Case;
 import bijnagte.recordbuf.codegen.source.Element;
 import bijnagte.recordbuf.codegen.source.For;
@@ -38,7 +37,7 @@ final class WktSourceMapping {
   // /
   // "Integer i32 = null;" per Wkt.java type
 
-  static Element localInitElement(Field f, Entry entry, TypeCollector ci) {
+  static Element localInitElement(Field f, Entry entry) {
     TypeRef type = TypeRef.of(requireType(entry));
     String name = f.javaName();
     if (f.label() == FieldLabel.REPEATED) {
@@ -60,7 +59,7 @@ final class WktSourceMapping {
   // Wkt.wrap(Wkt.Wrap.KIND, v.field()));"
   //            repeated form:      "for (var e : v.field()) out.writeByteArray(n, Wkt.method(e));"
 
-  static Element emitEncode(Field f, Entry entry, String out, String v, TypeCollector ci) {
+  static Element emitEncode(Field f, Entry entry, String out, String v) {
     TypeRef wktRef = TypeRefs.WKT;
     int num = f.number();
     String g = v + "." + f.javaName() + "()";
@@ -75,7 +74,7 @@ final class WktSourceMapping {
                 If.condition("!e.equals(@0)", def)
                     .body(
                         Element.expr(
-                            "@0.writeByteArray(@1, @2.@3(e));", out, num, wktRef, methodName))
+                            "@0.writeByteArray(@1, @2.@3(e))", out, num, wktRef, methodName))
                     .build())
             .build();
       } else {
@@ -83,7 +82,7 @@ final class WktSourceMapping {
         return For.enhanced("var e", g)
             .body(
                 Element.expr(
-                    "@0.writeByteArray(@1, @2.wrap(@2.Wrap.@3, e));",
+                    "@0.writeByteArray(@1, @2.wrap(@2.Wrap.@3, e))",
                     out,
                     num,
                     wktRef,
@@ -95,14 +94,14 @@ final class WktSourceMapping {
       // if (v.field() != null && !def.equals(v.field())) out.writeByteArray(n,
       // Wkt.method(v.field()));
       return If.condition("@0 != null && !@1.equals(@0)", g, def)
-          .body(Element.expr("@0.writeByteArray(@1, @2.@3(@4));", out, num, wktRef, methodName, g))
+          .body(Element.expr("@0.writeByteArray(@1, @2.@3(@4))", out, num, wktRef, methodName, g))
           .build();
     } else {
       // if (v.field() != null) out.writeByteArray(n, Wkt.wrap(Wkt.Wrap.KIND, v.field()));
       return If.condition("@0 != null", g)
           .body(
               Element.expr(
-                  "@0.writeByteArray(@1, @2.wrap(@2.Wrap.@3, @4));",
+                  "@0.writeByteArray(@1, @2.wrap(@2.Wrap.@3, @4))",
                   out,
                   num,
                   wktRef,
@@ -117,7 +116,7 @@ final class WktSourceMapping {
 
   // decode case: "case N -> field = Wkt.parseName(in.readByteArray());"
   //             "case N -> field = (Short) Wkt.parse(Wkt.Wrap.KIND, in.readByteArray());"
-  static Case emitDecodeCase(Field f, Entry entry, String in, TypeCollector ci) {
+  static Case emitDecodeCase(Field f, Entry entry, String in) {
     int num = f.number();
     String name = f.javaName();
     String read = in + ".readByteArray()";

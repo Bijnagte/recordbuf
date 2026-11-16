@@ -1,6 +1,5 @@
 package bijnagte.recordbuf.plugin.writer;
 
-import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Component;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
@@ -11,8 +10,6 @@ import bijnagte.recordbuf.codegen.source.RawExpr;
 import bijnagte.recordbuf.codegen.source.StaticBlock;
 import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Enum;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Maps the generator's proto {@link Enum} model into a {@link EnumSpec} of the pure-Java,
@@ -39,12 +36,10 @@ public final class EnumSourceMapping {
    * Map a proto {@link Enum} model into a source-AST {@link EnumSpec}.
    *
    * @param proto the proto enum model
-   * @param ci the file's type collector, used to register the cluster's {@code java.util.Map} /
-   *     {@code java.util.HashMap} imports
    * @param declaringPkg the Java package the generated enum belongs to — used to resolve the
    *     self-reference {@code Name} inside {@code Map<Integer, Name>}
    */
-  public static EnumSpec toSource(Enum proto, TypeCollector ci, String declaringPkg) {
+  public static EnumSpec toSource(Enum proto, String declaringPkg) {
     String name = proto.name();
 
     EnumSpec.Builder result =
@@ -68,48 +63,50 @@ public final class EnumSourceMapping {
     }
 
     // 2. The number field + ctor + accessor — the core the M4-C2a slice mapped.
-    result.field(Component.named("int", "number").private_().final_().build());
-    result.constructor(
-        Constructor.builder()
-            .param(TypeRef.Primitive.INT, "number")
-            .body(Element.expr("this.number = number"))
-            .build());
-    result.method(
-        Method.named("getNumber")
-            .public_()
-            .returnType(TypeRef.Primitive.INT)
-            .body(Element.ret("number"))
-            .build());
+    result
+        .field(Component.named("int", "number").private_().final_().build())
+        .constructor(
+            Constructor.builder()
+                .param(TypeRef.Primitive.INT, "number")
+                .body(Element.expr("this.number = number"))
+                .build())
+        .method(
+            Method.named("getNumber")
+                .public_()
+                .returnType(TypeRef.Primitive.INT)
+                .body(Element.ret("number"))
+                .build());
 
     // 3. The reverse-lookup cluster — U5: BY_NUMBER field type and initializers are TypeRefs.
     //    Collected in the collect phase; resolved collision-aware at render time.
     TypeRef selfRef = TypeRef.named(declaringPkg, name);
     TypeRef mapType = TypeRefs.MAP.withGenerics(TypeRef.INTEGER, selfRef);
     TypeRef hashMapRef = TypeRefs.HASH_MAP;
-    result.field(
-        Component.type(mapType, "BY_NUMBER")
-            .private_()
-            .static_()
-            .final_()
-            .initializer(RawExpr.of("new @0<>()", hashMapRef))
-            .build());
 
-    List<Element> init = new ArrayList<>();
+    var init = StaticBlock.builder();
     for (Enum.EnumConstant c : proto.constants()) {
-      init.add(Element.expr("BY_NUMBER.put(@0, @1)", c.number(), c.name()));
+      init.body(Element.expr("BY_NUMBER.put(@0, @1)", c.number(), c.name()));
     }
-    result.staticBlock(new StaticBlock(init));
 
-    result.method(
-        Method.named("forNumber")
-            .public_()
-            .static_()
-            .returnType(selfRef)
-            .param(TypeRef.Primitive.INT, "number")
-            .body(Element.ret("BY_NUMBER.getOrDefault(number, " + firstConstantName(proto) + ")"))
-            .build());
-
-    return result.build();
+    return result
+        .field(
+            Component.type(mapType, "BY_NUMBER")
+                .private_()
+                .static_()
+                .final_()
+                .initializer(RawExpr.of("new @0<>()", hashMapRef))
+                .build())
+        .staticBlock(init.build())
+        .method(
+            Method.named("forNumber")
+                .public_()
+                .static_()
+                .returnType(selfRef)
+                .param(TypeRef.Primitive.INT, "number")
+                .body(
+                    Element.ret("BY_NUMBER.getOrDefault(number, " + firstConstantName(proto) + ")"))
+                .build())
+        .build();
   }
 
   /** The first constant's name, or {@code UNRECOGNIZED} when the enum has none. */

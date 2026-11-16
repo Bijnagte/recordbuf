@@ -1,6 +1,5 @@
 package bijnagte.recordbuf.plugin.writer;
 
-import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Case;
 import bijnagte.recordbuf.codegen.source.ClassSpec;
 import bijnagte.recordbuf.codegen.source.Constructor;
@@ -46,43 +45,40 @@ public final class CodecSourceMapping {
    * a static {@code encode} + a static {@code decode}.
    *
    * @param m the message model
-   * @param ci the type collector (used to pre-register all runtime FQN references so the import
-   *     block is correct)
+   * @param pkg the java package
    * @return the nested {@code ClassSpec} codec node
    */
   public static ClassSpec toCodec(
-      Message m, TypeCollector ci, @Nullable Function<Field, String> typeResolver) {
+      Message m, String pkg, @Nullable Function<Field, String> typeResolver) {
     // Backwards compat: no typeResolver = scalar-only.
-    return doToCodec(m, ci, typeResolver);
+    return doToCodec(m, pkg, typeResolver);
   }
 
   private static ClassSpec doToCodec(
-      Message m, TypeCollector ci, @Nullable Function<Field, String> typeResolver) {
+      Message m, String pkg, @Nullable Function<Field, String> typeResolver) {
     // Every type the codec body references (encoder/decoder/unknownFields/wire/codecDefaults,
     // plus the HashMap/ArrayList/Bytes constructors and CodecDefaults.<x>() default calls) is now
     // a TypeRef positional arg of a RawExpr, so the renderer's collect walk registers + resolves
     // it; no explicit collect/render is needed here.
     String codecName = m.name() + "Codec"; // M4-C2b-2b-8: align with old SampleCodec naming
-    ClassSpec.Builder result =
-        ClassSpec.named(codecName)
-            .public_()
-            .static_()
-            .final_()
-            .javadoc(
-                GeneratedDocs.type(
-                    null,
-                    "Wire codec for the "
-                        + m.name()
-                        + " record.")); // M4-C2b-2b-8: <Name>Codec to align with old path
-    result.constructor(Constructor.builder().private_().build());
-    result.method(encode(m, ci, typeResolver));
-    result.method(decode(m, ci, typeResolver));
-    return result.build();
+    return ClassSpec.named(codecName)
+        .public_()
+        .static_()
+        .final_()
+        .javadoc(
+            GeneratedDocs.type(
+                null,
+                "Wire codec for the "
+                    + m.name()
+                    + " record.")) // M4-C2b-2b-8: <Name>Codec to align with old path
+        .constructor(Constructor.builder().private_().build())
+        .method(encode(m, typeResolver))
+        .method(decode(m, pkg, typeResolver))
+        .build();
   }
 
   /** The {@code byte[] encode(Message v) throws IOException} method body. */
-  private static Method encode(
-      Message m, TypeCollector ci, @Nullable Function<Field, String> typeResolver) {
+  private static Method encode(Message m, @Nullable Function<Field, String> typeResolver) {
     var method =
         Method.named("encode")
             .public_()
@@ -90,8 +86,9 @@ public final class CodecSourceMapping {
             .returnType(TypeRef.BYTES)
             .param(TypeRef.of(m.name()), "v")
             .thrown(TypeRef.IO_EXCEPTION)
-            .body(Element.expr("var enc = @0.start();", TypeRefs.ENCODER))
-            .body(Element.of("var out = enc.out();"));
+            .body(
+                Element.expr("var enc = @0.start()", TypeRefs.ENCODER),
+                Element.expr("var out = enc.out()"));
 
     // Sort by field number for wire-order correctness (OrderTest proves this).
     var sortedFields = m.fields().stream().sorted(Comparator.comparingInt(Field::number)).toList();
@@ -100,7 +97,7 @@ public final class CodecSourceMapping {
       Entry wktEntry = WktSourceMapping.resolve(f);
       if (wktEntry != null) {
         var wkt0 = Objects.requireNonNull(wktEntry);
-        method.body(WktSourceMapping.emitEncode(f, wkt0, "out", "v", ci));
+        method.body(WktSourceMapping.emitEncode(f, wkt0, "out", "v"));
       } else {
         Element e =
             switch (f.kind()) {
@@ -128,17 +125,18 @@ public final class CodecSourceMapping {
     }
 
     // M4-C2b-2b-5: re-emit the unknown-fields carrier, if any, preserving wire-order round-trip.
-    method.body(
-        If.condition("!v.unknownFields().isEmpty()")
-            .body(Element.expr("@0.writeUnknown(out, v.unknownFields());", TypeRefs.WIRE))
-            .build());
-
-    return method.body(Element.ret("enc.finish()")).build();
+    return method
+        .body(
+            If.condition("!v.unknownFields().isEmpty()")
+                .body(Element.expr("@0.writeUnknown(out, v.unknownFields())", TypeRefs.WIRE))
+                .build(),
+            Element.ret("enc.finish()"))
+        .build();
   }
 
   /** The {@code Message decode(byte[] inBytes) throws IOException} method body. */
   private static Method decode(
-      Message m, TypeCollector ci, @Nullable Function<Field, String> typeResolver) {
+      Message m, String pkg, @Nullable Function<Field, String> typeResolver) {
     var method =
         Method.named("decode")
             .public_()
@@ -146,8 +144,9 @@ public final class CodecSourceMapping {
             .returnType(TypeRef.of(m.name()))
             .param(TypeRef.BYTES, "inBytes")
             .thrown(TypeRef.IO_EXCEPTION)
-            .body(Element.expr("var dec = @0.start(inBytes)", TypeRefs.DECODER))
-            .body(Element.expr("var in = dec.in()"))
+            .body(
+                Element.expr("var dec = @0.start(inBytes)", TypeRefs.DECODER),
+                Element.expr("var in = dec.in()"))
 
             // M4-C2b-2b-5: the unknown-fields accumulator, initialised as a fresh builder.
             .body(Element.expr("var unknown = @0.builder()", TypeRefs.UNKNOWN_FIELDS));
@@ -157,7 +156,7 @@ public final class CodecSourceMapping {
       Entry wktEntry = WktSourceMapping.resolve(f);
       if (wktEntry != null) {
         var wkt0 = Objects.requireNonNull(wktEntry);
-        method.body(WktSourceMapping.localInitElement(f, wkt0, ci));
+        method.body(WktSourceMapping.localInitElement(f, wkt0));
       } else {
         switch (f.kind()) {
           case FieldKind.MAP -> {
@@ -166,7 +165,7 @@ public final class CodecSourceMapping {
             TypeRef mapType = TypeRefs.MAP.withGenerics(keyType, valueType);
 
             method.body(
-                Element.expr("@0 @1 = new @2<>();", mapType, f.javaName(), TypeRefs.HASH_MAP));
+                Element.expr("@0 @1 = new @2<>()", mapType, f.javaName(), TypeRefs.HASH_MAP));
           }
           case FieldKind.MESSAGE -> {
             if (typeResolver != null) {
@@ -201,7 +200,7 @@ public final class CodecSourceMapping {
             } else {
               if (f.label() == FieldLabel.REPEATED) {
                 method.body(
-                    Element.expr("List<?> @0 = new @1<>();", f.javaName(), TypeRefs.ARRAY_LIST));
+                    Element.expr("List<?> @0 = new @1<>()", f.javaName(), TypeRefs.ARRAY_LIST));
               } else {
                 method.body(
                     LocalVar.builder(TypeRef.OBJECT, f.javaName()).assigned(RawExpr.of("null")));
@@ -214,7 +213,7 @@ public final class CodecSourceMapping {
             } else if (f.isNullable()) {
               // M4-C2d-1: optional scalar → starts at null, set on tag.
               TypeRef localType = TypeRef.boxedFor(f.typeUrl());
-              method.body(Element.expr("@0 @1 = null;", localType, f.javaName()));
+              method.body(Element.expr("@0 @1 = null", localType, f.javaName()));
             } else {
               TypeRef localTypeRef = decodeLocalType(f);
               method.body(
@@ -233,7 +232,7 @@ public final class CodecSourceMapping {
     // Oneof locals: each defaults to null (the absent case). Proto3 oneof semantics: last
     // same-tag member seen wins, so a repeated same-tag member overwrites the prior value.
     for (Oneof o : m.oneofs()) {
-      method.body(Element.expr("@0 @1 = null;", o.ifaceName(), o.componentName()));
+      method.body(Element.expr("@0 @1 = null", o.ifaceName(), o.componentName()));
     }
 
     // Tag loop: a while-loop wrapping a pattern-matching switch of tag-case arms.
@@ -243,7 +242,7 @@ public final class CodecSourceMapping {
       Entry wktEntry = WktSourceMapping.resolve(f);
       if (wktEntry != null) {
         var wkt0 = Objects.requireNonNull(wktEntry);
-        switchB.caseArm(WktSourceMapping.emitDecodeCase(f, wkt0, "in", ci));
+        switchB.caseArm(WktSourceMapping.emitDecodeCase(f, wkt0, "in"));
       } else {
         switch (f.kind()) {
           case FieldKind.MAP -> switchB.caseArm(emitMapDecodeCase(f));
@@ -273,20 +272,19 @@ public final class CodecSourceMapping {
     }
     // Oneof decode cases: each member contributes a case that assigns the oneof local.
     for (Oneof o : m.oneofs()) {
-      switchB.caseArm(emitOneofDecodeCase(o, ci));
+      switchB.caseArm(emitOneofDecodeCase(o, pkg));
     }
     // M4-C2b-2b-5: the default case captures the unknown field into the builder.
-    switchB.defaultBody(Element.of("unknown.add(in, tag);"));
+    switchB.defaultBody(Element.expr("unknown.add(in, tag)"));
 
-    var whileB =
+    method.body(
         While.condition("true")
             .body(
                 LocalVar.builder(TypeRef.Primitive.INT, "tag")
-                    .assigned("@0.readTag(in)", TypeRefs.WIRE))
-            .body(If.condition("tag == 0").body(Element.of("break;")).build())
-            .body(switchB.build())
-            .build();
-    method.body(whileB);
+                    .assigned("@0.readTag(in)", TypeRefs.WIRE),
+                If.condition("tag == 0").body(Element.of("break;")).build(),
+                switchB.build())
+            .build());
 
     // Construct the record, passing the carrier as the last argument.
     List<String> allNames = new ArrayList<>();
@@ -355,11 +353,11 @@ public final class CodecSourceMapping {
     if (typeResolver == null) {
       return Element.comment("M4-C2d-5: typeResolver null; skip " + f.javaName());
     }
-    String getter = "v." + f.javaName() + "()";
-    int num = f.number();
     String codecRef = typeResolver.apply(f);
-    return If.condition("@0 != null", getter)
-        .body(Element.expr("out.writeByteArray(@0, @1.encode(@2))", num, codecRef, getter))
+    return If.condition("v.@0() != null", f.javaName())
+        .body(
+            Element.expr(
+                "out.writeByteArray(@0, @1.encode(v.@2()))", f.number(), codecRef, f.javaName()))
         .build();
   }
 
@@ -370,10 +368,9 @@ public final class CodecSourceMapping {
       return Element.comment("M4-C2d-5: typeResolver null; skip " + f.javaName());
     }
     String getter = "v." + f.javaName() + "()";
-    int num = f.number();
     String codecRef = typeResolver.apply(f);
     return For.enhanced("var _m", getter)
-        .body(Element.expr("out.writeByteArray(@0, @1.encode(_m))", num, codecRef))
+        .body(Element.expr("out.writeByteArray(@0, @1.encode(_m))", f.number(), codecRef))
         .build();
   }
 
@@ -440,11 +437,10 @@ public final class CodecSourceMapping {
     if (typeResolver == null) {
       return null;
     }
-    int num = f.number();
-    String local = f.javaName();
     String codecRef = typeResolver.apply(f);
     return Case.of(
-        String.valueOf(num), Element.expr("@0 = @1.decode(in.readByteArray())", local, codecRef));
+        String.valueOf(f.number()),
+        Element.expr("@0 = @1.decode(in.readByteArray())", f.javaName(), codecRef));
   }
 
   /** M4-C2d-5: repeated MESSAGE decode — read length-delimited, add to the list. */
@@ -454,12 +450,10 @@ public final class CodecSourceMapping {
     if (typeResolver == null) {
       return null;
     }
-    int num = f.number();
-    String local = f.javaName();
     String codecRef = typeResolver.apply(f);
     return Case.of(
-        String.valueOf(num),
-        Element.expr("@0.add(@1.decode(in.readByteArray()))", local, codecRef));
+        String.valueOf(f.number()),
+        Element.expr("@0.add(@1.decode(in.readByteArray()))", f.javaName(), codecRef));
   }
 
   // --- Per-field decode case ---
@@ -629,9 +623,9 @@ public final class CodecSourceMapping {
     return Case.of(
         String.valueOf(num),
         LocalVar.builder(TypeRef.Primitive.INT, "_lim")
-            .assigned("in.pushLimit(in.readRawVarint32());"),
+            .assigned("in.pushLimit(in.readRawVarint32())"),
         Element.expr("while (in.getBytesUntilLimit() > 0) @0.add(@1)", local, decodeCall(wire)),
-        Element.of("in.popLimit(_lim);"));
+        Element.expr("in.popLimit(_lim)"));
   }
 
   private static Element emitRepeatedLocalInit(Field f) {
@@ -644,10 +638,9 @@ public final class CodecSourceMapping {
    * {@code key} (field 1) and {@code value} (field 2). Both are scalar types.
    *
    * @param entryName the entry record's name (e.g. "DataEntry")
-   * @param ci the type collector
    * @return the nested {@code <Entry>Codec} class
    */
-  public static ClassSpec emitEntryCodec(String entryName, Field f, TypeCollector ci) {
+  public static ClassSpec emitEntryCodec(String entryName, Field f) {
     // M4-C2d-12: resolve key/value wire scalars from the Field's type URLs.
     WireScalar keyWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapKey()));
     WireScalar valWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapValue()));
@@ -701,8 +694,9 @@ public final class CodecSourceMapping {
                                 .assigned("@0.readTag(in)", TypeRefs.WIRE),
                             If.condition("tag == 0").body(Element.of("break;")).build(),
                             Switch.on("@0.tagFieldNumber(tag)", TypeRefs.WIRE)
-                                .caseArm(emitFieldDecodeCase(1, "key", keyWire))
-                                .caseArm(emitFieldDecodeCase(2, "value", valWire))
+                                .caseArms(
+                                    emitFieldDecodeCase(1, "key", keyWire),
+                                    emitFieldDecodeCase(2, "value", valWire))
                                 .defaultBody(Element.expr("unknown.add(in, tag)"))
                                 .build(),
                             Element.of(""))
@@ -830,13 +824,13 @@ public final class CodecSourceMapping {
    * assigns the oneof's shared local. A message member decodes via its nested codec; a scalar/enum
    * member decodes via the wire read primitive and wraps in the per-member record.
    */
-  private static List<Case> emitOneofDecodeCase(Oneof o, TypeCollector ci) {
+  private static List<Case> emitOneofDecodeCase(Oneof o, String pkg) {
     String cmp = o.componentName();
     List<Case> arms = new ArrayList<>();
     for (Field f : o.members()) {
       arms.add(
           Case.of(
-              String.valueOf(f.number()), Element.expr("@0 = @1", cmp, oneofDecodeRhs(o, f, ci))));
+              String.valueOf(f.number()), Element.expr("@0 = @1", cmp, oneofDecodeRhs(o, f, pkg))));
     }
     return arms;
   }
@@ -845,7 +839,7 @@ public final class CodecSourceMapping {
    * The right-hand side of a oneof member's decode assignment: the per-member wrapper record's
    * constructor call carrying the decoded value.
    */
-  private static RawExpr oneofDecodeRhs(Oneof o, Field f, TypeCollector ci) {
+  private static RawExpr oneofDecodeRhs(Oneof o, Field f, String pkg) {
     String iface = o.ifaceName();
     String recName = iface + "." + JavaNames.cap(f.name()) + "Value";
     if (f.isMessage()) {
@@ -861,7 +855,7 @@ public final class CodecSourceMapping {
       // positional, the tree-walker resolves + registers it -- no ci.use pre-resolution.
       int dot = f.typeUrl().lastIndexOf('.');
       String shortName = dot < 0 ? f.typeUrl() : f.typeUrl().substring(dot + 1);
-      String recordFqn = ci.declaringPackage() + "." + shortName;
+      String recordFqn = pkg + "." + shortName;
       return RawExpr.of("new @0(@1.forNumber(in.readEnum()))", recName, TypeRef.of(recordFqn));
     }
     // Scalar member.
