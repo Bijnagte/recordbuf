@@ -8,7 +8,6 @@ import org.jspecify.annotations.Nullable;
  * Immutable view of a protobuf enum.
  *
  * @param name short name (last path component)
- * @param fullName fully-qualified name within this file
  * @param constants the enum's constants
  * @param deprecated {@code option deprecated = true}
  * @param comment leading doc comment, if captured
@@ -24,7 +23,6 @@ import org.jspecify.annotations.Nullable;
 @RecordBuilder
 public record Enum(
     String name,
-    String fullName,
     List<EnumConstant> constants,
     boolean deprecated,
     @Nullable String comment,

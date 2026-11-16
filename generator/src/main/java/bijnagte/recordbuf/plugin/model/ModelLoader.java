@@ -358,10 +358,8 @@ public final class ModelLoader {
               v.getOptions().getDeprecated(),
               commentAtPath(child(basePath, 2, i))));
     }
-    String javaFqn = join(javaPkgOf, JavaNames.cap(e.getName()));
     return EnumBuilder.builder()
         .name(e.getName())
-        .fullName(javaFqn)
         .constants(List.copyOf(cs))
         .deprecated(e.getOptions().getDeprecated())
         .comment(commentAtPath(basePath))

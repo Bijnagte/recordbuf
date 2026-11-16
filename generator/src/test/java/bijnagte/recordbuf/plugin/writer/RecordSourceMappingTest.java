@@ -305,7 +305,6 @@ class RecordSourceMappingTest {
     Enum color =
         new Enum(
             "Color",
-            "Color",
             List.of(
                 new Enum.EnumConstant("RED", 0, false, null),
                 new Enum.EnumConstant("GREEN", 1, false, "the green value"),

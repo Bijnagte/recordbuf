@@ -54,7 +54,6 @@ class MessageInterfacesTest {
     Enum e =
         EnumBuilder.builder()
             .name("Color")
-            .fullName("bijnagte.recordbuf.Color")
             .constants(List.of())
             .deprecated(false)
             .comment(null)
@@ -69,7 +68,6 @@ class MessageInterfacesTest {
     Enum e =
         EnumBuilder.builder()
             .name("Plain")
-            .fullName("bijnagte.recordbuf.Plain")
             .constants(List.of())
             .deprecated(false)
             .comment(null)

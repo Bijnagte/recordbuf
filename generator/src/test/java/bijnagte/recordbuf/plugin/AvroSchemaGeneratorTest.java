@@ -45,8 +45,8 @@ class AvroSchemaGeneratorTest {
   }
 
   private static Message message(List<Field> fields) {
-    // Message: (name, fullName, fields, oneofs, <...>, <...>, <...>, deprecated, nested,
-    // nestedEnums, comment). Built the same shape the emitter + converter tests use.
+    // Message: (name, type, fields, nestedMessages, nestedEnums, oneofs, deprecated,
+    // comment, interfaces, protobufJava). Built the same shape the emitter + converter tests use.
     return new Message(
         "Sample",
         TypeRef.named("p", "Sample"),

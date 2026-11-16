@@ -54,7 +54,7 @@ public final class InteropSourceMapping {
     String rec = m.name();
 
     TypeRef recType = TypeRef.of(m.name());
-    TypeRef.Named refType = TypeRef.named(refPkg, JavaNames.cap(m.name()));
+    TypeRef.Named refType = TypeRef.named(refPkg, m.type().shortName());
 
     Javadoc javadoc =
         GeneratedDocs.type(
