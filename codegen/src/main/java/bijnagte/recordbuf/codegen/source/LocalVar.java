@@ -14,7 +14,7 @@ public record LocalVar(List<Annotation> annotations, TypeRef type, String name, 
 
   /** Seed the annotation list when absent; other fields unchanged. */
   public LocalVar {
-    annotations = annotations == null ? List.of() : annotations;
+    annotations = annotations == null ? List.of() : List.copyOf(annotations);
   }
 
   /**
@@ -71,7 +71,7 @@ public record LocalVar(List<Annotation> annotations, TypeRef type, String name, 
      * Build with no initializer — renders as {@code <type> <name>;} (an unassigned declaration).
      */
     public LocalVar unassigned() {
-      return new LocalVar(List.copyOf(annotations), type, name, null);
+      return new LocalVar(annotations, type, name, null);
     }
 
     /**
@@ -83,7 +83,7 @@ public record LocalVar(List<Annotation> annotations, TypeRef type, String name, 
      * @throws IllegalArgumentException if the template contains out-of-bounds {@code @N}
      */
     public LocalVar assigned(String initTemplate, Object... initArgs) {
-      return new LocalVar(List.copyOf(annotations), type, name, RawExpr.of(initTemplate, initArgs));
+      return new LocalVar(annotations, type, name, RawExpr.of(initTemplate, initArgs));
     }
 
     /**
@@ -95,7 +95,7 @@ public record LocalVar(List<Annotation> annotations, TypeRef type, String name, 
      * @return a {@link LocalVar} with the initializer set
      */
     public LocalVar assigned(Formattable init) {
-      return new LocalVar(List.copyOf(annotations), type, name, init);
+      return new LocalVar(annotations, type, name, init);
     }
   }
 }

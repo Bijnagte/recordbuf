@@ -83,12 +83,17 @@ public final class InteropSourceMapping {
   // -- from(reference) -> record ------------------------------------------------
 
   private static Method emitFrom(Message m, String ref, String rec) {
-    List<Element> body = new ArrayList<>();
+    var method =
+        Method.named("from")
+            .public_()
+            .static_()
+            .returnType(TypeRef.of(rec))
+            .param(TypeRef.of(ref), "x");
     for (Field f : m.fields()) {
-      body.addAll(fromLocal(f));
+      method.body(fromLocal(f));
     }
     for (Oneof o : m.oneofs()) {
-      body.add(emitOneofFrom(o));
+      method.body(emitOneofFrom(o));
     }
 
     List<Object> ctorArgs = new ArrayList<>();
@@ -99,15 +104,7 @@ public final class InteropSourceMapping {
       ctorArgs.add("_" + o.name());
     }
     ctorArgs.add(RawExpr.of("@0.empty()", TypeRefs.UNKNOWN_FIELDS));
-    body.add(Element.ret("new @0(@1)", rec, CommaList.of(ctorArgs)));
-
-    return Method.named("from")
-        .public_()
-        .static_()
-        .returnType(TypeRef.of(rec))
-        .param(TypeRef.of(ref), "x")
-        .body(body)
-        .build();
+    return method.body(Element.ret("new @0(@1)", rec, CommaList.of(ctorArgs))).build();
   }
 
   private static List<Element> fromLocal(Field f) {
@@ -201,23 +198,20 @@ public final class InteropSourceMapping {
   // -- to(record) -> reference --------------------------------------------------
 
   private static Method emitTo(Message m, String refPkg, String ref, String rec) {
-    List<Element> body = new ArrayList<>();
-    body.add(Element.expr("var _b = @0.newBuilder()", ref));
+    var method =
+        Method.named("to")
+            .public_()
+            .static_()
+            .returnType(TypeRef.of(ref))
+            .param(TypeRef.of(rec), "r")
+            .body(Element.expr("var _b = @0.newBuilder()", ref));
     for (Field f : m.fields()) {
-      body.addAll(toStmt(f, refPkg));
+      method.body(toStmt(f, refPkg));
     }
     for (Oneof o : m.oneofs()) {
-      body.addAll(emitOneofTo(o, refPkg));
+      method.body(emitOneofTo(o, refPkg));
     }
-    body.add(Element.ret("_b.build()"));
-
-    return Method.named("to")
-        .public_()
-        .static_()
-        .returnType(TypeRef.of(ref))
-        .param(TypeRef.of(rec), "r")
-        .body(body)
-        .build();
+    return method.body(Element.ret("_b.build()")).build();
   }
 
   private static List<Element> toStmt(Field f, String refPkg) {

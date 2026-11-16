@@ -163,15 +163,10 @@ public final class CodecSourceMapping {
           case FieldKind.MAP -> {
             TypeRef keyType = TypeRef.boxedFor(Objects.requireNonNull(f.mapKey()));
             TypeRef valueType = TypeRef.boxedFor(Objects.requireNonNull(f.mapValue()));
-            // TypeRef mapType = TypeRefs.MAP.withGenerics(keyType, valueType);
+            TypeRef mapType = TypeRefs.MAP.withGenerics(keyType, valueType);
 
             method.body(
-                Element.expr(
-                    "Map<@0, @1> @2 = new @3<>();",
-                    keyType,
-                    valueType,
-                    f.javaName(),
-                    TypeRefs.HASH_MAP));
+                Element.expr("@0 @1 = new @2<>();", mapType, f.javaName(), TypeRefs.HASH_MAP));
           }
           case FieldKind.MESSAGE -> {
             if (typeResolver != null) {

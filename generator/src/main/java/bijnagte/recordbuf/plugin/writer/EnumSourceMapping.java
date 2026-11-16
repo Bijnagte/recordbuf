@@ -4,6 +4,7 @@ import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Component;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
+import bijnagte.recordbuf.codegen.source.EnumConstant;
 import bijnagte.recordbuf.codegen.source.EnumSpec;
 import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.RawExpr;
@@ -57,9 +58,9 @@ public final class EnumSourceMapping {
             .implementsFqns(proto.interfaces());
 
     // 1. The constants — each with its number ctor-arg, its own Javadoc, and its own @Deprecated.
-    for (bijnagte.recordbuf.plugin.model.Enum.EnumConstant c : proto.constants()) {
+    for (Enum.EnumConstant c : proto.constants()) {
       result.enumConstant(
-          bijnagte.recordbuf.codegen.source.EnumConstant.named(c.name())
+          EnumConstant.named(c.name())
               .ctorArgs(Integer.toString(c.number()))
               .javadoc(GeneratedDocs.type(c.comment(), "Enum constant " + c.name() + "."))
               .deprecated(c.deprecated())
@@ -94,7 +95,7 @@ public final class EnumSourceMapping {
             .build());
 
     List<Element> init = new ArrayList<>();
-    for (bijnagte.recordbuf.plugin.model.Enum.EnumConstant c : proto.constants()) {
+    for (Enum.EnumConstant c : proto.constants()) {
       init.add(Element.expr("BY_NUMBER.put(@0, @1)", c.number(), c.name()));
     }
     result.staticBlock(new StaticBlock(init));
@@ -112,7 +113,7 @@ public final class EnumSourceMapping {
   }
 
   /** The first constant's name, or {@code UNRECOGNIZED} when the enum has none. */
-  private static String firstConstantName(bijnagte.recordbuf.plugin.model.Enum e) {
+  private static String firstConstantName(Enum e) {
     return e.constants().isEmpty() ? "UNRECOGNIZED" : e.constants().get(0).name();
   }
 }

@@ -453,24 +453,23 @@ public final class RecordSourceMapping {
     builderClz.constructor(Constructor.builder().private_().body().build());
 
     // The toBuilder copy constructor.
-    List<Element> copyBody = new ArrayList<>();
+    var copyCtor = Constructor.builder().private_().param(TypeRef.of(recName), "x");
     for (Field f : m.fields()) {
       String fn = f.javaName();
       if (f.label() == FieldLabel.REPEATED) {
-        copyBody.add(Element.expr("this.@0 = new @2<>(x.@1())", fn, fn, TypeRefs.ARRAY_LIST));
+        copyCtor.body(Element.expr("this.@0 = new @2<>(x.@1())", fn, fn, TypeRefs.ARRAY_LIST));
       } else if (f.kind() == FieldKind.MAP) {
-        copyBody.add(Element.expr("this.@0 = new @2<>(x.@1())", fn, fn, TypeRefs.HASH_MAP));
+        copyCtor.body(Element.expr("this.@0 = new @2<>(x.@1())", fn, fn, TypeRefs.HASH_MAP));
       } else {
-        copyBody.add(Element.expr("this.@0 = x.@1()", fn, fn));
+        copyCtor.body(Element.expr("this.@0 = x.@1()", fn, fn));
       }
     }
     // M4-C2b-2b-12: oneof component copy.
     for (var oneof : m.oneofs()) {
-      copyBody.add(Element.expr("this.@0 = x.@1()", oneof.componentName(), oneof.componentName()));
+      copyCtor.body(Element.expr("this.@0 = x.@1()", oneof.componentName(), oneof.componentName()));
     }
-    copyBody.add(Element.of("this.unknownFields = x.unknownFields();"));
     builderClz.constructor(
-        Constructor.builder().private_().param(TypeRef.of(recName), "x").body(copyBody).build());
+        copyCtor.body(Element.of("this.unknownFields = x.unknownFields;")).build());
 
     // Fluent setter for each field.
     for (Field f : m.fields()) {

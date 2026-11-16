@@ -14,7 +14,6 @@ import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.Message;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -97,22 +96,21 @@ public final class AvroConverterSourceMapping {
   // --- toRecord body builder ----------------------------------------------------------
 
   private static Method buildToRecord(Message message, TypeRef recordClass, TypeRef avroSpecific) {
-    List<Element> body = new ArrayList<>();
-    body.add(
-        LocalVar.builder(builderType(recordClass), "b")
-            .assigned(RawExpr.of("@0.builder()", recordClass)));
+    var method =
+        Method.named("toRecord")
+            .public_()
+            .static_()
+            .returnType(recordClass)
+            .param(avroSpecific, "s")
+            .body(
+                LocalVar.builder(builderType(recordClass), "b")
+                    .assigned(RawExpr.of("@0.builder()", recordClass)));
     for (Field f : message.fields()) {
-      body.add(toRecordFieldLine(f, "s"));
+      method.body(toRecordFieldLine(f, "s"));
     }
-    body.add(Element.expr("@0.unknownFields(@1.empty())", "b", TypeRefs.UNKNOWN_FIELDS));
-    body.add(Element.ret("b.build()"));
-
-    return Method.named("toRecord")
-        .public_()
-        .static_()
-        .returnType(recordClass)
-        .param(avroSpecific, "s")
-        .body(body)
+    return method
+        .body(Element.expr("@0.unknownFields(@1.empty())", "b", TypeRefs.UNKNOWN_FIELDS))
+        .body(Element.ret("b.build()"))
         .build();
   }
 
@@ -140,21 +138,22 @@ public final class AvroConverterSourceMapping {
 
   private static Method buildFromRecord(
       Message message, TypeRef recordClass, TypeRef avroSpecific) {
-    List<Element> body = new ArrayList<>();
-    body.add(LocalVar.builder(avroSpecific, "s").assigned(RawExpr.of("new @0()", avroSpecific)));
-    body.add(Element.of("")); // blank line between declaration and setters
-    for (Field f : message.fields()) {
-      body.add(fromRecordFieldLine(f, "s", "r"));
-    }
-    body.add(Element.ret("s"));
 
-    return Method.named("fromRecord")
-        .public_()
-        .static_()
-        .returnType(avroSpecific)
-        .param(recordClass, "r")
-        .body(body)
-        .build();
+    var method =
+        Method.named("fromRecord")
+            .public_()
+            .static_()
+            .returnType(avroSpecific)
+            .param(recordClass, "r")
+            .body(
+                LocalVar.builder(avroSpecific, "s").assigned(RawExpr.of("new @0()", avroSpecific)))
+            .body(Element.of("")); // blank line between declaration and setters
+
+    for (Field f : message.fields()) {
+      method.body(fromRecordFieldLine(f, "s", "r"));
+    }
+
+    return method.body(Element.ret("s")).build();
   }
 
   private static Element fromRecordFieldLine(Field f, String param, String record) {
