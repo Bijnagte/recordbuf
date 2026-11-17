@@ -99,3 +99,29 @@ reuses the existing codegen `TypeRef`, with primitives supported via the new
    green; `git diff --stat fixtures/src` shows `record`/`oneof` family source regenerations that
    were reviewed (component/builder/builder-setter references for nested types render bare per
    KTD3; oneof value records render the boxed form per KTD2).
+
+## Follow-ups
+
+- **In-scope rendering (LANDED, a943a74).** `SourceRenderer` carries the lexical scope
+  chain (outermost first) at every `ci.use(ref, scope)` site; `TypeRef.Named` resolves
+  scope-aware. The writer-side `inScope` helper is deleted — the rule is a renderer
+  concern.
+- **Writers emit typed references (LANDED, a943a74).** Codec references via
+  `codecRef(f)` (nested `<Element>.<Element>Codec`; a repeated field's element is its
+  generic argument, NOT the `List` wrapper), oneof locals/wrappers via `recordRef.sub(...)`
+  chains, `permits` resolved scope-aware, `decode()` drops its hand-built `pkg`. Fixes a
+  latent ungenerated-import for cross-package message fields.
+- **Declaring specs still carry `String` names (DEFERRED — Layer 2).**
+  `ClassSpec`/`RecordSpec`/`EnumSpec`/`InterfaceSpec.name` would switch to `TypeRef`
+  (~54 construction sites across five writers) for full declared-type identity; changes
+  no output on its own. Re-scope when cross-file declarations make it earn its keep.
+- **WKT fields still carry the WKT FQN in `typeUrl`** (KTD2); switching `Field.typeUrl`
+  to a `TypeRef.Named` is a separate model decision.
+- **In-scope drop rule (the subtle bit).** A leading enclosing segment is dropped only
+  when it is in scope AND the reference shares the scope's package: nested members render
+  bare (`Sample.Fixed`, `Compat.Choice`); a same-named top-level sibling stays qualified
+  (`Item.ItemCodec`, never `ItemCodec` — a top-level class's nested members are only
+  reachable via the qualifier).
+- **Verification.** `./gradlew build` green; regenerated output byte-identical to the
+  pre-refactor baseline (committed fixtures show no diff; the oneof fixture — permits,
+  oneof locals, `Sub.SubCodec`, wrapper constructors — matches byte-for-byte).
