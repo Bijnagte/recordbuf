@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -47,17 +46,13 @@ public final class CodecSourceMapping {
    * a static {@code encode} + a static {@code decode}.
    *
    * @param m the message model
-   * @param pkg the java package
    * @return the nested {@code ClassSpec} codec node
    */
-  public static ClassSpec toCodec(
-      Message m, String pkg, @Nullable Function<Field, String> typeResolver) {
-    // Backwards compat: no typeResolver = scalar-only.
-    return doToCodec(m, pkg, typeResolver);
+  public static ClassSpec toCodec(Message m) {
+    return doToCodec(m);
   }
 
-  private static ClassSpec doToCodec(
-      Message m, String pkg, @Nullable Function<Field, String> typeResolver) {
+  private static ClassSpec doToCodec(Message m) {
     // Every type the codec body references (encoder/decoder/unknownFields/wire/codecDefaults,
     // plus the HashMap/ArrayList/Bytes constructors and CodecDefaults.<x>() default calls) is now
     // a TypeRef positional arg of a RawExpr, so the renderer's collect walk registers + resolves
@@ -70,13 +65,13 @@ public final class CodecSourceMapping {
         .final_()
         .javadoc(GeneratedDocs.type(null, "Wire codec for the " + recName + " record."))
         .constructor(Constructor.builder().private_().build())
-        .method(encode(m, typeResolver))
-        .method(decode(m, pkg, typeResolver))
+        .method(encode(m))
+        .method(decode(m))
         .build();
   }
 
   /** The {@code byte[] encode(Message v) throws IOException} method body. */
-  private static Method encode(Message m, @Nullable Function<Field, String> typeResolver) {
+  private static Method encode(Message m) {
     var method =
         Method.named("encode")
             .public_()
@@ -102,12 +97,10 @@ public final class CodecSourceMapping {
               case FieldKind.MAP -> emitMapEncode(f);
               case FieldKind.MESSAGE ->
                   f.label() == FieldLabel.REPEATED
-                      ? emitRepeatedMessageEncode(f, typeResolver)
-                      : emitMessageEncode(f, typeResolver);
+                      ? emitRepeatedMessageEncode(f)
+                      : emitMessageEncode(f);
               case FieldKind.ENUM ->
-                  f.label() == FieldLabel.REPEATED
-                      ? emitRepeatedEnumEncode(f, typeResolver)
-                      : emitEnumEncode(f, typeResolver);
+                  f.label() == FieldLabel.REPEATED ? emitRepeatedEnumEncode(f) : emitEnumEncode(f);
               case FieldKind.SCALAR ->
                   f.label() == FieldLabel.REPEATED
                       ? emitRepeatedScalarEncode(f)
@@ -133,8 +126,7 @@ public final class CodecSourceMapping {
   }
 
   /** The {@code Message decode(byte[] inBytes) throws IOException} method body. */
-  private static Method decode(
-      Message m, String pkg, @Nullable Function<Field, String> typeResolver) {
+  private static Method decode(Message m) {
     var method =
         Method.named("decode")
             .public_()
@@ -166,35 +158,22 @@ public final class CodecSourceMapping {
                 Element.expr("@0 @1 = new @2<>()", mapType, f.javaName(), TypeRefs.HASH_MAP));
           }
           case FieldKind.MESSAGE -> {
-            if (typeResolver != null) {
-              if (f.label() == FieldLabel.REPEATED) {
-                method.body(
-                    LocalVar.builder(f.type(), f.javaName())
-                        .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)));
-              } else {
-                method.body(LocalVar.builder(f.type(), f.javaName()).assigned(RawExpr.of("null")));
-              }
+            if (f.label() == FieldLabel.REPEATED) {
+              method.body(
+                  LocalVar.builder(f.type(), f.javaName())
+                      .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)));
+            } else {
+              method.body(LocalVar.builder(f.type(), f.javaName()).assigned(RawExpr.of("null")));
             }
           }
           case FieldKind.ENUM -> {
             // M4-C2b-2b-9: enum fields — singular → null, repeated → ArrayList.
-            // typeResolver gives the enum short name; no typeResolver means unresolvable.
-            if (typeResolver != null) {
-              if (f.label() == FieldLabel.REPEATED) {
-                method.body(
-                    LocalVar.builder(f.type(), f.javaName())
-                        .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)));
-              } else {
-                method.body(LocalVar.builder(f.type(), f.javaName()).assigned(RawExpr.of("null")));
-              }
+            if (f.label() == FieldLabel.REPEATED) {
+              method.body(
+                  LocalVar.builder(f.type(), f.javaName())
+                      .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)));
             } else {
-              if (f.label() == FieldLabel.REPEATED) {
-                method.body(
-                    Element.expr("List<?> @0 = new @1<>()", f.javaName(), TypeRefs.ARRAY_LIST));
-              } else {
-                method.body(
-                    LocalVar.builder(TypeRef.OBJECT, f.javaName()).assigned(RawExpr.of("null")));
-              }
+              method.body(LocalVar.builder(f.type(), f.javaName()).assigned(RawExpr.of("null")));
             }
           }
           case FieldKind.SCALAR -> {
@@ -221,8 +200,9 @@ public final class CodecSourceMapping {
 
     // Oneof locals: each defaults to null (the absent case). Proto3 oneof semantics: last
     // same-tag member seen wins, so a repeated same-tag member overwrites the prior value.
+    TypeRef.Named recordRef = m.type();
     for (Oneof o : m.oneofs()) {
-      method.body(Element.expr("@0 @1 = null", o.ifaceName(), o.componentName()));
+      method.body(Element.expr("@0 @1 = null", recordRef.sub(o.ifaceName()), o.componentName()));
     }
 
     // Tag loop: a while-loop wrapping a pattern-matching switch of tag-case arms.
@@ -239,15 +219,15 @@ public final class CodecSourceMapping {
           case FieldKind.MESSAGE -> {
             Case c =
                 f.label() == FieldLabel.REPEATED
-                    ? emitRepeatedMessageDecodeCase(f, typeResolver)
-                    : emitMessageDecodeCase(f, typeResolver);
+                    ? emitRepeatedMessageDecodeCase(f)
+                    : emitMessageDecodeCase(f);
             if (c != null) switchB.caseArm(c);
           }
           case FieldKind.ENUM -> {
             Case c =
                 f.label() == FieldLabel.REPEATED
-                    ? emitRepeatedEnumDecodeCase(f, typeResolver)
-                    : emitEnumDecodeCase(f, typeResolver);
+                    ? emitRepeatedEnumDecodeCase(f)
+                    : emitEnumDecodeCase(f);
             if (c != null) switchB.caseArm(c);
           }
           case FieldKind.SCALAR -> {
@@ -262,7 +242,7 @@ public final class CodecSourceMapping {
     }
     // Oneof decode cases: each member contributes a case that assigns the oneof local.
     for (Oneof o : m.oneofs()) {
-      switchB.caseArm(emitOneofDecodeCase(o, pkg));
+      switchB.caseArm(emitOneofDecodeCase(o, recordRef));
     }
     // the default case captures the unknown field into the builder.
     switchB.defaultBody(Element.expr("unknown.add(in, tag)"));
@@ -326,39 +306,26 @@ public final class CodecSourceMapping {
   // --- Per-field MESSAGE encode/decode (M4-C2d-5) ---
 
   /** M4-C2d-5: singular MESSAGE encode — skip null, else writeByteArray(tag, Codec.encode(v)). */
-  private static Element emitMessageEncode(
-      Field f, @Nullable Function<Field, String> typeResolver) {
-    if (typeResolver == null) {
-      return Element.comment("M4-C2d-5: typeResolver null; skip " + f.javaName());
-    }
-    String codecRef = typeResolver.apply(f);
+  private static Element emitMessageEncode(Field f) {
     return If.condition("v.@0() != null", f.javaName())
         .body(
             Element.expr(
-                "out.writeByteArray(@0, @1.encode(v.@2()))", f.number(), codecRef, f.javaName()))
+                "out.writeByteArray(@0, @1.encode(v.@2()))", f.number(), codecRef(f), f.javaName()))
         .build();
   }
 
   /** M4-C2d-5: repeated MESSAGE encode — one writeByteArray per element. */
-  private static Element emitRepeatedMessageEncode(
-      Field f, @Nullable Function<Field, String> typeResolver) {
-    if (typeResolver == null) {
-      return Element.comment("M4-C2d-5: typeResolver null; skip " + f.javaName());
-    }
+  private static Element emitRepeatedMessageEncode(Field f) {
     String getter = "v." + f.javaName() + "()";
-    String codecRef = typeResolver.apply(f);
     return For.enhanced("var _m", getter)
-        .body(Element.expr("out.writeByteArray(@0, @1.encode(_m))", f.number(), codecRef))
+        .body(Element.expr("out.writeByteArray(@0, @1.encode(_m))", f.number(), codecRef(f)))
         .build();
   }
 
   // --- Per-field ENUM encode/decode (M4-C2b-2b-9) ---
 
   /** M4-C2b-2b-9: singular ENUM encode — skip null, else writeEnum with getNumber(). */
-  private static Element emitEnumEncode(Field f, @Nullable Function<Field, String> typeResolver) {
-    if (typeResolver == null) {
-      return Element.comment("M4-C2b-2b-9: typeResolver null; skip " + f.javaName());
-    }
+  private static Element emitEnumEncode(Field f) {
     String getter = "v." + f.javaName() + "()";
     int num = f.number();
     return If.condition("@0 != null", getter)
@@ -367,11 +334,7 @@ public final class CodecSourceMapping {
   }
 
   /** M4-C2b-2b-9: repeated ENUM encode — one writeEnum per element. */
-  private static Element emitRepeatedEnumEncode(
-      Field f, @Nullable Function<Field, String> typeResolver) {
-    if (typeResolver == null) {
-      return Element.comment("M4-C2b-2b-9: typeResolver null; skip " + f.javaName());
-    }
+  private static Element emitRepeatedEnumEncode(Field f) {
     String getter = "v." + f.javaName() + "()";
     int num = f.number();
     return For.enhanced("var _e", getter)
@@ -381,57 +344,61 @@ public final class CodecSourceMapping {
 
   /** M4-C2b-2b-9: singular ENUM decode — assign EnumName.forNumber(in.readEnum()). */
   @Nullable
-  private static Case emitEnumDecodeCase(Field f, @Nullable Function<Field, String> typeResolver) {
-    if (typeResolver == null) {
-      return null;
-    }
+  private static Case emitEnumDecodeCase(Field f) {
     int num = f.number();
     String local = f.javaName();
-    String enumName = typeResolver.apply(f);
     return Case.of(
-        String.valueOf(num), Element.expr("@0 = @1.forNumber(in.readEnum())", local, enumName));
+        String.valueOf(num), Element.expr("@0 = @1.forNumber(in.readEnum())", local, codecRef(f)));
   }
 
   /** M4-C2b-2b-9: repeated ENUM decode — add EnumName.forNumber(in.readEnum()) to the list. */
   @Nullable
-  private static Case emitRepeatedEnumDecodeCase(
-      Field f, @Nullable Function<Field, String> typeResolver) {
-    if (typeResolver == null) {
-      return null;
-    }
+  private static Case emitRepeatedEnumDecodeCase(Field f) {
     int num = f.number();
     String local = f.javaName();
-    String enumName = typeResolver.apply(f);
     return Case.of(
-        String.valueOf(num), Element.expr("@0.add(@1.forNumber(in.readEnum()))", local, enumName));
+        String.valueOf(num),
+        Element.expr("@0.add(@1.forNumber(in.readEnum()))", local, codecRef(f)));
   }
 
   // --- Per-field MESSAGE decode case (M4-C2d-5) ---
 
   /** M4-C2d-5: singular MESSAGE decode — read length-delimited and decode via the codec. */
   @Nullable
-  private static Case emitMessageDecodeCase(
-      Field f, @Nullable Function<Field, String> typeResolver) {
-    if (typeResolver == null) {
-      return null;
-    }
-    String codecRef = typeResolver.apply(f);
+  private static Case emitMessageDecodeCase(Field f) {
     return Case.of(
         String.valueOf(f.number()),
-        Element.expr("@0 = @1.decode(in.readByteArray())", f.javaName(), codecRef));
+        Element.expr("@0 = @1.decode(in.readByteArray())", f.javaName(), codecRef(f)));
   }
 
   /** M4-C2d-5: repeated MESSAGE decode — read length-delimited, add to the list. */
   @Nullable
-  private static Case emitRepeatedMessageDecodeCase(
-      Field f, @Nullable Function<Field, String> typeResolver) {
-    if (typeResolver == null) {
-      return null;
-    }
-    String codecRef = typeResolver.apply(f);
+  private static Case emitRepeatedMessageDecodeCase(Field f) {
     return Case.of(
         String.valueOf(f.number()),
-        Element.expr("@0.add(@1.decode(in.readByteArray()))", f.javaName(), codecRef));
+        Element.expr("@0.add(@1.decode(in.readByteArray()))", f.javaName(), codecRef(f)));
+  }
+
+  /**
+   * The typed reference a codec body expression uses for a message/enum field, derived from the
+   * field's typed model: a message field references the {@code <Element>Codec} nested inside the
+   * element's type (a field's {@code type} is {@code List<Element>} for a repeated field, so the
+   * element is its generic argument — NOT the {@code List} itself), and an enum field references
+   * the type itself. The renderer resolves the reference (import, collision, in-scope drop); no
+   * name string is built here.
+   */
+  private static TypeRef codecRef(Field f) {
+    TypeRef element = f.type();
+    if (f.label() == FieldLabel.REPEATED && element instanceof TypeRef.Named n) {
+      // A repeated field's type is List<Element> with the element as its generic argument.
+      // (A hand-built test field may omit it; then the element IS the type.)
+      element = n.generics().isEmpty() ? element : n.generics().get(0);
+    }
+    if (f.kind() == FieldKind.MESSAGE && element instanceof TypeRef.Named n) {
+      // The codec is nested inside the element's own type: <Element>.<Element>Codec.
+      return n.sub(n.shortName() + "Codec");
+    }
+    return element;
   }
 
   // --- Per-field decode case ---
@@ -769,14 +736,11 @@ public final class CodecSourceMapping {
     for (Field f : o.members()) {
       String bnd = String.valueOf(f.name().charAt(0)) + "_";
       if (f.isMessage()) {
-        String elem = f.typeUrl();
-        String type = elem.substring(elem.lastIndexOf('.') + 1);
         String sealedSub = iface + "." + JavaNames.cap(f.name()) + "Value";
-        String codecRef = type + "." + type + "Codec";
         sw.caseArm(
             sealedSub + " " + bnd,
             Element.expr(
-                "out.writeByteArray(@0, @1.encode(@2.value()))", f.number(), codecRef, bnd));
+                "out.writeByteArray(@0, @1.encode(@2.value()))", f.number(), codecRef(f), bnd));
       } else if (f.kind() == FieldKind.ENUM) {
         String recName = iface + "." + JavaNames.cap(f.name()) + "Value";
         sw.caseArm(
@@ -798,13 +762,14 @@ public final class CodecSourceMapping {
    * assigns the oneof's shared local. A message member decodes via its nested codec; a scalar/enum
    * member decodes via the wire read primitive and wraps in the per-member record.
    */
-  private static List<Case> emitOneofDecodeCase(Oneof o, String pkg) {
+  private static List<Case> emitOneofDecodeCase(Oneof o, TypeRef.Named recordRef) {
     String cmp = o.componentName();
     List<Case> arms = new ArrayList<>();
     for (Field f : o.members()) {
       arms.add(
           Case.of(
-              String.valueOf(f.number()), Element.expr("@0 = @1", cmp, oneofDecodeRhs(o, f, pkg))));
+              String.valueOf(f.number()),
+              Element.expr("@0 = @1", cmp, oneofDecodeRhs(o, f, recordRef))));
     }
     return arms;
   }
@@ -813,33 +778,29 @@ public final class CodecSourceMapping {
    * The right-hand side of a oneof member's decode assignment: the per-member wrapper record's
    * constructor call carrying the decoded value.
    */
-  private static RawExpr oneofDecodeRhs(Oneof o, Field f, String pkg) {
+  private static RawExpr oneofDecodeRhs(Oneof o, Field f, TypeRef.Named recordRef) {
     String iface = o.ifaceName();
-    String recName = iface + "." + JavaNames.cap(f.name()) + "Value";
+    // The per-member wrapper record, nested <Record>.<Iface>.<Name>Value, as a typed reference:
+    // the renderer drops the in-scope enclosing segment so it renders in the baseline's
+    // <Iface>.<Name>Value form.
+    TypeRef wrapper = recordRef.sub(iface).sub(JavaNames.cap(f.name()) + "Value");
     if (f.isMessage()) {
-      String elem = f.typeUrl();
-      String type = elem.substring(elem.lastIndexOf('.') + 1);
-      String codecRef = type + "." + type + "Codec";
-      return RawExpr.of("new @0(@1.decode(in.readByteArray()))", recName, codecRef);
+      return RawExpr.of("new @0(@1.decode(in.readByteArray()))", wrapper, codecRef(f));
     }
     // Scalar or enum member: wrap the decoded value in the per-member record.
     if (f.kind() == FieldKind.ENUM) {
-      // The enum's RECORD fqn (record package + short name), so the reference resolves to the
-      // in-package record enum (short), not the natural protobuf-java reference FQN. As a TypeRef
-      // positional, the tree-walker resolves + registers it -- no ci.use pre-resolution.
-      int dot = f.typeUrl().lastIndexOf('.');
-      String shortName = dot < 0 ? f.typeUrl() : f.typeUrl().substring(dot + 1);
-      String recordFqn = pkg + "." + shortName;
-      return RawExpr.of("new @0(@1.forNumber(in.readEnum()))", recName, TypeRef.of(recordFqn));
+      // The field's typed model reference — the record enum (in-package), resolved by the
+      // renderer; the natural protobuf-java reference is a different package.
+      return RawExpr.of("new @0(@1.forNumber(in.readEnum()))", wrapper, f.type());
     }
     // Scalar member.
     WireScalar wire = wireScalar(f);
     String readCall = decodeCall(wire);
     return switch (wire) {
-      case STRING -> RawExpr.of("new @0(in.readString())", recName);
+      case STRING -> RawExpr.of("new @0(in.readString())", wrapper);
       case BYTES ->
-          RawExpr.of("new @0(@1.of(in.readBytes().toByteArray()))", recName, TypeRefs.BYTES);
-      default -> RawExpr.of("new @0(@1)", recName, readCall);
+          RawExpr.of("new @0(@1.of(in.readBytes().toByteArray()))", wrapper, TypeRefs.BYTES);
+      default -> RawExpr.of("new @0(@1)", wrapper, readCall);
     };
   }
 

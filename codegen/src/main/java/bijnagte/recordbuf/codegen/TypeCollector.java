@@ -30,6 +30,12 @@ import java.util.TreeSet;
  * in fully-qualified form at every reference site and contributes no import, so the consumer's
  * compiler disambiguates by the distinct fully-qualified names themselves.
  *
+ * <p><b>In-scope qualifiers:</b> a use site rendered <em>inside</em> enclosing types (a record's
+ * components, a nested class's methods) passes the lexical scope chain (outermost first) to {@link
+ * #use(TypeRef, List)} / {@link #resolutionContext(List)}; a qualified name whose outermost
+ * enclosing type is one of those drops the leading segment, since a member type of an enclosing
+ * class is in simple-name scope inside it.
+ *
  * <p><b>Resolution is phased.</b> {@link #use(TypeRef)} is called once per type reference while a
  * file is emitted; because a collision depends on the whole referral set (not any single
  * reference), the set is only known once the file is walked end to end. The caller therefore emits
@@ -77,14 +83,24 @@ public final class TypeCollector {
   }
 
   /**
-   * Resolve a structured {@link TypeRef} to the form to emit at that position. During the collect
-   * pass this registers the base FQN (for import-line purposes) and returns the short name; after
-   * {@link #finalizeResolution()} it returns the collision-aware form (short or fully-qualified).
-   * Generic arguments are rendered recursively. A {@code java.lang} or same-package type renders as
-   * a bare short name; every other type is collected for an import line.
+   * Resolve a structured {@link TypeRef} to the form to emit at a use site at the top level of the
+   * file (no enclosing class scope). See {@link #use(TypeRef, List)} for use sites inside classes.
    */
   public String use(TypeRef ref) {
-    return resolveTypeRef(ref);
+    return use(ref, List.of());
+  }
+
+  /**
+   * Scope-aware {@link #use(TypeRef)}: resolves {@code ref} for a use site rendered inside the
+   * enclosing types named by {@code scope} (outermost first). During the collect pass this
+   * registers the base FQN (for import-line purposes) and returns the short name; after {@link
+   * #finalizeResolution()} it returns the collision-aware form. A qualified name whose outermost
+   * enclosing type is one of {@code scope} renders without that leading segment — a member type of
+   * an enclosing class is in simple-name scope inside it, so the qualifier is redundant (see {@link
+   * Named#renderedInScope(List)}).
+   */
+  public String use(TypeRef ref, List<String> scope) {
+    return resolveTypeRef(ref, scope);
   }
 
   /**
@@ -95,26 +111,26 @@ public final class TypeCollector {
    */
   public void accumulate(Set<TypeRef> refs) {
     for (TypeRef ref : refs) {
-      resolveTypeRef(ref);
+      resolveTypeRef(ref, List.of());
     }
   }
 
-  private String resolveTypeRef(TypeRef ref) {
+  private String resolveTypeRef(TypeRef ref, List<String> scope) {
     return switch (ref) {
-      case Named n -> resolveNamed(n);
+      case Named n -> resolveNamed(n, scope);
       case Primitive p -> p.fqn();
-      case Array a -> resolveTypeRef(a.element()) + "[]";
+      case Array a -> resolveTypeRef(a.element(), scope) + "[]";
     };
   }
 
-  private String resolveNamed(Named n) {
+  private String resolveNamed(Named n, List<String> scope) {
     // Compute the resolved base (short or fully-qualified), then append generics.
     String base;
     if (n.pkg().isEmpty()) {
-      base = n.renderedShort(); // no package: emitted in its nesting form, no import
+      base = n.renderedInScope(scope, declaringPackage); // emitted in nesting form, no import
     } else {
       registerType(n); // register for import / collision tracking
-      base = n.renderedShort();
+      base = n.renderedInScope(scope, declaringPackage);
       // A collided short name is emitted fully-qualified for the out-of-package type; an in-package
       // type occupies the short name in the declaring package and stays short.
       if (frozen
@@ -123,14 +139,14 @@ public final class TypeCollector {
         base = n.fqn(); // collided out-of-package: emit the full qualified form
       }
     }
-    return base + genericsOf(n);
+    return base + genericsOf(n, scope);
   }
 
   /**
    * Registers a type as import-eligible and tracks collision by its {@link Named#collisionKey()}
    * (the outermost short name in the nesting chain). No return value — registration is a
    * side-effect consumed by {@link #importLines()} and by the frozen-state branch of {@link
-   * #resolveNamed(TypeRef.Named)}. For a nested type the import target is the enclosing type's FQN
+   * #resolveNamed(Named, List)}. For a nested type the import target is the enclosing type's FQN
    * (Java imports {@code Outer} and references {@code Outer.Inner}); {@code java.lang.*} and
    * same-package types are deliberately excluded, so they contribute no import line.
    */
@@ -162,13 +178,13 @@ public final class TypeCollector {
     }
   }
 
-  private String genericsOf(Named n) {
+  private String genericsOf(Named n, List<String> scope) {
     if (n.generics().isEmpty()) return "";
     StringBuilder sb = new StringBuilder();
     sb.append('<');
     for (int i = 0; i < n.generics().size(); i++) {
       if (i > 0) sb.append(", ");
-      sb.append(resolveTypeRef(n.generics().get(i)));
+      sb.append(resolveTypeRef(n.generics().get(i), scope));
     }
     sb.append('>');
     return sb.toString();
@@ -211,11 +227,18 @@ public final class TypeCollector {
     return lastDot < 0 ? fullyQualifiedName : fullyQualifiedName.substring(lastDot + 1);
   }
 
-  /**
-   * The post-finalization {@code ResolutionContext} — used by mappers to build {@link
-   * bijnagte.recordbuf.codegen.source.ResolveableExpr}.
-   */
+  /** The post-finalization {@code ResolutionContext} for use sites at the top level of a file. */
   public ResolutionContext resolutionContext() {
-    return new ResolutionContext(declaringPackage, Set.copyOf(collidedShortNames));
+    return resolutionContext(List.of());
+  }
+
+  /**
+   * The post-finalization {@code ResolutionContext} for use sites rendered inside the enclosing
+   * types {@code scope} (outermost first) — expression-level resolution drops in-scope enclosing
+   * qualifiers (see {@link ResolutionContext#scope()}).
+   */
+  public ResolutionContext resolutionContext(List<String> scope) {
+    return new ResolutionContext(
+        declaringPackage, Set.copyOf(collidedShortNames), List.copyOf(scope));
   }
 }

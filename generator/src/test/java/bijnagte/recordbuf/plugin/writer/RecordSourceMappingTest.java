@@ -28,7 +28,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 import javax.tools.DiagnosticCollector;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
@@ -605,11 +604,11 @@ class RecordSourceMappingTest {
 
   /**
    * M4-C2d-5: a message with a nested-message field renders a codec that dispatches to the nested
-   * message's codec via a typeResolver. The generated source must compile through the source-AST
-   * pipeline.
+   * message's codec via the field's typed model. The generated source must compile through the
+   * source-AST pipeline.
    */
   @Test
-  void nested_message_codec_routes_through_type_resolver() throws Exception {
+  void nested_message_codec_routes_through_typed_model() throws Exception {
     // A Parent message with a nested Single message (singular, nullable).
     var single =
         new Field(
@@ -638,11 +637,8 @@ class RecordSourceMappingTest {
             null,
             List.of(),
             null);
-    // The typeResolver maps MESSAGE fields to their <Type>Codec reference.
-    Function<Field, String> typeResolver =
-        (Field f) -> f.typeUrl().substring(f.typeUrl().lastIndexOf('.') + 1) + "Codec";
     var ci = new TypeCollector(PKG);
-    var rec = RecordSourceMapping.toSourceWithCodec(parent, typeResolver);
+    var rec = RecordSourceMapping.toSourceWithCodec(parent);
     var file = new JavaFile(PKG, Javadoc.builder().build(), rec, ci);
     var src = SourceRenderer.render(file);
     // The generated source should contain the nested-message codec dispatch.
@@ -705,8 +701,7 @@ class RecordSourceMappingTest {
 
   /**
    * M4-C2b-2b-9: a message with an ENUM field renders a codec that dispatches to the enum's {@code
-   * forNumber}. The typeResolver maps the ENUM field to the enum short name (no {@code Codec}
-   * suffix).
+   * forNumber}, referencing the enum by its short name (no {@code Codec} suffix).
    */
   @Test
   void enum_field_codec_dispatches_to_forNumber() throws Exception {
@@ -738,13 +733,7 @@ class RecordSourceMappingTest {
             List.of(),
             null);
     var ci = new TypeCollector(PKG);
-    Function<Field, String> typeResolver =
-        (Field ff) -> {
-          int dot = ff.typeUrl().lastIndexOf('.');
-          String shortName = dot < 0 ? ff.typeUrl() : ff.typeUrl().substring(dot + 1);
-          return ff.kind() == FieldKind.MESSAGE ? shortName + "Codec" : shortName;
-        };
-    var rec = RecordSourceMapping.toSourceWithCodec(m, typeResolver);
+    var rec = RecordSourceMapping.toSourceWithCodec(m);
     var file = new JavaFile(PKG, Javadoc.builder().build(), rec, ci);
     var src = SourceRenderer.render(file);
     // The codec should reference Color.forNumber for the decode path
@@ -756,11 +745,10 @@ class RecordSourceMappingTest {
   /**
    * Regression for the singular MESSAGE/ENUM default: a {@code REQUIRED} enum-typed field is
    * presence-tracked, so the record component is {@code @Nullable} and its builder-storage default
-   * must be {@code null} -- not the boxed {@code 0} that {@link RecordSourceMapping}'s default
-   * resolver used to emit (which would not compile against a reference type, since {@code 0} is not
-   * a {@code Color}). A {@code REQUIRED} enum field has {@code isNullable() == false} (proto3
-   * presence is per-field-kind, not per-label), so the old typeUrl switch fell through to {@code
-   * default -> "0"}. This pins the fix: singular MESSAGE/ENUM fields default to {@code null}.
+   * must be {@code null} -- not the boxed {@code 0} that the old typeUrl-default fallback used to
+   * emit (which would not compile against a reference type, since {@code 0} is not a {@code
+   * Color}). A {@code REQUIRED} enum field has {@code isNullable() == false} (proto3 default ->
+   * "0"}. This pins the fix: singular MESSAGE/ENUM fields default to {@code null}.
    */
   @Test
   void required_enum_field_defaults_to_null_not_zero() {
@@ -792,13 +780,7 @@ class RecordSourceMappingTest {
             List.of(),
             null);
     var ci = new TypeCollector(PKG);
-    Function<Field, String> typeResolver =
-        (Field ff) -> {
-          int dot = ff.typeUrl().lastIndexOf('.');
-          String shortName = dot < 0 ? ff.typeUrl() : ff.typeUrl().substring(dot + 1);
-          return ff.kind() == FieldKind.MESSAGE ? shortName + "Codec" : shortName;
-        };
-    var rec = RecordSourceMapping.toSourceWithCodec(m, typeResolver);
+    var rec = RecordSourceMapping.toSourceWithCodec(m);
     var src = SourceRenderer.render(new JavaFile(PKG, Javadoc.builder().build(), rec, ci));
 
     // The record component is @Nullable Color, and the builder-storage default is null -- not 0.
@@ -861,7 +843,7 @@ class RecordSourceMappingTest {
             List.of(),
             null);
     var itemCi = new TypeCollector(pkg);
-    var itemAst = RecordSourceMapping.toSourceWithCodec(itemModel, null);
+    var itemAst = RecordSourceMapping.toSourceWithCodec(itemModel);
     var itemFile = new JavaFile(pkg, Javadoc.builder().build(), itemAst, itemCi);
     var itemSrc = SourceRenderer.render(itemFile);
 
@@ -909,8 +891,7 @@ class RecordSourceMappingTest {
             List.of(),
             null);
     var sampleCi = new TypeCollector(pkg);
-    Function<Field, String> sampleResolver = (Field ff) -> ff.typeUrl() + "Codec";
-    var sampleAst = RecordSourceMapping.toSourceWithCodec(sampleModel, sampleResolver);
+    var sampleAst = RecordSourceMapping.toSourceWithCodec(sampleModel);
     var sampleFile = new JavaFile(pkg, Javadoc.builder().build(), sampleAst, sampleCi);
     var sampleSrc = SourceRenderer.render(sampleFile);
 
@@ -1099,9 +1080,7 @@ class RecordSourceMappingTest {
             List.of(),
             null);
     var ci = new TypeCollector(pkg);
-    Function<Field, String> resolver =
-        f -> f.kind() == FieldKind.MESSAGE ? f.typeUrl() + "Codec" : "";
-    var rec = RecordSourceMapping.toSourceWithCodec(m, resolver);
+    var rec = RecordSourceMapping.toSourceWithCodec(m);
     var file = new JavaFile(pkg, Javadoc.builder().build(), rec, ci);
     var src = SourceRenderer.render(file);
     System.out.println("=== COMPAT SRC ===");

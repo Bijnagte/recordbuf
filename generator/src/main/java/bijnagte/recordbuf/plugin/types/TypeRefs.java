@@ -1,7 +1,6 @@
 package bijnagte.recordbuf.plugin.types;
 
 import bijnagte.recordbuf.codegen.source.TypeRef;
-import java.util.List;
 
 /**
  * Shared {@link TypeRef} constants for the fully-qualified names the source mappers (and the model
@@ -75,22 +74,5 @@ public final class TypeRefs {
           };
       default -> t;
     };
-  }
-
-  /**
-   * A reference to a nested type is in name scope inside its own enclosing record, and a bare
-   * innermost short name lets a {@code @Nullable} (TYPE_USE) annotation apply cleanly — a qualified
-   * {@code Sample.Fixed} form breaks annotation application under javac. Emits the bare form when
-   * the reference is a nested type whose outermost enclosing type IS the given enclosing record and
-   * both share the given declaring package; passes the reference through otherwise.
-   */
-  public static TypeRef inScope(TypeRef ref, String enclosingType, String declaringPkg) {
-    if (ref instanceof TypeRef.Named n
-        && !n.enclosing().isEmpty()
-        && n.enclosing().get(0).equals(enclosingType)
-        && n.pkg().equals(declaringPkg)) {
-      return new TypeRef.Named(n.pkg(), List.of(), n.shortName(), n.generics());
-    }
-    return ref;
   }
 }

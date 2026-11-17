@@ -30,6 +30,7 @@ import bijnagte.recordbuf.codegen.source.Throw;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.codegen.source.While;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -97,6 +98,32 @@ public final class SourceRenderer {
 
     Pass(TypeCollector ci) {
       this.ci = ci;
+    }
+
+    /**
+     * The lexical scope chain of enclosing type names, outermost first, for the position currently
+     * being rendered. Pushed on entering a type body and popped on leaving; {@link
+     * TypeRef.Named#renderedInScope(List)} uses it to drop a redundant enclosing qualifier from a
+     * resolved name.
+     */
+    private final List<String> scope = new ArrayList<>();
+
+    private void enterScope(String name) {
+      scope.add(0, name);
+    }
+
+    private void exitScope() {
+      scope.remove(0);
+    }
+
+    /** The current scope chain (outermost first), for {@link TypeCollector#use(TypeRef, List)}. */
+    private List<String> scope() {
+      return scope;
+    }
+
+    /** The current scope chain as a render-time {@link ResolutionContext}. */
+    private ResolutionContext currentContext() {
+      return ci.resolutionContext(scope);
     }
 
     /**
@@ -225,151 +252,172 @@ public final class SourceRenderer {
     }
 
     private void renderRecord(RecordSpec r, StringBuilder out) {
-      if (r.javadoc().present()) out.append(javadoc(r.javadoc().raw())).append('\n');
-      renderAnnotations(r.annotations(), out);
-      out.append(r.mods().withSpace()).append("record ").append(r.name()).append('(');
-      var comps = r.components();
-      if (comps.isEmpty()) {
-        out.append(')');
-      } else {
-        for (int i = 0; i < comps.size(); i++) {
-          out.append('\n');
-          Component f = comps.get(i);
-          if (f.javadoc().present()) {
-            out.append(javadoc(f.javadoc().raw())).append('\n');
+      enterScope(r.name());
+      try {
+        if (r.javadoc().present()) out.append(javadoc(r.javadoc().raw())).append('\n');
+        renderAnnotations(r.annotations(), out);
+        out.append(r.mods().withSpace()).append("record ").append(r.name()).append('(');
+        var comps = r.components();
+        if (comps.isEmpty()) {
+          out.append(')');
+        } else {
+          for (int i = 0; i < comps.size(); i++) {
+            out.append('\n');
+            Component f = comps.get(i);
+            if (f.javadoc().present()) {
+              out.append(javadoc(f.javadoc().raw())).append('\n');
+            }
+            renderAnnotations(f.annotations(), out);
+            out.append(ci.use(f.type(), scope())).append(' ').append(f.name());
+            out.append(i + 1 == comps.size() ? "\n)" : ",");
           }
-          renderAnnotations(f.annotations(), out);
-          out.append(ci.use(f.type())).append(' ').append(f.name());
-          out.append(i + 1 == comps.size() ? "\n)" : ",");
         }
+        if (!r.implementsFqns().isEmpty()) {
+          out.append(" implements ").append(joinResolved(r.implementsFqns()));
+        }
+        boolean[] first = {true};
+        boolean empty =
+            r.staticBlocks().isEmpty()
+                && r.constructors().isEmpty()
+                && r.methods().isEmpty()
+                && r.nested().isEmpty();
+        if (empty) {
+          out.append(" {}");
+          return;
+        }
+        out.append(" {\n");
+        renderBlockList(r.staticBlocks(), first, out);
+        renderCtorList(r.constructors(), first, out, r.name());
+        renderMethodList(r.methods(), first, out);
+        renderNestedList(r.nested(), first, out);
+        out.append('}').append('\n');
+      } finally {
+        exitScope();
       }
-      if (!r.implementsFqns().isEmpty()) {
-        out.append(" implements ").append(joinResolved(r.implementsFqns()));
-      }
-      boolean[] first = {true};
-      boolean empty =
-          r.staticBlocks().isEmpty()
-              && r.constructors().isEmpty()
-              && r.methods().isEmpty()
-              && r.nested().isEmpty();
-      if (empty) {
-        out.append(" {}");
-        return;
-      }
-      out.append(" {\n");
-      renderBlockList(r.staticBlocks(), first, out);
-      renderCtorList(r.constructors(), first, out, r.name());
-      renderMethodList(r.methods(), first, out);
-      renderNestedList(r.nested(), first, out);
-      out.append('}').append('\n');
     }
 
     private void renderClass(ClassSpec c, StringBuilder out) {
-      // Oracle-standard order (per the Oracle JavaDoc spec): the Javadoc block first, then the
-      // uniform annotation model -- each annotation on its own line. The javadoc tool only
-      // recognizes a documentation comment placed immediately before the declaration, before any
-      // annotation.
-      if (c.javadoc().present()) {
-        out.append(javadoc(c.javadoc().raw())).append('\n');
-      }
-      renderAnnotations(c.annotations(), out);
-      out.append(c.mods().withSpace()).append("class ").append(c.name());
-      if (!c.extendsFqns().isEmpty()) {
-        out.append(" extends ").append(joinResolved(c.extendsFqns()));
-      }
-      if (!c.implementsFqns().isEmpty()) {
-        out.append(" implements ").append(joinResolved(c.implementsFqns()));
-      }
-      boolean[] first = {true};
-      boolean empty =
-          c.fields().isEmpty()
-              && c.staticBlocks().isEmpty()
-              && c.constructors().isEmpty()
-              && c.methods().isEmpty()
-              && c.nested().isEmpty();
-      if (empty) {
-        out.append(" {}\n");
-        return;
-      }
-      out.append(" {\n");
-      renderFieldList(c.fields(), first, out);
-      renderBlockList(c.staticBlocks(), first, out);
-      renderCtorList(c.constructors(), first, out, c.name());
-      renderMethodList(c.methods(), first, out);
-      renderNestedList(c.nested(), first, out);
-      out.append('}').append('\n');
-    }
-
-    private void renderEnum(EnumSpec e, StringBuilder out) {
-      if (e.javadoc().present()) out.append(javadoc(e.javadoc().raw())).append('\n');
-      renderAnnotations(e.annotations(), out);
-      out.append(e.mods().withSpace()).append("enum ").append(e.name());
-      if (!e.implementsFqns().isEmpty()) {
-        out.append(" implements ").append(joinResolved(e.implementsFqns()));
-      }
-      out.append(" {\n");
-      var consts = e.enumConstants();
-      for (int i = 0; i < consts.size(); i++) {
-        EnumConstant c = consts.get(i);
-        // Oracle-standard order (per the Oracle JavaDoc spec): the per-constant Javadoc block first
-        // (a formatter owns its alignment), then the @Deprecated/other annotations; the constant
-        // name + ctor args follow on the same line at zero indent.
+      enterScope(c.name());
+      try {
+        // Oracle-standard order (per the Oracle JavaDoc spec): the Javadoc block first, then the
+        // uniform annotation model -- each annotation on its own line. The javadoc tool only
+        // recognizes a documentation comment placed immediately before the declaration, before any
+        // annotation.
         if (c.javadoc().present()) {
           out.append(javadoc(c.javadoc().raw())).append('\n');
         }
         renderAnnotations(c.annotations(), out);
-        out.append(c.name());
-        if (!c.ctorArgs().isEmpty())
-          out.append("(").append(String.join(", ", c.ctorArgs())).append(")");
-        out.append(i + 1 == consts.size() ? ";" : ",").append('\n');
+        out.append(c.mods().withSpace()).append("class ").append(c.name());
+        if (!c.extendsFqns().isEmpty()) {
+          out.append(" extends ").append(joinResolved(c.extendsFqns()));
+        }
+        if (!c.implementsFqns().isEmpty()) {
+          out.append(" implements ").append(joinResolved(c.implementsFqns()));
+        }
+        boolean[] first = {true};
+        boolean empty =
+            c.fields().isEmpty()
+                && c.staticBlocks().isEmpty()
+                && c.constructors().isEmpty()
+                && c.methods().isEmpty()
+                && c.nested().isEmpty();
+        if (empty) {
+          out.append(" {}\n");
+          return;
+        }
+        out.append(" {\n");
+        renderFieldList(c.fields(), first, out);
+        renderBlockList(c.staticBlocks(), first, out);
+        renderCtorList(c.constructors(), first, out, c.name());
+        renderMethodList(c.methods(), first, out);
+        renderNestedList(c.nested(), first, out);
+        out.append('}').append('\n');
+      } finally {
+        exitScope();
       }
-      // A member-bearing enum with NO constants still needs a `;` right after the opening brace
-      // (Java requires a constant list or a `;` to open the member section); without it the first
-      // body member is a syntax error. GJF -- which now parses every rendered surface -- surfaces
-      // this; emit the `;` so a constants-less enum with fields/ctors/methods stays valid Java.
-      if (consts.isEmpty()
-          && (e.fields().isEmpty() == false
-              || !e.staticBlocks().isEmpty()
-              || !e.constructors().isEmpty()
-              || !e.methods().isEmpty()
-              || !e.nested().isEmpty())) {
-        out.append(";\n");
+    }
+
+    private void renderEnum(EnumSpec e, StringBuilder out) {
+      enterScope(e.name());
+      try {
+        if (e.javadoc().present()) out.append(javadoc(e.javadoc().raw())).append('\n');
+        renderAnnotations(e.annotations(), out);
+        out.append(e.mods().withSpace()).append("enum ").append(e.name());
+        if (!e.implementsFqns().isEmpty()) {
+          out.append(" implements ").append(joinResolved(e.implementsFqns()));
+        }
+        out.append(" {\n");
+        var consts = e.enumConstants();
+        for (int i = 0; i < consts.size(); i++) {
+          EnumConstant c = consts.get(i);
+          // Oracle-standard order (per the Oracle JavaDoc spec): the per-constant Javadoc block
+          // first
+          // (a formatter owns its alignment), then the @Deprecated/other annotations; the constant
+          // name + ctor args follow on the same line at zero indent.
+          if (c.javadoc().present()) {
+            out.append(javadoc(c.javadoc().raw())).append('\n');
+          }
+          renderAnnotations(c.annotations(), out);
+          out.append(c.name());
+          if (!c.ctorArgs().isEmpty())
+            out.append("(").append(String.join(", ", c.ctorArgs())).append(")");
+          out.append(i + 1 == consts.size() ? ";" : ",").append('\n');
+        }
+        // A member-bearing enum with NO constants still needs a `;` right after the opening brace
+        // (Java requires a constant list or a `;` to open the member section); without it the first
+        // body member is a syntax error. GJF -- which now parses every rendered surface -- surfaces
+        // this; emit the `;` so a constants-less enum with fields/ctors/methods stays valid Java.
+        if (consts.isEmpty()
+            && (e.fields().isEmpty() == false
+                || !e.staticBlocks().isEmpty()
+                || !e.constructors().isEmpty()
+                || !e.methods().isEmpty()
+                || !e.nested().isEmpty())) {
+          out.append(";\n");
+        }
+        // A body only follows the constants when they exist; when the enum has constants the first
+        // body member is separated from them by a blank line (first starts false), otherwise the
+        // first
+        // body member renders with no leading blank.
+        boolean[] first = {consts.isEmpty()};
+        renderFieldList(e.fields(), first, out);
+        renderBlockList(e.staticBlocks(), first, out);
+        renderCtorList(e.constructors(), first, out, e.name());
+        renderMethodList(e.methods(), first, out);
+        renderNestedList(e.nested(), first, out);
+        out.append('}').append('\n');
+      } finally {
+        exitScope();
       }
-      // A body only follows the constants when they exist; when the enum has constants the first
-      // body member is separated from them by a blank line (first starts false), otherwise the
-      // first
-      // body member renders with no leading blank.
-      boolean[] first = {consts.isEmpty()};
-      renderFieldList(e.fields(), first, out);
-      renderBlockList(e.staticBlocks(), first, out);
-      renderCtorList(e.constructors(), first, out, e.name());
-      renderMethodList(e.methods(), first, out);
-      renderNestedList(e.nested(), first, out);
-      out.append('}').append('\n');
     }
 
     private void renderInterface(InterfaceSpec iface, StringBuilder out) {
-      if (iface.javadoc().present()) {
-        out.append(javadoc(iface.javadoc().raw())).append('\n');
+      enterScope(iface.name());
+      try {
+        if (iface.javadoc().present()) {
+          out.append(javadoc(iface.javadoc().raw())).append('\n');
+        }
+        renderAnnotations(iface.annotations(), out);
+        out.append(iface.mods().withSpace()).append("interface ").append(iface.name());
+        if (!iface.extendsFqns().isEmpty()) {
+          out.append(" extends ").append(joinResolved(iface.extendsFqns()));
+        }
+        if (!iface.permitsFqns().isEmpty()) {
+          out.append(" permits ").append(joinFqnsRefs(iface.permitsFqns()));
+        }
+        boolean[] first = {true};
+        boolean empty = iface.methods().isEmpty() && iface.nested().isEmpty();
+        if (empty) {
+          out.append(" {}\n");
+          return;
+        }
+        out.append(" {\n");
+        renderMethodList(iface.methods(), first, out);
+        renderNestedList(iface.nested(), first, out);
+        out.append('}').append('\n');
+      } finally {
+        exitScope();
       }
-      renderAnnotations(iface.annotations(), out);
-      out.append(iface.mods().withSpace()).append("interface ").append(iface.name());
-      if (!iface.extendsFqns().isEmpty()) {
-        out.append(" extends ").append(joinResolved(iface.extendsFqns()));
-      }
-      if (!iface.permitsFqns().isEmpty()) {
-        out.append(" permits ").append(joinFqnsRefs(iface.permitsFqns()));
-      }
-      boolean[] first = {true};
-      boolean empty = iface.methods().isEmpty() && iface.nested().isEmpty();
-      if (empty) {
-        out.append(" {}\n");
-        return;
-      }
-      out.append(" {\n");
-      renderMethodList(iface.methods(), first, out);
-      renderNestedList(iface.nested(), first, out);
-      out.append('}').append('\n');
     }
 
     /* ---- per-list body rendering --------------------------------------
@@ -432,9 +480,9 @@ public final class SourceRenderer {
       if (f.javadoc().present()) out.append(javadoc(f.javadoc().raw())).append('\n');
       renderAnnotations(f.annotations(), out);
       out.append(f.mods().withSpace());
-      out.append(ci.use(f.type())).append(' ').append(f.name());
+      out.append(ci.use(f.type(), scope())).append(' ').append(f.name());
       if (f.initializer() != null) {
-        out.append(" = ").append(f.initializer().render(ci.resolutionContext()));
+        out.append(" = ").append(f.initializer().render(currentContext()));
       }
       out.append(";\n");
     }
@@ -448,7 +496,7 @@ public final class SourceRenderer {
     /** Render a node's uniform annotation list: each {@code @Name(args)} on its own line. */
     private void renderAnnotations(List<Annotation> anns, StringBuilder out) {
       for (Annotation a : anns) {
-        out.append('@').append(ci.use(a.type()));
+        out.append('@').append(ci.use(a.type(), scope()));
         if (!a.args().isEmpty()) {
           out.append('(');
           for (int i = 0; i < a.args().size(); i++) {
@@ -509,10 +557,16 @@ public final class SourceRenderer {
       if (m.javadoc().present()) out.append(javadoc(m.javadoc().raw())).append('\n');
       renderAnnotations(m.annotations(), out);
       String sig =
-          m.mods().withSpace() + ci.use(m.returnType()) + " " + m.name() + renderParams(m.params());
+          m.mods().withSpace()
+              + ci.use(m.returnType(), scope())
+              + " "
+              + m.name()
+              + renderParams(m.params());
       if (!m.thrown().isEmpty()) {
         sig =
-            sig + " throws " + String.join(", ", m.thrown().stream().map(t -> ci.use(t)).toList());
+            sig
+                + " throws "
+                + String.join(", ", m.thrown().stream().map(t -> ci.use(t, scope())).toList());
       }
       if (m.abstractDecl()) {
         out.append(sig).append(";\n");
@@ -529,7 +583,7 @@ public final class SourceRenderer {
      * Render one body element -- the idiom layout pass lives here; a formatter owns indentation.
      */
     private void renderStatement(Element s, StringBuilder out) {
-      var ctx = ci.resolutionContext();
+      var ctx = currentContext();
       switch (s) {
         case Fragment fr -> out.append(fr.text()).append('\n');
         case Return r -> {
@@ -666,9 +720,9 @@ public final class SourceRenderer {
     private void renderLocalVar(LocalVar lv, StringBuilder out, ResolutionContext ctx) {
       // For local variables, annotations are inline (same line as the type), unlike class members.
       for (Annotation a : lv.annotations()) {
-        out.append('@').append(ci.use(a.type())).append(' ');
+        out.append('@').append(ci.use(a.type(), scope())).append(' ');
       }
-      out.append(ci.use(lv.type()))
+      out.append(ci.use(lv.type(), scope()))
           .append(' ')
           .append(lv.name())
           .append(lv.init() == null ? ";" : " = " + lv.init().render(ctx) + ";")
@@ -703,15 +757,16 @@ public final class SourceRenderer {
     }
 
     /**
-     * Join a list of {@link TypeRef}s by their bare FQN (no {@link TypeCollector} resolution). Used
-     * for {@code permits} clauses where the type is a nested type qualifier not eligible for import
-     * registration.
+     * Join a list of {@link TypeRef}s resolved against the current lexical scope, for a {@code
+     * permits} clause: a member of the enclosing type drops its in-scope qualifier (the baseline's
+     * {@code Choice.NameValue} form) and only a collided reference falls back to its FQN — the
+     * nested member itself is never imported (its outer type is the enclosing one, in scope).
      */
     private String joinFqnsRefs(List<TypeRef> refs) {
       StringBuilder sb = new StringBuilder();
       for (int i = 0; i < refs.size(); i++) {
         if (i > 0) sb.append(", ");
-        sb.append(refs.get(i).fqn());
+        sb.append(ci.use(refs.get(i), scope()));
       }
       return sb.toString();
     }
@@ -728,7 +783,7 @@ public final class SourceRenderer {
       for (int i = 0; i < params.size(); i++) {
         Param p = params.get(i);
         if (i > 0) sb.append(", ");
-        sb.append(ci.use(p.type())).append(' ').append(p.name());
+        sb.append(ci.use(p.type(), scope())).append(' ').append(p.name());
       }
       return sb.append(')').toString();
     }

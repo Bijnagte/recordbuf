@@ -25,8 +25,6 @@ import bijnagte.recordbuf.plugin.types.WellKnownTypes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
-import org.jspecify.annotations.Nullable;
 
 /**
  * Maps the generator's proto {@link Message} model into a {@link RecordSpec} of the pure-Java,
@@ -52,6 +50,7 @@ public final class RecordSourceMapping {
    * Map a proto {@link Message} model into a source-AST {@link RecordSpec} for the record shell.
    */
   public static RecordSpec toSource(Message m, String pkg) {
+    TypeRef.Named recordRef = m.type();
     RecordSpec.Builder result =
         RecordSpec.named(m.name())
             .public_()
@@ -66,7 +65,7 @@ public final class RecordSourceMapping {
     // the
     // component's type + javaName; a record's components render in its header via components().
     for (Field f : m.fields()) {
-      var comp = Component.type(scalarComponentType(f, m), f.javaName());
+      var comp = Component.type(scalarComponentType(f), f.javaName());
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       result.component(comp.build());
     }
@@ -78,7 +77,7 @@ public final class RecordSourceMapping {
     // M4-C2b-2b-12: oneof groups. Each contributes one @Nullable record component and
     // one nested sealed interface (the per-member value records live inside it).
     for (Oneof oneof : m.oneofs()) {
-      OneofEmission oe = emitOneof(oneof);
+      OneofEmission oe = emitOneof(oneof, recordRef);
       result.component(oe.component());
       result.nested(oe.iface());
     }
@@ -93,17 +92,6 @@ public final class RecordSourceMapping {
    * record shell and its codec.
    */
   public static RecordSpec toSourceWithCodec(Message m) {
-    return toSourceWithCodec(m, null);
-  }
-
-  /**
-   * Map a message model to a source-AST {@link RecordSpec} WITH the nested codec and a {@code
-   * typeResolver} that maps each nested-message field to its codec {@code <Type>Codec} FQN (e.g.
-   * {@code Single.SingleCodec}). A {@code null} resolver means no nested-message codec wiring
-   * (scalar-only message).
-   */
-  public static RecordSpec toSourceWithCodec(
-      Message m, @Nullable Function<Field, String> typeResolver) {
     TypeRef.Named recordRef = m.type();
     // Rebuild the member list from scratch with the codec appended, mirroring toSource's logic.
     RecordSpec.Builder result =
@@ -117,7 +105,7 @@ public final class RecordSourceMapping {
             .impl(TypeRefs.PROTOBUF_MESSAGE);
 
     for (Field f : m.fields()) {
-      var comp = Component.type(scalarComponentType(f, m), f.javaName());
+      var comp = Component.type(scalarComponentType(f), f.javaName());
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       result.component(comp.build());
     }
@@ -126,16 +114,14 @@ public final class RecordSourceMapping {
     }
     // M4-C2d-9: nested messages — emit each as an inner record via recursion.
     for (Message nested : m.nestedMessages()) {
-      var nestedRec =
-          toSourceWithCodec(
-              nested, f -> f.kind() == FieldKind.MESSAGE ? f.typeUrl() + ".Codec" : null);
+      var nestedRec = toSourceWithCodec(nested);
       // The nested record's own type (its FQN, <Parent>.<Nested>) is carried on nested.type() —
       // built via the parent's type.sub(...) in the loader — so no package is threaded here.
       result.nested(nestedRec);
     }
 
     for (Oneof oneof : m.oneofs()) {
-      OneofEmission oe = emitOneof(oneof);
+      OneofEmission oe = emitOneof(oneof, recordRef);
       result.component(oe.component());
       result.nested(oe.iface());
     }
@@ -157,6 +143,7 @@ public final class RecordSourceMapping {
     BuilderEmission be = emitBuilder(m);
 
     String codecName = m.name() + "Codec";
+    TypeRef.Named codecRef = recordRef.sub(codecName);
 
     result
         .method(be.factory())
@@ -164,17 +151,17 @@ public final class RecordSourceMapping {
         .method(
             Method.named("toBuilder")
                 .public_()
-                .returnType(TypeRef.of("Builder"))
+                .returnType(recordRef.sub("Builder"))
                 .body(Element.ret("new @0.Builder(this)", m.name()))
                 .build())
         .method(
             Method.named("fromBytes")
                 .public_()
                 .static_()
-                .returnType(TypeRef.of(m.name()))
+                .returnType(recordRef)
                 .param(TypeRef.BYTES, "in")
                 .thrown(TypeRef.IO_EXCEPTION)
-                .body(Element.ret("@0.decode(in)", codecName))
+                .body(Element.ret("@0.decode(in)", codecRef))
                 .build())
 
         // The Layer A marshalling hook. Every record implements ProtobufMessage by
@@ -185,13 +172,12 @@ public final class RecordSourceMapping {
                 .public_()
                 .returnType(TypeRef.BYTES)
                 .thrown(TypeRef.IO_EXCEPTION)
-                .body(Element.ret("@0Codec.encode(this)", m.name()))
+                .body(Element.ret("@0.encode(this)", codecRef))
                 .override(true)
                 .build())
 
         // Append the nested Codec, built from the same message model.
-        .nested(CodecSourceMapping.toCodec(m, recordRef.pkg(), typeResolver));
-
+        .nested(CodecSourceMapping.toCodec(m));
     // Layer B interop — nested Interop class when recordbuf.protobuf_java is set. The
     // protobuf-java ref type is emitted fully-qualified by the TypeCollector's collision policy, so
     // its short name never collides with the record's own name in the same compilation unit.
@@ -211,12 +197,12 @@ public final class RecordSourceMapping {
    * (presence tracked), the {@code List<T>} element, the map's boxed {@code Map<K, V>}, the
    * referenced record/enum's fully-typed name, and each well-known type's native Java type.
    */
-  private static TypeRef scalarComponentType(Field f, Message m) {
-    // In-scope bare name for nested types: a nested member is in name scope inside its own
-    // enclosing record, and the bare form lets the @Nullable (TYPE_USE) annotation apply — the
-    // qualified Sample.Fixed form breaks annotation application under javac.
-    TypeRef.Named recordType = m.type();
-    return TypeRefs.inScope(f.type(), recordType.shortName(), recordType.pkg());
+  private static TypeRef scalarComponentType(Field f) {
+    // The model's fully-typed reference, verbatim. The renderer's in-scope rule drops a redundant
+    // enclosing qualifier for a nested member (a nested type in the same package renders bare
+    // inside its enclosing record — the form the @Nullable TYPE_USE annotation requires); a
+    // cross-package reference keeps its qualifier and its import.
+    return f.type();
   }
 
   /**
@@ -252,14 +238,16 @@ public final class RecordSourceMapping {
    * Choice.NameValue} are not import-eligible. Message member permits are resolved via {@code
    * TypeRef.of(...)}; the renderer collects it and resolves it to a short name.
    */
-  private static OneofEmission emitOneof(Oneof oneof) {
+  private static OneofEmission emitOneof(Oneof oneof, TypeRef.Named recordRef) {
     String ifaceName = oneof.ifaceName();
     String componentName = oneof.componentName();
+    // The oneof interface is a nested type of the record: <Record>.<Iface>.
+    TypeRef.Named ifaceRef =
+        new TypeRef.Named(recordRef.pkg(), List.of(recordRef.shortName()), ifaceName, List.of());
 
     // 1. The @Nullable record component in the enclosing record.
     //    Import is registered by the collect() phase via Annotation.NULLABLE.type().
-    var component =
-        Component.named(ifaceName, componentName).annotation(Annotation.NULLABLE).build();
+    var component = Component.type(ifaceRef, componentName).annotation(Annotation.NULLABLE).build();
 
     // 2. Build the sealed interface: extends clause + permits + per-member records + default
     // value().
@@ -283,7 +271,9 @@ public final class RecordSourceMapping {
       // <Cap>Value(<valType> value) implementing the interface. Message members cannot be
       // identity subtypes in the source-AST path because each message is its own file.
       String valName = JavaNames.cap(member.name()) + "Value";
-      iface.permitsFqn(ifaceName + "." + valName);
+      iface.permitsType(
+          new TypeRef.Named(
+              recordRef.pkg(), List.of(recordRef.shortName(), ifaceName), valName, List.of()));
       // The value component type, read from the model (see {@link Field#type()}) — the member's
       // referenced record/enum's fully-typed name, or its boxed/reference scalar form (oneof
       // members always carry presence, so a present-able boxed form).
@@ -294,7 +284,7 @@ public final class RecordSourceMapping {
                   GeneratedDocs.type(
                       null, "Auto-generated record for the " + valName + " oneof value."))
               .public_()
-              .implementsFqn(ifaceName)
+              .implementsFqn(ifaceName) // in-package member: renders short
               .component(Component.type(valType, "value").build())
               .build();
       iface.nested(wr);
@@ -338,6 +328,7 @@ public final class RecordSourceMapping {
   // - public build() terminal
   private static BuilderEmission emitBuilder(Message m) {
     String recName = m.name();
+    TypeRef.Named recordRef = m.type();
     // The nested static Builder class — header first, members accumulated below.
     ClassSpec.Builder builderClz =
         ClassSpec.named("Builder")
@@ -347,12 +338,12 @@ public final class RecordSourceMapping {
             .public_()
             .static_()
             .final_();
-    TypeRef builderType = TypeRef.of("Builder");
+    TypeRef builderType = recordRef.sub("Builder");
 
     // Storage fields with codec defaults for each component field.
     for (Field f : m.fields()) {
       var comp =
-          Component.type(scalarComponentType(f, m), f.javaName())
+          Component.type(scalarComponentType(f), f.javaName())
               .initializer(defaultFor(f))
               .private_();
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
@@ -361,7 +352,13 @@ public final class RecordSourceMapping {
     // M4-C2b-2b-12: oneof component storage fields. Each defaults to null.
     for (var oneof : m.oneofs()) {
       builderClz.field(
-          Component.named(oneof.ifaceName(), oneof.componentName())
+          Component.type(
+                  new TypeRef.Named(
+                      recordRef.pkg(),
+                      List.of(recordRef.shortName()),
+                      oneof.ifaceName(),
+                      List.of()),
+                  oneof.componentName())
               .annotation(Annotation.NULLABLE)
               .initializer(RawExpr.of("null"))
               .private_()
@@ -380,7 +377,7 @@ public final class RecordSourceMapping {
         .constructor(Constructor.builder().private_().body().build());
 
     // The toBuilder copy constructor.
-    var copyCtor = Constructor.builder().private_().param(TypeRef.of(recName), "x");
+    var copyCtor = Constructor.builder().private_().param(recordRef, "x");
     for (Field f : m.fields()) {
       String fn = f.javaName();
       if (f.label() == FieldLabel.REPEATED) {
@@ -405,7 +402,7 @@ public final class RecordSourceMapping {
           Method.named(fieldName)
               .public_()
               .returnType(builderType)
-              .param(Param.of(scalarComponentType(f, m), fieldName))
+              .param(Param.of(scalarComponentType(f), fieldName))
               .body(Element.expr("this.@0 = @1", fieldName, fieldName), Element.ret("this"))
               .build());
     }
@@ -416,7 +413,15 @@ public final class RecordSourceMapping {
           Method.named(compName)
               .public_()
               .returnType(builderType)
-              .param(Param.of(TypeRef.of(oneof.ifaceName()), compName, Annotation.NULLABLE))
+              .param(
+                  Param.of(
+                      new TypeRef.Named(
+                          recordRef.pkg(),
+                          List.of(recordRef.shortName()),
+                          oneof.ifaceName(),
+                          List.of()),
+                      compName,
+                      Annotation.NULLABLE))
               .body(Element.expr("this.@0 = @1", compName, compName), Element.ret("this"))
               .build());
     }
@@ -443,7 +448,7 @@ public final class RecordSourceMapping {
         Method.named("build")
             .javadoc(GeneratedDocs.type(null, "Builds a " + m.name() + " record."))
             .public_()
-            .returnType(TypeRef.of(recName))
+            .returnType(recordRef)
             .body(Element.ret("new @0(@1)", recName, CommaList.of(ctorArgs)))
             .build());
 
@@ -461,7 +466,7 @@ public final class RecordSourceMapping {
             .public_()
             .static_()
             .returnType(builderType)
-            .body(Element.ret("new @0.Builder()", recName))
+            .body(Element.ret("new @0.Builder()", recordRef))
             .build();
 
     return new BuilderEmission(builderFactory, nestedBuilder);

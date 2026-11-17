@@ -39,25 +39,45 @@ public sealed interface TypeRef extends Formattable {
   String shortName();
 
   /**
-   * Resolve to the form emitted at a type position: a short name for an uncollided type, a
-   * fully-qualified name for a collided type. Primitives and arrays ignore the collision context
-   * (they always render bare).
+   * Resolve to the form emitted at a type position at the top level of a file (no enclosing class
+   * scope): a short name for an uncollided type, a fully-qualified name for a collided type.
+   * Primitives and arrays ignore the collision context (they always render bare).
    *
    * @param declaringPackage the package of the file being generated ({@code null} means the default
    *     package)
    * @param collidedShortNames the set of short names that are shared by two or more distinct FQNs
    * @return the resolved name to emit at this position
    */
-  String resolved(String declaringPackage, Set<String> collidedShortNames);
+  default String resolved(String declaringPackage, Set<String> collidedShortNames) {
+    return resolved(declaringPackage, collidedShortNames, List.of());
+  }
 
   /**
-   * Default render — delegates to {@link #resolved(String, Set)} unpacked via {@link
+   * Scope-aware {@link #resolved(String, Set)} for a type position rendered <em>inside</em> the
+   * enclosing types {@code scope} (outermost first). A qualified name whose outermost enclosing
+   * type is one of those renders without that leading segment — a member type of an enclosing class
+   * is in simple-name scope inside it, so the qualifier is redundant. Primitives and arrays pass
+   * the scope to the element/variant resolution where it can apply.
+   *
+   * @param declaringPackage the package of the file being generated ({@code null} means the default
+   *     package)
+   * @param collidedShortNames the set of short names that are shared by two or more distinct FQNs
+   * @param scope the enclosing type names of the use site, outermost first
+   * @return the resolved name to emit at this position
+   */
+  default String resolved(
+      String declaringPackage, Set<String> collidedShortNames, List<String> scope) {
+    return resolved(declaringPackage, collidedShortNames);
+  }
+
+  /**
+   * Default render — delegates to {@link #resolved(String, Set, List)} unpacked via {@link
    * ResolutionContext}. Override in a variant only if it needs different render behavior from its
    * resolution form.
    */
   @Override
   default String render(ResolutionContext ctx) {
-    return resolved(ctx.declaringPackage(), ctx.collidedShortNames());
+    return resolved(ctx.declaringPackage(), ctx.collidedShortNames(), ctx.scope());
   }
 
   // --- factories ---------------------------------------------------------------
@@ -279,11 +299,40 @@ public sealed interface TypeRef extends Formattable {
      * top-level type.
      */
     public String renderedShort() {
-      return joinWithDot("", enclosing, shortName);
+      return renderedInScope(List.of());
+    }
+
+    /**
+     * The nesting-chain form of {@link #renderedShort()} with the leading segment dropped when it
+     * is a member of the current lexical scope: the leading segment is in the scope chain ({@code
+     * scope}, outermost first) AND the reference is in the scope's declaring package ({@code
+     * scopePackage}) — a nested member inside its own enclosing type renders bare: {@code
+     * Sample.Fixed} inside {@code Sample}, {@code Compat.Choice} inside {@code Compat}. The package
+     * test keeps the rule sound for a same-NAMED type that is NOT the enclosing one: a top-level
+     * sibling {@code Item} in name scope inside {@code Sample} must stay qualified for its own
+     * nested member — {@code Item.ItemCodec} renders {@code Item.ItemCodec}, never {@code
+     * ItemCodec} (a top-level class's nested members are only reachable via the qualifier, and the
+     * unqualified inner name would be unresolvable).
+     */
+    public String renderedInScope(List<String> scope, String scopePackage) {
+      int drop =
+          (!enclosing.isEmpty() && scope.contains(enclosing.get(0)) && pkg.equals(scopePackage))
+              ? 1
+              : 0;
+      return joinWithDot("", enclosing.subList(drop, enclosing.size()), shortName);
+    }
+
+    /**
+     * {@link #renderedInScope(List, String)} with an empty scope package — for references whose
+     * package is unknown or irrelevant to the call site.
+     */
+    public String renderedInScope(List<String> scope) {
+      return renderedInScope(scope, "");
     }
 
     @Override
-    public String resolved(String declaringPackage, Set<String> collidedShortNames) {
+    public String resolved(
+        String declaringPackage, Set<String> collidedShortNames, List<String> scope) {
       boolean isShort;
       if (pkg.equals("java.lang") || pkg.equals(declaringPackage)) {
         isShort = true; // java.lang or in-package: always short with no import
@@ -292,7 +341,7 @@ public sealed interface TypeRef extends Formattable {
       } else {
         isShort = true; // uncollided non-java.lang: emitted as short + imported
       }
-      String base = isShort ? renderedShort() : fqn();
+      String base = isShort ? renderedInScope(scope, declaringPackage) : fqn();
       if (generics.isEmpty()) {
         return base;
       }
@@ -300,7 +349,7 @@ public sealed interface TypeRef extends Formattable {
       sb.append(base).append('<');
       for (int i = 0; i < generics.size(); i++) {
         if (i > 0) sb.append(", ");
-        sb.append(generics.get(i).resolved(declaringPackage, collidedShortNames));
+        sb.append(generics.get(i).resolved(declaringPackage, collidedShortNames, scope));
       }
       sb.append('>');
       return sb.toString();
