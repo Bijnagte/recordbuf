@@ -3,6 +3,7 @@ package bijnagte.recordbuf.plugin.model;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import bijnagte.recordbuf.codegen.source.TypeRef;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.EnumDescriptorProto;
@@ -78,7 +79,7 @@ class ModelInterfaceOptionTest {
     opts.addUninterpretedOption(option("recordbuf.java_interface", "com.example.Marker"));
 
     Message m = loadMessageFile(message("Sample", opts)).messages().get(0);
-    assertEquals(List.of("com.example.Marker"), m.interfaces());
+    assertEquals(List.of(TypeRef.of("com.example.Marker")), m.interfaces());
   }
 
   @Test
@@ -88,7 +89,7 @@ class ModelInterfaceOptionTest {
     opts.addUninterpretedOption(option("recordbuf.java_interface", "com.example.B"));
 
     Message m = loadMessageFile(message("Sample", opts)).messages().get(0);
-    assertEquals(List.of("com.example.A", "com.example.B"), m.interfaces());
+    assertEquals(List.of(TypeRef.of("com.example.A"), TypeRef.of("com.example.B")), m.interfaces());
   }
 
   @Test
@@ -98,7 +99,7 @@ class ModelInterfaceOptionTest {
     opts.addUninterpretedOption(option("recordbuf.java_interface", "com.example.Dup"));
 
     Message m = loadMessageFile(message("Sample", opts)).messages().get(0);
-    assertEquals(List.of("com.example.Dup"), m.interfaces());
+    assertEquals(List.of(TypeRef.of("com.example.Dup")), m.interfaces());
   }
 
   @Test
@@ -113,7 +114,7 @@ class ModelInterfaceOptionTest {
     opts.addUninterpretedOption(option("recordbuf.java_enum_interface", "com.example.Named"));
 
     Enum e = loadEnumFile(enumerate("Color", opts)).enums().get(0);
-    assertEquals(List.of("com.example.Named"), e.interfaces());
+    assertEquals(List.of(TypeRef.of("com.example.Named")), e.interfaces());
   }
 
   @Test
@@ -123,7 +124,7 @@ class ModelInterfaceOptionTest {
     opts.addUninterpretedOption(option("recordbuf.java_enum_interface", "com.example.Dup"));
 
     Enum e = loadEnumFile(enumerate("Color", opts)).enums().get(0);
-    assertEquals(List.of("com.example.Dup"), e.interfaces());
+    assertEquals(List.of(TypeRef.of("com.example.Dup")), e.interfaces());
   }
 
   private static void assertTrueListEmpty(Message m) {

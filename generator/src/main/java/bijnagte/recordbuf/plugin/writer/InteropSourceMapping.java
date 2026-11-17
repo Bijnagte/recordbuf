@@ -21,6 +21,7 @@ import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.JavaNames;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.Oneof;
+import bijnagte.recordbuf.plugin.types.TypeRefs;
 import java.util.ArrayList;
 import java.util.List;
 

@@ -9,6 +9,7 @@ import bijnagte.recordbuf.codegen.source.RawExpr;
 import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
+import bijnagte.recordbuf.plugin.types.TypeRefs;
 import bijnagte.recordbuf.plugin.types.WellKnownTypes;
 import bijnagte.recordbuf.plugin.types.WellKnownTypes.Entry;
 import java.util.Objects;

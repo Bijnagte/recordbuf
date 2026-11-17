@@ -1,6 +1,5 @@
 package bijnagte.recordbuf.plugin.writer;
 
-import bijnagte.recordbuf.codegen.TypeCollector;
 import bijnagte.recordbuf.codegen.source.Annotation;
 import bijnagte.recordbuf.codegen.source.ClassSpec;
 import bijnagte.recordbuf.codegen.source.CommaList;
@@ -21,6 +20,7 @@ import bijnagte.recordbuf.plugin.model.FieldLabel;
 import bijnagte.recordbuf.plugin.model.JavaNames;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.Oneof;
+import bijnagte.recordbuf.plugin.types.TypeRefs;
 import bijnagte.recordbuf.plugin.types.WellKnownTypes;
 import java.util.ArrayList;
 import java.util.List;
@@ -59,14 +59,14 @@ public final class RecordSourceMapping {
                 GeneratedDocs.type(
                     m.comment(), "Auto-generated record for the " + m.name() + " proto message."))
             .deprecated(m.deprecated())
-            .implementsFqns(m.interfaces());
+            .implementsFqns(m.interfaces().stream().map(TypeRef::fqn).toList());
 
     // 1. The components -- one Component per proto field, in declaration order. Blank Javadoc +
     // no @Deprecated + blank initializer are the compact-ctor defaults, so the builder sets only
     // the
     // component's type + javaName; a record's components render in its header via components().
     for (Field f : m.fields()) {
-      var comp = Component.type(scalarComponentType(f), f.javaName());
+      var comp = Component.type(scalarComponentType(f, m), f.javaName());
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       result.component(comp.build());
     }
@@ -113,11 +113,11 @@ public final class RecordSourceMapping {
                 GeneratedDocs.type(
                     m.comment(), "Auto-generated record for the " + m.name() + " proto message."))
             .deprecated(m.deprecated())
-            .implementsFqns(m.interfaces())
+            .implementsFqns(m.interfaces().stream().map(TypeRef::fqn).toList())
             .impl(TypeRefs.PROTOBUF_MESSAGE);
 
     for (Field f : m.fields()) {
-      var comp = Component.type(scalarComponentType(f), f.javaName());
+      var comp = Component.type(scalarComponentType(f, m), f.javaName());
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       result.component(comp.build());
     }
@@ -206,57 +206,17 @@ public final class RecordSourceMapping {
   }
 
   /**
-   * The record component's Java type for the M4-C2b scalar subset. A non-scalar field throws here;
-   * repeated scalars resolve to {@code List<T>} where T is the boxed Java element type; singular
-   * scalars resolve to their Java primitive or boxed type. The {@link TypeCollector} collects
-   * cross-package type references so the render pass can emit correct imports.
+   * The record component's Java type for a field: read from the model (see {@link Field#type()})
+   * rather than re-deriving it here — the loader already decided the primitive/boxed scalar form
+   * (presence tracked), the {@code List<T>} element, the map's boxed {@code Map<K, V>}, the
+   * referenced record/enum's fully-typed name, and each well-known type's native Java type.
    */
-  private static TypeRef scalarComponentType(Field f) {
-    // M4-C2b-2b-13: map<K, V> field. Key + value are proto scalar type URLs;
-    // each is rendered as its boxed Java type (primitives get boxed inside Map<>).
-    // Must run BEFORE the REPEATED label check (maps use REPEATED but are not Lists).
-    if (f.kind() == FieldKind.MAP) {
-      var mapRef =
-          TypeRefs.MAP.withGenerics(
-              TypeRef.boxedFor(Objects.requireNonNull(f.mapKey())),
-              TypeRef.boxedFor(Objects.requireNonNull(f.mapValue())));
-      return mapRef;
-    }
-    // M4-C2d-2: repeated MESSAGE/ENUM → List<ElementType>, element resolved per kind.
-    if (f.label() == FieldLabel.REPEATED) {
-      var listRef = TypeRefs.LIST.withGenerics(elementComponentType(f));
-      return listRef;
-    }
-    // M4-C2d-12: WKT fields → native Java type from WellKnownTypes (e.g. Timestamp→Instant,
-    // Int32Value→Integer). Singular WKT fields are @Nullable (presence-tracked; null = unset).
-    var wkt = WellKnownTypes.resolve(f.typeUrl());
-    if (wkt != null) {
-      TypeRef wktRef = TypeRef.of(Objects.requireNonNull(wkt.javaType()));
-      return wktRef;
-    }
-    // M4-C2d-2: singular MESSAGE/ENUM → the resolved short type name.
-    // Singular message fields are presence-tracked, so they're @Nullable in the record;
-    // the builder copy constructor and codec must null-guard accordingly.
-    if (f.kind() == FieldKind.MESSAGE || f.kind() == FieldKind.ENUM) {
-      TypeRef sibRef = TypeRef.of(javaSimpleName(f.typeUrl()));
-      return sibRef;
-    }
-    // M4-C2d-1: optional scalar → @Nullable boxed wrapper.
-    if (f.isNullable()) {
-      return TypeRef.boxedFor(f.typeUrl());
-    }
-    return switch (f.typeUrl()) {
-      case "int32", "uint32", "fixed32", "sfixed32", "sint32" -> TypeRef.Primitive.INT;
-      case "int64", "uint64", "fixed64", "sfixed64", "sint64" -> TypeRef.Primitive.LONG;
-      case "float" -> TypeRef.Primitive.FLOAT;
-      case "double" -> TypeRef.Primitive.DOUBLE;
-      case "bool" -> TypeRef.Primitive.BOOLEAN;
-      case "string" -> TypeRef.STRING;
-      case "bytes" -> TypeRefs.BYTES;
-      default ->
-          throw new UnsupportedOperationException(
-              "scalar " + f.typeUrl() + " component type is not in the M4-C2b-1 subset");
-    };
+  private static TypeRef scalarComponentType(Field f, Message m) {
+    // In-scope bare name for nested types: a nested member is in name scope inside its own
+    // enclosing record, and the bare form lets the @Nullable (TYPE_USE) annotation apply — the
+    // qualified Sample.Fixed form breaks annotation application under javac.
+    TypeRef.Named recordType = m.type();
+    return TypeRefs.inScope(f.type(), recordType.shortName(), recordType.pkg());
   }
 
   /**
@@ -279,30 +239,6 @@ public final class RecordSourceMapping {
 
   private static boolean isComponentNullableWkt(Field f) {
     return WellKnownTypes.resolve(f.typeUrl()) != null;
-  }
-
-  /** The inner element type of a {@code repeated X} field, resolved per {@link FieldKind}. */
-  private static TypeRef elementComponentType(Field f) {
-    // M4-C2d-12: WKT elements use the native Java type.
-    var wkt = WellKnownTypes.resolve(f.typeUrl());
-    if (wkt != null) {
-      TypeRef wktElemRef = TypeRef.of(Objects.requireNonNull(wkt.javaType()));
-      return wktElemRef;
-    }
-    if (f.kind() == FieldKind.MESSAGE || f.kind() == FieldKind.ENUM) {
-      TypeRef sibElemRef = TypeRef.of(javaSimpleName(f.typeUrl()));
-      return sibElemRef;
-    }
-    return TypeRef.boxedFor(f.typeUrl());
-  }
-
-  /**
-   * The Java simple name for a proto type URL's last path component (e.g. {@code a.b.c.Item}
-   * {@literal ->} {@code Item}).
-   */
-  private static String javaSimpleName(String typeUrl) {
-    int lastDot = typeUrl.lastIndexOf('.');
-    return lastDot < 0 ? typeUrl : typeUrl.substring(lastDot + 1);
   }
 
   /**
@@ -348,17 +284,10 @@ public final class RecordSourceMapping {
       // identity subtypes in the source-AST path because each message is its own file.
       String valName = JavaNames.cap(member.name()) + "Value";
       iface.permitsFqn(ifaceName + "." + valName);
-      // The value component type: for enum → the enum's short name (Same-package, no
-      // import); for scalar → the boxed Java type; for message → the message's short type
-      // reference (resolved via the type resolver).
-      TypeRef valType;
-      if (member.isMessage()) {
-        valType = TypeRef.of(javaSimpleName(member.typeUrl()));
-      } else if (member.kind() == FieldKind.ENUM) {
-        valType = TypeRef.of(javaSimpleName(member.typeUrl()));
-      } else {
-        valType = TypeRef.boxedFor(member.typeUrl());
-      }
+      // The value component type, read from the model (see {@link Field#type()}) — the member's
+      // referenced record/enum's fully-typed name, or its boxed/reference scalar form (oneof
+      // members always carry presence, so a present-able boxed form).
+      TypeRef valType = TypeRefs.boxed(member.type());
       RecordSpec wr =
           RecordSpec.named(valName)
               .javadoc(
@@ -423,7 +352,7 @@ public final class RecordSourceMapping {
     // Storage fields with codec defaults for each component field.
     for (Field f : m.fields()) {
       var comp =
-          Component.type(scalarComponentType(f), f.javaName())
+          Component.type(scalarComponentType(f, m), f.javaName())
               .initializer(defaultFor(f))
               .private_();
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
@@ -476,7 +405,7 @@ public final class RecordSourceMapping {
           Method.named(fieldName)
               .public_()
               .returnType(builderType)
-              .param(Param.of(scalarComponentType(f), fieldName))
+              .param(Param.of(scalarComponentType(f, m), fieldName))
               .body(Element.expr("this.@0 = @1", fieldName, fieldName), Element.ret("this"))
               .build());
     }

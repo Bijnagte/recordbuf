@@ -10,6 +10,7 @@ import bijnagte.recordbuf.codegen.source.RawExpr;
 import bijnagte.recordbuf.codegen.source.StaticBlock;
 import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Enum;
+import bijnagte.recordbuf.plugin.types.TypeRefs;
 
 /**
  * Maps the generator's proto {@link Enum} model into a {@link EnumSpec} of the pure-Java,
@@ -50,7 +51,7 @@ public final class EnumSourceMapping {
                     proto.comment(),
                     "Auto-generated enum for the " + proto.name() + " proto enum."))
             .deprecated(proto.deprecated())
-            .implementsFqns(proto.interfaces());
+            .implementsFqns(proto.interfaces().stream().map(TypeRef::fqn).toList());
 
     // 1. The constants — each with its number ctor-arg, its own Javadoc, and its own @Deprecated.
     for (Enum.EnumConstant c : proto.constants()) {

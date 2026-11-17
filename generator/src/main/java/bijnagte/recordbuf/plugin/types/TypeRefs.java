@@ -1,43 +1,90 @@
-package bijnagte.recordbuf.plugin.writer;
+package bijnagte.recordbuf.plugin.types;
 
 import bijnagte.recordbuf.codegen.source.TypeRef;
+import java.util.List;
 
 /**
- * Shared {@link TypeRef} constants for the fully-qualified names the source mappers emit.
+ * Shared {@link TypeRef} constants for the fully-qualified names the source mappers (and the model
+ * loader, for field types) emit.
  *
- * <p>Centralised in the generator module so the recordbuf-runtime, well-known-type, and Avro-bridge
- * FQNs — plus the common {@code java.*}/{@code com.google.protobuf} types several mappers reference
- * — are declared once and are never leaked into the generic {@link bijnagte.recordbuf.codegen}
- * module, which owns only the language-level boxed primitives on {@code TypeRef} itself.
+ * <p>Centralised in the generator module's {@code types} package so the recordbuf-runtime,
+ * well-known-type, and Avro-bridge FQNs — plus the common {@code java.*}/{@code
+ * com.google.protobuf} types several mappers reference — are declared once and are never leaked
+ * into the generic {@link bijnagte.recordbuf.codegen} module, which owns only the language-level
+ * boxed primitives on {@code TypeRef} itself.
  *
  * <p>Each constant is a shared, immutable {@link TypeRef.Named}; because the two-phase collector is
  * idempotent, reusing a constant across mappers collapses to a single import per type.
  */
-final class TypeRefs {
+public final class TypeRefs {
   private TypeRefs() {}
 
   // --- recordbuf runtime helpers (bijnagte.recordbuf.runtime.*) ---
-  static final TypeRef ENCODER = TypeRef.of("bijnagte.recordbuf.runtime.Encoder");
-  static final TypeRef DECODER = TypeRef.of("bijnagte.recordbuf.runtime.Decoder");
-  static final TypeRef UNKNOWN_FIELDS = TypeRef.of("bijnagte.recordbuf.runtime.UnknownFields");
-  static final TypeRef CODEC_DEFAULTS = TypeRef.of("bijnagte.recordbuf.runtime.CodecDefaults");
-  static final TypeRef WIRE = TypeRef.of("bijnagte.recordbuf.runtime.Wire");
-  static final TypeRef BYTES = TypeRef.of("bijnagte.recordbuf.runtime.Bytes");
-  static final TypeRef PROTOBUF_MESSAGE = TypeRef.of("bijnagte.recordbuf.runtime.ProtobufMessage");
-  static final TypeRef UNWRAPABLE = TypeRef.of("bijnagte.recordbuf.runtime.Unwrapable");
+  public static final TypeRef ENCODER = TypeRef.of("bijnagte.recordbuf.runtime.Encoder");
+  public static final TypeRef DECODER = TypeRef.of("bijnagte.recordbuf.runtime.Decoder");
+  public static final TypeRef UNKNOWN_FIELDS =
+      TypeRef.of("bijnagte.recordbuf.runtime.UnknownFields");
+  public static final TypeRef CODEC_DEFAULTS =
+      TypeRef.of("bijnagte.recordbuf.runtime.CodecDefaults");
+  public static final TypeRef WIRE = TypeRef.of("bijnagte.recordbuf.runtime.Wire");
+  public static final TypeRef BYTES = TypeRef.of("bijnagte.recordbuf.runtime.Bytes");
+  public static final TypeRef PROTOBUF_MESSAGE =
+      TypeRef.of("bijnagte.recordbuf.runtime.ProtobufMessage");
+  public static final TypeRef UNWRAPABLE = TypeRef.of("bijnagte.recordbuf.runtime.Unwrapable");
 
   // --- well-known-type codec helper (bijnagte.recordbuf.runtime.wkt.Wkt) ---
-  static final TypeRef WKT = TypeRef.of("bijnagte.recordbuf.runtime.wkt.Wkt");
+  public static final TypeRef WKT = TypeRef.of("bijnagte.recordbuf.runtime.wkt.Wkt");
 
   // --- Avro interop bridge (bijnagte.recordbuf.avro.*) ---
-  static final TypeRef WKT_AVRO_BRIDGE = TypeRef.of("bijnagte.recordbuf.avro.WktAvroBridge");
+  public static final TypeRef WKT_AVRO_BRIDGE = TypeRef.of("bijnagte.recordbuf.avro.WktAvroBridge");
 
   // --- common Java / protobuf types ---
-  static final TypeRef.Named LIST = TypeRef.named("java.util", "List");
-  static final TypeRef.Named ARRAY_LIST = TypeRef.named("java.util", "ArrayList");
-  static final TypeRef.Named MAP = TypeRef.named("java.util", "Map");
-  static final TypeRef.Named HASH_MAP = TypeRef.named("java.util", "HashMap");
-  static final TypeRef BYTE_BUFFER = TypeRef.named("java.nio", "ByteBuffer");
-  static final TypeRef ARRAYS = TypeRef.of("java.util.Arrays");
-  static final TypeRef BYTE_STRING = TypeRef.of("com.google.protobuf.ByteString");
+  public static final TypeRef.Named LIST = TypeRef.named("java.util", "List");
+  public static final TypeRef.Named ARRAY_LIST = TypeRef.named("java.util", "ArrayList");
+  public static final TypeRef.Named MAP = TypeRef.named("java.util", "Map");
+  public static final TypeRef.Named HASH_MAP = TypeRef.named("java.util", "HashMap");
+  public static final TypeRef BYTE_BUFFER = TypeRef.named("java.nio", "ByteBuffer");
+  public static final TypeRef ARRAYS = TypeRef.of("java.util.Arrays");
+  public static final TypeRef BYTE_STRING = TypeRef.of("com.google.protobuf.ByteString");
+
+  /**
+   * The boxed reference-type form of a scalar {@link TypeRef} for contexts that need a reference
+   * type — most importantly a oneof value record, whose {@code value()} accessor must covariantly
+   * override {@code Unwrapable<Object>#value()} (a primitive return would not). Primitives map to
+   * their {@code java.lang} boxed siblings; every other type passes through unchanged.
+   */
+  public static TypeRef boxed(TypeRef t) {
+    return switch (t) {
+      case TypeRef.Primitive p ->
+          switch (p) {
+            case INT -> TypeRef.named("java.lang", "Integer");
+            case LONG -> TypeRef.named("java.lang", "Long");
+            case FLOAT -> TypeRef.named("java.lang", "Float");
+            case DOUBLE -> TypeRef.named("java.lang", "Double");
+            case BOOLEAN -> TypeRef.named("java.lang", "Boolean");
+            case SHORT -> TypeRef.named("java.lang", "Short");
+            case BYTE -> TypeRef.named("java.lang", "Byte");
+            case CHAR -> TypeRef.named("java.lang", "Character");
+            case VOID -> TypeRef.named("java.lang", "Void");
+          };
+      default -> t;
+    };
+  }
+
+  /**
+   * A reference to a nested type is in name scope inside its own enclosing record, and a bare
+   * innermost short name lets a {@code @Nullable} (TYPE_USE) annotation apply cleanly — a qualified
+   * {@code Sample.Fixed} form breaks annotation application under javac. Emits the bare form when
+   * the reference is a nested type whose outermost enclosing type IS the given enclosing record and
+   * both share the given declaring package; passes the reference through otherwise.
+   */
+  public static TypeRef inScope(TypeRef ref, String enclosingType, String declaringPkg) {
+    if (ref instanceof TypeRef.Named n
+        && !n.enclosing().isEmpty()
+        && n.enclosing().get(0).equals(enclosingType)
+        && n.pkg().equals(declaringPkg)) {
+      return new TypeRef.Named(n.pkg(), List.of(), n.shortName(), n.generics());
+    }
+    return ref;
+  }
 }

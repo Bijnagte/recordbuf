@@ -20,6 +20,7 @@ import bijnagte.recordbuf.plugin.model.FieldLabel;
 import bijnagte.recordbuf.plugin.model.JavaNames;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.Oneof;
+import bijnagte.recordbuf.plugin.types.TypeRefs;
 import bijnagte.recordbuf.plugin.types.WellKnownTypes.Entry;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -168,14 +169,10 @@ public final class CodecSourceMapping {
             if (typeResolver != null) {
               if (f.label() == FieldLabel.REPEATED) {
                 method.body(
-                    LocalVar.builder(
-                            TypeRefs.LIST.withGenerics(TypeRef.of(messageShortName(f))),
-                            f.javaName())
+                    LocalVar.builder(f.type(), f.javaName())
                         .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)));
               } else {
-                method.body(
-                    LocalVar.builder(TypeRef.of(messageShortName(f)), f.javaName())
-                        .assigned(RawExpr.of("null")));
+                method.body(LocalVar.builder(f.type(), f.javaName()).assigned(RawExpr.of("null")));
               }
             }
           }
@@ -183,16 +180,12 @@ public final class CodecSourceMapping {
             // M4-C2b-2b-9: enum fields — singular → null, repeated → ArrayList.
             // typeResolver gives the enum short name; no typeResolver means unresolvable.
             if (typeResolver != null) {
-              String enumShort = typeResolver.apply(f);
               if (f.label() == FieldLabel.REPEATED) {
                 method.body(
-                    LocalVar.builder(
-                            TypeRefs.LIST.withGenerics(TypeRef.of(enumShort)), f.javaName())
+                    LocalVar.builder(f.type(), f.javaName())
                         .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)));
               } else {
-                method.body(
-                    LocalVar.builder(TypeRef.of(enumShort), f.javaName())
-                        .assigned(RawExpr.of("null")));
+                method.body(LocalVar.builder(f.type(), f.javaName()).assigned(RawExpr.of("null")));
               }
             } else {
               if (f.label() == FieldLabel.REPEATED) {
@@ -331,18 +324,6 @@ public final class CodecSourceMapping {
   }
 
   // --- Per-field MESSAGE encode/decode (M4-C2d-5) ---
-
-  /**
-   * The bare short name (last path segment) of a message/enum field's type URL — e.g. {@code
-   * "bijnagte.recordbuf.fixture.message.Item"} → {@code "Item"}. Building the sibling local's
-   * {@link TypeRef} from the short name (rather than the protobuf FQN) keeps it in-package, so it
-   * renders as a bare name without importing the sibling's protobuf FQN (which would shadow the
-   * same-package record).
-   */
-  private static String messageShortName(Field f) {
-    String url = f.typeUrl();
-    return url.substring(url.lastIndexOf('.') + 1);
-  }
 
   /** M4-C2d-5: singular MESSAGE encode — skip null, else writeByteArray(tag, Codec.encode(v)). */
   private static Element emitMessageEncode(

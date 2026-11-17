@@ -26,10 +26,13 @@ class MessageInterfacesTest {
             .nestedEnums(List.of())
             .deprecated(false)
             .comment(null)
-            .interfaces(List.of("java.lang.Comparable", "com.example.Marker"))
+            .interfaces(
+                List.of(TypeRef.of("java.lang.Comparable"), TypeRef.of("com.example.Marker")))
             .build();
 
-    assertEquals(List.of("java.lang.Comparable", "com.example.Marker"), m.interfaces());
+    assertEquals(
+        List.of(TypeRef.of("java.lang.Comparable"), TypeRef.of("com.example.Marker")),
+        m.interfaces());
   }
 
   @Test
@@ -57,10 +60,10 @@ class MessageInterfacesTest {
             .constants(List.of())
             .deprecated(false)
             .comment(null)
-            .interfaces(List.of("com.example.Named"))
+            .interfaces(List.of(TypeRef.of("com.example.Named")))
             .build();
 
-    assertEquals(List.of("com.example.Named"), e.interfaces());
+    assertEquals(List.of(TypeRef.of("com.example.Named")), e.interfaces());
   }
 
   @Test

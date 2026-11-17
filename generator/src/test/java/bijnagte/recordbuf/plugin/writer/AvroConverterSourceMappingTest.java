@@ -8,12 +8,24 @@ import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
 import bijnagte.recordbuf.plugin.model.Message;
+import bijnagte.recordbuf.plugin.types.TypeRefs;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class AvroConverterSourceMappingTest {
 
   private static Field scalar(String name, String typeUrl) {
+    TypeRef type =
+        switch (typeUrl) {
+          case "int32", "uint32", "sint32", "fixed32", "sfixed32" -> TypeRef.Primitive.INT;
+          case "int64", "uint64", "sint64", "fixed64", "sfixed64" -> TypeRef.Primitive.LONG;
+          case "float" -> TypeRef.Primitive.FLOAT;
+          case "double" -> TypeRef.Primitive.DOUBLE;
+          case "bool" -> TypeRef.Primitive.BOOLEAN;
+          case "string" -> TypeRef.STRING;
+          case "bytes" -> TypeRefs.BYTES;
+          default -> TypeRef.OBJECT;
+        };
     return new Field(
         name,
         name,
@@ -21,6 +33,7 @@ class AvroConverterSourceMappingTest {
         FieldLabel.OPTIONAL,
         FieldKind.SCALAR,
         typeUrl,
+        type,
         null,
         null,
         false,
@@ -30,6 +43,7 @@ class AvroConverterSourceMappingTest {
   }
 
   private static Field wktField(String name) {
+    // The loader models a known-WKT message field as the unresolvable OBJECT type.
     return new Field(
         name,
         name,
@@ -37,6 +51,7 @@ class AvroConverterSourceMappingTest {
         FieldLabel.OPTIONAL,
         FieldKind.MESSAGE,
         "google.protobuf.Timestamp",
+        TypeRef.OBJECT,
         null,
         null,
         true,
@@ -107,6 +122,7 @@ class AvroConverterSourceMappingTest {
             FieldLabel.OPTIONAL,
             FieldKind.SCALAR,
             "bytes",
+            TypeRefs.BYTES,
             null,
             null,
             false,

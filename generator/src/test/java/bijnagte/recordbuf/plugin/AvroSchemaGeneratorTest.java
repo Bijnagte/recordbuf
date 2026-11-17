@@ -12,6 +12,7 @@ import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.ProtoFile;
+import bijnagte.recordbuf.plugin.types.TypeRefs;
 import bijnagte.recordbuf.plugin.writer.AvroSchemaGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,9 +40,59 @@ class AvroSchemaGeneratorTest {
   private static final FieldLabel REPEATED = FieldLabel.REPEATED;
 
   private static Field field(String name, FieldKind kind, String typeUrl, FieldLabel label) {
-    // Field record: (name, javaName, number, label, kind, typeUrl, mapKey, mapValue,
+    // Field record: (name, javaName, number, label, kind, typeUrl, type, mapKey, mapValue,
     // proto3Optional, defaultValue, comment, deprecated). The nullable ones are left null/false/0.
-    return new Field(name, name, 1, label, kind, typeUrl, null, null, false, null, null, false);
+    return new Field(
+        name,
+        name,
+        1,
+        label,
+        kind,
+        typeUrl,
+        typeFor(kind, typeUrl, label),
+        null,
+        null,
+        false,
+        null,
+        null,
+        false);
+  }
+
+  private static TypeRef typeFor(FieldKind kind, String typeUrl, FieldLabel label) {
+    if (kind == FieldKind.MAP) {
+      return TypeRef.OBJECT;
+    }
+    if (kind == FieldKind.SCALAR) {
+      TypeRef boxed =
+          switch (typeUrl) {
+            case "int32", "uint32", "sint32", "fixed32", "sfixed32" -> TypeRef.INTEGER;
+            case "int64", "uint64", "sint64", "fixed64", "sfixed64" -> TypeRef.LONG;
+            case "float" -> TypeRef.FLOAT;
+            case "double" -> TypeRef.DOUBLE;
+            case "bool" -> TypeRef.BOOLEAN;
+            case "string" -> TypeRef.STRING;
+            case "bytes" -> TypeRefs.BYTES;
+            default -> TypeRef.OBJECT;
+          };
+      TypeRef ref =
+          switch (typeUrl) {
+            case "int32", "uint32", "sint32", "fixed32", "sfixed32" -> TypeRef.Primitive.INT;
+            case "int64", "uint64", "sint64", "fixed64", "sfixed64" -> TypeRef.Primitive.LONG;
+            case "float" -> TypeRef.Primitive.FLOAT;
+            case "double" -> TypeRef.Primitive.DOUBLE;
+            case "bool" -> TypeRef.Primitive.BOOLEAN;
+            default -> boxed;
+          };
+      if (label == FieldLabel.REPEATED) {
+        return TypeRefs.LIST.withGenerics(boxed);
+      }
+      return ref;
+    }
+    int dot = typeUrl.lastIndexOf('.');
+    if (dot < 0) {
+      return TypeRef.named("", typeUrl);
+    }
+    return TypeRef.named(typeUrl.substring(0, dot), typeUrl.substring(dot + 1));
   }
 
   private static Message message(List<Field> fields) {
@@ -161,6 +212,7 @@ class AvroSchemaGeneratorTest {
             REPEATED,
             FieldKind.MAP,
             "", // typeUrl is null for a map (semantics come from mapKey/mapValue); "" avoids a null
+            TypeRefs.MAP.withGenerics(TypeRef.STRING, TypeRef.INTEGER),
             "string",
             "int32",
             false,

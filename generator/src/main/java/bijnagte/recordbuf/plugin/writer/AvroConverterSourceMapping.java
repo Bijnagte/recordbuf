@@ -14,6 +14,7 @@ import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.Message;
+import bijnagte.recordbuf.plugin.types.TypeRefs;
 import java.util.List;
 import java.util.Set;
 
