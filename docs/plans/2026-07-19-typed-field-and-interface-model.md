@@ -22,6 +22,7 @@ pass incl. the fixtures' protoc round-trip, spotless/Checkstyle/EP/NullAway/-Wer
   `inScope` strips the enclosing chain when the reference's outermost enclosing type is the
   referring record and both share the declaring package; all other references keep the chain
   (the two-phase collector then renders short names in-package, imported out-of-package).
+- **KTD4 — the WKT registry is itself typed.** `WellKnownTypes.Entry.javaType` is now `@Nullable TypeRef` — shared `TypeRefs` constants (`INSTANT`/`DURATION`/`FIELD_MASK`/`EMPTY`, the codegen boxed constants, `TypeRefs.BYTES`), null only for `DYNAMIC_UNSUPPORTED` entries. The loader returns it directly instead of `TypeRef.of(requireNonNull(String))`, and `WktSourceMapping` renders from it instead of a `String → shortName → TypeRef` round-trip (a string-era vestige the KTD1 work left behind); the CodeGenerator typeResolver lambda keeps its old FQN-string behavior for the supported set.
 
 ## Context
 

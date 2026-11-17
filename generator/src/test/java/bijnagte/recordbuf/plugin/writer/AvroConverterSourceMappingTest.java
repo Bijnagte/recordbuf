@@ -43,7 +43,10 @@ class AvroConverterSourceMappingTest {
   }
 
   private static Field wktField(String name) {
-    // The loader models a known-WKT message field as the unresolvable OBJECT type.
+    // Known WKTs are modeled by the loader as their native Java type, but the converter derives
+    // field
+    // handling from the WKT registry and the field token, not from f.type() — a placeholder type
+    // suffices here.
     return new Field(
         name,
         name,

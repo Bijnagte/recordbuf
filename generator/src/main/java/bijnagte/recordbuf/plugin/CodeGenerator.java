@@ -195,7 +195,9 @@ public final class CodeGenerator {
         f -> {
           var wkt = WellKnownTypes.resolve(f.typeUrl());
           if (wkt != null) {
-            return wkt.javaType(); // native Java type (e.g. java.time.Instant, java.lang.Integer)
+            return wkt.javaType() == null
+                ? null
+                : wkt.javaType().fqn(); // native Java type (e.g. java.time.Instant)
           }
           int dot = f.typeUrl().lastIndexOf('.');
           String shortName = dot < 0 ? f.typeUrl() : f.typeUrl().substring(dot + 1);

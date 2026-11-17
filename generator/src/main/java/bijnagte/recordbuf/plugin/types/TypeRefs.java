@@ -35,6 +35,12 @@ public final class TypeRefs {
   // --- well-known-type codec helper (bijnagte.recordbuf.runtime.wkt.Wkt) ---
   public static final TypeRef WKT = TypeRef.of("bijnagte.recordbuf.runtime.wkt.Wkt");
 
+  // --- well-known-type native Java types (the types WellKnownTypes entries resolve to) ---
+  public static final TypeRef INSTANT = TypeRef.named("java.time", "Instant");
+  public static final TypeRef DURATION = TypeRef.named("java.time", "Duration");
+  public static final TypeRef FIELD_MASK = TypeRef.of("bijnagte.recordbuf.runtime.FieldMask");
+  public static final TypeRef EMPTY = TypeRef.of("bijnagte.recordbuf.runtime.Empty");
+
   // --- Avro interop bridge (bijnagte.recordbuf.avro.*) ---
   public static final TypeRef WKT_AVRO_BRIDGE = TypeRef.of("bijnagte.recordbuf.avro.WktAvroBridge");
 

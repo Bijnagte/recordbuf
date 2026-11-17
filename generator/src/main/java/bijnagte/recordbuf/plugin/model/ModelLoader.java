@@ -568,12 +568,9 @@ public final class ModelLoader {
   private TypeRef referenceType(String typeUrl) {
     WellKnownTypes.Entry wkt = WellKnownTypes.resolve(typeUrl);
     if (wkt != null) {
-      return TypeRef.of(
-          Objects.requireNonNull(
-              wkt.javaType(),
-              "well-known type "
-                  + typeUrl
-                  + " has no native Java type; generation cannot proceed"));
+      return Objects.requireNonNull(
+          wkt.javaType(),
+          "well-known type " + typeUrl + " has no native Java type; generation cannot proceed");
     }
     String javaFqn = table.javaFqn(typeUrl);
     if (javaFqn == null) {

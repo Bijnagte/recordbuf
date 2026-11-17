@@ -39,10 +39,10 @@ final class WktSourceMapping {
   // "Integer i32 = null;" per Wkt.java type
 
   static Element localInitElement(Field f, Entry entry) {
-    TypeRef type = TypeRef.of(requireType(entry));
+    TypeRef type = requireType(entry);
     String name = f.javaName();
     if (f.label() == FieldLabel.REPEATED) {
-      TypeRef namedList = TypeRefs.LIST.withGenerics(TypeRef.of(requireType(entry)));
+      TypeRef namedList = TypeRefs.LIST.withGenerics(requireType(entry));
       return LocalVar.builder(namedList, name)
           .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST));
     }
@@ -130,7 +130,7 @@ final class WktSourceMapping {
         assignment =
             Element.expr("@0.add(@1.@2(@3))", name, wktRef, parseMethod(f.typeUrl()), read);
       } else {
-        TypeRef castRef = TypeRef.of(shortNameOf(requireType(entry)));
+        TypeRef castRef = requireType(entry);
         // field.add((Short) Wkt.parse(Wkt.Wrap.KIND, in.readByteArray()));
         assignment =
             Element.expr(
@@ -145,7 +145,7 @@ final class WktSourceMapping {
       // field = Wkt.parseName(in.readByteArray());
       assignment = Element.expr("@0 = @1.@2(@3)", name, wktRef, parseMethod(f.typeUrl()), read);
     } else {
-      TypeRef castRef = TypeRef.of(shortNameOf(requireType(entry)));
+      TypeRef castRef = requireType(entry);
       // field = (Short) Wkt.parse(Wkt.Wrap.KIND, in.readByteArray());
       assignment =
           Element.expr(
@@ -159,13 +159,8 @@ final class WktSourceMapping {
     return Case.of(String.valueOf(num), assignment);
   }
 
-  private static String requireType(Entry entry) {
+  private static TypeRef requireType(Entry entry) {
     return Objects.requireNonNull(entry.javaType(), "WKT javaType must resolve");
-  }
-
-  private static String shortNameOf(String fqn) {
-    int dot = fqn.lastIndexOf('.');
-    return dot < 0 ? fqn : fqn.substring(dot + 1);
   }
 
   private static String shortName(String fqn) {

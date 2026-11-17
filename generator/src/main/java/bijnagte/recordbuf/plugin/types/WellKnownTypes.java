@@ -1,5 +1,6 @@
 package bijnagte.recordbuf.plugin.types;
 
+import bijnagte.recordbuf.codegen.source.TypeRef;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -57,7 +58,7 @@ public final class WellKnownTypes {
   public record Entry(
       String fqn,
       Kind kind,
-      @Nullable String javaType,
+      @Nullable TypeRef javaType,
       @Nullable WireScalar wire,
       @Nullable String zeroDefault) {
 
@@ -91,50 +92,45 @@ public final class WellKnownTypes {
   private static final String EMPTY = "google.protobuf.Empty";
 
   private static final Entry TIMESTAMP =
-      new Entry(TS, Kind.STRUCTURED, "java.time.Instant", null, "Instant.EPOCH");
+      new Entry(TS, Kind.STRUCTURED, TypeRefs.INSTANT, null, "Instant.EPOCH");
   private static final Entry DURATION =
-      new Entry(DUR, Kind.STRUCTURED, "java.time.Duration", null, "Duration.ZERO");
+      new Entry(DUR, Kind.STRUCTURED, TypeRefs.DURATION, null, "Duration.ZERO");
   private static final Entry FIELD_MASK =
-      new Entry(
-          MASK, Kind.STRUCTURED, "bijnagte.recordbuf.runtime.FieldMask", null, "FieldMask.empty()");
+      new Entry(MASK, Kind.STRUCTURED, TypeRefs.FIELD_MASK, null, "FieldMask.empty()");
   private static final Entry EMPTY_ENTRY =
-      new Entry(EMPTY, Kind.STRUCTURED, "bijnagte.recordbuf.runtime.Empty", null, "Empty.INSTANCE");
+      new Entry(EMPTY, Kind.STRUCTURED, TypeRefs.EMPTY, null, "Empty.INSTANCE");
 
   private static final Entry BOOL_VALUE =
-      entry(Kind.WRAPPER, "BoolValue", "java.lang.Boolean", WireScalar.BOOL);
+      entry(Kind.WRAPPER, "BoolValue", TypeRef.BOOLEAN, WireScalar.BOOL);
   private static final Entry INT32_VALUE =
-      entry(Kind.WRAPPER, "Int32Value", "java.lang.Integer", WireScalar.INT32);
+      entry(Kind.WRAPPER, "Int32Value", TypeRef.INTEGER, WireScalar.INT32);
   private static final Entry UINT32_VALUE =
-      entry(Kind.WRAPPER, "UInt32Value", "java.lang.Integer", WireScalar.UINT32);
+      entry(Kind.WRAPPER, "UInt32Value", TypeRef.INTEGER, WireScalar.UINT32);
   private static final Entry SINT32_VALUE =
-      entry(Kind.WRAPPER, "SInt32Value", "java.lang.Integer", WireScalar.SINT_32);
+      entry(Kind.WRAPPER, "SInt32Value", TypeRef.INTEGER, WireScalar.SINT_32);
   private static final Entry FIXED32_VALUE =
-      entry(Kind.WRAPPER, "Fixed32Value", "java.lang.Integer", WireScalar.FIXED32);
+      entry(Kind.WRAPPER, "Fixed32Value", TypeRef.INTEGER, WireScalar.FIXED32);
   private static final Entry SFIXED32_VALUE =
-      entry(Kind.WRAPPER, "SFixed32Value", "java.lang.Integer", WireScalar.FIXED32);
+      entry(Kind.WRAPPER, "SFixed32Value", TypeRef.INTEGER, WireScalar.FIXED32);
   private static final Entry INT64_VALUE =
-      entry(Kind.WRAPPER, "Int64Value", "java.lang.Long", WireScalar.INT64);
+      entry(Kind.WRAPPER, "Int64Value", TypeRef.LONG, WireScalar.INT64);
   private static final Entry UINT64_VALUE =
-      entry(Kind.WRAPPER, "UInt64Value", "java.lang.Long", WireScalar.UINT64);
+      entry(Kind.WRAPPER, "UInt64Value", TypeRef.LONG, WireScalar.UINT64);
   private static final Entry SINT64_VALUE =
-      entry(Kind.WRAPPER, "SInt64Value", "java.lang.Long", WireScalar.SINT_64);
+      entry(Kind.WRAPPER, "SInt64Value", TypeRef.LONG, WireScalar.SINT_64);
   private static final Entry FIXED64_VALUE =
-      entry(Kind.WRAPPER, "Fixed64Value", "java.lang.Long", WireScalar.FIXED64);
+      entry(Kind.WRAPPER, "Fixed64Value", TypeRef.LONG, WireScalar.FIXED64);
   private static final Entry SFIXED64_VALUE =
-      entry(Kind.WRAPPER, "SFixed64Value", "java.lang.Long", WireScalar.FIXED64);
+      entry(Kind.WRAPPER, "SFixed64Value", TypeRef.LONG, WireScalar.FIXED64);
   private static final Entry FLOAT_VALUE =
-      entry(Kind.WRAPPER, "FloatValue", "java.lang.Float", WireScalar.FLOAT);
+      entry(Kind.WRAPPER, "FloatValue", TypeRef.FLOAT, WireScalar.FLOAT);
   private static final Entry DOUBLE_VALUE =
-      entry(Kind.WRAPPER, "DoubleValue", "java.lang.Double", WireScalar.DOUBLE);
+      entry(Kind.WRAPPER, "DoubleValue", TypeRef.DOUBLE, WireScalar.DOUBLE);
   private static final Entry STRING_VALUE =
-      entry(Kind.WRAPPER, "StringValue", "java.lang.String", WireScalar.STRING);
+      entry(Kind.WRAPPER, "StringValue", TypeRef.STRING, WireScalar.STRING);
   private static final Entry BYTES_VALUE =
       new Entry(
-          "google.protobuf.BytesValue",
-          Kind.BYTES_WRAPPER,
-          "bijnagte.recordbuf.runtime.Bytes",
-          WireScalar.BYTES,
-          null);
+          "google.protobuf.BytesValue", Kind.BYTES_WRAPPER, TypeRefs.BYTES, WireScalar.BYTES, null);
 
   private static final Entry STRUCT = dynamic("Struct");
   private static final Entry VALUE = dynamic("Value");
@@ -142,7 +138,7 @@ public final class WellKnownTypes {
   private static final Entry ANY = dynamic("Any");
   private static final Entry NULL_VALUE = dynamic("NullValue");
 
-  private static Entry entry(Kind kind, String shortName, String javaType, WireScalar wire) {
+  private static Entry entry(Kind kind, String shortName, TypeRef javaType, WireScalar wire) {
     return new Entry("google.protobuf." + shortName, kind, javaType, wire, null);
   }
 
