@@ -26,9 +26,10 @@ import org.jspecify.annotations.Nullable;
  *     loader).
  * @param deprecated {@code option deprecated = true}
  * @param comment leading doc comment, if captured
- * @param interfaces fully-qualified Java interface names the record should emit in an {@code
- *     implements} clause, in declaration order and de-duplicated (never {@code null}); empty when
- *     none are declared. The FQNs are opaque to the generator.
+ * @param interfaces the fully-typed Java interfaces the record should emit in an {@code implements}
+ *     clause, as {@link TypeRef.Named} references, in declaration order and de-duplicated (never
+ *     {@code null}); empty when none are declared. Parsed from the {@code recordbuf.java_interface}
+ *     option's FQN strings.
  * @param protobufJava the java_package that hosts the equivalent protobuf-java reference {@code X}
  *     for a Layer B structural converter ({@code Interop.from}/{@code Interop.to}), or {@code null}
  *     when no converter is opt-ed in. {@code null} for every message except those that declare
@@ -44,7 +45,7 @@ public record Message(
     List<Oneof> oneofs,
     boolean deprecated,
     @Nullable String comment,
-    List<String> interfaces,
+    List<TypeRef> interfaces,
     @Nullable String protobufJava) {
   public boolean hasNested() {
     return !nestedMessages.isEmpty() || !nestedEnums.isEmpty();

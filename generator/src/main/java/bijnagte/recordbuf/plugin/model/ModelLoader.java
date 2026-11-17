@@ -1,6 +1,8 @@
 package bijnagte.recordbuf.plugin.model;
 
 import bijnagte.recordbuf.codegen.source.TypeRef;
+import bijnagte.recordbuf.plugin.types.TypeRefs;
+import bijnagte.recordbuf.plugin.types.WellKnownTypes;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.EnumDescriptorProto;
@@ -16,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -298,6 +301,9 @@ public final class ModelLoader {
         FieldLabel.OPTIONAL,
         FieldKind.MAP,
         /* typeUrl= */ synthetic.typeUrl(),
+        TypeRefs.MAP.withGenerics(
+            TypeRef.boxedFor(Objects.requireNonNull(keyProtoType)),
+            TypeRef.boxedFor(Objects.requireNonNull(valProtoType))),
         keyProtoType,
         valProtoType,
         /* proto3Optional= */ false,
@@ -413,6 +419,7 @@ public final class ModelLoader {
         label,
         kind,
         typeUrl,
+        fieldType(kind, typeUrl, label, proto3Opt, mapKey, mapValue),
         mapKey,
         mapValue,
         /* proto3Optional= */ proto3Opt,
@@ -483,14 +490,121 @@ public final class ModelLoader {
     return a + "." + b;
   }
 
+  // --- field Java-type derivation ---------------------------------------------
+
   /**
-   * Collect the fully-qualified interface names for a message/enum that declared the matching proto
-   * option, de-duplicated but preserving declaration order. Prefers the COMPILED path (a resolved
-   * extension reaches us as an unknown field at {@code tag}) and falls back to uninterpreted
-   * options whose dotted name equals {@code uninterpretedName}. Returns an empty list when none are
-   * declared.
+   * The field's Java type as a {@link TypeRef}: a scalar token maps to its primitive form (or its
+   * boxed/reference form when the field carries presence); a message/enum to the referenced type's
+   * fully-typed {@link TypeRef.Named}; a well-known type to its native Java type; a repeated field
+   * to {@code List<T>}; a map to {@code Map<K, V>}. This is the value of {@link Field#type()} — the
+   * writers read it instead of re-deriving Java types from the {@code typeUrl} token.
    */
-  private static List<String> interfacesFor(
+  private TypeRef fieldType(
+      FieldKind kind,
+      String typeUrl,
+      FieldLabel label,
+      boolean proto3Optional,
+      @Nullable String mapKey,
+      @Nullable String mapValue) {
+    if (kind == FieldKind.MAP) {
+      return TypeRefs.MAP.withGenerics(
+          TypeRef.boxedFor(Objects.requireNonNull(mapKey)),
+          TypeRef.boxedFor(Objects.requireNonNull(mapValue)));
+    }
+    boolean presence = label != FieldLabel.REPEATED && proto3Optional;
+    TypeRef element =
+        switch (kind) {
+          case MESSAGE, ENUM -> referenceType(typeUrl);
+          default -> scalarElement(typeUrl, presence);
+        };
+    if (label == FieldLabel.REPEATED) {
+      // A list element is always a reference type (boxed scalar or the referenced class).
+      TypeRef listElement = kind == FieldKind.SCALAR ? scalarReference(typeUrl) : element;
+      return TypeRefs.LIST.withGenerics(listElement);
+    }
+    return element;
+  }
+
+  /**
+   * The reference form of a proto scalar token: the boxed {@code java.lang.*} type, {@code String},
+   * or the runtime {@code Bytes} class.
+   */
+  private static TypeRef scalarReference(String typeUrl) {
+    return switch (typeUrl) {
+      case "int32", "uint32", "fixed32", "sfixed32", "sint32" -> TypeRef.INTEGER;
+      case "int64", "uint64", "fixed64", "sfixed64", "sint64" -> TypeRef.LONG;
+      case "float" -> TypeRef.FLOAT;
+      case "double" -> TypeRef.DOUBLE;
+      case "bool" -> TypeRef.BOOLEAN;
+      case "string" -> TypeRef.STRING;
+      case "bytes" -> TypeRefs.BYTES;
+      default -> TypeRef.OBJECT;
+    };
+  }
+
+  /**
+   * The singular-scalar component form: the primitive keyword when the field carries no presence,
+   * otherwise the reference form (a present-able component boxes).
+   */
+  private static TypeRef scalarElement(String typeUrl, boolean presence) {
+    TypeRef reference = scalarReference(typeUrl);
+    if (presence) return reference;
+    return switch (typeUrl) {
+      case "int32", "uint32", "fixed32", "sfixed32", "sint32" -> TypeRef.Primitive.INT;
+      case "int64", "uint64", "fixed64", "sfixed64", "sint64" -> TypeRef.Primitive.LONG;
+      case "float" -> TypeRef.Primitive.FLOAT;
+      case "double" -> TypeRef.Primitive.DOUBLE;
+      case "bool" -> TypeRef.Primitive.BOOLEAN;
+      default -> reference; // string/bytes are reference types either way
+    };
+  }
+
+  /**
+   * The Java type for a message/enum field: a well-known type's native Java type (failing loudly
+   * when none exists — the generator does not support dynamic WKTs), otherwise the referenced
+   * record/enum's fully-typed {@link TypeRef.Named} (its declaring java package plus nesting chain,
+   * resolved through the {@link FileTable}).
+   */
+  private TypeRef referenceType(String typeUrl) {
+    WellKnownTypes.Entry wkt = WellKnownTypes.resolve(typeUrl);
+    if (wkt != null) {
+      return TypeRef.of(
+          Objects.requireNonNull(
+              wkt.javaType(),
+              "well-known type "
+                  + typeUrl
+                  + " has no native Java type; generation cannot proceed"));
+    }
+    String javaFqn = table.javaFqn(typeUrl);
+    if (javaFqn == null) {
+      // The type is not declared in the request: anchor it in this file's java package so the
+      // name still renders (a reference that will not resolve at compile time anyway).
+      return namedFromFqn(join(javaPkgOf, typeUrl), javaPkgOf);
+    }
+    String pkg = table.javaPackageOf(javaFqn);
+    return namedFromFqn(javaFqn, pkg == null ? javaPkgOf : pkg);
+  }
+
+  /**
+   * Split a java FQN into a {@link TypeRef.Named}: the package, the enclosing-type chain (all but
+   * the last segment), and the short name.
+   */
+  private static TypeRef.Named namedFromFqn(String fqn, String pkg) {
+    String rest =
+        !pkg.isEmpty() && fqn.startsWith(pkg + ".") ? fqn.substring(pkg.length() + 1) : fqn;
+    String[] parts = rest.split("\\.");
+    List<String> enclosing = Arrays.stream(parts, 0, parts.length - 1).toList();
+    return new TypeRef.Named(pkg, enclosing, parts[parts.length - 1], List.of());
+  }
+
+  /**
+   * Collect the typed Java interfaces ({@link TypeRef.Named} references) for a message/enum that
+   * declared the matching proto option, de-duplicated but preserving declaration order. Prefers the
+   * COMPILED path (a resolved extension reaches us as an unknown field at {@code tag}) and falls
+   * back to uninterpreted options whose dotted name equals {@code uninterpretedName}. Returns an
+   * empty list when none are declared.
+   */
+  private static List<TypeRef> interfacesFor(
       UnknownFieldSet unknownFields,
       List<UninterpretedOption> uninterpreted,
       int tag,
@@ -507,7 +621,11 @@ public final class ModelLoader {
         ordered.put(opt.getStringValue().toStringUtf8(), Boolean.TRUE);
       }
     }
-    return new ArrayList<>(ordered.keySet());
+    List<TypeRef> result = new ArrayList<>(ordered.size());
+    for (String fqn : ordered.keySet()) {
+      result.add(TypeRef.of(fqn));
+    }
+    return result;
   }
 
   /** Reconstruct a {@code (pkg.name)} dotted option name from an uninterpreted option's parts. */

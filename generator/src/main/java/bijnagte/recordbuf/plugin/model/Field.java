@@ -1,5 +1,6 @@
 package bijnagte.recordbuf.plugin.model;
 
+import bijnagte.recordbuf.codegen.source.TypeRef;
 import io.soabase.recordbuilder.core.RecordBuilder;
 import org.jspecify.annotations.Nullable;
 
@@ -12,9 +13,13 @@ import org.jspecify.annotations.Nullable;
  * @param number field tag
  * @param label optional / required / repeated
  * @param kind scalar / message / enum / map
- * @param typeUrl for MESSAGE/ENUM, the fully-qualified proto type name (used for resolution by the
- *     caller, not for codegen)
- * @param mapKey for MAP, the proto scalar type of the key
+ * @param typeUrl the protobuf type URL the field's wire encoding dispatches on (a scalar token like
+ *     {@code int32}, or the fully-qualified proto type name for MESSAGE/ENUM). A dispatch/WKT token
+ *     — codegen derives Java types from {@link #type()} instead
+ * @param type the field's Java type as a {@link TypeRef}: a primitive/boxed scalar, a {@code
+ *     List<T>}/{@code Map<K,V>} for repeated/map fields, the referenced record/enum's fully-typed
+ *     {@link TypeRef.Named} (the class the field comes from), or a well-known type's native Java
+ *     type
  * @param mapValue for MAP, the proto scalar type of the value
  * @param proto3Optional the raw {@code optional} keyword flag, used (with the kind/label) to decide
  *     presence — see {@link #isNullable()}
@@ -32,6 +37,7 @@ public record Field(
     FieldLabel label,
     FieldKind kind,
     String typeUrl,
+    TypeRef type,
     @Nullable String mapKey,
     @Nullable String mapValue,
     boolean proto3Optional,

@@ -1,5 +1,6 @@
 package bijnagte.recordbuf.plugin.model;
 
+import bijnagte.recordbuf.codegen.source.TypeRef;
 import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
@@ -11,9 +12,10 @@ import org.jspecify.annotations.Nullable;
  * @param constants the enum's constants
  * @param deprecated {@code option deprecated = true}
  * @param comment leading doc comment, if captured
- * @param interfaces fully-qualified Java interface names the enum should emit in an {@code
- *     implements} clause, in declaration order and de-duplicated (never {@code null}); empty when
- *     none are declared. The FQNs are opaque to the generator.
+ * @param interfaces the fully-typed Java interfaces the enum should emit in an {@code implements}
+ *     clause, as {@link TypeRef.Named} references, in declaration order and de-duplicated (never
+ *     {@code null}); empty when none are declared. Parsed from the {@code
+ *     recordbuf.java_enum_interface} option's FQN strings.
  */
 // The record is deliberately named `Enum` because it is the first-class, 1:1 model of a protobuf
 // `enum` keyword; the clash with `java.lang.Enum` is accepted rather than rename-rippling it
@@ -26,7 +28,7 @@ public record Enum(
     List<EnumConstant> constants,
     boolean deprecated,
     @Nullable String comment,
-    List<String> interfaces) {
+    List<TypeRef> interfaces) {
   /** One entry in an enum. */
   @RecordBuilder
   public record EnumConstant(
