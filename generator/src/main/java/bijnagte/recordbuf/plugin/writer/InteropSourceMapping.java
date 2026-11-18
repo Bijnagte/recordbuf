@@ -53,7 +53,8 @@ public final class InteropSourceMapping {
     // fully-qualified, since its short name collides with the record's own name.
 
     TypeRef.Named recType = m.type();
-    TypeRef.Named refType = TypeRef.named(refPkg, recType.shortName());
+    TypeRef.Named refType =
+        new TypeRef.Named(refPkg, recType.enclosing(), recType.shortName(), List.of());
 
     Javadoc javadoc =
         GeneratedDocs.type(
@@ -126,7 +127,7 @@ public final class InteropSourceMapping {
     if (f.isMessage() && f.isRepeated()) {
       String recSib = recordSiblingFqn(f);
       out.add(
-          LocalVar.builder(TypeRefs.LIST.withGenerics(TypeRef.of(recSib)), "_" + f.javaName())
+          LocalVar.builder(f.type(), "_" + f.javaName())
               .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)));
       out.add(
           For.enhanced("var _e", "x.get@0List()", cap)
@@ -135,14 +136,13 @@ public final class InteropSourceMapping {
       return out;
     }
     if (f.isMessage()) {
-      String recSib = recordSiblingFqn(f);
       out.add(
           Element.expr(
               RawExpr.of(
                   "var _@0 = x.has@1() ? @2.Interop.from(x.get@1()) : null",
                   f.javaName(),
                   JavaNames.cap(f.javaName()),
-                  TypeRef.of(recSib))));
+                  f.type())));
       return out;
     }
     if (f.kind() == FieldKind.ENUM) {

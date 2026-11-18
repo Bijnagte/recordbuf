@@ -125,3 +125,60 @@ reuses the existing codegen `TypeRef`, with primitives supported via the new
 - **Verification.** `./gradlew build` green; regenerated output byte-identical to the
   pre-refactor baseline (committed fixtures show no diff; the oneof fixture — permits,
   oneof locals, `Sub.SubCodec`, wrapper constructors — matches byte-for-byte).
+
+## Layer 2 landed (declared types carry a canonical TypeRef)
+
+`Type.name()` is now a `TypeRef` across the sealed family (Record/Class/Enum/InterfaceSpec):
+package + enclosing chain + short name. The renderer emits only the short name in declaration
+headers (a nested type declares inside its parent) and pushes it onto the scope chain. Writers
+pass the model's references (`m.type()`, `recordRef.sub(...)`) — the oneof member-value and
+map-entry emitters thread the enclosing reference. A `named(String)` convenience (default
+package) stays on the codegen library for standalone specs. Generated output stayed
+byte-identical.
+
+The oneof model now holds the sealed-interface reference too (`Oneof.iface`, loader-owned):
+writers consume it instead of re-deriving a name string (Record/Codec/Interop sources all use
+`o.iface()`).
+
+## String-type audit (mapper code, 2026-07-19)
+
+Sweep of every place a type still rides as a `String`. Three buckets:
+
+**Fixed this session**
+- `Oneof.ifaceName()` consumers that rebuilt refs from the name string (Interop
+  `TypeRef.of(o.ifaceName())`, Codec `recordRef.sub(o.ifaceName())`, Record's local ifaceRef)
+  → `o.iface()` (loader-owned, enclosing chain intact — the local rebuilds had dropped the
+  record's own enclosing chain for nested records).
+- Codec `encode` param `TypeRef.of(m.name())` → `m.type()`; codec/entry `ClassSpec.named(...)`
+  string sites → `m.type().sub(...)`.
+- Interop reference type: `TypeRef.named(refPkg, recType.shortName())` (enclosing chain lost)
+  → `new Named(refPkg, recType.enclosing(), ...)`; the repeated-message arm's
+  `TypeRef.of(recSib)` → `f.type()` (loader-typed, already the boxed/list form).
+
+**Legitimate strings (not debt)**
+- Proto *identifier* space: `FileTable`'s proto-FQN keys, `typeUrl` fields, the
+  `google.protobuf.*` WKT URLs in the loader — protoc's canonical identifiers are strings; the
+  model boundary converts them to `TypeRef`.
+- Known-constant tables: `TypeRefs.java` and `Annotation.NULLABLE` build their refs via
+  `TypeRef.of("com.example....")` — hand-written FQN literals are *data*, and the constants are
+  non-nested, so the `of` parse is exact. (Caveat: `of` guesses pkg/enclosing split on dots —
+  fine for these, untrustworthy for deep nested names; prefer `named`/`sub` for real types.)
+- *Name* vs *type*: `codecName = recName + "Codec"`, Avro's `cap(name) + "Avro"` schema names,
+  entry names — Java *names* that feed templates or the Avro (non-Java) schema world.
+- Codegen library sugar: `implementsFqn(String)`/`extendsFqn(String)`/`named(String)` parse
+  conveniences — documented as default-package/FQN-literal sugar; writers must use refs.
+
+**Also fixed this session**
+- Avro writer's `builderType`: `TypeRef.named("", shortName + ".Builder")` (a dotted
+  shortName) → `recordClass.sub("Builder")` (a real nested reference).
+
+**Remaining debt (needs the template-string → typed-AST work)**
+- `recordSiblingFqn(f)` string embedded in Element/RawExpr *template strings* in the interop
+  writer (enum `forNumber`, oneof `...Interop.to(v.value())` arms, to/from). The types exist on
+  the model (`f.type()`, `o.iface()`); only the `Element`/`RawExpr` slot grammar still demands
+  strings — converting these to typed args is the next AST step.
+- `Case` pattern strings (`"Choice.NameValue n_"`-style) in the oneof decode/encode switch —
+  the pattern's type is the oneof member ref; needs a typed-pattern `Case` arm.
+- `SwitchExpr.on("x.get@0Case()", ...)` selector strings (type embedded in the selector text).
+- Javadoc/Grammar *prose* that interpolates type names (`"for the " + recName`) — cosmetic, not
+  a type reference; leave until the AST absorbs doc generation too.

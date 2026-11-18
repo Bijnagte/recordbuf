@@ -59,7 +59,7 @@ public final class CodecSourceMapping {
     // it; no explicit collect/render is needed here.
     String recName = m.type().shortName();
     String codecName = recName + "Codec";
-    return ClassSpec.named(codecName)
+    return ClassSpec.named(m.type().sub(codecName))
         .public_()
         .static_()
         .final_()
@@ -77,7 +77,7 @@ public final class CodecSourceMapping {
             .public_()
             .static_()
             .returnType(TypeRef.BYTES)
-            .param(TypeRef.of(m.name()), "v")
+            .param(m.type(), "v")
             .thrown(TypeRef.IO_EXCEPTION)
             .body(
                 Element.expr("var enc = @0.start()", TypeRefs.ENCODER),
@@ -202,7 +202,7 @@ public final class CodecSourceMapping {
     // same-tag member seen wins, so a repeated same-tag member overwrites the prior value.
     TypeRef.Named recordRef = m.type();
     for (Oneof o : m.oneofs()) {
-      method.body(Element.expr("@0 @1 = null", recordRef.sub(o.ifaceName()), o.componentName()));
+      method.body(Element.expr("@0 @1 = null", o.iface(), o.componentName()));
     }
 
     // Tag loop: a while-loop wrapping a pattern-matching switch of tag-case arms.

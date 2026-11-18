@@ -1,5 +1,6 @@
 package bijnagte.recordbuf.plugin.model;
 
+import bijnagte.recordbuf.codegen.source.TypeRef;
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.OneofDescriptorProto;
 import io.soabase.recordbuilder.core.RecordBuilder;
@@ -21,10 +22,13 @@ import java.util.List;
  * record that carries a scalar/enum member's value plus its discriminant (the member's field tag).
  *
  * @param name the oneof's proto name
- * @param descriptor the raw protobuf {@link OneofDescriptorProto} for this group, carried from the
- *     loader so the codec can recover a member field's raw protobuf type (e.g. whether a member is
- *     an {@code enum}) for encode/decode casts without leaking protobuf classes into the writers;
- *     never {@code null}
+ * @param iface the nested sealed interface's fully-typed reference — the owner record's reference
+ *     with the capitalized oneof name as the final segment (e.g. {@code Compat.Choice}); the loader
+ *     owns it, so writers consume it instead of re-deriving a name string
+ * @param descriptor the raw protobuf {@link OneofDescriptorProto} for this group loader so the
+ *     codec can recover a member field's raw protobuf type (e.g. whether a member is an {@code
+ *     enum}) for encode/decode casts without leaking protobuf classes into the writers; never
+ *     {@code null}
  * @param parentDescriptor the raw {@link DescriptorProto} of the enclosing (owner) message, carried
  *     so the codec can resolve a member's raw field descriptor by tag via {@code
  *     parentDescriptor.getField(number)} (each oneof member's tag is also registered on the owner
@@ -37,6 +41,7 @@ import java.util.List;
 @RecordBuilder
 public record Oneof(
     String name,
+    TypeRef.Named iface,
     OneofDescriptorProto descriptor,
     DescriptorProto parentDescriptor,
     List<Field> members) {
@@ -55,7 +60,7 @@ public record Oneof(
    * permits/implements surface (K6) key off it.
    */
   public String ifaceName() {
-    return JavaNames.cap(JavaNames.camel(name));
+    return iface.shortName();
   }
 
   /**

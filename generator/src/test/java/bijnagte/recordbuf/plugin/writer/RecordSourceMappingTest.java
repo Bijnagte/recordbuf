@@ -538,7 +538,13 @@ class RecordSourceMappingTest {
   void source_ast_emits_oneof_sealed_interface() {
     var oneofDescriptor = OneofDescriptorProto.newBuilder().setName("choice").build();
     var parentDescriptor = DescriptorProto.newBuilder().setName("Parent").build();
-    Oneof choice = new Oneof("choice", oneofDescriptor, parentDescriptor, List.of());
+    Oneof choice =
+        new Oneof(
+            "choice",
+            TypeRef.named(PKG, "Parent").sub("Choice"),
+            oneofDescriptor,
+            parentDescriptor,
+            List.of());
     var parent =
         new Message(
             "Parent",

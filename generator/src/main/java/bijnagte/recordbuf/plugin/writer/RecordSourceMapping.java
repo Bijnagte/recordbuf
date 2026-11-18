@@ -241,9 +241,8 @@ public final class RecordSourceMapping {
   private static OneofEmission emitOneof(Oneof oneof, TypeRef.Named recordRef) {
     String ifaceName = oneof.ifaceName();
     String componentName = oneof.componentName();
-    // The oneof interface is a nested type of the record: <Record>.<Iface>.
-    TypeRef.Named ifaceRef =
-        new TypeRef.Named(recordRef.pkg(), List.of(recordRef.shortName()), ifaceName, List.of());
+    // The oneof interface — the loader-derived, fully-typed reference (nested in the record).
+    TypeRef.Named ifaceRef = oneof.iface();
 
     // 1. The @Nullable record component in the enclosing record.
     //    Import is registered by the collect() phase via Annotation.NULLABLE.type().

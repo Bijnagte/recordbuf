@@ -15,7 +15,6 @@ import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.types.TypeRefs;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -100,7 +99,8 @@ public final class AvroConverterSourceMapping {
 
   // --- toRecord body builder ----------------------------------------------------------
 
-  private static Method buildToRecord(Message message, TypeRef recordClass, TypeRef avroSpecific) {
+  private static Method buildToRecord(
+      Message message, TypeRef.Named recordClass, TypeRef avroSpecific) {
     var method =
         Method.named("toRecord")
             .public_()
@@ -142,7 +142,7 @@ public final class AvroConverterSourceMapping {
   // --- fromRecord body builder --------------------------------------------------------
 
   private static Method buildFromRecord(
-      Message message, TypeRef recordClass, TypeRef avroSpecific) {
+      Message message, TypeRef.Named recordClass, TypeRef avroSpecific) {
 
     var method =
         Method.named("fromRecord")
@@ -174,8 +174,8 @@ public final class AvroConverterSourceMapping {
   }
 
   /** The record's nested builder type — e.g. {@code Sample.Builder} for record {@code Sample}. */
-  private static TypeRef builderType(TypeRef recordClass) {
-    return TypeRef.named("", recordClass.shortName() + ".Builder", List.of());
+  private static TypeRef.Named builderType(TypeRef.Named recordClass) {
+    return recordClass.sub("Builder");
   }
 
   private static String cap(String s) {
