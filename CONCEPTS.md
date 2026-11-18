@@ -28,6 +28,18 @@ its wire shape — never by a guessed proto type — and inspected the same way,
 a wrong-shape read fails loudly rather than silently coercing. It is what keeps
 the carrier a faithful copy of the wire instead of a typed guess about it.
 
+### Structural twin
+The Avro bridge's contract that its output is a structural twin of the generated
+record: every message and enum reachable from the bridged root gets a schema /
+specific-record / converter triple, each field shape maps to an exact Avro
+representation (maps to Avro maps or key/value pair records, oneofs to unions,
+nested messages to nested records, repeated to arrays, enums to strings,
+`uint64` to a bit-exact `long`), and the record's unknown-field carrier transits
+1:1 as an always-present array. A file containing any of these shapes no longer
+loses its whole Avro output. *Avoid:* opaque envelope wrapper (the twin has no
+`{format, content-type, payload}` carrier; that idea is shelved until the record
+side can hold dynamic WKTs).
+
 ## Well-known types
 
 ### Native WKT mapping
