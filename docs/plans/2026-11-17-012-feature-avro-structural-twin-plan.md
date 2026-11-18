@@ -132,6 +132,22 @@ flowchart TB
 - **KTD5 — oneof: null-first union, and the converter drives the sealed interface.** The Avro union is `[null, <case members in declaration order>]`; the specific class exposes it as `Object`. Record side, per oneof: one `@Nullable` component of the oneof's nested sealed interface (`Oneof.iface`), whose permits are the message-member records plus the shared scalar/enum value wrapper. `fromRecord`: each iface instance maps to its union member (message member via its own converter; the value wrapper resolves its case by the wrapper's tag and maps the member's value by shape). `toRecord`: the non-null union member maps back to the iface — cast to the case's specific type, then via the member's converter; non-message members build the value wrapper with the member's field tag. Unset → `null` member / absent component.
 - **KTD6 — unknown fields as a named entry record, one runtime factory.** Every bridged record's schema gains an always-present field `unknownFields`: an `array` of a named record `{number: int, wireType: string, value: bytes}` (`wireType` is the runtime `WireType` enum's name). The converter maps `UnknownFields.fields()` ↔ the entry list in both directions. The runtime gains one additive factory, `UnknownFields.of(Iterable<UnknownField>)` (empty input → the shared `empty()`), so the generated `toRecord` can build a carrier from Avro entries without widening the carrier's API.
 - **KTD7 — fail-loud rescoped to the safety net.** `AvroUnsupportedException` no longer fires for maps, oneofs, nested/repeated non-WKT messages, or `uint64` — those have mappings now. It remains for genuinely unmappable input (an unknown proto scalar in `scalarAvro`), and the bridge's file-level catch stays as the safety net R5 describes. No generatable record triggers it.
+- **KTD8 — WKTs: v1's table, preserved verbatim — and the fail-loud contract is fixed.** The WKT Avro table (by FQN) below is v1's, byte for byte (R7). The record's `UnknownFields` carrier holds a *raw* value plus a wire-type byte and never a WKT object, so `google.protobuf.Timestamp` and its friends cannot appear in unknown fields. The one v1 fail-loud that remains is now a *contract*: a WKT with no static Avro schema — anything absent from the table, including the dynamic `Struct`/`Any`/`Value`/`ListValue`/`Object` and v1-unmapped wrappers like `Int32Value` and `TimeOfDay` — fails loud rather than the bridge silently dropping the whole file. The record itself cannot represent those shapes, so the twin cannot either.
+
+| Proto WKT (by FQN) | Avro mapping (v1, verbatim) |
+|---|---|
+| Timestamp | `long` (int64 seconds; v1's accepted simplification drops `nanos`) |
+| Duration | `record {seconds: long, nanos: int}` |
+| StringValue | `["null", "string"]` |
+| BoolValue | `["null", "boolean"]` |
+| BytesValue | `["null", "bytes"]` |
+| Int64Value | `["null", "long"]` |
+| DoubleValue | `["null", "double"]` |
+| FieldMask | `["null", "string"]` (v1's simplification of the repeated-string shape) |
+| NullValue | `["null", enum {NULL_VALUE, TRUE, FALSE}]` — the one closed enum the bridge keeps |
+| Empty | `{}` |
+
+A WKT reference is then excluded from the reachable-type tree (no types entry, no triple): its fragment is inlined at every use site.
 
 ### High-Level Technical Design
 
@@ -167,7 +183,7 @@ U1 (schema) → U2 (bridge emission; spike first) → U3 (converter lines) with 
 - **Requirements:** R1, R2, R3, R4, R5, R7.
 - **Dependencies:** none.
 - **Files:** `generator/src/main/java/bijnagte/recordbuf/plugin/writer/AvroSchemaGenerator.java` (rewrite the walk + shape methods; the `WKT_SCHEMA` table and Jackson-tree machinery are preserved), `generator/src/test/java/bijnagte/recordbuf/plugin/writer/AvroSchemaGeneratorTest.java`.
-- **Approach:** a reachability pass over the model — `Message.messages()` (nested), `ProtoFile.messages()` (same-file top-level), and `TypeRef.Named` message references resolved through the request's `FileTable` (imported top-level) — seeds the name registry (KTD1) and the tree. `typeNode`/`elementNode` (and their fail-loud branches) are rewritten to the R1 table: `uint64 → long` in `scalarAvro`; enums → `"string"`; maps → Avro `map` or the pair-record array; oneof fields → null-first unions; message fields → the registry name; repeated → arrays of any element mapping. Every record's field list gains the trailing `unknownFields` array (KTD6 entry record). The v1 `AvroUnsupportedException` survives only for unknown proto scalars.
+- **Approach:** a reachability pass over the model — `Message.messages()` (nested), `ProtoFile.messages()` (same-file top-level), and `TypeRef.Named` message references resolved through the request's `FileTable` (imported top-level) — seeds the name registry (KTD1) and the tree. `typeNode`/`elementNode` (and their fail-loud branches) are rewritten to the R1 table: `uint64 → long` in `scalarAvro`; enums → `"string"`; maps → Avro `map` or the pair-record array; oneof fields → null-first unions; message fields → the registry name; repeated → arrays of any element mapping. Every record's field list gains the trailing `unknownFields` array (KTD6 entry record). The v1 `AvroUnsupportedException` survives only for unknown proto scalars. The request's `FileTable` is already wired into the generator's entry point (the 2026-07-19 typed-model work) and threaded to the writer seam; the walk consumes it, and single-file input (a `null` table) degrades to same-file-only resolution. `CodeGenerator.generate` already receives the request and passes the table to `format.generate(file, table)`, so no call-site change is needed.
 - **Patterns to follow:** the existing Jackson-tree construction (`typeNode`/`arrayType`/`text`) and the tests' structural re-parse assertions (no string matching).
 - **Test scenarios:**
   - `uint64` in each position (singular, repeated, map value, oneof case) yields `long` in the tree.

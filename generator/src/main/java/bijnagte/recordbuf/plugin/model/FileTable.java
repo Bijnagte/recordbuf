@@ -19,6 +19,7 @@ public final class FileTable {
   private final Map<String, String> protoFqnToJavaFqn = new HashMap<>();
   private final Map<String, String> javaFqnToJavaPackage = new HashMap<>();
   private final Map<String, FileDescriptorProto> byFileName = new HashMap<>();
+  private final Map<String, String> protoFqnToFileName = new HashMap<>();
   private final String packageSuffix;
 
   public FileTable() {
@@ -59,6 +60,13 @@ public final class FileTable {
    */
   public @Nullable String javaPackageOf(String javaFqn) {
     return javaFqnToJavaPackage.get(javaFqn);
+  }
+
+  /**
+   * The request filename that declares the proto type with the given FQN, or null if not present.
+   */
+  public @Nullable String fileNameOf(String protoFqn) {
+    return protoFqnToFileName.get(protoFqn);
   }
 
   /** The file for a filename, or null if not present. */
@@ -113,23 +121,25 @@ public final class FileTable {
     String protoPkg = f.getPackage();
     String scope = protoPkg.isBlank() ? "" : protoPkg;
     for (DescriptorProto m : f.getMessageTypeList()) {
-      registerMessageTree(m, scope, javaPkg, javaPkg);
+      registerMessageTree(m, scope, javaPkg, javaPkg, f.getName());
     }
     for (EnumDescriptorProto e : f.getEnumTypeList()) {
       String protoFqn = join(scope, e.getName());
       String javaShort = JavaNames.cap(e.getName());
       String javaFqn = join(javaPkg, javaShort);
       protoFqnToJavaFqn.put(protoFqn, javaFqn);
+      protoFqnToFileName.put(protoFqn, f.getName());
       javaFqnToJavaPackage.put(javaFqn, javaPkg);
     }
   }
 
   private void registerMessageTree(
-      DescriptorProto m, String protoScope, String javaScope, String javaPkg) {
+      DescriptorProto m, String protoScope, String javaScope, String javaPkg, String fileName) {
     String protoFqn = join(protoScope, m.getName());
     String javaShort = JavaNames.cap(m.getName());
     String javaFqn = join(javaScope, javaShort);
     protoFqnToJavaFqn.put(protoFqn, javaFqn);
+    protoFqnToFileName.put(protoFqn, fileName);
     javaFqnToJavaPackage.put(javaFqn, javaPkg);
 
     // Nested types share the parent's scope for proto resolution, and the
@@ -138,12 +148,13 @@ public final class FileTable {
     String nestedProtoScope = protoFqn;
     String nestedJavaScope = javaFqn;
     for (DescriptorProto nested : m.getNestedTypeList()) {
-      registerMessageTree(nested, nestedProtoScope, nestedJavaScope, javaPkg);
+      registerMessageTree(nested, nestedProtoScope, nestedJavaScope, javaPkg, fileName);
     }
     for (EnumDescriptorProto nested : m.getEnumTypeList()) {
       String pe = join(nestedProtoScope, nested.getName());
       String je = join(nestedJavaScope, JavaNames.cap(nested.getName()));
       protoFqnToJavaFqn.put(pe, je);
+      protoFqnToFileName.put(pe, fileName);
       javaFqnToJavaPackage.put(je, javaPkg);
     }
   }

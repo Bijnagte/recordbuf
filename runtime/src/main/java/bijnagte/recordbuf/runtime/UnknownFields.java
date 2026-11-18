@@ -40,6 +40,30 @@ public final class UnknownFields {
   }
 
   /**
+   * A carrier built from {@code fields} in their iteration order, defensively copied.
+   *
+   * <p>Generated converters use this to build a record's {@code unknownFields} component from an
+   * external representation of the captured entries (e.g. the Avro bridge's entry records) without
+   * widening the carrier's canonical-constructor API. An empty input returns the shared {@link
+   * #empty()} instance (preserving its identity-equal fast path); the result is never {@code null}.
+   *
+   * @param fields the captured entries, in wire order; must not be {@code null} nor contain {@code
+   *     null} entries
+   * @return a carrier holding a defensive copy of {@code fields} (the shared {@link #empty()} for
+   *     an empty input)
+   */
+  public static UnknownFields of(Iterable<UnknownField> fields) {
+    List<UnknownField> copy = new ArrayList<>();
+    for (UnknownField field : fields) {
+      copy.add(field);
+    }
+    if (copy.isEmpty()) {
+      return EMPTY;
+    }
+    return new UnknownFields(List.copyOf(copy));
+  }
+
+  /**
    * Whether this carrier holds nothing to re-emit.
    *
    * @return {@code true} when this carrier holds nothing to re-emit.

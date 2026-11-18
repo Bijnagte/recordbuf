@@ -89,7 +89,17 @@ public final class CodeGenerator {
 
     CodeGeneratorResponse.Builder resp = CodeGeneratorResponse.newBuilder();
     resp.setSupportedFeatures(Feature.FEATURE_PROTO3_OPTIONAL_VALUE);
-    for (CodeGeneratorResponse.File f : outFiles) resp.addFile(f);
+    // A file's multiple bridged messages can share a package and thus compile to the same
+    // class names (each message's own specific class AND the shared unknown-field entry record),
+    // so the same output file can be emitted more than once; protoc rejects a response with
+    // duplicate file names. The duplicates are structurally identical (same name + package), so
+    // keeping the first is lossless.
+    var seenFileNames = new LinkedHashSet<String>();
+    for (CodeGeneratorResponse.File f : outFiles) {
+      if (seenFileNames.add(f.getName())) {
+        resp.addFile(f);
+      }
+    }
     return resp.build();
   }
 
@@ -128,7 +138,7 @@ public final class CodeGenerator {
     // conditional, per-bridge output (e.g. the Avro bridge's XSpecific/XAvro/XSchema + .avsc) only
     // when the bridge is enabled for this file (R1: file > flag > default-on). A disabled bridge
     // contributes nothing, exactly as an absent one would.
-    files.addAll(bridgeRegistry.emitAll(pf, bridgeContext, formatter));
+    files.addAll(bridgeRegistry.emitAll(pf, bridgeContext, table, formatter));
     return files;
   }
 
