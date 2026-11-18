@@ -578,14 +578,14 @@ public final class CodecSourceMapping {
    * M4-C2d-7: emit a 2-field entry codec for a map entry record. The entry has exactly two fields:
    * {@code key} (field 1) and {@code value} (field 2). Both are scalar types.
    *
-   * @param entryName the entry record's name (e.g. "DataEntry")
+   * @param entryRef the entry record's fully-typed name (e.g. {@code Sample.DataEntry})
    * @return the nested {@code <Entry>Codec} class
    */
-  public static ClassSpec emitEntryCodec(String entryName, Field f) {
+  public static ClassSpec emitEntryCodec(TypeRef.Named entryRef, Field f) {
     // M4-C2d-12: resolve key/value wire scalars from the Field's type URLs.
     WireScalar keyWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapKey()));
     WireScalar valWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapValue()));
-    String codecName = entryName + "Codec";
+    String codecName = entryRef.shortName() + "Codec";
 
     // key: field 1 — always field 1 in a map entry; written unconditionally.
     // A bytes-valued key unwraps to the raw array (Bytes.toByteArray()); every other writes
@@ -595,9 +595,10 @@ public final class CodecSourceMapping {
     // value: field 2 — always field 2; written unconditionally, same unwrapping rule.
     String valArg = valWire == WireScalar.BYTES ? "v.value().toByteArray()" : "v.value()";
 
-    return ClassSpec.named(codecName)
+    return ClassSpec.named(entryRef.sub(codecName))
         .javadoc(
-            GeneratedDocs.type(null, "Auto-generated codec for the " + entryName + " map entry."))
+            GeneratedDocs.type(
+                null, "Auto-generated codec for the " + entryRef.shortName() + " map entry."))
         .public_()
         .static_()
         .final_()
@@ -607,7 +608,7 @@ public final class CodecSourceMapping {
                 .public_()
                 .static_()
                 .returnType(TypeRef.BYTES)
-                .param(TypeRef.of(entryName), "v")
+                .param(entryRef, "v")
                 .thrown(TypeRef.IO_EXCEPTION)
                 .body(
                     Element.expr("var enc = @0.start()", TypeRefs.ENCODER),
@@ -620,7 +621,7 @@ public final class CodecSourceMapping {
             Method.named("decode")
                 .public_()
                 .static_()
-                .returnType(TypeRef.of(entryName))
+                .returnType(entryRef)
                 .param(TypeRef.BYTES, "inBytes")
                 .thrown(TypeRef.IO_EXCEPTION)
                 .body(
@@ -642,7 +643,7 @@ public final class CodecSourceMapping {
                                 .build(),
                             Element.of(""))
                         .build(),
-                    Element.ret("new @0(key, value)", entryName))
+                    Element.ret("new @0(key, value)", entryRef.shortName()))
                 .build())
         .build();
   }

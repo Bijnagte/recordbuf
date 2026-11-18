@@ -25,7 +25,13 @@ import java.util.List;
  * now lives as an {@link Annotation} instance, not a parallel field.
  */
 public sealed interface Type permits RecordSpec, ClassSpec, EnumSpec, InterfaceSpec {
-  String name();
+  /**
+   * The declared type's canonical {@link TypeRef} identity: package, enclosing chain, short name.
+   * The renderer emits only the short name in the declaration header (a nested type declares inside
+   * its parent, so the header carries no qualifier) and pushes the short name onto the lexical
+   * scope chain.
+   */
+  TypeRef name();
 
   Modifiers mods();
 

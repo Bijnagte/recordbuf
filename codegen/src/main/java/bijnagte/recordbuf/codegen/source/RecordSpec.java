@@ -11,7 +11,7 @@ public record RecordSpec(
     Modifiers mods,
     Javadoc javadoc,
     List<Annotation> annotations,
-    String name,
+    TypeRef name,
     List<TypeRef> implementsFqns,
     List<Component> components,
     List<StaticBlock> staticBlocks,
@@ -34,21 +34,30 @@ public record RecordSpec(
     nested = nested == null ? List.of() : nested;
   }
 
-  /** A fresh record builder. */
-  public static Builder named(String name) {
+  /** A fresh builder from the declared type's canonical {@link TypeRef}. */
+  public static Builder named(TypeRef name) {
     return new Builder(name);
+  }
+
+  /**
+   * A fresh builder from a short name only — a convenience for the default package (the {@link
+   * JavaFile} carries the real package); generator writers pass the model's fully-typed reference
+   * instead.
+   */
+  public static Builder named(String name) {
+    return new Builder(TypeRef.named("", name));
   }
 
   /** An accumulating, ergonomic {@link RecordSpec} builder. */
   public static final class Builder {
-    public Builder(String name) {
+    public Builder(TypeRef name) {
       this.name = name;
     }
 
     private final Modifiers.Builder mods = Modifiers.builder();
     private Javadoc javadoc;
     private final List<Annotation> annotations = new ArrayList<>();
-    private final String name;
+    private final TypeRef name;
     private final List<TypeRef> implementsFqns = new ArrayList<>();
     private final List<Component> components = new ArrayList<>();
     private final List<StaticBlock> staticBlocks = new ArrayList<>();

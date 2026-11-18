@@ -69,7 +69,7 @@ public final class InteropSourceMapping {
     var fromMethod = emitFrom(m, refType, recType);
     var toMethod = emitTo(m, refType, recType);
 
-    return ClassSpec.named("Interop")
+    return ClassSpec.named(refType.sub("Interop"))
         .public_()
         .static_()
         .final_()

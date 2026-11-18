@@ -42,9 +42,10 @@ public final class EnumSourceMapping {
    */
   public static EnumSpec toSource(Enum proto, String declaringPkg) {
     String name = proto.name();
+    var selfRef = TypeRef.named(declaringPkg, name);
 
     EnumSpec.Builder result =
-        EnumSpec.named(proto.name())
+        EnumSpec.named(selfRef)
             .public_()
             .javadoc(
                 GeneratedDocs.type(
@@ -80,7 +81,6 @@ public final class EnumSourceMapping {
 
     // 3. The reverse-lookup cluster — U5: BY_NUMBER field type and initializers are TypeRefs.
     //    Collected in the collect phase; resolved collision-aware at render time.
-    TypeRef selfRef = TypeRef.named(declaringPkg, name);
     TypeRef mapType = TypeRefs.MAP.withGenerics(TypeRef.INTEGER, selfRef);
     TypeRef hashMapRef = TypeRefs.HASH_MAP;
 

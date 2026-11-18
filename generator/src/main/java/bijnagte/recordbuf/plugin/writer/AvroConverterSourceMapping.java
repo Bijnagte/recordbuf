@@ -55,8 +55,8 @@ public final class AvroConverterSourceMapping {
       String specificRecordPkg,
       String recordPkg,
       Formatter formatter) {
-    TypeRef recordClass = TypeRef.of(protoRoot);
-    TypeRef avroSpecific = TypeRef.of(protoRoot + "Avro");
+    TypeRef.Named recordClass = message.type();
+    TypeRef.Named avroSpecific = TypeRef.named(specificRecordPkg, protoRoot + "Avro");
 
     TypeCollector ci = new TypeCollector(recordPkg);
 
@@ -64,8 +64,7 @@ public final class AvroConverterSourceMapping {
     // TypeCollector registration: it is an import the converter needs only when the specific record
     // lives in a different package. The renderer aggregates it into the collect pass. ---
     boolean samePkg = recordPkg.equals(specificRecordPkg);
-    Set<TypeRef> externalRefs =
-        samePkg ? Set.of() : Set.of(TypeRef.of(specificRecordPkg + "." + avroSpecific.shortName()));
+    Set<TypeRef> externalRefs = samePkg ? Set.of() : Set.of(avroSpecific);
 
     // --- class AST ---
     Constructor privateCtor = Constructor.builder().private_().body().build();
@@ -74,7 +73,7 @@ public final class AvroConverterSourceMapping {
     Method fromRecord = buildFromRecord(message, recordClass, avroSpecific);
 
     ClassSpec converterClass =
-        ClassSpec.named(recordClass.shortName() + "AvroConverter")
+        ClassSpec.named(recordClass.sub(recordClass.shortName() + "AvroConverter"))
             .public_()
             .final_()
             .javadoc(GeneratedDocs.type(recordClass.shortName(), "Avro converter for the %s type."))

@@ -252,11 +252,11 @@ public final class SourceRenderer {
     }
 
     private void renderRecord(RecordSpec r, StringBuilder out) {
-      enterScope(r.name());
+      enterScope(r.name().shortName());
       try {
         if (r.javadoc().present()) out.append(javadoc(r.javadoc().raw())).append('\n');
         renderAnnotations(r.annotations(), out);
-        out.append(r.mods().withSpace()).append("record ").append(r.name()).append('(');
+        out.append(r.mods().withSpace()).append("record ").append(r.name().shortName()).append('(');
         var comps = r.components();
         if (comps.isEmpty()) {
           out.append(')');
@@ -287,7 +287,7 @@ public final class SourceRenderer {
         }
         out.append(" {\n");
         renderBlockList(r.staticBlocks(), first, out);
-        renderCtorList(r.constructors(), first, out, r.name());
+        renderCtorList(r.constructors(), first, out, r.name().shortName());
         renderMethodList(r.methods(), first, out);
         renderNestedList(r.nested(), first, out);
         out.append('}').append('\n');
@@ -297,7 +297,7 @@ public final class SourceRenderer {
     }
 
     private void renderClass(ClassSpec c, StringBuilder out) {
-      enterScope(c.name());
+      enterScope(c.name().shortName());
       try {
         // Oracle-standard order (per the Oracle JavaDoc spec): the Javadoc block first, then the
         // uniform annotation model -- each annotation on its own line. The javadoc tool only
@@ -307,7 +307,7 @@ public final class SourceRenderer {
           out.append(javadoc(c.javadoc().raw())).append('\n');
         }
         renderAnnotations(c.annotations(), out);
-        out.append(c.mods().withSpace()).append("class ").append(c.name());
+        out.append(c.mods().withSpace()).append("class ").append(c.name().shortName());
         if (!c.extendsFqns().isEmpty()) {
           out.append(" extends ").append(joinResolved(c.extendsFqns()));
         }
@@ -328,7 +328,7 @@ public final class SourceRenderer {
         out.append(" {\n");
         renderFieldList(c.fields(), first, out);
         renderBlockList(c.staticBlocks(), first, out);
-        renderCtorList(c.constructors(), first, out, c.name());
+        renderCtorList(c.constructors(), first, out, c.name().shortName());
         renderMethodList(c.methods(), first, out);
         renderNestedList(c.nested(), first, out);
         out.append('}').append('\n');
@@ -338,11 +338,11 @@ public final class SourceRenderer {
     }
 
     private void renderEnum(EnumSpec e, StringBuilder out) {
-      enterScope(e.name());
+      enterScope(e.name().shortName());
       try {
         if (e.javadoc().present()) out.append(javadoc(e.javadoc().raw())).append('\n');
         renderAnnotations(e.annotations(), out);
-        out.append(e.mods().withSpace()).append("enum ").append(e.name());
+        out.append(e.mods().withSpace()).append("enum ").append(e.name().shortName());
         if (!e.implementsFqns().isEmpty()) {
           out.append(" implements ").append(joinResolved(e.implementsFqns()));
         }
@@ -382,7 +382,7 @@ public final class SourceRenderer {
         boolean[] first = {consts.isEmpty()};
         renderFieldList(e.fields(), first, out);
         renderBlockList(e.staticBlocks(), first, out);
-        renderCtorList(e.constructors(), first, out, e.name());
+        renderCtorList(e.constructors(), first, out, e.name().shortName());
         renderMethodList(e.methods(), first, out);
         renderNestedList(e.nested(), first, out);
         out.append('}').append('\n');
@@ -392,13 +392,13 @@ public final class SourceRenderer {
     }
 
     private void renderInterface(InterfaceSpec iface, StringBuilder out) {
-      enterScope(iface.name());
+      enterScope(iface.name().shortName());
       try {
         if (iface.javadoc().present()) {
           out.append(javadoc(iface.javadoc().raw())).append('\n');
         }
         renderAnnotations(iface.annotations(), out);
-        out.append(iface.mods().withSpace()).append("interface ").append(iface.name());
+        out.append(iface.mods().withSpace()).append("interface ").append(iface.name().shortName());
         if (!iface.extendsFqns().isEmpty()) {
           out.append(" extends ").append(joinResolved(iface.extendsFqns()));
         }

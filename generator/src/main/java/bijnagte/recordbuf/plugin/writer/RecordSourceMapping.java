@@ -52,7 +52,7 @@ public final class RecordSourceMapping {
   public static RecordSpec toSource(Message m, String pkg) {
     TypeRef.Named recordRef = m.type();
     RecordSpec.Builder result =
-        RecordSpec.named(m.name())
+        RecordSpec.named(m.type())
             .public_()
             .javadoc(
                 GeneratedDocs.type(
@@ -95,7 +95,7 @@ public final class RecordSourceMapping {
     TypeRef.Named recordRef = m.type();
     // Rebuild the member list from scratch with the codec appended, mirroring toSource's logic.
     RecordSpec.Builder result =
-        RecordSpec.named(m.name())
+        RecordSpec.named(m.type())
             .public_()
             .javadoc(
                 GeneratedDocs.type(
@@ -128,7 +128,7 @@ public final class RecordSourceMapping {
     // nested map entry records + their codecs, before the main Codec.
     for (Field f : m.fields()) {
       if (f.kind() == FieldKind.MAP) {
-        RecordSpec entry = mapEntryRecord(f);
+        RecordSpec entry = mapEntryRecord(recordRef, f);
         result.nested(entry);
       }
     }
@@ -255,7 +255,7 @@ public final class RecordSourceMapping {
     // The extendsFqn carries the full FQN; the collect() phase registers it via
     // TypeRef.referencedTypes().
     InterfaceSpec.Builder iface =
-        InterfaceSpec.named(ifaceName)
+        InterfaceSpec.named(ifaceRef)
             .javadoc(
                 GeneratedDocs.type(
                     null, "Auto-generated sealed interface for the " + ifaceName + " oneof."))
@@ -271,15 +271,16 @@ public final class RecordSourceMapping {
       // <Cap>Value(<valType> value) implementing the interface. Message members cannot be
       // identity subtypes in the source-AST path because each message is its own file.
       String valName = JavaNames.cap(member.name()) + "Value";
-      iface.permitsType(
+      var valRef =
           new TypeRef.Named(
-              recordRef.pkg(), List.of(recordRef.shortName(), ifaceName), valName, List.of()));
+              recordRef.pkg(), List.of(recordRef.shortName(), ifaceName), valName, List.of());
+      iface.permitsType(valRef);
       // The value component type, read from the model (see {@link Field#type()}) — the member's
       // referenced record/enum's fully-typed name, or its boxed/reference scalar form (oneof
       // members always carry presence, so a present-able boxed form).
       TypeRef valType = TypeRefs.boxed(member.type());
       RecordSpec wr =
-          RecordSpec.named(valName)
+          RecordSpec.named(valRef)
               .javadoc(
                   GeneratedDocs.type(
                       null, "Auto-generated record for the " + valName + " oneof value."))
@@ -331,7 +332,7 @@ public final class RecordSourceMapping {
     TypeRef.Named recordRef = m.type();
     // The nested static Builder class — header first, members accumulated below.
     ClassSpec.Builder builderClz =
-        ClassSpec.named("Builder")
+        ClassSpec.named(recordRef.sub("Builder"))
             .javadoc(
                 GeneratedDocs.type(
                     null, "Fluent, value-only builder for the " + m.name() + " record."))
@@ -527,7 +528,7 @@ public final class RecordSourceMapping {
    * contains a nested {@code <Field>EntryCodec} class via {@link
    * CodecSourceMapping#emitEntryCodec}.
    */
-  private static RecordSpec mapEntryRecord(Field f) {
+  private static RecordSpec mapEntryRecord(TypeRef.Named recordRef, Field f) {
     String javaName = f.javaName();
     String entryName =
         javaName.isEmpty() ? "" : Character.toUpperCase(javaName.charAt(0)) + javaName.substring(1);
@@ -536,9 +537,10 @@ public final class RecordSourceMapping {
     TypeRef keyTypeRef = TypeRef.boxedFor(Objects.requireNonNull(f.mapKey()));
     TypeRef valueTypeRef = TypeRef.boxedFor(Objects.requireNonNull(f.mapValue()));
 
-    ClassSpec entryCodec = CodecSourceMapping.emitEntryCodec(entryName, f);
+    var entryRef = recordRef.sub(entryName);
+    ClassSpec entryCodec = CodecSourceMapping.emitEntryCodec(entryRef, f);
 
-    return RecordSpec.named(entryName)
+    return RecordSpec.named(entryRef)
         .javadoc(
             GeneratedDocs.type(null, "Auto-generated record for the " + entryName + " map entry."))
         .public_()
