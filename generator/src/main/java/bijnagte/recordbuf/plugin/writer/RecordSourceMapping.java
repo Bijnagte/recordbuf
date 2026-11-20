@@ -1,6 +1,7 @@
 package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.source.Annotation;
+import bijnagte.recordbuf.codegen.source.Arg;
 import bijnagte.recordbuf.codegen.source.ClassSpec;
 import bijnagte.recordbuf.codegen.source.CommaList;
 import bijnagte.recordbuf.codegen.source.Component;
@@ -47,9 +48,23 @@ public final class RecordSourceMapping {
   private RecordSourceMapping() {}
 
   /**
-   * Map a proto {@link Message} model into a source-AST {@link RecordSpec} for the record shell.
+   * Map a proto {@link Message} model into a source-AST {@link RecordSpec} for the record shell,
+   * with no Jackson JSON surface (the default: a file without {@code recordbuf.jackson}).
    */
   public static RecordSpec toSource(Message m, String pkg) {
+    return toSource(m, pkg, false);
+  }
+
+  /**
+   * Map a proto {@link Message} model into a source-AST {@link RecordSpec} for the record shell.
+   *
+   * @param jackson when {@code true} (a file with {@code recordbuf.jackson = true}) every
+   *     non-ignored component carries an explicit {@code @JsonProperty} (its resolved JSON name —
+   *     the proto3 camelCase mapping, or the {@code recordbuf.json_name} override) and an ignored
+   *     field carries {@code @JsonIgnore} instead; when {@code false} no Jackson annotation is
+   *     emitted and the rendered source is byte-identical to the pre-feature output.
+   */
+  public static RecordSpec toSource(Message m, String pkg, boolean jackson) {
     TypeRef.Named recordRef = m.type();
     RecordSpec.Builder result =
         RecordSpec.named(m.type())
@@ -66,6 +81,7 @@ public final class RecordSourceMapping {
     // component's type + javaName; a record's components render in its header via components().
     for (Field f : m.fields()) {
       var comp = Component.type(scalarComponentType(f), f.javaName());
+      jacksonAnnotation(comp, f, jackson);
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       result.component(comp.build());
     }
@@ -92,6 +108,14 @@ public final class RecordSourceMapping {
    * record shell and its codec.
    */
   public static RecordSpec toSourceWithCodec(Message m) {
+    return toSourceWithCodec(m, false);
+  }
+
+  /**
+   * Map a message to its source-AST form (record shell + nested {@code Codec}), with the Jackson
+   * surface switch: see {@link #toSource(Message, String, boolean)} for the surface contract.
+   */
+  public static RecordSpec toSourceWithCodec(Message m, boolean jackson) {
     TypeRef.Named recordRef = m.type();
     // Rebuild the member list from scratch with the codec appended, mirroring toSource's logic.
     RecordSpec.Builder result =
@@ -106,6 +130,7 @@ public final class RecordSourceMapping {
 
     for (Field f : m.fields()) {
       var comp = Component.type(scalarComponentType(f), f.javaName());
+      jacksonAnnotation(comp, f, jackson);
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       result.component(comp.build());
     }
@@ -114,7 +139,7 @@ public final class RecordSourceMapping {
     }
     // M4-C2d-9: nested messages — emit each as an inner record via recursion.
     for (Message nested : m.nestedMessages()) {
-      var nestedRec = toSourceWithCodec(nested);
+      var nestedRec = toSourceWithCodec(nested, jackson);
       // The nested record's own type (its FQN, <Parent>.<Nested>) is carried on nested.type() —
       // built via the parent's type.sub(...) in the loader — so no package is threaded here.
       result.nested(nestedRec);
@@ -197,6 +222,25 @@ public final class RecordSourceMapping {
    * (presence tracked), the {@code List<T>} element, the map's boxed {@code Map<K, V>}, the
    * referenced record/enum's fully-typed name, and each well-known type's native Java type.
    */
+  /**
+   * Attach the Jackson JSON-surface annotation to a component when the file opts in: an explicit
+   * {@code @JsonProperty("<jsonName>")} (the resolved name — the proto3 camelCase mapping or the
+   * {@code recordbuf.json_name} override), or {@code @JsonIgnore} for an ignored field. The
+   * annotation renders BEFORE the component's {@code @Nullable} (declared first in the node's
+   * annotation list), ahead of the type.
+   */
+  private static void jacksonAnnotation(Component.Builder comp, Field f, boolean jackson) {
+    if (!jackson) return;
+    if (f.jsonIgnored()) {
+      comp.annotation(Annotation.of(TypeRef.of("com.fasterxml.jackson.annotation.JsonIgnore")));
+    } else {
+      comp.annotation(
+          Annotation.of(
+              TypeRef.of("com.fasterxml.jackson.annotation.JsonProperty"),
+              Arg.of(null, f.jsonName())));
+    }
+  }
+
   private static TypeRef scalarComponentType(Field f) {
     // The model's fully-typed reference, verbatim. The renderer's in-scope rule drops a redundant
     // enclosing qualifier for a nested member (a nested type in the same package renders bare

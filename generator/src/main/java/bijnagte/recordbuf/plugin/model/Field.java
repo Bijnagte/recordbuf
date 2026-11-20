@@ -47,7 +47,9 @@ public record Field(
     @Nullable Object defaultValue,
     @Nullable String comment,
     boolean deprecated,
-    @Nullable JacksonTemporalFormat jacksonFormat) {
+    @Nullable JacksonTemporalFormat jacksonFormat,
+    String jsonName,
+    boolean jsonIgnored) {
   public boolean isMap() {
     return kind == FieldKind.MAP;
   }

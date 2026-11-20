@@ -53,7 +53,9 @@ class AvroSchemaGeneratorTest {
         null,
         null,
         false,
-        /* jacksonFormat= */ null);
+        /* jacksonFormat= */ null,
+        "jsonName",
+        /* jsonIgnored= */ false);
   }
 
   private static Field repeatedField(String name, int number, String typeUrl) {
@@ -71,7 +73,9 @@ class AvroSchemaGeneratorTest {
         null,
         null,
         false,
-        /* jacksonFormat= */ null);
+        /* jacksonFormat= */ null,
+        "jsonName",
+        /* jsonIgnored= */ false);
   }
 
   private static Field mapField(String name, String keyType, String valueType) {
@@ -89,7 +93,9 @@ class AvroSchemaGeneratorTest {
         null,
         null,
         false,
-        /* jacksonFormat= */ null);
+        /* jacksonFormat= */ null,
+        "jsonName",
+        /* jsonIgnored= */ false);
   }
 
   private static Message message(String name, String pkg, Field... fields) {

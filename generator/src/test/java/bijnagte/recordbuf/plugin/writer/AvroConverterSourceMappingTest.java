@@ -42,7 +42,9 @@ class AvroConverterSourceMappingTest {
         null,
         null,
         false,
-        /* jacksonFormat= */ null);
+        /* jacksonFormat= */ null,
+        "jsonName",
+        /* jsonIgnored= */ false);
   }
 
   private static Field wktField(String name) {
@@ -64,7 +66,9 @@ class AvroConverterSourceMappingTest {
         null,
         null,
         false,
-        /* jacksonFormat= */ null);
+        /* jacksonFormat= */ null,
+        "jsonName",
+        /* jsonIgnored= */ false);
   }
 
   private static AvroRegistry registryFor(Message m) {
@@ -156,7 +160,9 @@ class AvroConverterSourceMappingTest {
             null,
             null,
             false,
-            /* jacksonFormat= */ null);
+            /* jacksonFormat= */ null,
+            "jsonName",
+            /* jsonIgnored= */ false);
     Message m =
         new Message(
             "Sample",

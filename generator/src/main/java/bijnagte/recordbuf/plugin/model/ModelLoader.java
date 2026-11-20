@@ -74,6 +74,13 @@ public final class ModelLoader {
   // (recordbuf.jackson_format) -- per-field temporal rendering on a jackson-enabled file.
   private static final int FIELD_JACKSON_FORMAT_TAG = 50005;
   private static final String FIELD_JACKSON_FORMAT_NAME = "recordbuf.jackson_format";
+  // (recordbuf.json_name) -- per-field JSON property name on a jackson-enabled file.
+  private static final int FIELD_JSON_NAME_TAG = 50006;
+  private static final String FIELD_JSON_NAME_NAME = "recordbuf.json_name";
+  // (recordbuf.json_ignored) -- per-field exclusion from the JSON surface on a jackson-enabled
+  // file.
+  private static final int FIELD_JSON_IGNORED_TAG = 50007;
+  private static final String FIELD_JSON_IGNORED_NAME = "recordbuf.json_ignored";
   // (recordbuf.json_oneof) -- per-oneof JSON discriminator name on a jackson-enabled file.
   private static final int ONEOF_JSON_ONEOF_TAG = 50008;
   private static final String ONEOF_JSON_ONEOF_NAME = "recordbuf.json_oneof";
@@ -345,7 +352,9 @@ public final class ModelLoader {
         /* defaultValue= */ null,
         /* comment= */ synthetic.comment(),
         /* deprecated= */ synthetic.deprecated(),
-        /* jacksonFormat= */ synthetic.jacksonFormat());
+        /* jacksonFormat= */ synthetic.jacksonFormat(),
+        /* jsonName= */ synthetic.jsonName(),
+        /* jsonIgnored= */ synthetic.jsonIgnored());
   }
 
   /**
@@ -458,6 +467,22 @@ public final class ModelLoader {
               + "\" but the file has no"
               + " recordbuf.jackson = true");
     }
+    // The per-field JSON-surface knobs (50006/50007), read from both option paths (mirrors the
+    // jackson_format pair) and validated against the file toggle. jsonName defaults to the
+    // proto3 JSON mapping (the camelCased field name) when the option is absent.
+    String jsonNameOpt =
+        jsonNameFor(f.getOptions().getUnknownFields(), f.getOptions().getUninterpretedOptionList());
+    boolean jsonIgnored =
+        jsonIgnoredFor(
+            f.getOptions().getUnknownFields(), f.getOptions().getUninterpretedOptionList());
+    if ((!jsonNameOpt.isEmpty() || jsonIgnored) && !jacksonEnabled) {
+      throw new IllegalStateException(
+          "recordbuf.json_name / recordbuf.json_ignored is set on field \""
+              + f.getName()
+              + "\" but the file has no"
+              + " recordbuf.jackson = true");
+    }
+    String jsonName = !jsonNameOpt.isEmpty() ? jsonNameOpt : JavaNames.camel(f.getName());
 
     return new Field(
         f.getName(),
@@ -473,7 +498,9 @@ public final class ModelLoader {
         defaultVal,
         /* comment= */ commentAtPath(path),
         /* deprecated= */ f.getOptions().getDeprecated(),
-        /* jacksonFormat= */ jacksonFormat);
+        /* jacksonFormat= */ jacksonFormat,
+        /* jsonName= */ jsonName,
+        /* jsonIgnored= */ jsonIgnored);
   }
 
   private static FieldLabel label(FieldDescriptorProto.Label raw) {
@@ -747,6 +774,43 @@ public final class ModelLoader {
     for (UninterpretedOption opt : uninterpreted) {
       if (optionName(opt).equals(FILE_JACKSON_NAME) && opt.hasStringValue()) {
         // An uninterpreted bool option is a string literal ("true"/"false").
+        return Boolean.parseBoolean(opt.getStringValue().toStringUtf8());
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Read the per-field {@code recordbuf.json_name} option, or <strong>empty</strong> when absent
+   * (the caller defaults it to the proto3 JSON mapping, mirroring {@link #protobufJavaFor}'s
+   * empty-on-absence contract).
+   */
+  private static String jsonNameFor(
+      UnknownFieldSet unknownFields, List<UninterpretedOption> uninterpreted) {
+    UnknownFieldSet.Field f = unknownFields.getField(FIELD_JSON_NAME_TAG);
+    if (!f.getLengthDelimitedList().isEmpty()) {
+      return f.getLengthDelimitedList().get(0).toStringUtf8();
+    }
+    for (UninterpretedOption opt : uninterpreted) {
+      if (opt.hasStringValue() && optionName(opt).equals(FIELD_JSON_NAME_NAME)) {
+        return opt.getStringValue().toStringUtf8();
+      }
+    }
+    return EMPTY_PROTOBUF_JAVA;
+  }
+
+  /**
+   * Read the per-field {@code recordbuf.json_ignored} bool, or {@code false} when absent. Mirrors
+   * {@link #jacksonToggleFor}'s two-path shape.
+   */
+  private static boolean jsonIgnoredFor(
+      UnknownFieldSet unknownFields, List<UninterpretedOption> uninterpreted) {
+    UnknownFieldSet.Field f = unknownFields.getField(FIELD_JSON_IGNORED_TAG);
+    if (!f.getVarintList().isEmpty()) {
+      return f.getVarintList().get(0) != 0;
+    }
+    for (UninterpretedOption opt : uninterpreted) {
+      if (optionName(opt).equals(FIELD_JSON_IGNORED_NAME) && opt.hasStringValue()) {
         return Boolean.parseBoolean(opt.getStringValue().toStringUtf8());
       }
     }
