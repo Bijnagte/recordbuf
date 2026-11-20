@@ -229,7 +229,6 @@ class ClassSourceTest {
     assertTrue(src.contains("public record RecordWithRealMultiScalar"), "the record shell");
     // Compile: the multi-scalar codec body must compile against the runtime classpath.
     assertCompilesWithRuntime("RecordWithRealMultiScalar", src);
-    System.out.println("--- M4-C2b-2b-3 multi-scalar codec source ---\n" + src);
   }
 
   /**

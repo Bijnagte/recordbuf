@@ -700,9 +700,6 @@ class RecordSourceMappingTest {
     assertTrue(
         src.contains("writeByteArray(1, ScoresEntry.ScoresEntryCodec.encode"),
         "MAP encode dispatches to entry codec: " + src);
-    System.out.println("=== MAP ENTRY SRC ===");
-    System.out.println(src);
-    System.out.println("=== END ===");
   }
 
   /**
@@ -909,12 +906,6 @@ class RecordSourceMappingTest {
         sampleSrc.contains("ItemCodec.decode"),
         "Sample should decode via ItemCodec.decode: " + sampleSrc);
     assertTrue(itemSrc.contains("encode"), "Item should have encode method: " + itemSrc);
-
-    System.out.println("=== ITEM SRC ===");
-    System.out.println(itemSrc);
-    System.out.println("=== SAMPLE SRC ===");
-    System.out.println(sampleSrc);
-    System.out.println("=== END ===");
   }
 
   /**
@@ -1089,9 +1080,6 @@ class RecordSourceMappingTest {
     var rec = RecordSourceMapping.toSourceWithCodec(m);
     var file = new JavaFile(pkg, Javadoc.builder().build(), rec, ci);
     var src = SourceRenderer.render(file);
-    System.out.println("=== COMPAT SRC ===");
-    System.out.println(src);
-    System.out.println("=== END ===");
     // Verify key dispatches are present.
     assertTrue(src.contains("record Compat"), "record header: " + src);
     assertTrue(src.contains("class Builder"), "builder: " + src);
