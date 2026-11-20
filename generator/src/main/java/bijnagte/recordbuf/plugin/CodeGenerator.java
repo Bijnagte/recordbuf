@@ -27,6 +27,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Drives code generation for a single {@link CodeGeneratorRequest}.
@@ -36,6 +38,8 @@ import org.jspecify.annotations.Nullable;
  * are not generated, but are used to build the type-resolution table.
  */
 public final class CodeGenerator {
+
+  private static final Logger LOG = LoggerFactory.getLogger(CodeGenerator.class);
 
   // Assigned at the start of generate() from the request's plugin parameter so
   // per-call generation (Main invokes one CodeGenerator per request) stays
@@ -110,6 +114,12 @@ public final class CodeGenerator {
     String javaPkg = table.javaPackage(fdp);
     ProtoFile pf = new ModelLoader(table, javaPkg).load(fdp);
     String outDir = javaPkg.replace('.', '/') + "/";
+    LOG.debug(
+        "generating {} -> package {} ({} message(s), {} enum(s))",
+        fdp.getName(),
+        javaPkg,
+        pf.messages().size(),
+        pf.enums().size());
     List<CodeGeneratorResponse.File> files = new ArrayList<>();
 
     // The @NullMarked package-info is a PER-PACKAGE marker, not a per-file one: emit it once

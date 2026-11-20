@@ -174,13 +174,19 @@ consult it when orienting to the codebase or discussing domain concepts.
     what made the fixtures' generated `.rec` enums `NotJavadoc`-clean, which `-Werror` (EP's
     `NotJavadoc` in the fixtures' full default check set) now enforces.
 
-- **Logging: NOT WIRED.** No SLF4J / logging framework is on any module's classpath;
-  generated code stays dependency-free. The *only* `System.out`/`System.err` usage in the
-  codebase is in `Main.java`, where they **are** the protoc plugin's stdio protocol
-  (a `CodeGeneratorRequest` on stdin, the `CodeGeneratorResponse` on stdout, diagnostics
-  on stderr) — intentional I/O that is the one sanctioned exception to the cross-project
-  SLF4J-only rule, not application logging. That rule stays aspirational here; add a
-  logging framework only when real logging becomes a need.
+- **Logging: WIRED (`:recordbuf-generator` only) — SLF4J via `slf4j-simple`.** The generator
+  carries `org.slf4j:slf4j-api` (`implementation`) + `org.slf4j:slf4j-simple` (`runtimeOnly`;
+  `slf4j = "2.0.20"` in the catalog — latest GA, 2.1.x still alpha). The plugin's internal
+  diagnostics log through it: `Main`'s fatal malformed-request path at `ERROR`, `Main`'s
+  reported generation failure and `CodeGenerator`'s per-file progress at `DEBUG`. Why
+  slf4j-simple specifically: its ONLY output channel is stderr, so it can never touch the
+  protoc plugin's stdout `CodeGeneratorResponse` protocol; its default level INFO keeps the
+  launched plugin quiet (development debug:
+  `-Dorg.slf4j.simpleLogger.defaultLogLevel=debug`). That replaces the old pattern of
+  temporary `System.err` debug dumps left in formatter/writer code and stripped by hand. No
+  other module gets a logging framework; generated code stays dependency-free (R22).
+  `Main.java`'s `System.in`/`System.out` remain the sanctioned protoc-plugin stdio protocol
+  I/O, not application logging.
 - **Protobuf runtime:** generated codecs use
   `com.google.protobuf.{CodedInputStream,CodedOutputStream}` — keep
   `com.google.protobuf:protobuf-java` (`4.36.2`, pinned in the catalog) on
@@ -240,9 +246,10 @@ same defaults; this session additionally wired a **first-party Checkstyle qualit
 **project-wide `-Werror` gate** (`options.compilerArgs.add("-Werror")` in the root `build.gradle.kts`,
 enforcing no `@Deprecated` API usage unless explicitly suppressed — see the **-Werror** bullet above),
 and flipped the `SourceRenderer` to emit Javadoc *before* annotations at every site (Oracle spec).
-So the **only** remaining aspirational cross-project default that is not yet wired is the
-SLF4J-only logging rule: no logging framework is present, and `Main.java`'s `System.out`/
-`System.err` are the sanctioned protoc-plugin stdio exception.
+So all the cross-project defaults are now wired, logging included: the one module with a
+logging framework is `:recordbuf-generator` (SLF4J + slf4j-simple to stderr — see the
+**Logging** bullet above), and `Main.java`'s `System.in`/`System.out` remain the sanctioned
+protoc-plugin stdio protocol exception.
 
 <!-- BEGIN COMPOUND PI TOOL MAP -->
 ## Compound Engineering (Pi compatibility)

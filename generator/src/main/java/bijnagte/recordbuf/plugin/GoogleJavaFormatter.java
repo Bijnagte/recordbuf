@@ -2,6 +2,8 @@ package bijnagte.recordbuf.plugin;
 
 import bijnagte.recordbuf.codegen.source.Formatter;
 import com.google.googlejavaformat.java.FormatterException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The Google Java Format (GJF)-backed {@link Formatter} -- the plugin's default formatter.
@@ -30,6 +32,8 @@ import com.google.googlejavaformat.java.FormatterException;
  */
 public final class GoogleJavaFormatter implements Formatter {
 
+  private static final Logger LOG = LoggerFactory.getLogger(GoogleJavaFormatter.class);
+
   /** GJF's {@code Formatter} is stateless, so one instance serves all files. */
   private static final GoogleJavaFormatter INSTANCE = new GoogleJavaFormatter();
 
@@ -48,7 +52,12 @@ public final class GoogleJavaFormatter implements Formatter {
   @Override
   public String format(String source) {
     try {
-      return inner.formatSource(source);
+      String formatted = inner.formatSource(source);
+      // The rendered-source dump the developer used to hand-strip as temporary debug: same
+      // info, but gated behind slf4j's debug level (off by default, so the launched plugin
+      // stays quiet).
+      LOG.debug("formatted source ({} chars):\n{}", formatted.length(), formatted);
+      return formatted;
     } catch (FormatterException e) {
       // GJF's checked FormatterException (a parse failure on the rendered source we generated) is
       // surfaced as an unchecked failure so the plugin fails loud rather than emitting malformed

@@ -69,6 +69,16 @@ dependencies {
     // jdk.compiler/... is required whenever its code runs (the shared `gjfJvmArgs`
     // set, wired onto the test + launched JVMs below).
     implementation(libs.google.java.format)
+    // SLF4J -- the generator-side logging the plugin's internal diagnostics run through (Main's
+    // request handling, CodeGenerator's per-file generation). `slf4j-simple` is the binding:
+    // its ONLY output channel is stderr, so it can never touch the protoc plugin's stdout
+    // CodeGeneratorResponse protocol; its default level INFO keeps the launched plugin quiet
+    // (development debug is -Dorg.slf4j.simpleLogger.defaultLogLevel=debug). runtimeOnly because
+    // the sources only import the API; the binding still ships in installDist's lib/ and on the
+    // test runtime classpath. Generator-only (R22): the generated .rec surface stays
+    // dependency-free.
+    implementation(libs.slf4j.api)
+    runtimeOnly(libs.slf4j.simple)
 
     // Record-builder generates <Record>With interfaces for the plugin's OWN
     // model records (Field/Message/Enum/ProtoFile/EnumConstant), NOT for
