@@ -55,10 +55,9 @@ generation rather than silently emitted as an opaque record.
 ## Interop adapters
 
 ### Avro converter
-The per-message `XAvroConverter` class that bridges a recordbuf record to and
-from a third-party Apache Avro `GenericRecord`, mapping each record field
-field-by-field. A converter is generated for each message record that has the
-Avro convert option set. It pairs the runtime `WktAvroBridge` surface (converting
-protobuf WKTs to/from Avro types) with field-level record↔Avro mapping, enabling
-Avro-native consumers to use message data produced by the recordbuf plugin without
-a protobuf dependency.
+The per-message converter class that bridges a recordbuf record to and from its
+generated Apache Avro specific record, mapping each record field field-by-field.
+A converter is generated for each message record that has the Avro convert option
+set. It pairs the WKT-Avro bridge surface (converting protobuf WKTs to/from Avro
+types) with field-level record↔Avro mapping, enabling Avro-native consumers to use
+message data produced by the recordbuf plugin without a protobuf dependency.
