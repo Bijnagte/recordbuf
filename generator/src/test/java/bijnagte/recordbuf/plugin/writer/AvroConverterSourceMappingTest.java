@@ -4,10 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import bijnagte.recordbuf.codegen.source.Formatter;
 import bijnagte.recordbuf.codegen.source.TypeRef;
+import bijnagte.recordbuf.plugin.model.AvroToggle;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
 import bijnagte.recordbuf.plugin.model.Message;
+import bijnagte.recordbuf.plugin.model.ProtoFile;
 import bijnagte.recordbuf.plugin.types.TypeRefs;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -63,6 +65,20 @@ class AvroConverterSourceMappingTest {
         false);
   }
 
+  private static AvroRegistry registryFor(Message m) {
+    ProtoFile file =
+        new ProtoFile(
+            "sample.proto",
+            "sample",
+            "bijnagte.recordbuf.fixture",
+            List.of(m),
+            List.of(),
+            false,
+            null,
+            AvroToggle.ON);
+    return AvroRegistry.build(file, m, null);
+  }
+
   @Test
   void generatesConverterWithBothDirections() {
     Message m =
@@ -83,8 +99,10 @@ class AvroConverterSourceMappingTest {
             "Sample",
             "sample.proto",
             m,
-            "bijnagte.recordbuf.fixture",
+            "SampleAvro",
             "bijnagte.recordbuf.fixture.rec",
+            "bijnagte.recordbuf.fixture",
+            registryFor(m),
             Formatter.IDENTITY);
 
     // Class name is XAvroConverter; specific record is XAvro; converter lives in .rec package.
@@ -92,11 +110,10 @@ class AvroConverterSourceMappingTest {
         out.contains("public final class SampleAvroConverter"),
         "converter class named <protoRoot>AvroConverter (distinct from specific record SampleAvro)");
     assertTrue(
-        out.contains("package bijnagte.recordbuf.fixture.rec;"), "converter in .rec package");
+        out.contains("package bijnagte.recordbuf.fixture;"), "converter in the record package");
     assertTrue(
-        out.contains("import bijnagte.recordbuf.fixture.SampleAvro;"), "specific record imported");
-    assertTrue(
-        out.contains("import bijnagte.recordbuf.avro.WktAvroBridge;"), "WktAvroBridge imported");
+        out.contains("import bijnagte.recordbuf.fixture.rec.SampleAvro;"),
+        "specific record imported from the Avro package");
     assertTrue(
         out.contains("import bijnagte.recordbuf.runtime.UnknownFields;"), "UnknownFields imported");
 
@@ -104,7 +121,9 @@ class AvroConverterSourceMappingTest {
     assertTrue(out.contains("public static Sample toRecord"), "toRecord direction emitted");
     assertTrue(out.contains("Sample.Builder b = Sample.builder()"), "builder used for toRecord");
     assertTrue(out.contains("s.getA("), "Avro getter used for scalar");
-    assertTrue(out.contains("WktAvroBridge.fromAvro(s.getTs())"), "WKT routed through fromAvro");
+    assertTrue(
+        out.contains("b.ts(s.getTs())"),
+        "WKT field read directly from the Avro value (Timestamp resolves to Instant on both sides)");
     assertTrue(out.contains("UnknownFields.empty()"), "UnknownFields defaulted in toRecord");
     assertTrue(out.contains("return b.build()"), "build() called in toRecord");
 
@@ -112,7 +131,9 @@ class AvroConverterSourceMappingTest {
     assertTrue(out.contains("public static SampleAvro fromRecord"), "fromRecord direction emitted");
     assertTrue(out.contains("SampleAvro s = new SampleAvro()"), "no-arg ctor used");
     assertTrue(out.contains("s.setA(r.a())"), "scalar set directly");
-    assertTrue(out.contains("WktAvroBridge.toAvro(r.ts())"), "WKT routed through toAvro");
+    assertTrue(
+        out.contains("s.setTs(r.ts())"),
+        "WKT field set directly on the Avro record (Timestamp resolves to Instant on both sides)");
   }
 
   @Test
@@ -150,8 +171,10 @@ class AvroConverterSourceMappingTest {
             "Sample",
             "sample.proto",
             m,
-            "bijnagte.recordbuf.fixture",
+            "SampleAvro",
             "bijnagte.recordbuf.fixture.rec",
+            "bijnagte.recordbuf.fixture",
+            registryFor(m),
             Formatter.IDENTITY);
 
     assertTrue(

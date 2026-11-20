@@ -395,14 +395,21 @@ public final class RecordSourceMapping {
     builderClz.constructor(
         copyCtor.body(Element.of("this.unknownFields = x.unknownFields;")).build());
 
-    // Fluent setter for each field.
+    // Fluent setter for each field. Propagate the component's nullability: a @Nullable
+    // component's setter accepts null (matching the record component), so callers (e.g. the
+    // Avro converter, which sees a nullable Avro value) can pass a nullable value without a
+    // NullAway error.
     for (Field f : m.fields()) {
       String fieldName = f.javaName();
+      Param param =
+          isComponentNullable(f)
+              ? Param.of(scalarComponentType(f), fieldName, Annotation.NULLABLE)
+              : Param.of(scalarComponentType(f), fieldName);
       builderClz.method(
           Method.named(fieldName)
               .public_()
               .returnType(builderType)
-              .param(Param.of(scalarComponentType(f), fieldName))
+              .param(param)
               .body(Element.expr("this.@0 = @1", fieldName, fieldName), Element.ret("this"))
               .build());
     }

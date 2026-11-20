@@ -41,7 +41,8 @@ public final class TypeRefs {
   public static final TypeRef EMPTY = TypeRef.of("bijnagte.recordbuf.runtime.Empty");
 
   // --- Avro interop bridge (bijnagte.recordbuf.avro.*) ---
-  public static final TypeRef WKT_AVRO_BRIDGE = TypeRef.of("bijnagte.recordbuf.avro.WktAvroBridge");
+  public static final TypeRef WKT_AVRO_BRIDGE =
+      TypeRef.of("bijnagte.recordbuf.avro.wkt.WktAvroBridge");
 
   // --- common Java / protobuf types ---
   public static final TypeRef.Named LIST = TypeRef.named("java.util", "List");
@@ -75,4 +76,13 @@ public final class TypeRefs {
       default -> t;
     };
   }
+
+  /** The runtime wire-type enum (the trailer's wireType member). */
+  public static final TypeRef WIRE_TYPE = TypeRef.of("bijnagte.recordbuf.runtime.WireType");
+
+  /** The runtime unknown-field carrier entry (number, wireType, value). */
+  public static final TypeRef UNKNOWN_FIELD = TypeRef.of("bijnagte.recordbuf.runtime.UnknownField");
+
+  /** The runtime date carrier. */
+  public static final TypeRef DATE = TypeRef.of("bijnagte.recordbuf.runtime.Date");
 }

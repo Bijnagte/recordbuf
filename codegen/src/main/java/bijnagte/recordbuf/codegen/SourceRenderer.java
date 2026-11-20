@@ -783,6 +783,18 @@ public final class SourceRenderer {
       for (int i = 0; i < params.size(); i++) {
         Param p = params.get(i);
         if (i > 0) sb.append(", ");
+        for (Annotation a : p.annotations()) {
+          sb.append('@').append(ci.use(a.type(), scope()));
+          if (!a.args().isEmpty()) {
+            sb.append('(');
+            for (int j = 0; j < a.args().size(); j++) {
+              if (j > 0) sb.append(", ");
+              sb.append(renderArg(a.args().get(j)));
+            }
+            sb.append(')');
+          }
+          sb.append(' ');
+        }
         sb.append(ci.use(p.type(), scope())).append(' ').append(p.name());
       }
       return sb.append(')').toString();

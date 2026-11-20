@@ -233,19 +233,19 @@ class AvroSchemaGeneratorTest {
 
     assertEquals(
         "long",
-        rootField(doc, "at").get("type").get("type").asText(),
-        "Timestamp fragment is a named-type object node");
+        rootField(doc, "at").get("type").get(1).get("type").asText(),
+        "Timestamp fragment's non-null branch is a long with the timestamp-micros logical type");
     JsonNode duration = rootField(doc, "for").get("type");
-    assertEquals("record", duration.get("type").asText());
-    assertEquals(2, duration.get("fields").size());
+    assertEquals("record", duration.get(1).get("type").asText());
+    assertEquals(2, duration.get(1).get("fields").size());
     assertTrue(rootField(doc, "note").get("type").isArray());
     assertEquals("null", rootField(doc, "note").get("type").get(0).asText());
     assertEquals("string", rootField(doc, "note").get("type").get(1).asText());
     assertEquals(
-        1,
+        2,
         doc.get("types").size(),
-        "only the unknown-fields entry record: WKTs are inlined, never type definitions");
-    assertEquals("RecordbufUnknownField", doc.get("types").get(0).get("name").asText());
+        "the reachable WKT named type (Duration) + the unknown-fields entry record");
+    assertEquals("RecordbufUnknownField", doc.get("types").get(1).get("name").asText());
   }
 
   @Test
@@ -288,11 +288,11 @@ class AvroSchemaGeneratorTest {
     JsonNode doc = tree(file("a.proto", "p", root), root, null);
 
     assertEquals("array", rootField(doc, "sizes").get("type").get("type").asText());
-    assertEquals("SizesEntry", rootField(doc, "sizes").get("type").get("items").asText());
+    assertEquals("SizesEntryAvro", rootField(doc, "sizes").get("type").get("items").asText());
     JsonNode types = doc.get("types");
     assertEquals(2, types.size(), "the entry record plus the unknown-fields entry");
     JsonNode pair = types.get(0);
-    assertEquals("SizesEntry", pair.get("name").asText());
+    assertEquals("SizesEntryAvro", pair.get("name").asText());
     assertEquals("int", pair.get("fields").get(0).get("type").asText());
     assertEquals("int", pair.get("fields").get(1).get("type").asText());
   }
@@ -328,7 +328,7 @@ class AvroSchemaGeneratorTest {
     assertTrue(union.isArray());
     assertEquals("null", union.get(0).asText(), "null first");
     assertEquals(3, union.size(), "null + the two members");
-    assertEquals("string", union.get(1).asText());
+    assertEquals("RecordbufOneofValue", union.get(1).asText());
     assertEquals("CardAvro", union.get(2).asText());
   }
 

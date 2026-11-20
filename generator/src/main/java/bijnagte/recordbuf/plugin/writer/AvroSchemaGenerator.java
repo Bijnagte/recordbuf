@@ -4,7 +4,6 @@ import bijnagte.recordbuf.plugin.bridge.AvroUnsupportedException;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.FileTable;
-import bijnagte.recordbuf.plugin.model.JavaNames;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.Oneof;
 import bijnagte.recordbuf.plugin.model.ProtoFile;
@@ -231,6 +230,34 @@ public final class AvroSchemaGenerator {
         }
       }
     }
+    // The WKT named types referenced by the reachable graph (Duration/Empty/NullValue), as
+    // document types so their specific classes resolve for the consumer.
+    for (ObjectNode wkt : wktNamedTypes(registry)) {
+      String wktName = wkt.path("name").asText();
+      if (!addedNames.add(wktName)) {
+        throw new AvroUnsupportedException(
+            wktName,
+            "a reachable name occupies a WKT named type's name; the Avro bridge cannot "
+                + "disambiguate");
+      }
+      types.add(wkt);
+    }
+    // The shared oneof-value wrapper record, emitted when any reachable oneof carries a
+    // scalar/enum member (KTD5); a name collision with a reachable record fails loud.
+    if (oneofNeedsValueWrapper(registry)) {
+      String oneofName = AvroRegistry.ONEOF_VALUE_ENTRY;
+      if (!addedNames.add(oneofName)) {
+        throw new AvroUnsupportedException(
+            oneofName,
+            "a reachable name occupies the shared oneof-value wrapper's name; the Avro bridge "
+                + "cannot disambiguate");
+      }
+      ObjectNode oneofRec = oneofValueRecord();
+      if (oneofRec.path("namespace").asText("").isEmpty()) {
+        oneofRec.put("namespace", registry.documentNamespace());
+      }
+      types.add(oneofRec);
+    }
     // The shared unknown-field entry record every bridged record references.
     if (!addedNames.add(registry.entryRecordName())) {
       throw new AvroUnsupportedException(
@@ -254,6 +281,49 @@ public final class AvroSchemaGenerator {
 
     doc.set("message", recordNode(root, registry));
     return doc;
+  }
+
+  /** Whether any reachable oneof group carries a scalar or enum member (those ride the wrapper). */
+  private static boolean oneofNeedsValueWrapper(AvroRegistry registry) {
+    for (String fqn : registry.protoFqns()) {
+      Message m = registry.messageOf(fqn);
+      if (m == null) continue;
+      for (Oneof oneof : m.oneofs()) {
+        for (Field member : oneof.members()) {
+          if (member.kind() != FieldKind.MESSAGE || typeUrlIfWkt(member) != null) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * The shared oneof-value wrapper record: {@code tag} is the active member's proto field number
+   * (the same discriminant the record-side oneof carries) and {@code value} its native value.
+   */
+  static ObjectNode oneofValueRecord() {
+    ObjectNode rec = MAPPER.createObjectNode();
+    rec.put("type", "record");
+    rec.put("name", AvroRegistry.ONEOF_VALUE_ENTRY);
+    ArrayNode fields = MAPPER.createArrayNode();
+    fields.add(fieldNodeRaw("tag", text("int")));
+    ObjectNode value = MAPPER.createObjectNode();
+    value.put("name", "value");
+    ArrayNode union = MAPPER.createArrayNode();
+    union.add(text("null"));
+    union.add(text("string"));
+    union.add(text("int"));
+    union.add(text("long"));
+    union.add(text("double"));
+    union.add(text("float"));
+    union.add(text("boolean"));
+    union.add(text("bytes"));
+    value.set("type", union);
+    fields.add(value);
+    rec.set("fields", fields);
+    return rec;
   }
 
   // ---- records ----
@@ -312,11 +382,23 @@ public final class AvroSchemaGenerator {
     Set<String> branches = new LinkedHashSet<>();
     union.add(text("null"));
     branches.add("null");
+    // KTD5: scalar/enum members ride the shared oneof-value wrapper {tag, value} (a union of raw
+    // branches would silently collide — string scalar vs enum-to-string — and could not carry the
+    // case identity, KTD2); message members ride their own specific records.
     for (Field member : oneof.members()) {
-      JsonNode n = elementNode(member, registry);
-      String s = n.toString();
-      if (branches.add(s)) {
-        union.add(n);
+      JsonNode branch;
+      if (member.kind() == FieldKind.MESSAGE && typeUrlIfWkt(member) == null) {
+        String refName = registry.nameOf(member.typeUrl());
+        if (refName == null) {
+          throw new AvroUnsupportedException(
+              member.typeUrl(), "oneof message member not in the reachable graph");
+        }
+        branch = text(refName);
+      } else {
+        branch = text(AvroRegistry.ONEOF_VALUE_ENTRY);
+      }
+      if (branches.add(branch.toString())) {
+        union.add(branch);
       }
     }
     field.set("type", union);
@@ -333,6 +415,10 @@ public final class AvroSchemaGenerator {
     ObjectNode array = MAPPER.createObjectNode();
     array.put("type", "array");
     array.set("items", text(registry.entryRecordName()));
+    // Default to an empty array so Avro's generated builder does not throw
+    // AvroMissingFieldException
+    // when the field is left unset (a record with no unknown fields is the common case).
+    field.putArray("default");
     field.set("type", array);
     return field;
   }
@@ -386,12 +472,12 @@ public final class AvroSchemaGenerator {
    * @throws AvroUnsupportedException when the field type has no static Avro mapping
    */
   public static JsonNode typeNode(Field f, AvroRegistry registry) {
-    String wktFqn = typeUrlIfWkt(f);
-    JsonNode wkt = wktFqn == null ? null : WKT_SCHEMA.get(wktFqn);
-    if (wkt != null) return wkt;
     if (f.isRepeated()) {
       return arrayType(elementNode(f, registry));
     }
+    String wktFqn = typeUrlIfWkt(f);
+    JsonNode wkt = wktFqn == null ? null : WKT_SCHEMA.get(wktFqn);
+    if (wkt != null) return wkt;
     return switch (f.kind()) {
       case SCALAR -> text(scalarAvro(f.typeUrl()));
       case ENUM -> text("string");
@@ -489,10 +575,10 @@ public final class AvroSchemaGenerator {
 
   /**
    * The pair-entry record name for a non-string-keyed map: the owning field's name, capitalized,
-   * plus {@code Entry}.
+   * plus {@code Entry} and the {@code Avro} suffix (see {@link AvroRegistry#mapEntryRecordName}).
    */
   static String mapEntryRecordName(Field f) {
-    return JavaNames.cap(f.name()) + "Entry";
+    return AvroRegistry.mapEntryRecordName(f);
   }
 
   /**
@@ -731,32 +817,101 @@ public final class AvroSchemaGenerator {
   }
 
   /**
-   * The single WKT → Avro fragment table (R8): the v1 table, preserved verbatim (R7). Each fragment
-   * is a Jackson tree; when it appears as a field's type the whole node is inlined (the {@code
-   * Schema.Parser} accepts named-type definitions at use site).
+   * The namespace of the WKT named types ({@code Duration}/{@code Empty}/the {@code NullValue}
+   * enum) — the runtime WKT package's Avro twin; the named types are emitted as document types (see
+   * {@link #wktNamedTypes}) so their specific classes resolve at the consumer.
+   */
+  public static final String WKT_NAMED_NAMESPACE = "bijnagte.recordbuf.avro.wkt";
+
+  /**
+   * The single WKT → Avro fragment table (R8), <em>synced with the Avro bridge's</em> canonical
+   * {@code WktAvroBridge} fragment table (KTD8): every WKT field fragment is {@code null}-first
+   * (the record component for a WKT field is a {@code @Nullable} presence value), and the named
+   * types ({@code Duration}/{@code Empty}/{@code NullValue}) carry {@link #WKT_NAMED_NAMESPACE}.
+   * The wrapper fragments are the WKT's raw value, matching the record component the runtime WKT
+   * resolution unwraps to.
    */
   private static Map<String, JsonNode> wktSchema() {
     var m = new LinkedHashMap<String, JsonNode>();
-    m.put("google.protobuf.Timestamp", tree("{\"type\": \"long\"}"));
+    m.put(
+        "google.protobuf.Timestamp",
+        tree("[\"null\",{\"type\":\"long\",\"logicalType\":\"timestamp-micros\"}]}"));
     m.put(
         "google.protobuf.Duration",
         tree(
-            "{\"type\": \"record\", \"name\": \"Duration\", "
-                + "\"fields\": [{\"name\": \"seconds\", \"type\": \"long\"}, {\"name\": \"nanos\", \"type\": \"int\"}]}"));
-    m.put("google.protobuf.StringValue", tree("[\"null\", \"string\"]"));
-    m.put("google.protobuf.BoolValue", tree("[\"null\", \"boolean\"]"));
-    m.put("google.protobuf.BytesValue", tree("[\"null\", \"bytes\"]"));
-    m.put("google.protobuf.Int64Value", tree("[\"null\", \"long\"]"));
-    m.put("google.protobuf.DoubleValue", tree("[\"null\", \"double\"]"));
-    m.put("google.protobuf.FieldMask", tree("[\"null\", \"string\"]"));
+            "[\"null\",{\"type\":\"record\",\"name\":\"Duration\","
+                + "\"namespace\":\""
+                + WKT_NAMED_NAMESPACE
+                + "\","
+                + "\"fields\":[{\"name\":\"seconds\",\"type\":\"long\"},{\"name\":\"nanos\",\"type\":\"int\"}]}]"));
+    m.put("google.protobuf.FieldMask", tree("[\"null\",\"string\"]"));
     m.put(
         "google.protobuf.NullValue",
         tree(
-            "[\"null\", {\"type\": \"enum\", \"name\": \"NullValue\", "
-                + "\"symbols\": [\"NULL_VALUE\", \"TRUE\", \"FALSE\"]}]"));
+            "[\"null\",{\"type\":\"enum\",\"name\":\"NullValue\",\"namespace\":\""
+                + WKT_NAMED_NAMESPACE
+                + "\",\"symbols\":[\"NULL_VALUE\",\"TRUE\",\"FALSE\"]}]"));
     m.put(
         "google.protobuf.Empty",
-        tree("{\"type\": \"record\", \"name\": \"Empty\", \"fields\": []}"));
+        tree(
+            "[\"null\",{\"type\":\"record\",\"name\":\"Empty\",\"namespace\":\""
+                + WKT_NAMED_NAMESPACE
+                + "\",\"fields\":[]}]"));
+    m.put("google.protobuf.Int32Value", tree("[\"null\",\"int\"]"));
+    m.put("google.protobuf.Int64Value", tree("[\"null\",\"long\"]"));
+    m.put("google.protobuf.UInt32Value", tree("[\"null\",\"int\"]"));
+    m.put("google.protobuf.UInt64Value", tree("[\"null\",\"long\"]"));
+    m.put("google.protobuf.FloatValue", tree("[\"null\",\"float\"]"));
+    m.put("google.protobuf.DoubleValue", tree("[\"null\",\"double\"]"));
+    m.put("google.protobuf.BoolValue", tree("[\"null\",\"boolean\"]"));
+    m.put("google.protobuf.StringValue", tree("[\"null\",\"string\"]"));
+    m.put("google.protobuf.BytesValue", tree("[\"null\",\"bytes\"]"));
     return Map.copyOf(m);
+  }
+
+  /**
+   * The WKT named types referenced by the reachable graph ({@code Duration}/{@code Empty}/the
+   * {@code NullValue} enum, de-duplicated), emitted as document types so their specific classes
+   * resolve for the consumer.
+   */
+  private static List<ObjectNode> wktNamedTypes(AvroRegistry registry) {
+    Set<String> seen = new LinkedHashSet<>();
+    List<ObjectNode> out = new ArrayList<>();
+    for (String fqn : registry.protoFqns()) {
+      Message m = registry.messageOf(fqn);
+      if (m == null) continue;
+      for (Field f : m.fields()) {
+        collectWktNamedField(f, out, seen);
+      }
+      for (Oneof oneof : m.oneofs()) {
+        for (Field member : oneof.members()) {
+          collectWktNamedField(member, out, seen);
+        }
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Add the named WKT types ({@code Duration}/{@code Empty}/{@code NullValue}) a field references.
+   */
+  private static void collectWktNamedField(Field f, List<ObjectNode> out, Set<String> seen) {
+    String fqn = typeUrlIfWkt(f);
+    if (fqn == null) return;
+    JsonNode node = WKT_SCHEMA.get(fqn);
+    if (node == null) return;
+    // A fragment is either a top-level union array or an object wrapping one in its "type".
+    JsonNode typeNode = node.isObject() ? node.path("type") : node;
+    if (!typeNode.isArray()) return;
+    for (JsonNode branch : typeNode) {
+      if (branch.isObject()
+          && ("record".equals(branch.path("type").asText())
+              || "enum".equals(branch.path("type").asText()))
+          && branch.has("name")) {
+        if (seen.add(branch.path("name").asText() + "@" + branch.path("namespace").asText(""))) {
+          out.add((ObjectNode) branch);
+        }
+      }
+    }
   }
 }

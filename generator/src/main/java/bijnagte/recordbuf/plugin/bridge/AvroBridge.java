@@ -75,10 +75,27 @@ public final class AvroBridge implements FormatBridge {
 
     List<CodeGeneratorResponse.File> out = new ArrayList<>();
 
-    // The standalone .avsc output (R6)
-    String avscPath = root.type().fqn() + "AvroSchema.avsc";
-    out.add(CodeGeneratorResponse.File.newBuilder().setName(avscPath).setContent(schema).build());
-
+    // ---- the .avsc document for every reachable message ----
+    // Each bridged record's structural twin is its message's complete .avsc (the whole reachable
+    // graph in one document, KTD3) at the specific record's home package; the root and every
+    // referenced message get one (R6).
+    String rootFqn = registry.fqnOf(root);
+    String avroNsPath = registry.documentNamespace().replace('.', '/');
+    for (String fqn : registry.protoFqns()) {
+      Message m = registry.messageOf(fqn);
+      if (m == null) continue;
+      String name = registry.nameOf(fqn);
+      if (name == null) continue;
+      String avsc = AvroSchemaGenerator.pretty(AvroSchemaGenerator.document(file, m, registry));
+      String dir = avroNsPath.isEmpty() ? "" : avroNsPath + "/";
+      String base =
+          fqn.equals(rootFqn) ? root.name() : AvroSchemaGenerator.specificRecordName(m.name());
+      out.add(
+          CodeGeneratorResponse.File.newBuilder()
+              .setName(dir + base + "AvroSchema.avsc")
+              .setContent(avsc)
+              .build());
+    }
     // The specific record (option B): generate it in-process by delegating to Avro's own
     // SpecificCompiler over the just-emitted .avsc, read back the generated source, and emit it as
     // a response file -- same output dir, same protoc invocation, NO build-system task (R5).
@@ -103,22 +120,30 @@ public final class AvroBridge implements FormatBridge {
     } catch (Exception generationFailed) {
       return out;
     }
-    String avroNs = registry.documentNamespace();
     // ---- XAvro converter: lives in the record's .rec package; specific record referenced by FQN
     // ----
-    String recordPkg = recordPkg(file);
-    String converterSource =
-        AvroConverterSourceMapping.generate(
-            root.name(), file.fileName(), root, avroNs, recordPkg, formatter);
-    String converterPkg =
-        recordPkg.isEmpty()
-            ? root.name() + "AvroConverter"
-            : recordPkg + "." + root.name() + "AvroConverter";
-    out.add(
-        CodeGeneratorResponse.File.newBuilder()
-            .setName(converterPkg.replace('.', '/') + ".java")
-            .setContent(converterSource)
-            .build());
+    // ---- a converter per reachable message ----
+    // Each bridged record gets its <Record>AvroConverter in its own .rec package, referring to the
+    // sibling-specific records and (message-typed fields) their converters by FQN; the root
+    // converter is the consumer entry point.
+    for (String fqn : registry.protoFqns()) {
+      Message m = registry.messageOf(fqn);
+      if (m == null) continue;
+      String name = registry.nameOf(fqn);
+      String mRecordPkg = registry.recordPackageOf(fqn);
+      String specPkg = registry.namespaceOf(fqn);
+      if (name == null || mRecordPkg == null || specPkg == null) continue;
+      String converterName = AvroSchemaGenerator.specificRecordName(m.name()) + "Converter";
+      String converterSource =
+          AvroConverterSourceMapping.generate(
+              m.name(), file.fileName(), m, name, specPkg, mRecordPkg, registry, formatter);
+      String converterPkg = mRecordPkg.isEmpty() ? converterName : mRecordPkg + "." + converterName;
+      out.add(
+          CodeGeneratorResponse.File.newBuilder()
+              .setName(converterPkg.replace('.', '/') + ".java")
+              .setContent(converterSource)
+              .build());
+    }
     return out;
   }
 
@@ -128,7 +153,7 @@ public final class AvroBridge implements FormatBridge {
    * package_suffix} (e.g. {@code .rec}) applied. The converter lives in this same package, keeping
    * the record type resolvable as a short name.
    */
-  private static String recordPkg(ProtoFile file) {
+  public static String recordPkg(ProtoFile file) {
     return file.hasJavaPackage() ? file.javaPackage() : file.protoPackage();
   }
 

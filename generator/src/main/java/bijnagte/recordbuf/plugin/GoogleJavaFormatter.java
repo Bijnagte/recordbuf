@@ -50,9 +50,11 @@ public final class GoogleJavaFormatter implements Formatter {
     try {
       return inner.formatSource(source);
     } catch (FormatterException e) {
-      // GJF's checked FormatterException (a parse failure on the rendered source we generated) is
-      // surfaced as an unchecked failure so the plugin fails loud rather than emitting malformed
-      // output.
+      // DEBUG: dump the failing source + cause so the offending rendered surface is visible.
+      System.err.println("[GJF-FAIL] cause=" + e.getMessage());
+      System.err.println("[GJF-FAIL] source >>>");
+      System.err.println(source);
+      System.err.println("[GJF-FAIL] <<< end source (" + source.length() + " chars)");
       throw new IllegalStateException("Google Java Format could not format rendered source", e);
     }
   }

@@ -1,5 +1,6 @@
 package bijnagte.recordbuf.plugin.writer;
 
+import bijnagte.recordbuf.plugin.bridge.AvroBridge;
 import bijnagte.recordbuf.plugin.bridge.AvroUnsupportedException;
 import bijnagte.recordbuf.plugin.model.Enum;
 import bijnagte.recordbuf.plugin.model.Field;
@@ -59,6 +60,13 @@ public final class AvroRegistry {
   /** The fixed name of the unknown-field entry record every bridged record references. */
   public static final String UNKNOWN_FIELDS_ENTRY = "RecordbufUnknownField";
 
+  /**
+   * The fixed name of the shared oneof-value wrapper record: {@code {tag: int, value: union}} — the
+   * KTD5 case carrier for scalar/enum oneof members (message members ride their own specific
+   * records in the oneof field's union).
+   */
+  public static final String ONEOF_VALUE_ENTRY = "RecordbufOneofValue";
+
   private final String documentNamespace;
   private final String entryRecordName;
   private final Map<String, String> nameByFqn;
@@ -66,6 +74,7 @@ public final class AvroRegistry {
   private final Map<String, Message> messageByFqn;
   private final Map<Message, String> fqnByMessage;
   private final Set<String> enumFqns;
+  private final Map<String, String> recordPackageByFqn;
 
   private AvroRegistry(
       String documentNamespace,
@@ -74,7 +83,8 @@ public final class AvroRegistry {
       Map<String, String> namespaceByFqn,
       Map<String, Message> messageByFqn,
       Map<Message, String> fqnByMessage,
-      Set<String> enumFqns) {
+      Set<String> enumFqns,
+      Map<String, String> recordPackageByFqn) {
     this.documentNamespace = documentNamespace;
     this.entryRecordName = entryRecordName;
     this.nameByFqn = nameByFqn;
@@ -82,6 +92,7 @@ public final class AvroRegistry {
     this.messageByFqn = messageByFqn;
     this.fqnByMessage = fqnByMessage;
     this.enumFqns = enumFqns;
+    this.recordPackageByFqn = recordPackageByFqn;
   }
 
   /**
@@ -159,6 +170,10 @@ public final class AvroRegistry {
       messageByFqn.put(e.getKey(), entry.message());
       fqnByMessage.put(entry.message(), e.getKey());
     }
+    Map<String, String> recordPackageByFqn = new LinkedHashMap<>();
+    for (Map.Entry<String, Entry> e : entries.entrySet()) {
+      recordPackageByFqn.put(e.getKey(), AvroBridge.recordPkg(e.getValue().file()));
+    }
 
     // The shared unknown-field entry record: fixed name, disambiguated/failing loud only if a
     // reachable name would occupy it (reachable names carry the "Avro" suffix, so in practice it
@@ -189,7 +204,8 @@ public final class AvroRegistry {
         namespaceByFqn,
         messageByFqn,
         fqnByMessage,
-        collectEnums(entries, enumIndexes));
+        collectEnums(entries, enumIndexes),
+        recordPackageByFqn);
   }
 
   // ---- resolution ----
@@ -459,6 +475,24 @@ public final class AvroRegistry {
   public @Nullable String namespaceOfMessage(Message m) {
     String fqn = fqnByMessage.get(m);
     return fqn == null ? null : namespaceByFqn.get(fqn);
+  }
+
+  /**
+   * The record's Java package (the {@code .rec} suffixed package) for a reachable FQN — the home of
+   * its generated record and its converter, for the converter's cross-references.
+   */
+  public @Nullable String recordPackageOf(String protoFqn) {
+    return recordPackageByFqn.get(protoFqn);
+  }
+
+  /**
+   * The map pair-entry record name for a map field: the owning field's name capitalized with {@code
+   * Entry}, plus the {@code Avro} suffix (matching the per-message {@code *Avro} twins so the
+   * {@code SpecificCompiler} output is consistently named and excluded from Error Prone). A map
+   * with a string key uses Avro's built-in map and defines no pair record.
+   */
+  public static String mapEntryRecordName(Field f) {
+    return JavaNames.cap(f.name()) + "EntryAvro";
   }
 
   /** Whether the token names an enum this graph indexed (enum references map to a string). */

@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.apache.avro.util.ClassSecurityValidator;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -43,10 +44,17 @@ class AvroInteropTest {
   // belt-and-suspenders coverage.
   @BeforeAll
   static void setupAvroSecurity() {
+    // Trust the specific records AND their nested carriers (RecordbufUnknownField /
+    // RecordbufOneofValue)
+    // for Avro binary (de)serialization. The ClassSecurityValidator.Builder can only name concrete
+    // classes, so the carriers must be listed alongside their owning records; each lives in the
+    // same
+    // package. Listing by name avoids importing every generated type into this test.
     var b = ClassSecurityValidator.builder();
-    b.add(bijnagte.recordbuf.fixture.i32.SampleAvro.class);
-    b.add(bijnagte.recordbuf.fixture.string.SampleAvro.class);
-    b.add(bijnagte.recordbuf.fixture.bytes.SampleAvro.class);
+    for (String pkg : List.of("i32", "string", "bytes")) {
+      b.add("bijnagte.recordbuf.fixture." + pkg + ".SampleAvro");
+      b.add("bijnagte.recordbuf.fixture." + pkg + ".RecordbufUnknownField");
+    }
     ClassSecurityValidator.setGlobal(b.build());
   }
 
