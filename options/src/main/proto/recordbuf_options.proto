@@ -34,8 +34,37 @@ extend google.protobuf.EnumOptions {
 // `--avro flag > built-in default (on)`. The value is an `AvroControl` enum; it rides the
 // FileDescriptorProto's unknown-fields as a varint at its assigned tag, which the plugin reads
 // by tag without linking this .proto (mirroring how protobuf_java / java_interface are read).
+//
+// (recordbuf.jackson) -- per-file opt-in for the Jackson JSON surface (2026-11-20 Jackson plan).
+// When true, the records generated for this file carry the Jackson annotation surface
+// (@JsonProperty wire names, any-getter/any-setter unknown-property retention, flat +
+// <oneofName>Type discriminator oneofs, node-typed dynamic WKT fields) and the consuming module
+// must put Jackson on the classpath. When absent or false, generation is byte-identical to the
+// dependency-free default. The bool rides the FileDescriptorProto's unknown-fields as a varint
+// at its assigned tag, which the plugin reads by tag without linking this .proto.
 extend google.protobuf.FileOptions {
     optional recordbuf.AvroControl avro = 50003;
+    optional bool jackson = 50004;
+};
+// (recordbuf.jackson_format) -- per-field rendering for a temporal WKT field
+// (google.protobuf.Timestamp / Duration) on a jackson-enabled file: "json" (ISO-8601 text,
+// the default) or "canonical" (proto3 JSON-mapping rendering). An unrecognized value fails
+// generation at load. (recordbuf.json_name) and (recordbuf.json_ignored) are RESERVED for v2
+// (field rename / exclusion): declared here to hold the tags and round-trip through protoc,
+// but the current generator does not read them. All ride the descriptor's unknown-fields
+// (strings) or uninterpreted options, read without linking this .proto.
+extend google.protobuf.FieldOptions {
+    optional string jackson_format = 50005;
+    optional string json_name = 50006;
+    optional bool json_ignored = 50007;
+};
+// (recordbuf.json_oneof) -- per-oneof override of the discriminator property name on a
+// jackson-enabled file (the default is <oneofName>Type, e.g. "choiceType").
+// (recordbuf.json_oneof_values) is RESERVED for v2 (discriminator value style): declared to
+// hold the tag and round-trip, but the current generator does not read it.
+extend google.protobuf.OneofOptions {
+    optional string json_oneof = 50008;
+    optional string json_oneof_values = 50009;
 };
 // The tri-state for the recordbuf.avro file option. RECORDBUF_AVRO_NONE is the declared-but-neutral
 // state (equivalent to "no per-file option": fall through to the global flag / default).
