@@ -16,7 +16,6 @@ import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.plugin.bridge.AvroUnsupportedException;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
-import bijnagte.recordbuf.plugin.model.FieldLabel;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.Oneof;
 import bijnagte.recordbuf.plugin.types.TypeRefs;
@@ -576,43 +575,6 @@ public final class AvroConverterSourceMapping {
     return recDot < 0
         ? TypeRef.named("", recFqn)
         : TypeRef.named(recFqn.substring(0, recDot), recFqn.substring(recDot + 1));
-  }
-
-  private static TypeRef scalarNativeType(Field f) {
-    return f.type();
-  }
-
-  private static TypeRef wktNativeType(String wkt) {
-    return switch (wkt) {
-      case "google.protobuf.Int32Value" -> TypeRef.named("java.lang", "Integer");
-      case "google.protobuf.UInt32Value" -> TypeRef.named("java.lang", "Integer");
-      case "google.protobuf.Int64Value" -> TypeRef.named("java.lang", "Long");
-      case "google.protobuf.UInt64Value" -> TypeRef.named("java.lang", "Long");
-      case "google.protobuf.FloatValue" -> TypeRef.named("java.lang", "Float");
-      case "google.protobuf.DoubleValue" -> TypeRef.named("java.lang", "Double");
-      case "google.protobuf.BoolValue" -> TypeRef.named("java.lang", "Boolean");
-      case "google.protobuf.StringValue" -> TypeRef.named("java.lang", "String");
-      case "google.protobuf.BytesValue" -> TypeRefs.BYTES;
-      default -> TypeRef.OBJECT;
-    };
-  }
-
-  private static Field mapKeyField(Field f) {
-    // The model exposes the map key through the field's type; a string key is the common case.
-    return new Field(
-        "key",
-        "key",
-        0,
-        FieldLabel.OPTIONAL,
-        FieldKind.SCALAR,
-        "string",
-        TypeRef.STRING,
-        null,
-        null,
-        false,
-        null,
-        null,
-        false);
   }
 
   /**
