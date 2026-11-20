@@ -27,12 +27,12 @@ avro                = "1.12.2"
 # the `libs.versions.protobuf` accessor.
 junit-jupiter     = "5.11.3"
 junit-platform    = "1.11.3"   # junit-platform-* modules are versioned 1.x, paired with jupiter 5.11.x
-# Jackson (com.fasterxml.jackson) -- the generator's .avsc schema is BUILT as a Jackson JSON tree
-# (ObjectNode/TextNode) and serialized via writerWithDefaultPrettyPrinter(); tests parse it back with
-# the same ObjectMapper and assert structurally (no brittle string matching). The version tracks the
-# jackson-databind already pulled transitively by avro-compiler (1.12.2 -> 2.22.1), so pinning it
-# explicit changes nothing on the classpath -- it just declares the generator's direct use.
-jackson           = "2.22.1"
+# Jackson (com.fasterxml.jackson) -- the generator's .avsc schema is BUILT as a Jackson
+# JSON tree (ObjectNode/TextNode, serialized via writerWithDefaultPrettyPrinter(), parsed
+# back in tests), and the :recordbuf-json runtime (2026-11-20 Jackson plan, U3) EXPOSES the
+# node types: node-typed dynamic WKTs and the J6 envelope payload. Bumped 2.22.1 ->
+# 2.23.0 when :recordbuf-json landed; the generator's avsc construction sits on the same
+jackson           = "2.23.0"
 slf4j             = "2.0.20"   # org.slf4j -- latest GA (2.1.x is still alpha); generator-side logging only
 
 [libraries]
@@ -64,7 +64,7 @@ avro-compiler       = { group = "org.apache.avro", name = "avro-compiler", versi
 # JSON tree (see the `jackson` version above). Transitive of avro-compiler; declared direct to name
 # the generator's direct dependency rather than lean on a transitive.
 jackson-databind    = { group = "com.fasterxml.jackson.core", name = "jackson-databind", version.ref = "jackson" }
-# Google Java Format -- the generator-side formatter the plugin's rendered source passes through
+jackson-bom         = { group = "com.fasterxml.jackson", name = "jackson-bom", version.ref = "jackson" }
 # (the Formatter SPI's GJF-backed impl, U2). Pinned to the same 2.0.0 the Spotless gate uses,
 # so first-party `src/` and the generated output share one formatting standard. generator-only:
 # it is a Generation/build-time concern (R22 keeps the generated .rec surface dependency-free).

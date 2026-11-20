@@ -40,6 +40,16 @@ public final class TypeRefs {
   public static final TypeRef FIELD_MASK = TypeRef.of("bijnagte.recordbuf.runtime.FieldMask");
   public static final TypeRef EMPTY = TypeRef.of("bijnagte.recordbuf.runtime.Empty");
 
+  // --- Jackson databind node types (the Jackson JSON surface for dynamic WKT fields) ---
+  public static final TypeRef OBJECT_NODE =
+      TypeRef.named("com.fasterxml.jackson.databind.node", "ObjectNode");
+  public static final TypeRef ARRAY_NODE =
+      TypeRef.named("com.fasterxml.jackson.databind.node", "ArrayNode");
+  public static final TypeRef JSON_NODE =
+      TypeRef.named("com.fasterxml.jackson.databind", "JsonNode");
+  public static final TypeRef NULL_NODE =
+      TypeRef.named("com.fasterxml.jackson.databind.node", "NullNode");
+
   // --- Avro interop bridge (bijnagte.recordbuf.avro.*) ---
   public static final TypeRef WKT_AVRO_BRIDGE =
       TypeRef.of("bijnagte.recordbuf.avro.wkt.WktAvroBridge");

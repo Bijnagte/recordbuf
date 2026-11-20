@@ -54,13 +54,19 @@ public final class WellKnownTypes {
   /**
    * A WKT entry: its canonical FQN, how it is handled, the native Java type it resolves to, and
    * (for a wrapper / bytes wrapper) {@link #wire} &mdash; the scalar it frames on the wire.
+   *
+   * <p>{@code nodeType} (2026-11-20 Jackson plan) is the Jackson databind node type a field of this
+   * WKT resolves to on a {@code recordbuf.jackson}-enabled file &mdash; set for the dynamic entries
+   * only ({@code Struct}/{@code Value}/{@code ListValue}/{@code Any}/{@code NullValue}); every
+   * other classification resolves to its {@link #javaType} regardless of the toggle.
    */
   public record Entry(
       String fqn,
       Kind kind,
       @Nullable TypeRef javaType,
       @Nullable WireScalar wire,
-      @Nullable String zeroDefault) {
+      @Nullable String zeroDefault,
+      @Nullable TypeRef nodeType) {
 
     /** Whether a reference to this WKT in a field fails loud at generation (R11 dynamic). */
     public boolean isDynamic() {
@@ -92,13 +98,13 @@ public final class WellKnownTypes {
   private static final String EMPTY = "google.protobuf.Empty";
 
   private static final Entry TIMESTAMP =
-      new Entry(TS, Kind.STRUCTURED, TypeRefs.INSTANT, null, "Instant.EPOCH");
+      new Entry(TS, Kind.STRUCTURED, TypeRefs.INSTANT, null, "Instant.EPOCH", null);
   private static final Entry DURATION =
-      new Entry(DUR, Kind.STRUCTURED, TypeRefs.DURATION, null, "Duration.ZERO");
+      new Entry(DUR, Kind.STRUCTURED, TypeRefs.DURATION, null, "Duration.ZERO", null);
   private static final Entry FIELD_MASK =
-      new Entry(MASK, Kind.STRUCTURED, TypeRefs.FIELD_MASK, null, "FieldMask.empty()");
+      new Entry(MASK, Kind.STRUCTURED, TypeRefs.FIELD_MASK, null, "FieldMask.empty()", null);
   private static final Entry EMPTY_ENTRY =
-      new Entry(EMPTY, Kind.STRUCTURED, TypeRefs.EMPTY, null, "Empty.INSTANCE");
+      new Entry(EMPTY, Kind.STRUCTURED, TypeRefs.EMPTY, null, "Empty.INSTANCE", null);
 
   private static final Entry BOOL_VALUE =
       entry(Kind.WRAPPER, "BoolValue", TypeRef.BOOLEAN, WireScalar.BOOL);
@@ -130,20 +136,38 @@ public final class WellKnownTypes {
       entry(Kind.WRAPPER, "StringValue", TypeRef.STRING, WireScalar.STRING);
   private static final Entry BYTES_VALUE =
       new Entry(
-          "google.protobuf.BytesValue", Kind.BYTES_WRAPPER, TypeRefs.BYTES, WireScalar.BYTES, null);
+          "google.protobuf.BytesValue",
+          Kind.BYTES_WRAPPER,
+          TypeRefs.BYTES,
+          WireScalar.BYTES,
+          null,
+          null);
 
-  private static final Entry STRUCT = dynamic("Struct");
-  private static final Entry VALUE = dynamic("Value");
-  private static final Entry LIST_VALUE = dynamic("ListValue");
-  private static final Entry ANY = dynamic("Any");
-  private static final Entry NULL_VALUE = dynamic("NullValue");
+  private static final Entry STRUCT = dynamic("Struct", TypeRefs.OBJECT_NODE);
+  private static final Entry VALUE = dynamic("Value", TypeRefs.JSON_NODE);
+  private static final Entry LIST_VALUE = dynamic("ListValue", TypeRefs.ARRAY_NODE);
+  private static final Entry ANY = dynamic("Any", TypeRefs.JSON_NODE);
+  private static final Entry NULL_VALUE = dynamic("NullValue", TypeRefs.NULL_NODE);
 
   private static Entry entry(Kind kind, String shortName, TypeRef javaType, WireScalar wire) {
-    return new Entry("google.protobuf." + shortName, kind, javaType, wire, null);
+    return new Entry("google.protobuf." + shortName, kind, javaType, wire, null, null);
   }
 
-  private static Entry dynamic(String shortName) {
-    return new Entry("google.protobuf." + shortName, Kind.DYNAMIC_UNSUPPORTED, null, null, null);
+  private static Entry dynamic(String shortName, @Nullable TypeRef nodeType) {
+    return new Entry(
+        "google.protobuf." + shortName, Kind.DYNAMIC_UNSUPPORTED, null, null, null, nodeType);
+  }
+
+  /**
+   * The Jackson node type a field of the (possibly slashed) WKT type-URL resolves to on a {@code
+   * recordbuf.jackson}-enabled file &mdash; the node table of the 2026-11-20 Jackson plan. Returns
+   * {@code null} for every non-dynamic WKT (those keep their native Java type) and for a value that
+   * is not a well-known type.
+   */
+  @Nullable
+  public static TypeRef nodeType(String typeUrl) {
+    Entry e = resolve(typeUrl);
+    return (e == null) ? null : e.nodeType();
   }
 
   /**
