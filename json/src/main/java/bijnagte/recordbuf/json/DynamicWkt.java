@@ -15,6 +15,7 @@ import com.google.protobuf.NullValue;
 import com.google.protobuf.Struct;
 import com.google.protobuf.Value;
 import com.google.protobuf.Value.KindCase;
+import java.io.IOException;
 import java.util.Base64;
 
 /**
@@ -158,5 +159,70 @@ public final class DynamicWkt {
       default -> b.setValue(ByteString.copyFrom(Base64.getDecoder().decode(valueNode.textValue())));
     }
     return b.build();
+  }
+
+  /**
+   * Wire-encode a Jackson node as the byte content of the named well-known type (the {@code
+   * writeByteArray} payload of a message-field wire arm): {@code Struct}/{@code Value} and {@code
+   * ListValue} nodes become their WKT message's serialized bytes.
+   *
+   * @param wktFqn the WKT's canonical FQN ({@code google.protobuf.Struct} / {@code Value} / {@code
+   *     ListValue})
+   * @param node the field's node value (non-null; absent fields are skipped by the caller)
+   * @return the WKT's serialized bytes
+   * @throws IOException if serialization fails
+   * @throws IllegalArgumentException for any other FQN (the generator only emits these three)
+   */
+  public static byte[] encode(String wktFqn, JsonNode node) throws IOException {
+    return switch (shortName(wktFqn)) {
+      case "Struct" -> structFrom(needObjectNode(node, wktFqn)).toByteArray();
+      case "Value" -> valueFrom(node).toByteArray();
+      case "ListValue" -> listFrom(needArrayNode(node, wktFqn)).toByteArray();
+      default ->
+          throw new IllegalArgumentException(
+              "DynamicWkt.encode: unsupported well-known type " + wktFqn);
+    };
+  }
+
+  /**
+   * Wire-decode the byte content of the named well-known type back into a Jackson node (the mirror
+   * of {@link #encode}): a {@code Value} field reads back as a {@code Value} node, a {@code Struct}
+   * field as its object node, a {@code ListValue} field as its array node.
+   *
+   * @param wktFqn the WKT's canonical FQN ({@code google.protobuf.Struct} / {@code Value} / {@code
+   *     ListValue})
+   * @param content the wire bytes (a {@code readByteArray} result)
+   * @return the decoded node
+   * @throws com.google.protobuf.InvalidProtocolBufferException if the bytes are not a valid WKT
+   */
+  public static JsonNode decode(String wktFqn, byte[] content)
+      throws InvalidProtocolBufferException {
+    return switch (shortName(wktFqn)) {
+      case "Struct" -> struct(Struct.parseFrom(content));
+      case "Value" -> value(Value.parseFrom(content));
+      case "ListValue" -> list(ListValue.parseFrom(content));
+      default ->
+          throw new IllegalArgumentException(
+              "DynamicWkt.decode: unsupported well-known type " + wktFqn);
+    };
+  }
+
+  private static ObjectNode needObjectNode(JsonNode node, String wktFqn) {
+    if (node == null || !node.isObject()) {
+      throw new IllegalArgumentException("expected an object node for " + wktFqn + ", got " + node);
+    }
+    return (ObjectNode) node;
+  }
+
+  private static ArrayNode needArrayNode(JsonNode node, String wktFqn) {
+    if (node == null || !node.isArray()) {
+      throw new IllegalArgumentException("expected an array node for " + wktFqn + ", got " + node);
+    }
+    return (ArrayNode) node;
+  }
+
+  private static String shortName(String fqn) {
+    int dot = fqn.lastIndexOf('.');
+    return dot < 0 ? fqn : fqn.substring(dot + 1);
   }
 }

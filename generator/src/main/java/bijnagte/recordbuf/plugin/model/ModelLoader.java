@@ -643,6 +643,30 @@ public final class ModelLoader {
   private TypeRef referenceType(String typeUrl) {
     WellKnownTypes.Entry wkt = WellKnownTypes.resolve(typeUrl);
     if (wkt != null) {
+      if (wkt.isDynamic()) {
+        // The dynamic family has no native Java type: it ONLY resolves on a jackson-enabled
+        // file, where the component is the WKT's Jackson node type (the node table of the
+        // 2026-11-20 Jackson plan). Off, the feature is absent and generation fails loud
+        // (R11) with the option that would fix it. Any/NullValue stay out of v1: Any's payload
+        // is a typed message the node tree cannot faithfully rebuild (the Avro envelope unit
+        // owns Any), and NullValue is a zero-arity enum with no node payload.
+        String shortName = typeUrl.substring(typeUrl.lastIndexOf('.') + 1);
+        if (shortName.equals("Any") || shortName.equals("NullValue")) {
+          throw new IllegalStateException(
+              "well-known type "
+                  + typeUrl
+                  + " is not supported"
+                  + (jacksonEnabled ? "" : " (and the file has no recordbuf.jackson = true)"));
+        }
+        if (!jacksonEnabled) {
+          throw new IllegalStateException(
+              "well-known type "
+                  + typeUrl
+                  + " has no native Java type; set recordbuf.jackson = true on the file to use it as a Jackson node");
+        }
+        return Objects.requireNonNull(
+            wkt.nodeType(), "dynamic WKT " + typeUrl + " has no node type");
+      }
       return Objects.requireNonNull(
           wkt.javaType(),
           "well-known type " + typeUrl + " has no native Java type; generation cannot proceed");

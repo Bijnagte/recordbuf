@@ -39,6 +39,7 @@ final class WktSourceMapping {
   // "Integer i32 = null;" per Wkt.java type
 
   static Element localInitElement(Field f, Entry entry) {
+    if (entry.nodeType() != null) return dynamicLocalInit(f, entry);
     TypeRef type = requireType(entry);
     String name = f.javaName();
     if (f.label() == FieldLabel.REPEATED) {
@@ -61,6 +62,7 @@ final class WktSourceMapping {
   //            repeated form:      "for (var e : v.field()) out.writeByteArray(n, Wkt.method(e));"
 
   static Element emitEncode(Field f, Entry entry, String out, String v) {
+    if (entry.nodeType() != null) return dynamicEncode(f, entry, out, v);
     TypeRef wktRef = TypeRefs.WKT;
     int num = f.number();
     String g = v + "." + f.javaName() + "()";
@@ -118,6 +120,7 @@ final class WktSourceMapping {
   // decode case: "case N -> field = Wkt.parseName(in.readByteArray());"
   //             "case N -> field = (Short) Wkt.parse(Wkt.Wrap.KIND, in.readByteArray());"
   static Case emitDecodeCase(Field f, Entry entry, String in) {
+    if (entry.nodeType() != null) return dynamicDecodeCase(f, entry, in);
     int num = f.number();
     String name = f.javaName();
     String read = in + ".readByteArray()";
@@ -156,6 +159,58 @@ final class WktSourceMapping {
               castRef,
               wrapKind(f.typeUrl()));
     }
+    return Case.of(String.valueOf(num), assignment);
+  }
+
+  // --- dynamic WKT (Jackson node) arms ---
+  // The component is the WKT's Jackson node type; the wire arm round-trips through the
+  // :recordbuf-json DynamicWkt facade, which the generated codec references directly.
+
+  static Element dynamicLocalInit(Field f, Entry entry) {
+    TypeRef type = Objects.requireNonNull(entry.nodeType(), "dynamic WKT has no node type");
+    String name = f.javaName();
+    if (f.label() == FieldLabel.REPEATED) {
+      TypeRef namedList = TypeRefs.LIST.withGenerics(type);
+      return LocalVar.builder(namedList, name)
+          .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST));
+    }
+    return LocalVar.builder(type, name).assigned(RawExpr.of("null"));
+  }
+
+  static Element dynamicEncode(Field f, Entry entry, String out, String v) {
+    int num = f.number();
+    String g = v + "." + f.javaName() + "()";
+    if (f.label() == FieldLabel.REPEATED) {
+      return For.enhanced("var e", g)
+          .body(
+              Element.expr(
+                  "@0.writeByteArray(@1, @2.encode(\"" + f.typeUrl() + "\", e))",
+                  out,
+                  num,
+                  TypeRefs.DYNAMIC_WKT))
+          .build();
+    }
+    return If.condition("@0 != null", g)
+        .body(
+            Element.expr(
+                "@0.writeByteArray(@1, @2.encode(\"" + f.typeUrl() + "\", @3))",
+                out,
+                num,
+                TypeRefs.DYNAMIC_WKT,
+                g))
+        .build();
+  }
+
+  static Case dynamicDecodeCase(Field f, Entry entry, String in) {
+    int num = f.number();
+    String name = f.javaName();
+    String read = in + ".readByteArray()";
+    Element assignment =
+        f.label() == FieldLabel.REPEATED
+            ? Element.expr(
+                "@0.add(@1.decode(\"" + f.typeUrl() + "\", @2))", name, TypeRefs.DYNAMIC_WKT, read)
+            : Element.expr(
+                "@0 = @1.decode(\"" + f.typeUrl() + "\", @2)", name, TypeRefs.DYNAMIC_WKT, read);
     return Case.of(String.valueOf(num), assignment);
   }
 

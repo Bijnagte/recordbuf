@@ -15,6 +15,7 @@ import com.google.protobuf.NullValue;
 import com.google.protobuf.Struct;
 import com.google.protobuf.Timestamp;
 import com.google.protobuf.Value;
+import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -169,5 +170,49 @@ class JsonModuleTest {
     Duration d = Duration.newBuilder().setSeconds(3661L).setNanos(1_000).build();
     String rendered = isoMapper().writeValueAsString(d);
     assertEquals(d, isoMapper().readValue(rendered, Duration.class));
+  }
+
+  // --- U5: the wire dispatch the generated codec arms call (node <-> WKT bytes) ---
+
+  @Test
+  void valueNodeRoundTripsThroughWktBytes() throws Exception {
+    Value v =
+        Value.newBuilder()
+            .setStructValue(
+                Struct.newBuilder()
+                    .putFields("k", Value.newBuilder().setStringValue("v").build())
+                    .build())
+            .build();
+    JsonNode node = DynamicWkt.value(v);
+    byte[] bytes = DynamicWkt.encode("google.protobuf.Value", node);
+    Value back = Value.parseFrom(bytes);
+    assertEquals(v, back, "encode/decode must be the identity through the WKT wire form");
+  }
+
+  @Test
+  void decodeReadsAValueFieldBackAsANode() throws Exception {
+    Value v = Value.newBuilder().setNumberValue(2.5).build();
+    JsonNode node = DynamicWkt.decode("google.protobuf.Value", v.toByteArray());
+    assertEquals(v, DynamicWkt.valueFrom(node));
+  }
+
+  @Test
+  void structAndListValueDispatchByFqn() throws Exception {
+    Struct s =
+        Struct.newBuilder().putFields("a", Value.newBuilder().setBoolValue(true).build()).build();
+    assertSameBytes(
+        "google.protobuf.Struct",
+        DynamicWkt.encode("google.protobuf.Struct", DynamicWkt.struct(s)),
+        s.toByteArray());
+    ListValue l =
+        ListValue.newBuilder().addValues(Value.newBuilder().setStringValue("x").build()).build();
+    assertSameBytes(
+        "google.protobuf.ListValue",
+        DynamicWkt.encode("google.protobuf.ListValue", DynamicWkt.list(l)),
+        l.toByteArray());
+  }
+
+  private static void assertSameBytes(String label, byte[] a, byte[] b) {
+    assertEquals(Arrays.toString(b), Arrays.toString(a), label + " wire bytes must agree");
   }
 }

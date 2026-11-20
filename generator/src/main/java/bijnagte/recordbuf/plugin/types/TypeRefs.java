@@ -50,6 +50,9 @@ public final class TypeRefs {
   public static final TypeRef NULL_NODE =
       TypeRef.named("com.fasterxml.jackson.databind.node", "NullNode");
 
+  // --- Jackson node<->wire conversion for dynamic WKT fields (:recordbuf-json) ---
+  public static final TypeRef DYNAMIC_WKT = TypeRef.of("bijnagte.recordbuf.json.DynamicWkt");
+
   // --- Avro interop bridge (bijnagte.recordbuf.avro.*) ---
   public static final TypeRef WKT_AVRO_BRIDGE =
       TypeRef.of("bijnagte.recordbuf.avro.wkt.WktAvroBridge");
