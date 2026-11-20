@@ -287,7 +287,8 @@ class RecordSourceMappingTest {
             false,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     Field street =
         new Field(
             "street",
@@ -302,7 +303,8 @@ class RecordSourceMappingTest {
             false,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
 
     Enum color =
         new Enum(
@@ -409,7 +411,8 @@ class RecordSourceMappingTest {
             false,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     Message m =
         new Message(
             "RepeatedMsg",
@@ -458,7 +461,8 @@ class RecordSourceMappingTest {
                     true,
                     null,
                     null,
-                    false)),
+                    false,
+                    /* jacksonFormat= */ null)),
             List.of(),
             List.of(),
             List.of(),
@@ -497,7 +501,8 @@ class RecordSourceMappingTest {
             false,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     var items =
         new Field(
             "items",
@@ -512,7 +517,8 @@ class RecordSourceMappingTest {
             false,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     var parent =
         new Message(
             "Parent",
@@ -544,7 +550,8 @@ class RecordSourceMappingTest {
             TypeRef.named(PKG, "Parent").sub("Choice"),
             oneofDescriptor,
             parentDescriptor,
-            List.of());
+            List.of(),
+            /* jsonOneof= */ null);
     var parent =
         new Message(
             "Parent",
@@ -586,7 +593,8 @@ class RecordSourceMappingTest {
             false,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     var m =
         new Message(
             "HasMap",
@@ -630,7 +638,8 @@ class RecordSourceMappingTest {
             true,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     var parent =
         new Message(
             "NestedMsg",
@@ -676,7 +685,8 @@ class RecordSourceMappingTest {
             false,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     var m =
         new Message(
             "MapMsg",
@@ -722,7 +732,8 @@ class RecordSourceMappingTest {
             false,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     var m =
         new Message(
             "EnumMsg",
@@ -769,7 +780,8 @@ class RecordSourceMappingTest {
             false,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     var m =
         new Message(
             "EnumMsg",
@@ -817,7 +829,8 @@ class RecordSourceMappingTest {
             false,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     var item =
         new Field(
             "name",
@@ -832,7 +845,8 @@ class RecordSourceMappingTest {
             false,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     var itemModel =
         new Message(
             "Item",
@@ -865,7 +879,8 @@ class RecordSourceMappingTest {
             true,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     var items =
         new Field(
             "items",
@@ -880,7 +895,8 @@ class RecordSourceMappingTest {
             false,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     var sampleModel =
         new Message(
             "Sample",
@@ -933,7 +949,8 @@ class RecordSourceMappingTest {
             false,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     // fixed64 fx = 2;
     var fx =
         new Field(
@@ -949,7 +966,8 @@ class RecordSourceMappingTest {
             false,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     // string s = 3;
     var sF =
         new Field(
@@ -965,7 +983,8 @@ class RecordSourceMappingTest {
             false,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     // bytes b = 4;
     var bF =
         new Field(
@@ -981,7 +1000,8 @@ class RecordSourceMappingTest {
             false,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     // repeated int32 packed = 5;
     var packed =
         new Field(
@@ -997,7 +1017,8 @@ class RecordSourceMappingTest {
             false,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     // Sub nested = 6;
     var nested =
         new Field(
@@ -1013,7 +1034,8 @@ class RecordSourceMappingTest {
             true,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     // repeated Sub subs = 7;
     var subs =
         new Field(
@@ -1029,7 +1051,8 @@ class RecordSourceMappingTest {
             false,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     // map<string,int32> m = 8;
     var mapF =
         new Field(
@@ -1045,7 +1068,8 @@ class RecordSourceMappingTest {
             false,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     // optional int32 presence = 9;
     var presence =
         new Field(
@@ -1061,7 +1085,8 @@ class RecordSourceMappingTest {
             true,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
 
     var fields = List.of(iF, fx, sF, bF, packed, nested, subs, mapF, presence);
     var m =

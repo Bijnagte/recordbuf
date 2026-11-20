@@ -41,7 +41,8 @@ class AvroConverterSourceMappingTest {
         false,
         null,
         null,
-        false);
+        false,
+        /* jacksonFormat= */ null);
   }
 
   private static Field wktField(String name) {
@@ -62,7 +63,8 @@ class AvroConverterSourceMappingTest {
         true,
         null,
         null,
-        false);
+        false,
+        /* jacksonFormat= */ null);
   }
 
   private static AvroRegistry registryFor(Message m) {
@@ -75,7 +77,8 @@ class AvroConverterSourceMappingTest {
             List.of(),
             false,
             null,
-            AvroToggle.ON);
+            AvroToggle.ON,
+            /* jackson= */ false);
     return AvroRegistry.build(file, m, null);
   }
 
@@ -152,7 +155,8 @@ class AvroConverterSourceMappingTest {
             false,
             null,
             null,
-            false);
+            false,
+            /* jacksonFormat= */ null);
     Message m =
         new Message(
             "Sample",

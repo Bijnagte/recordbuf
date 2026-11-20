@@ -28,6 +28,9 @@ import org.jspecify.annotations.Nullable;
  * @param comment the field's own leading doc comment, if captured
  * @param deprecated {@code option deprecated = true} on the field (rendered as a bare
  *     {@code @Deprecated} on the record component)
+ * @param jacksonFormat the resolved {@code recordbuf.jackson_format} option (temporal rendering on
+ *     a {\code recordbuf.jackson}-enabled file), or {@code null} when absent; the loader fails loud
+ *     when set on a file without the toggle
  */
 @RecordBuilder
 public record Field(
@@ -43,7 +46,8 @@ public record Field(
     boolean proto3Optional,
     @Nullable Object defaultValue,
     @Nullable String comment,
-    boolean deprecated) {
+    boolean deprecated,
+    @Nullable JacksonTemporalFormat jacksonFormat) {
   public boolean isMap() {
     return kind == FieldKind.MAP;
   }

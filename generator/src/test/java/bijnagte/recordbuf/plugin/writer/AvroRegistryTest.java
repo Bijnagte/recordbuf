@@ -47,7 +47,8 @@ class AvroRegistryTest {
         false,
         null,
         null,
-        false);
+        false,
+        /* jacksonFormat= */ null);
   }
 
   private static Field mapField(String name, String keyType, String valueType) {
@@ -64,7 +65,8 @@ class AvroRegistryTest {
         false,
         null,
         null,
-        false);
+        false,
+        /* jacksonFormat= */ null);
   }
 
   private static Message message(String name, String pkg, Field... fields) {
@@ -83,7 +85,15 @@ class AvroRegistryTest {
 
   private static ProtoFile file(String fileName, String pkg, Message... messages) {
     return new ProtoFile(
-        fileName, pkg, "", List.of(messages), List.of(), false, null, AvroToggle.OFF);
+        fileName,
+        pkg,
+        "",
+        List.of(messages),
+        List.of(),
+        false,
+        null,
+        AvroToggle.OFF,
+        /* jackson= */ false);
   }
 
   private static FileTable tableOf(FileDescriptorProto... files) {
@@ -179,7 +189,15 @@ class AvroRegistryTest {
     Message root = message("Sample", "p", field("color", 1, "p.Color"));
     ProtoFile pf =
         new ProtoFile(
-            "a.proto", "p", "", List.of(root), List.of(color), false, null, AvroToggle.OFF);
+            "a.proto",
+            "p",
+            "",
+            List.of(root),
+            List.of(color),
+            false,
+            null,
+            AvroToggle.OFF,
+            /* jackson= */ false);
 
     AvroRegistry registry = AvroRegistry.build(pf, root, null);
 
@@ -286,7 +304,8 @@ class AvroRegistryTest {
             TypeRef.named("p", "Choice"),
             OneofDescriptorProto.newBuilder().setName("choice").build(),
             DescriptorProto.newBuilder().setName("Sample").build(),
-            List.of(member));
+            List.of(member),
+            /* jsonOneof= */ null);
     Message root =
         new Message(
             "Sample",
@@ -323,7 +342,15 @@ class AvroRegistryTest {
     Message root = message("Sample", "p", mapField("colors", "string", "p.Color"));
     ProtoFile pf =
         new ProtoFile(
-            "a.proto", "p", "", List.of(root), List.of(color), false, null, AvroToggle.OFF);
+            "a.proto",
+            "p",
+            "",
+            List.of(root),
+            List.of(color),
+            false,
+            null,
+            AvroToggle.OFF,
+            /* jackson= */ false);
 
     AvroRegistry registry = AvroRegistry.build(pf, root, null);
 

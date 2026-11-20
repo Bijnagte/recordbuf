@@ -5,6 +5,7 @@ import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.OneofDescriptorProto;
 import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Immutable view of a real protobuf {@code oneof} inside a {@link Message}.
@@ -37,6 +38,10 @@ import java.util.List;
  * @param members the oneof's declared members in declaration order, routed out of the parent's flat
  *     fields list; never {@code null} (empty is the never-actually-emitted case: proto3 rejects
  *     empty oneof groups)
+ * @param jsonOneof the per-oneof {@code recordbuf.json_oneof} discriminator property name override,
+ *     or {@code null} when the option is absent (the default is {@code <oneofName>Type}); never
+ *     meaningful on a file without the {@code recordbuf.jackson} option (the loader fails loud on a
+ *     knob without the toggle)
  */
 @RecordBuilder
 public record Oneof(
@@ -44,7 +49,8 @@ public record Oneof(
     TypeRef.Named iface,
     OneofDescriptorProto descriptor,
     DescriptorProto parentDescriptor,
-    List<Field> members) {
+    List<Field> members,
+    @Nullable String jsonOneof) {
   /**
    * Normalize a {@code null} members list to an empty one and keep the members list immutably owned
    * by this entry, mirroring {@link Message}'s invariant-on-its-owned-list style.

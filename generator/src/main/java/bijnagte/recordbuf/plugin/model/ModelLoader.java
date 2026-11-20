@@ -43,6 +43,9 @@ public final class ModelLoader {
   // the writers HTML-escape at emit time, so the model stores the user's raw text. Empty by
   // default so the nested load* helpers (which read it) never dereference null.
   private Map<List<Integer>, String> commentPaths = Map.of();
+  // Per-file Jackson toggle (2026-11-20 plan), resolved in load(); a per-field/oneof Jackson knob
+  // on a non-enabled file fails loud against it.
+  private boolean jacksonEnabled = false;
 
   // The three shipped proto extensions from src/main/proto/recordbuf_options.proto:
   //   (recordbuf.java_interface)        on MessageOptions, field 50000
@@ -64,6 +67,16 @@ public final class ModelLoader {
   private static final String ENUM_INTERFACE_NAME = "recordbuf.java_enum_interface";
   private static final String MESSAGE_PROTOBUF_JAVA_NAME = "recordbuf.protobuf_java";
   private static final String FILE_AVRO_NAME = "recordbuf.avro";
+  // (recordbuf.jackson) -- per-file enablement of the Jackson JSON surface (2026-11-20 Jackson
+  // plan); a resolved extension reaches us as a varint unknown field at this tag.
+  private static final int FILE_JACKSON_TAG = 50004;
+  private static final String FILE_JACKSON_NAME = "recordbuf.jackson";
+  // (recordbuf.jackson_format) -- per-field temporal rendering on a jackson-enabled file.
+  private static final int FIELD_JACKSON_FORMAT_TAG = 50005;
+  private static final String FIELD_JACKSON_FORMAT_NAME = "recordbuf.jackson_format";
+  // (recordbuf.json_oneof) -- per-oneof JSON discriminator name on a jackson-enabled file.
+  private static final int ONEOF_JSON_ONEOF_TAG = 50008;
+  private static final String ONEOF_JSON_ONEOF_NAME = "recordbuf.json_oneof";
   private static final String EMPTY_PROTOBUF_JAVA = "";
 
   public ModelLoader(FileTable table, String javaPackageForThisFile) {
@@ -76,6 +89,9 @@ public final class ModelLoader {
     // index up front so every nested load* helper can attach a comment to its target. The
     // file-level location (path []) is deliberately NOT rendered here (D3: file-level dropped).
     this.commentPaths = indexComments(fdp);
+    this.jacksonEnabled =
+        jacksonToggleFor(
+            fdp.getOptions().getUnknownFields(), fdp.getOptions().getUninterpretedOptionList());
     List<Message> topMsgs = new ArrayList<>();
     for (int i = 0; i < fdp.getMessageTypeCount(); i++) {
       DescriptorProto m = fdp.getMessageType(i);
@@ -95,7 +111,8 @@ public final class ModelLoader {
         /* javaMultipleFiles= */ false,
         /* comment= */ null,
         /* avroToggle= */ avroToggleFor(
-            fdp.getOptions().getUnknownFields(), fdp.getOptions().getUninterpretedOptionList()));
+            fdp.getOptions().getUnknownFields(), fdp.getOptions().getUninterpretedOptionList()),
+        /* jackson= */ jacksonEnabled);
   }
 
   /** The two-element source_code_info path to a top-level message/enum by (fieldNumber, index). */
@@ -189,13 +206,24 @@ public final class ModelLoader {
       List<Field> members = oneofMembersByIndex.get(oi);
       if (members == null || members.isEmpty()) continue;
       var od = m.getOneofDecl(oi);
+      String jsonOneof =
+          jacksonOneofFor(
+              od.getOptions().getUnknownFields(), od.getOptions().getUninterpretedOptionList());
+      if (jsonOneof != null && !jacksonEnabled) {
+        throw new IllegalStateException(
+            "recordbuf.json_oneof is set on oneof \""
+                + od.getName()
+                + "\" but the file has no"
+                + " recordbuf.jackson = true");
+      }
       oneofs.add(
           new Oneof(
               od.getName(),
               type.sub(JavaNames.cap(JavaNames.camel(od.getName()))),
               od,
               m,
-              members));
+              members,
+              jsonOneof));
     }
 
     List<Message> nestedMsgs = new ArrayList<>();
@@ -316,7 +344,8 @@ public final class ModelLoader {
         /* proto3Optional= */ false,
         /* defaultValue= */ null,
         /* comment= */ synthetic.comment(),
-        /* deprecated= */ synthetic.deprecated());
+        /* deprecated= */ synthetic.deprecated(),
+        /* jacksonFormat= */ synthetic.jacksonFormat());
   }
 
   /**
@@ -418,6 +447,17 @@ public final class ModelLoader {
     // `proto3Optional || label == OPTIONAL` would wrongly mark plain scalars
     // as present-able (the root cause of the bogus Optional<int>).
     boolean proto3Opt = f.getProto3Optional();
+    // The Jackson JSON-surface knob (2026-11-20 plan): the per-field temporal-format option.
+    JacksonTemporalFormat jacksonFormat =
+        jacksonFormatFor(
+            f.getOptions().getUnknownFields(), f.getOptions().getUninterpretedOptionList());
+    if (jacksonFormat != null && !jacksonEnabled) {
+      throw new IllegalStateException(
+          "recordbuf.jackson_format is set on field \""
+              + f.getName()
+              + "\" but the file has no"
+              + " recordbuf.jackson = true");
+    }
 
     return new Field(
         f.getName(),
@@ -432,7 +472,8 @@ public final class ModelLoader {
         /* proto3Optional= */ proto3Opt,
         defaultVal,
         /* comment= */ commentAtPath(path),
-        /* deprecated= */ f.getOptions().getDeprecated());
+        /* deprecated= */ f.getOptions().getDeprecated(),
+        /* jacksonFormat= */ jacksonFormat);
   }
 
   private static FieldLabel label(FieldDescriptorProto.Label raw) {
@@ -688,6 +729,67 @@ public final class ModelLoader {
       }
     }
     return AvroToggle.NEUTRAL;
+  }
+
+  /**
+   * Read this file's {@code recordbuf.jackson} bool option, or {@code false} when neither path
+   * carries it (absent and an explicit {@code false} are behaviorally identical: no Jackson
+   * surface). Prefers the compiled path (a resolved extension reaches us as a varint unknown field
+   * at {@code 50004}); falls back to an uninterpreted option whose dotted name equals {@link
+   * #FILE_JACKSON_NAME}.
+   */
+  private static boolean jacksonToggleFor(
+      UnknownFieldSet unknownFields, List<UninterpretedOption> uninterpreted) {
+    UnknownFieldSet.Field f = unknownFields.getField(FILE_JACKSON_TAG);
+    if (!f.getVarintList().isEmpty()) {
+      return f.getVarintList().get(0) != 0;
+    }
+    for (UninterpretedOption opt : uninterpreted) {
+      if (optionName(opt).equals(FILE_JACKSON_NAME) && opt.hasStringValue()) {
+        // An uninterpreted bool option is a string literal ("true"/"false").
+        return Boolean.parseBoolean(opt.getStringValue().toStringUtf8());
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Read the per-field {@code recordbuf.jackson_format} option into the model, or {@code null} when
+   * absent. An unrecognized value fails loud (an authoring error, never silently coerced); a set
+   * option on a file without the {@code recordbuf.jackson} toggle is caught by the caller.
+   */
+  @Nullable
+  private static JacksonTemporalFormat jacksonFormatFor(
+      UnknownFieldSet unknownFields, List<UninterpretedOption> uninterpreted) {
+    UnknownFieldSet.Field f = unknownFields.getField(FIELD_JACKSON_FORMAT_TAG);
+    if (!f.getLengthDelimitedList().isEmpty()) {
+      return JacksonTemporalFormat.parse(f.getLengthDelimitedList().get(0).toStringUtf8());
+    }
+    for (UninterpretedOption opt : uninterpreted) {
+      if (optionName(opt).equals(FIELD_JACKSON_FORMAT_NAME) && opt.hasStringValue()) {
+        return JacksonTemporalFormat.parse(opt.getStringValue().toStringUtf8());
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Read the per-oneof {@code recordbuf.json_oneof} discriminator property name, or {@code null}
+   * when absent (the default discriminator is {@code <oneofName>Type}).
+   */
+  @Nullable
+  private static String jacksonOneofFor(
+      UnknownFieldSet unknownFields, List<UninterpretedOption> uninterpreted) {
+    UnknownFieldSet.Field f = unknownFields.getField(ONEOF_JSON_ONEOF_TAG);
+    if (!f.getLengthDelimitedList().isEmpty()) {
+      return f.getLengthDelimitedList().get(0).toStringUtf8();
+    }
+    for (UninterpretedOption opt : uninterpreted) {
+      if (optionName(opt).equals(ONEOF_JSON_ONEOF_NAME) && opt.hasStringValue()) {
+        return opt.getStringValue().toStringUtf8();
+      }
+    }
+    return null;
   }
 
   /** Map an {@code AvroControl} wire value to the model's {@link AvroToggle}. */

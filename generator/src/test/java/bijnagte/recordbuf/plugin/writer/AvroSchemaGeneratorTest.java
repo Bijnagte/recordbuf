@@ -52,7 +52,8 @@ class AvroSchemaGeneratorTest {
         false,
         null,
         null,
-        false);
+        false,
+        /* jacksonFormat= */ null);
   }
 
   private static Field repeatedField(String name, int number, String typeUrl) {
@@ -69,7 +70,8 @@ class AvroSchemaGeneratorTest {
         false,
         null,
         null,
-        false);
+        false,
+        /* jacksonFormat= */ null);
   }
 
   private static Field mapField(String name, String keyType, String valueType) {
@@ -86,7 +88,8 @@ class AvroSchemaGeneratorTest {
         false,
         null,
         null,
-        false);
+        false,
+        /* jacksonFormat= */ null);
   }
 
   private static Message message(String name, String pkg, Field... fields) {
@@ -105,7 +108,15 @@ class AvroSchemaGeneratorTest {
 
   private static ProtoFile file(String fileName, String pkg, Message... messages) {
     return new ProtoFile(
-        fileName, pkg, "", List.of(messages), List.of(), false, null, AvroToggle.OFF);
+        fileName,
+        pkg,
+        "",
+        List.of(messages),
+        List.of(),
+        false,
+        null,
+        AvroToggle.OFF,
+        /* jackson= */ false);
   }
 
   private static FileTable tableOf(FileDescriptorProto... files) {
@@ -208,7 +219,15 @@ class AvroSchemaGeneratorTest {
     Message root = message("Sample", "p", field("color", 1, "p.Color"));
     ProtoFile pf =
         new ProtoFile(
-            "a.proto", "p", "", List.of(root), List.of(color), false, null, AvroToggle.OFF);
+            "a.proto",
+            "p",
+            "",
+            List.of(root),
+            List.of(color),
+            false,
+            null,
+            AvroToggle.OFF,
+            /* jackson= */ false);
 
     JsonNode doc = tree(pf, root, null);
 
@@ -308,7 +327,8 @@ class AvroSchemaGeneratorTest {
             TypeRef.named("p", "Choice"),
             OneofDescriptorProto.newBuilder().setName("choice").build(),
             DescriptorProto.newBuilder().setName("Sample").build(),
-            List.of(textMember, cardMember));
+            List.of(textMember, cardMember),
+            /* jsonOneof= */ null);
     Message root =
         new Message(
             "Sample",
@@ -461,7 +481,15 @@ class AvroSchemaGeneratorTest {
             null);
     ProtoFile pf =
         new ProtoFile(
-            "a.proto", "p", "", List.of(root, card), List.of(status), false, null, AvroToggle.OFF);
+            "a.proto",
+            "p",
+            "",
+            List.of(root, card),
+            List.of(status),
+            false,
+            null,
+            AvroToggle.OFF,
+            /* jackson= */ false);
 
     JsonNode doc = tree(pf, root, null);
 
