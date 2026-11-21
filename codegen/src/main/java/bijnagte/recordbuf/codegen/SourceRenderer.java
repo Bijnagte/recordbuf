@@ -538,13 +538,13 @@ public final class SourceRenderer {
       if (c.body().isEmpty()) {
         out.append(c.mods().withSpace())
             .append(enclosing)
-            .append(renderParams(c.params()))
+            .append(c.compact() ? "" : renderParams(c.params()))
             .append("{}\n");
         return;
       }
       out.append(c.mods().withSpace())
           .append(enclosing)
-          .append(renderParams(c.params()))
+          .append(c.compact() ? "" : renderParams(c.params()))
           .append(" {\n");
       for (Element s : c.body()) renderStatement(s, out);
       out.append('}').append('\n');
