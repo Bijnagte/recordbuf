@@ -147,16 +147,16 @@ public final class AvroConverterSourceMapping {
 
     String wkt = AvroSchemaGenerator.typeUrlIfWkt(f);
     if (wkt != null) {
-      return wktToRecord(f, wkt, var, getter);
+      return wktToRecord(wkt, var, getter);
     }
     if (f.isMap()) {
-      return mapToRecord(f, var, getter, registry, specificRecordPkg);
+      return mapToRecord(f, var, getter, specificRecordPkg);
     }
     if (f.kind() == FieldKind.MESSAGE) {
       if (f.isRepeated()) {
-        return repeatedMessageToRecord(f, var, getter, registry, specificRecordPkg);
+        return repeatedMessageToRecord(f, var, getter, registry);
       }
-      return messageToRecord(f, var, getter, registry, specificRecordPkg);
+      return messageToRecord(f, var, getter, registry);
     }
     if (f.kind() == FieldKind.ENUM) {
       return Element.expr("@0(@1().value())", var, getter);
@@ -179,7 +179,7 @@ public final class AvroConverterSourceMapping {
         f.name(), "cannot map Avro field to a record component ('" + f.typeUrl() + "')");
   }
 
-  private static Element wktToRecord(Field f, String wkt, String var, String getter) {
+  private static Element wktToRecord(String wkt, String var, String getter) {
     return switch (wkt) {
       // No-op: the Avro resolved type equals the record type (both nullable).
       case "google.protobuf.Timestamp",
@@ -194,10 +194,8 @@ public final class AvroConverterSourceMapping {
       // Duration: java.time.Duration <-> avro.wkt.Duration {seconds: long, nanos: int}.
       case "google.protobuf.Duration" ->
           Element.expr(
-              "@0(@1() == null ? null : @2.ofSeconds(@1().getSeconds(), @1().getNanos()))",
-              var,
-              getter,
-              TypeRefs.DURATION);
+              "@0(@1() == null ? null : @2.ofSeconds(@1().getSeconds(), @1().getNanos() % 1_000_000_000L))",
+              var, getter, TypeRefs.DURATION);
       // FieldMask: FieldMask <-> [null, string] (a comma-joined string, via the bridge).
       case "google.protobuf.FieldMask" ->
           Element.expr(
@@ -222,7 +220,7 @@ public final class AvroConverterSourceMapping {
   }
 
   private static Element messageToRecord(
-      Field f, String var, String getter, AvroRegistry registry, String specificRecordPkg) {
+      Field f, String var, String getter, AvroRegistry registry) {
     String fqn = f.typeUrl();
     Message ref = registry.messageOf(fqn);
     String refName = registry.nameOf(fqn);
@@ -237,7 +235,7 @@ public final class AvroConverterSourceMapping {
   }
 
   private static Element repeatedMessageToRecord(
-      Field f, String var, String getter, AvroRegistry registry, String specificRecordPkg) {
+      Field f, String var, String getter, AvroRegistry registry) {
     String fqn = f.typeUrl();
     Message ref = registry.messageOf(fqn);
     String refName = registry.nameOf(fqn);
@@ -251,8 +249,7 @@ public final class AvroConverterSourceMapping {
     return Element.expr("@0(@2().stream().map(@1::toRecord).toList())", var, refConverter, getter);
   }
 
-  private static Element mapToRecord(
-      Field f, String var, String getter, AvroRegistry registry, String specificRecordPkg) {
+  private static Element mapToRecord(Field f, String var, String getter, String specificRecordPkg) {
     // A string-key proto map is an Avro map (keys are CharSequence); a non-string key is a list of
     // pair-entry records. Rebuild the record's Map so its key/value Java types line up; scalar
     // values pass through unchanged (a message/bytes value would need a per-value bridge).
@@ -279,16 +276,14 @@ public final class AvroConverterSourceMapping {
   }
 
   private static Element mapFromRecord(
-      Field f, String setter, String accessor, AvroRegistry registry, String specificRecordPkg) {
+      Field f, String setter, String accessor, String specificRecordPkg) {
     // Collectors and the entry-record are TypeRefs so the collector imports them and uses their
     // short names (EP's UnnecessarilyFullyQualified forbids inline FQN literals).
     TypeRef collectors = TypeRef.named("java.util.stream", "Collectors");
     String a = accessor;
     if ("string".equals(f.mapKey())) {
       String stream =
-          a
-              + ".entrySet().stream().collect(@0.toMap(e -> (CharSequence) e.getKey(), "
-              + "e -> e.getValue()))";
+          a + ".entrySet().stream().collect(@0.toMap(e -> e.getKey(), " + "e -> e.getValue()))";
       return Element.expr(setter + "(" + stream + ")", collectors);
     }
     TypeRef entry = TypeRef.named(specificRecordPkg, AvroRegistry.mapEntryRecordName(f));
@@ -427,10 +422,10 @@ public final class AvroConverterSourceMapping {
 
     String wkt = AvroSchemaGenerator.typeUrlIfWkt(f);
     if (wkt != null) {
-      return wktFromRecord(f, wkt, setter, accessor);
+      return wktFromRecord(wkt, setter, accessor);
     }
     if (f.isMap()) {
-      return mapFromRecord(f, setter, accessor, registry, specificRecordPkg);
+      return mapFromRecord(f, setter, accessor, specificRecordPkg);
     }
     if (f.kind() == FieldKind.MESSAGE) {
       String fqn = f.typeUrl();
@@ -475,7 +470,7 @@ public final class AvroConverterSourceMapping {
         f.name(), "cannot map record field to an Avro field ('" + f.typeUrl() + "')");
   }
 
-  private static Element wktFromRecord(Field f, String wkt, String setter, String accessor) {
+  private static Element wktFromRecord(String wkt, String setter, String accessor) {
     return switch (wkt) {
       // No-op: the record type equals the Avro type (both nullable; String is a CharSequence).
       case "google.protobuf.Timestamp",
@@ -491,7 +486,7 @@ public final class AvroConverterSourceMapping {
       // Duration: java.time.Duration <-> avro.wkt.Duration {seconds: long, nanos: int}.
       case "google.protobuf.Duration" ->
           Element.expr(
-              "@0(@1 == null ? null : new @2(@1.getSeconds(), @1.getNano()))",
+              "@0(@1 == null ? null : new @2(@1.toSeconds(), (int) (@1.toNanos() - @1.toSeconds() * 1_000_000_000L)))",
               setter,
               accessor,
               TypeRef.named(AvroSchemaGenerator.WKT_NAMED_NAMESPACE, "Duration"));

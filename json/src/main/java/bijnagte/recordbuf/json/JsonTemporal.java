@@ -144,7 +144,7 @@ public final class JsonTemporal {
 
     @Override
     public Timestamp deserialize(JsonParser p, DeserializationContext ctxt) {
-      return readTimestamp(p.getText(), p);
+      return readTimestamp(p.getString(), p);
     }
   }
 
@@ -172,7 +172,7 @@ public final class JsonTemporal {
 
     @Override
     public Timestamp deserialize(JsonParser p, DeserializationContext ctxt) {
-      return readTimestamp(p.getText(), p);
+      return readTimestamp(p.getString(), p);
     }
   }
 
@@ -200,7 +200,7 @@ public final class JsonTemporal {
 
     @Override
     public Duration deserialize(JsonParser p, DeserializationContext ctxt) {
-      return readDuration(p.getText(), p);
+      return readDuration(p.getString(), p);
     }
   }
 
@@ -228,7 +228,7 @@ public final class JsonTemporal {
 
     @Override
     public Duration deserialize(JsonParser p, DeserializationContext ctxt) {
-      return readDuration(p.getText(), p);
+      return readDuration(p.getString(), p);
     }
   }
 

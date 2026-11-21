@@ -158,7 +158,12 @@ consult it when orienting to the codebase or discussing domain concepts.
   a build failure: most importantly `-Xlint:deprecation` (a use of a `@Deprecated` API), plus the
   default-on `-Xlint:unchecked`, and — in the modules that run Error Prone (`:recordbuf-generator`,
   `:recordbuf-runtime`, `:recordbuf-avro`, `:recordbuf-fixtures`; `:recordbuf-codegen` has no EP) —
-  every default EP finding on that module. Wired for **every** Java subproject; `:recordbuf-options`
+  every default EP finding on that module, with **two scoped exceptions**, each documented at its
+  site: (1) `:recordbuf-fixtures` `disable("UndefinedEquals")` — the check fires on the generated
+  converters' `Map<String, _>` → `Map<CharSequence, _>` avro boundary (avro strings are
+  `CharSequence`), but the keys ARE Strings, so it is a false positive on `.rec` output; (2) the
+  pre-existing NullAway `excludedPaths` per module. Wired for **every** Java subproject;
+  `:recordbuf-options`
   (proto only) is skipped. **Why not Error Prone/Checkstyle:** there is *no* EP or Checkstyle check
   for deprecated API usage — deprecation is a javac lint, so `-Werror` is the gate; EP's blanket
   severity flags (`-XepAllWarningsAsErrors`, etc.) only rescale EP's *own* checks, and a Checkstyle
@@ -174,7 +179,20 @@ consult it when orienting to the codebase or discussing domain concepts.
     what made the fixtures' generated `.rec` enums `NotJavadoc`-clean, which `-Werror` (EP's
     `NotJavadoc` in the fixtures' full default check set) now enforces.
 
-- **Logging: WIRED (`:recordbuf-generator` only) — SLF4J via `slf4j-simple`.** The generator
+- **WKT `Duration` ↔ avro `wkt.Duration` pair (generator `AvroConverterSourceMapping`):** the avro WKT
+  schema is `{seconds: long, nanos: int}` with `nanos` **non-negative** (the canonical
+  seconds+fraction decomposition), so the generated conversion must use the **floor** pair
+  `java.time.Duration.toSeconds()` + the fraction `(int) (toNanos() - toSeconds() * 1_000_000_000L)` —
+  NOT `getSeconds()`/`getNano()` (which is `truncate` toward zero: for a negative duration the pair
+  `{getSeconds(), getNano()}` is the *wrong* avro value, e.g. -1.5s would encode as {-1, +500M} =
+  -0.5s). The reverse direction uses `ofSeconds(avro.getSeconds(), avro.getNanos() % 1_000_000_000L)`.
+  A wrong getter here compiles cleanly (both getters exist on their sides) and EP only caught it at
+  the *pairing* site in the fixtures' generated output — a value-corruption bug the tests never hit
+  because they only used whole-hour durations. Round-trip regression tests:
+  `fixtures/src/test/java/bijnagte/recordbuf/fixture/avro/AvroInteropTest`
+  (`wellKnownDurationRoundTripsThroughAvro`, `wellKnownSubSecondDurationRoundTripsThroughAvro`).
+
+- **Logging: WIRED (`:recordbuf-generator` only) — SLF4J via `slf4j-simple.** The generator
   carries `org.slf4j:slf4j-api` (`implementation`) + `org.slf4j:slf4j-simple` (`runtimeOnly`;
   `slf4j = "2.0.20"` in the catalog — latest GA, 2.1.x still alpha). The plugin's internal
   diagnostics log through it: `Main`'s fatal malformed-request path at `ERROR`, `Main`'s

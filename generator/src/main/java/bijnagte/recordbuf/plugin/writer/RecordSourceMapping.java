@@ -133,15 +133,11 @@ public final class RecordSourceMapping {
             .implementsFqns(m.interfaces().stream().map(TypeRef::fqn).toList())
             .impl(TypeRefs.PROTOBUF_MESSAGE);
 
-    // The record's header components, accumulated in declaration order so the Jackson compact
-    // constructor can mirror the header exactly.
-    List<Component> headerComponents = new ArrayList<>();
     for (Field f : m.fields()) {
       var comp = Component.type(scalarComponentType(f), f.javaName());
       jacksonAnnotation(comp, f, jackson);
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       Component c = comp.build();
-      headerComponents.add(c);
       result.component(c);
     }
     for (Enum e : m.nestedEnums()) {
@@ -158,7 +154,6 @@ public final class RecordSourceMapping {
     for (Oneof oneof : m.oneofs()) {
       OneofEmission oe = emitOneof(oneof, recordRef);
       Component c = oe.component();
-      headerComponents.add(c);
       result.component(c);
       result.nested(oe.iface());
     }
@@ -194,7 +189,6 @@ public final class RecordSourceMapping {
                               + "deserialization.")
                       .build());
       Component extrasComp = extras.build();
-      headerComponents.add(extrasComp);
       result.component(extrasComp);
     }
 
@@ -208,7 +202,6 @@ public final class RecordSourceMapping {
       carrier.annotation(Annotation.of(TypeRef.of("com.fasterxml.jackson.annotation.JsonIgnore")));
     }
     Component carrierComp = carrier.build();
-    headerComponents.add(carrierComp);
     result.component(carrierComp);
 
     if (jackson) {

@@ -118,8 +118,8 @@ public final class DynamicWkt {
       b.setBoolValue(node.booleanValue());
     } else if (node.isNumber()) {
       b.setNumberValue(node.decimalValue().doubleValue());
-    } else if (node.isTextual()) {
-      b.setStringValue(node.textValue());
+    } else if (node.stringValueOpt().isPresent()) {
+      b.setStringValue(node.asString());
     } else if (node.isObject()) {
       b.setStructValue(structFrom((ObjectNode) node));
     } else if (node.isArray()) {
@@ -154,7 +154,7 @@ public final class DynamicWkt {
           b.setValue(valueFrom(valueNode).toByteString());
       case "type.googleapis.com/google.protobuf.ListValue" ->
           b.setValue(listFrom((ArrayNode) valueNode).toByteString());
-      default -> b.setValue(ByteString.copyFrom(Base64.getDecoder().decode(valueNode.textValue())));
+      default -> b.setValue(ByteString.copyFrom(Base64.getDecoder().decode(valueNode.asString())));
     }
     return b.build();
   }

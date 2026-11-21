@@ -208,6 +208,11 @@ tasks.named("compileJava", JavaCompile).configure {
         error("UnnecessarilyFullyQualified")
         error("NullAway")
         option("NullAway:OnlyNullMarked", "true")
+        // UndefinedEquals flags the generated converters' Map<String, _> -> Map<CharSequence, _>
+        // boundary (avro strings are CharSequence; the record side is String). The keys ARE
+        // Strings -- well-defined equality -- so the check is a false positive on the generated
+        // .rec output and is scoped OFF here.
+        disable("UndefinedEquals")
         // Exclude the protobuf-java reference (proto/main/java/ -- unmarked, upstream FQN false
         // positives) and the Avro-specific records the SpecificCompiler emits (third-party code,
         // not recordbuf's own .rec output): the per-message *Avro records, the shared
@@ -225,6 +230,8 @@ tasks.named("compileTestJava", JavaCompile).configure {
         error("UnnecessarilyFullyQualified")
         error("NullAway")
         option("NullAway:OnlyNullMarked", "true")
+        // See the compileJava block above: scoped OFF on the generated .rec converters.
+        disable("UndefinedEquals")
         // Exclude the Avro-specific records Avro's SpecificCompiler generates from the test
         // protos (third-party code, not recordbuf's own .rec output): the per-message *Avro
         // records, the shared RecordbufUnknownField / RecordbufOneofValue carriers, and the WKT

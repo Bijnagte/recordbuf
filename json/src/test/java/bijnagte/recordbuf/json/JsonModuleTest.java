@@ -93,7 +93,7 @@ class JsonModuleTest {
             .build();
     String json = M.writeValueAsString(DynamicWkt.any(any));
     JsonNode node = M.readTree(json);
-    assertTrue(node.get("value").isTextual());
+    assertTrue(node.get("value").stringValueOpt().isPresent());
     Any back = DynamicWkt.anyFrom(node.get("typeUrl").stringValue(), node.get("value"));
     assertEquals(any, back);
   }

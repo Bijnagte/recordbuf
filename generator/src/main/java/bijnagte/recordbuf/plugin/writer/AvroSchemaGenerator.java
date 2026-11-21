@@ -222,7 +222,7 @@ public final class AvroSchemaGenerator {
           JsonNode pair = pairNode(f, name, registry);
           // A named record with no namespace of its own compiles into the DEFAULT package;
           // inherit the document namespace so the specific class lands with the rest.
-          if (pair.path("namespace").asText("").isEmpty()) {
+          if (pair.path("namespace").asString("").isEmpty()) {
             ((ObjectNode) pair).put("namespace", registry.documentNamespace());
           }
           types.add(pair);
@@ -232,7 +232,7 @@ public final class AvroSchemaGenerator {
     // The WKT named types referenced by the reachable graph (Duration/Empty/NullValue), as
     // document types so their specific classes resolve for the consumer.
     for (ObjectNode wkt : wktNamedTypes(registry)) {
-      String wktName = wkt.path("name").asText();
+      String wktName = wkt.path("name").asString();
       if (!addedNames.add(wktName)) {
         throw new AvroUnsupportedException(
             wktName,
@@ -252,7 +252,7 @@ public final class AvroSchemaGenerator {
                 + "cannot disambiguate");
       }
       ObjectNode oneofRec = oneofValueRecord();
-      if (oneofRec.path("namespace").asText("").isEmpty()) {
+      if (oneofRec.path("namespace").asString("").isEmpty()) {
         oneofRec.put("namespace", registry.documentNamespace());
       }
       types.add(oneofRec);
@@ -265,7 +265,7 @@ public final class AvroSchemaGenerator {
               + "cannot disambiguate");
     }
     ObjectNode entry = unknownFieldsEntryRecord(registry);
-    if (entry.path("namespace").asText("").isEmpty()) {
+    if (entry.path("namespace").asString("").isEmpty()) {
       entry.put("namespace", registry.documentNamespace());
     }
     types.add(entry);
@@ -715,11 +715,11 @@ public final class AvroSchemaGenerator {
   static List<ObjectNode> dependencyOrder(List<ObjectNode> defs) {
     Set<String> allNames = new LinkedHashSet<>();
     for (ObjectNode d : defs) {
-      allNames.add(d.get("name").asText());
+      allNames.add(d.get("name").asString());
     }
     Map<String, Set<String>> refs = new LinkedHashMap<>();
     for (ObjectNode d : defs) {
-      String name = d.get("name").asText();
+      String name = d.get("name").asString();
       Set<String> r = new LinkedHashSet<>();
       if (d.has("fields")) {
         for (JsonNode f : d.get("fields")) {
@@ -734,7 +734,7 @@ public final class AvroSchemaGenerator {
     while (out.size() < defs.size() && progress) {
       progress = false;
       for (ObjectNode d : defs) {
-        String name = d.get("name").asText();
+        String name = d.get("name").asString();
         if (emitted.contains(name)) continue;
         boolean ready =
             refs.getOrDefault(name, Set.of()).stream()
@@ -747,7 +747,7 @@ public final class AvroSchemaGenerator {
       }
     }
     for (ObjectNode d : defs) {
-      if (!emitted.contains(d.get("name").asText())) out.add(d); // a cycle: leave as-is
+      if (!emitted.contains(d.get("name").asString())) out.add(d); // a cycle: leave as-is
     }
     return out;
   }
@@ -764,7 +764,7 @@ public final class AvroSchemaGenerator {
       return;
     }
     if (type.isObject()) {
-      if ("record".equals(type.path("type").asText(null))) {
+      if ("record".equals(type.path("type").asString(null))) {
         for (JsonNode f : type.get("fields")) {
           collectRefs(f.get("type"), allNames, out);
         }
@@ -778,8 +778,8 @@ public final class AvroSchemaGenerator {
       if (values != null) collectRefs(values, allNames, out);
       return;
     }
-    if (type.isTextual() && allNames.contains(type.asText())) {
-      out.add(type.asText());
+    if (type.stringValueOpt().isPresent() && allNames.contains(type.asString())) {
+      out.add(type.asString());
     }
   }
 
@@ -904,10 +904,11 @@ public final class AvroSchemaGenerator {
     if (!typeNode.isArray()) return;
     for (JsonNode branch : typeNode) {
       if (branch.isObject()
-          && ("record".equals(branch.path("type").asText())
-              || "enum".equals(branch.path("type").asText()))
+          && ("record".equals(branch.path("type").asString())
+              || "enum".equals(branch.path("type").asString()))
           && branch.has("name")) {
-        if (seen.add(branch.path("name").asText() + "@" + branch.path("namespace").asText(""))) {
+        if (seen.add(
+            branch.path("name").asString() + "@" + branch.path("namespace").asString(""))) {
           out.add((ObjectNode) branch);
         }
       }

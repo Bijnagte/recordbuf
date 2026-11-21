@@ -148,7 +148,7 @@ class AvroSchemaGeneratorTest {
   private static JsonNode rootField(JsonNode doc, String fieldName) {
     JsonNode fields = doc.get("message").get("fields");
     for (JsonNode f : fields) {
-      if (f.get("name").asText().equals(fieldName)) {
+      if (f.get("name").asString().equals(fieldName)) {
         return f;
       }
     }
@@ -157,7 +157,7 @@ class AvroSchemaGeneratorTest {
 
   private static int typeNameIndex(JsonNode types, String name) {
     for (int i = 0; i < types.size(); i++) {
-      if (types.get(i).get("name").asText().equals(name)) {
+      if (types.get(i).get("name").asString().equals(name)) {
         return i;
       }
     }
@@ -200,15 +200,15 @@ class AvroSchemaGeneratorTest {
 
     JsonNode doc = tree(file("a.proto", "p", root), root, null);
 
-    assertEquals("boolean", rootField(doc, "b").get("type").asText());
-    assertEquals("int", rootField(doc, "i").get("type").asText());
-    assertEquals("int", rootField(doc, "u").get("type").asText());
-    assertEquals("long", rootField(doc, "u64").get("type").asText());
-    assertEquals("long", rootField(doc, "s64").get("type").asText());
-    assertEquals("float", rootField(doc, "f").get("type").asText());
-    assertEquals("double", rootField(doc, "d").get("type").asText());
-    assertEquals("string", rootField(doc, "s").get("type").asText());
-    assertEquals("bytes", rootField(doc, "bytes").get("type").asText());
+    assertEquals("boolean", rootField(doc, "b").get("type").asString());
+    assertEquals("int", rootField(doc, "i").get("type").asString());
+    assertEquals("int", rootField(doc, "u").get("type").asString());
+    assertEquals("long", rootField(doc, "u64").get("type").asString());
+    assertEquals("long", rootField(doc, "s64").get("type").asString());
+    assertEquals("float", rootField(doc, "f").get("type").asString());
+    assertEquals("double", rootField(doc, "d").get("type").asString());
+    assertEquals("string", rootField(doc, "s").get("type").asString());
+    assertEquals("bytes", rootField(doc, "bytes").get("type").asString());
   }
 
   @Test
@@ -237,7 +237,7 @@ class AvroSchemaGeneratorTest {
 
     JsonNode doc = tree(pf, root, null);
 
-    assertEquals("string", rootField(doc, "color").get("type").asText());
+    assertEquals("string", rootField(doc, "color").get("type").asString());
     assertEquals(
         1,
         doc.get("types").size(),
@@ -258,19 +258,19 @@ class AvroSchemaGeneratorTest {
 
     assertEquals(
         "long",
-        rootField(doc, "at").get("type").get(1).get("type").asText(),
+        rootField(doc, "at").get("type").get(1).get("type").asString(),
         "Timestamp fragment's non-null branch is a long with the timestamp-micros logical type");
     JsonNode duration = rootField(doc, "for").get("type");
-    assertEquals("record", duration.get(1).get("type").asText());
+    assertEquals("record", duration.get(1).get("type").asString());
     assertEquals(2, duration.get(1).get("fields").size());
     assertTrue(rootField(doc, "note").get("type").isArray());
-    assertEquals("null", rootField(doc, "note").get("type").get(0).asText());
-    assertEquals("string", rootField(doc, "note").get("type").get(1).asText());
+    assertEquals("null", rootField(doc, "note").get("type").get(0).asString());
+    assertEquals("string", rootField(doc, "note").get("type").get(1).asString());
     assertEquals(
         2,
         doc.get("types").size(),
         "the reachable WKT named type (Duration) + the unknown-fields entry record");
-    assertEquals("RecordbufUnknownField", doc.get("types").get(1).get("name").asText());
+    assertEquals("RecordbufUnknownField", doc.get("types").get(1).get("name").asString());
   }
 
   @Test
@@ -282,10 +282,10 @@ class AvroSchemaGeneratorTest {
 
     JsonNode doc = tree(file("a.proto", "p", root, card), root, null);
 
-    assertEquals("array", rootField(doc, "tags").get("type").get("type").asText());
-    assertEquals("string", rootField(doc, "tags").get("type").get("items").asText());
-    assertEquals("array", rootField(doc, "cards").get("type").get("type").asText());
-    assertEquals("CardAvro", rootField(doc, "cards").get("type").get("items").asText());
+    assertEquals("array", rootField(doc, "tags").get("type").get("type").asString());
+    assertEquals("string", rootField(doc, "tags").get("type").get("items").asString());
+    assertEquals("array", rootField(doc, "cards").get("type").get("type").asString());
+    assertEquals("CardAvro", rootField(doc, "cards").get("type").get("items").asString());
   }
 
   @Test
@@ -300,10 +300,10 @@ class AvroSchemaGeneratorTest {
 
     JsonNode doc = tree(file("a.proto", "p", root, card), root, null);
 
-    assertEquals("map", rootField(doc, "sizes").get("type").get("type").asText());
-    assertEquals("int", rootField(doc, "sizes").get("type").get("values").asText());
-    assertEquals("map", rootField(doc, "cards").get("type").get("type").asText());
-    assertEquals("CardAvro", rootField(doc, "cards").get("type").get("values").asText());
+    assertEquals("map", rootField(doc, "sizes").get("type").get("type").asString());
+    assertEquals("int", rootField(doc, "sizes").get("type").get("values").asString());
+    assertEquals("map", rootField(doc, "cards").get("type").get("type").asString());
+    assertEquals("CardAvro", rootField(doc, "cards").get("type").get("values").asString());
   }
 
   @Test
@@ -312,14 +312,14 @@ class AvroSchemaGeneratorTest {
 
     JsonNode doc = tree(file("a.proto", "p", root), root, null);
 
-    assertEquals("array", rootField(doc, "sizes").get("type").get("type").asText());
-    assertEquals("SizesEntryAvro", rootField(doc, "sizes").get("type").get("items").asText());
+    assertEquals("array", rootField(doc, "sizes").get("type").get("type").asString());
+    assertEquals("SizesEntryAvro", rootField(doc, "sizes").get("type").get("items").asString());
     JsonNode types = doc.get("types");
     assertEquals(2, types.size(), "the entry record plus the unknown-fields entry");
     JsonNode pair = types.get(0);
-    assertEquals("SizesEntryAvro", pair.get("name").asText());
-    assertEquals("int", pair.get("fields").get(0).get("type").asText());
-    assertEquals("int", pair.get("fields").get(1).get("type").asText());
+    assertEquals("SizesEntryAvro", pair.get("name").asString());
+    assertEquals("int", pair.get("fields").get(0).get("type").asString());
+    assertEquals("int", pair.get("fields").get(1).get("type").asString());
   }
 
   @Test
@@ -352,10 +352,10 @@ class AvroSchemaGeneratorTest {
 
     JsonNode union = rootField(doc, "choice").get("type");
     assertTrue(union.isArray());
-    assertEquals("null", union.get(0).asText(), "null first");
+    assertEquals("null", union.get(0).asString(), "null first");
     assertEquals(3, union.size(), "null + the two members");
-    assertEquals("RecordbufOneofValue", union.get(1).asText());
-    assertEquals("CardAvro", union.get(2).asText());
+    assertEquals("RecordbufOneofValue", union.get(1).asString());
+    assertEquals("CardAvro", union.get(2).asString());
   }
 
   @Test
@@ -367,10 +367,10 @@ class AvroSchemaGeneratorTest {
 
     JsonNode trailer =
         doc.get("message").get("fields").get(doc.get("message").get("fields").size() - 1);
-    assertEquals("unknownFields", trailer.get("name").asText());
+    assertEquals("unknownFields", trailer.get("name").asString());
     assertEquals(
-        "array", trailer.get("type").get("type").asText(), "the v1 trailer is a plain array");
-    assertEquals("RecordbufUnknownField", trailer.get("type").get("items").asText());
+        "array", trailer.get("type").get("type").asString(), "the v1 trailer is a plain array");
+    assertEquals("RecordbufUnknownField", trailer.get("type").get("items").asString());
   }
 
   @Test
@@ -381,14 +381,14 @@ class AvroSchemaGeneratorTest {
 
     JsonNode types = doc.get("types");
     JsonNode entry = types.get(types.size() - 1);
-    assertEquals("RecordbufUnknownField", entry.get("name").asText());
-    assertEquals("int", entry.get("fields").get(0).get("type").asText());
-    assertEquals("string", entry.get("fields").get(1).get("type").asText());
+    assertEquals("RecordbufUnknownField", entry.get("name").asString());
+    assertEquals("int", entry.get("fields").get(0).get("type").asString());
+    assertEquals("string", entry.get("fields").get(1).get("type").asString());
     JsonNode value = entry.get("fields").get(2).get("type");
     assertTrue(value.isArray());
-    assertEquals("null", value.get(0).asText());
-    assertEquals("long", value.get(1).asText());
-    assertEquals("bytes", value.get(2).asText());
+    assertEquals("null", value.get(0).asString());
+    assertEquals("long", value.get(1).asString());
+    assertEquals("bytes", value.get(2).asString());
   }
 
   @Test
@@ -398,10 +398,10 @@ class AvroSchemaGeneratorTest {
 
     JsonNode doc = tree(file("a.proto", "a", root), root, table);
 
-    assertEquals("a", doc.get("namespace").asText());
+    assertEquals("a", doc.get("namespace").asString());
     int idx = typeNameIndex(doc.get("types"), "ThingAvro");
     assertTrue(idx >= 0, "the imported type appears in types");
-    assertEquals("b", doc.get("types").get(idx).get("namespace").asText());
+    assertEquals("b", doc.get("types").get(idx).get("namespace").asString());
   }
 
   @Test
@@ -434,7 +434,7 @@ class AvroSchemaGeneratorTest {
     JsonNode doc = tree(file("a.proto", "p", root), root, null);
 
     assertEquals(1, doc.get("message").get("fields").size());
-    assertEquals("unknownFields", doc.get("message").get("fields").get(0).get("name").asText());
+    assertEquals("unknownFields", doc.get("message").get("fields").get(0).get("name").asString());
   }
 
   @Test

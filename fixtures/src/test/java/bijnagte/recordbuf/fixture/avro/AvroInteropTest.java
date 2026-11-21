@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import org.apache.avro.util.ClassSecurityValidator;
 import org.junit.jupiter.api.BeforeAll;
@@ -140,6 +141,46 @@ class AvroInteropTest {
     bijnagte.recordbuf.fixture.bytes.rec.Sample back =
         bijnagte.recordbuf.fixture.bytes.rec.SampleAvroConverter.toRecord(s);
     assertEquals(original, back);
+  }
+
+  // ── WKT duration: the avro pair is the canonical WKT seconds+nanos decomposition ────
+
+  @Test
+  void wellKnownDurationRoundTripsThroughAvro() {
+    // 1h 500ms: whole seconds AND a fractional part -- the pair the generator's
+    // seconds+nanos decomposition must carry both halves of (the pre-fix generator
+    // dropped the fractional 500ms in toRecord).
+    Duration d = Duration.ofMillis(3_600_500);
+    bijnagte.recordbuf.fixture.wellknown.rec.Sample original =
+        bijnagte.recordbuf.fixture.wellknown.rec.Sample.builder().span(d).build();
+
+    bijnagte.recordbuf.fixture.wellknown.SampleAvro s =
+        bijnagte.recordbuf.fixture.wellknown.rec.SampleAvroConverter.fromRecord(original);
+    assertEquals(3600, s.getSpan().getSeconds());
+    assertEquals(500_000_000, s.getSpan().getNanos());
+
+    bijnagte.recordbuf.fixture.wellknown.rec.Sample back =
+        bijnagte.recordbuf.fixture.wellknown.rec.SampleAvroConverter.toRecord(s);
+    assertEquals(d, back.span()); // note: the full record cannot be == compared -- an
+    // empty FieldMask normalizes its avro bridge to null (a documented quirk, orthogonal
+    // to the duration fix under test here).
+  }
+
+  @Test
+  void wellKnownSubSecondDurationRoundTripsThroughAvro() {
+    // sub-second: the {0, nanos} arm of the canonical pair (whole seconds == 0).
+    Duration d = Duration.ofMillis(250);
+    bijnagte.recordbuf.fixture.wellknown.rec.Sample original =
+        bijnagte.recordbuf.fixture.wellknown.rec.Sample.builder().span(d).build();
+
+    bijnagte.recordbuf.fixture.wellknown.SampleAvro s =
+        bijnagte.recordbuf.fixture.wellknown.rec.SampleAvroConverter.fromRecord(original);
+    assertEquals(0, s.getSpan().getSeconds());
+    assertEquals(250_000_000, s.getSpan().getNanos());
+
+    bijnagte.recordbuf.fixture.wellknown.rec.Sample back =
+        bijnagte.recordbuf.fixture.wellknown.rec.SampleAvroConverter.toRecord(s);
+    assertEquals(d, back.span());
   }
 
   // ── Avro binary round-trip (proves SpecificCompiler product is a working Avro type) ───

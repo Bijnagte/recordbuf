@@ -77,8 +77,8 @@ acceptance tests; CONCEPTS.md refresh.
 through JSON (undefined in v1 — a record decoded from binary carrying the binary carrier
 serializes known fields + captured JSON extras, dropping binary-only unknown fields, matching
 protobuf canonical JSON behavior); other bridge formats; a Jackson 3.x (`tools.jackson`) line;
-the `-Werror` gate re-enable (a separate checkpoint — it is currently OFF in the root
-`build.gradle.kts` for the in-flight functional checkpoint).
+the `-Werror` gate re-enable (a separate checkpoint) is DONE — the root `build.gradle.kts` gate is
+ON again (`-Xlint:deprecation,unchecked -Werror`); see the AGENTS.md `-Werror` bullet.
 
 ## 3. Codebase context (verified against the tree)
 
