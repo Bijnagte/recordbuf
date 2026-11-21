@@ -43,13 +43,11 @@ public final class TypeRefs {
 
   // --- Jackson databind node types (the Jackson JSON surface for dynamic WKT fields) ---
   public static final TypeRef OBJECT_NODE =
-      TypeRef.named("com.fasterxml.jackson.databind.node", "ObjectNode");
+      TypeRef.named("tools.jackson.databind.node", "ObjectNode");
   public static final TypeRef ARRAY_NODE =
-      TypeRef.named("com.fasterxml.jackson.databind.node", "ArrayNode");
-  public static final TypeRef JSON_NODE =
-      TypeRef.named("com.fasterxml.jackson.databind", "JsonNode");
-  public static final TypeRef NULL_NODE =
-      TypeRef.named("com.fasterxml.jackson.databind.node", "NullNode");
+      TypeRef.named("tools.jackson.databind.node", "ArrayNode");
+  public static final TypeRef JSON_NODE = TypeRef.named("tools.jackson.databind", "JsonNode");
+  public static final TypeRef NULL_NODE = TypeRef.named("tools.jackson.databind.node", "NullNode");
 
   /**
    * The type of the record's {@code jsonExtras} component (the retained unknown JSON properties —

@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test;
 /**
  * U5 (2026-11-20 Jackson plan): dynamic well-known types resolve to Jackson node types on a {@code
  * recordbuf.jackson}-enabled file. A {@code google.protobuf.Value} field's record component is
- * {@code com.fasterxml.jackson.databind.JsonNode}, its codec arm round-trips through the {@code
+ * {@code tools.jackson.databind.JsonNode}, its codec arm round-trips through the {@code
  * bijnagte.recordbuf.json.DynamicWkt} facade, and the generated JSON renders the node tree
  * natively. On a file WITHOUT the toggle the same field fails loud (R11) with the option that would
  * fix it.

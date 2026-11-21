@@ -2,12 +2,33 @@
 
 **Product contract** — authored in the 2026-11-20 ce-brainstorm session; that draft is superseded by this
 document, and §1 restates the contract as the single source of truth
-**Date:** 2026-11-20 · **Status:** READY FOR IMPLEMENTATION
+**Date:** 2026-11-20 · **Status:** IMPLEMENTED (migrated to the Jackson 3.x line 2026-11-21; see Current state)
 **Related plans:** `2026-11-17-012` Avro structural twin (landed; source of the shelved envelope),
 `2026-11-07-001` native WKT (dynamic-WKT fail-loud it lifts), `2026-11-06-001` Avro schema-jackson
 refactor (the generator already runs on a Jackson tree for `.avsc` — R10 rides the same seam).
 
 ---
+## Current state
+
+Implemented, then migrated onto the **Jackson 3.x** line (2026-11-21): the catalog pins
+`jackson = "3.1.8"` via `tools.jackson:jackson-bom`, and a separate `jackson-annotations = "2.21"`
+version keeps the `com.fasterxml.jackson` annotations jar (the 3.x line stays on its own 2.21.x
+cadence; the handoff's `2.21.0` coordinate does not exist on Central). Consequences of the split
+world: `:recordbuf-json` and the generator run on `tools.jackson` (core/databind), while the
+**generated code and `JsonPayload` keep the `com.fasterxml.jackson.annotation` annotations** — a
+deliberate decision, since databind 3.x reads that very package (verified from its
+`AnnotationIntrospector`). The generated `tools.jackson.databind.JsonNode`/`ObjectNode`/`ArrayNode`/
+`NullNode` references live on the 3.x `tools.*` package. `JsonNode.TextNode` is `StringNode` in
+3.x, `registerModule` is gone in favor of
+`om.rebuild().addModule(m).build()`, `JsonNode.fields()` is `properties()`, and
+`writeXField` conveniences are `writeName(...).writeX(...)`.
+
+The migration also fixed a latent bug 2.x masked: the generator's Timestamp `.avsc` fragment
+literal carried a stray trailing `}` that 2.x `readTree` silently tolerated and 3.x rejects —
+removed in `AvroSchemaGenerator`.
+
+Note: P3's original "bump to 2.23.0" pin is superseded by this 3.x line; the
+`2026-11-06-001` Avro schema-jackson plan's 2.22.1-BOM-alignment rationale is likewise historical.
 
 ## 1. Product contract
 

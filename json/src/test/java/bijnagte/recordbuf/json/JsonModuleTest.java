@@ -3,10 +3,6 @@ package bijnagte.recordbuf.json;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.protobuf.Any;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Duration;
@@ -17,6 +13,10 @@ import com.google.protobuf.Timestamp;
 import com.google.protobuf.Value;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.module.SimpleModule;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * U3 (2026-11-20 Jackson plan): the :recordbuf-json helper surface — the structural WKT ↔ node
@@ -77,8 +77,8 @@ class JsonModuleTest {
             .build();
     String json = M.writeValueAsString(DynamicWkt.any(any));
     JsonNode node = M.readTree(json);
-    assertEquals("type.googleapis.com/google.protobuf.Struct", node.get("typeUrl").textValue());
-    Any back = DynamicWkt.anyFrom(node.get("typeUrl").textValue(), node.get("value"));
+    assertEquals("type.googleapis.com/google.protobuf.Struct", node.get("typeUrl").stringValue());
+    Any back = DynamicWkt.anyFrom(node.get("typeUrl").stringValue(), node.get("value"));
     assertEquals(any, back);
   }
 
@@ -94,7 +94,7 @@ class JsonModuleTest {
     String json = M.writeValueAsString(DynamicWkt.any(any));
     JsonNode node = M.readTree(json);
     assertTrue(node.get("value").isTextual());
-    Any back = DynamicWkt.anyFrom(node.get("typeUrl").textValue(), node.get("value"));
+    Any back = DynamicWkt.anyFrom(node.get("typeUrl").stringValue(), node.get("value"));
     assertEquals(any, back);
   }
 
@@ -118,9 +118,7 @@ class JsonModuleTest {
     m.addSerializer(new JsonTemporal.DurationIsoSerializer());
     m.addDeserializer(Timestamp.class, new JsonTemporal.TimestampIsoDeserializer());
     m.addDeserializer(Duration.class, new JsonTemporal.DurationIsoDeserializer());
-    ObjectMapper om = new ObjectMapper();
-    om.registerModule(m);
-    return om;
+    return new ObjectMapper().rebuild().addModule(m).build();
   }
 
   @Test
@@ -137,12 +135,11 @@ class JsonModuleTest {
     SimpleModule m = new SimpleModule();
     m.addSerializer(new JsonTemporal.TimestampCanonicalSerializer());
     m.addDeserializer(Timestamp.class, new JsonTemporal.TimestampCanonicalDeserializer());
-    ObjectMapper om = new ObjectMapper();
-    om.registerModule(m);
+    ObjectMapper om = new ObjectMapper().rebuild().addModule(m).build();
     String json = om.writeValueAsString(t);
     // the documented proto3 canonical shape: seconds as an int64-as-string, nanos as a number.
     JsonNode node = M.readTree(json);
-    assertEquals("1763614896", node.get("seconds").textValue());
+    assertEquals("1763614896", node.get("seconds").stringValue());
     assertEquals(42, node.get("nanos").intValue());
     assertEquals(t, om.readValue(json, Timestamp.class));
   }
@@ -155,8 +152,7 @@ class JsonModuleTest {
     m.addSerializer(new JsonTemporal.DurationIsoSerializer());
     m.addDeserializer(Timestamp.class, new JsonTemporal.TimestampIsoDeserializer());
     m.addDeserializer(Duration.class, new JsonTemporal.DurationCanonicalDeserializer());
-    ObjectMapper om = new ObjectMapper();
-    om.registerModule(m);
+    ObjectMapper om = new ObjectMapper().rebuild().addModule(m).build();
     assertEquals(
         Timestamp.newBuilder().setSeconds(1_763_614_896L).setNanos(42).build(),
         om.readValue("{\"seconds\":\"1763614896\",\"nanos\":42}", Timestamp.class));

@@ -7,13 +7,6 @@ import bijnagte.recordbuf.plugin.model.FileTable;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.Oneof;
 import bijnagte.recordbuf.plugin.model.ProtoFile;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectWriter;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -21,6 +14,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectWriter;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The Avro schema ({@code .avsc}) emitter, refactored (T3) off hand-built JSON strings into a real
@@ -790,7 +789,7 @@ public final class AvroSchemaGenerator {
   public static String pretty(JsonNode node) {
     try {
       return PRETTY.writeValueAsString(node);
-    } catch (JsonProcessingException impossible) {
+    } catch (JacksonException impossible) {
       throw new IllegalStateException("pretty-printing a schema tree must not throw", impossible);
     }
   }
@@ -799,19 +798,19 @@ public final class AvroSchemaGenerator {
   static String compact(JsonNode node) {
     try {
       return MAPPER.writeValueAsString(node);
-    } catch (JsonProcessingException impossible) {
+    } catch (JacksonException impossible) {
       throw new IllegalStateException("serializing a schema tree must not throw", impossible);
     }
   }
 
   private static JsonNode text(String value) {
-    return MAPPER.getNodeFactory().textNode(value);
+    return MAPPER.getNodeFactory().stringNode(value);
   }
 
   private static JsonNode tree(String json) {
     try {
       return MAPPER.readTree(json);
-    } catch (IOException impossible) {
+    } catch (JacksonException impossible) {
       throw new IllegalStateException("the WKT fragment literals must always parse", impossible);
     }
   }
@@ -835,7 +834,7 @@ public final class AvroSchemaGenerator {
     var m = new LinkedHashMap<String, JsonNode>();
     m.put(
         "google.protobuf.Timestamp",
-        tree("[\"null\",{\"type\":\"long\",\"logicalType\":\"timestamp-micros\"}]}"));
+        tree("[\"null\",{\"type\":\"long\",\"logicalType\":\"timestamp-micros\"}]"));
     m.put(
         "google.protobuf.Duration",
         tree(

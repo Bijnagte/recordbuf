@@ -36,6 +36,11 @@ dependencies {
     // the node types (and one coherent Jackson version) transitively.
     api(platform(libs.jackson.bom))
     api(libs.jackson.databind)
+    // The 3.x line keeps the annotations jar on the 2.21.x line (the com.fasterxml.jackson package,
+    // versioned independently of the tools.jackson data formats): generated records and the
+    // JsonPayload envelope are annotated with @JsonProperty / @JsonCreator / @JsonValue from that
+    // jar, so it is part of this module's API surface for consumers of generated code.
+    api(libs.jackson.annotations)
 
     // The temporal format enum (bijnagte.recordbuf.codegen.source.JacksonTemporalFormat) that
     // generated temporal codecs switch on -- exposed so consumers of :recordbuf-json (and of

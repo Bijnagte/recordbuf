@@ -8,12 +8,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import bijnagte.recordbuf.runtime.UnknownField;
 import bijnagte.recordbuf.runtime.UnknownFields;
 import bijnagte.recordbuf.runtime.WireType;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.StringNode;
 
 /**
  * U6 of the 2026-11-20 Jackson plan: the retained unknown JSON properties fold into the binary
@@ -31,7 +31,7 @@ final class JsonExtrasTest {
   @Test
   void foldAddsOneLengthDelimitedEntryPerRetainedProperty() {
     UnknownFields folded =
-        JsonExtras.fold(UnknownFields.of(List.of()), Map.of("answer", TextNode.valueOf("42")));
+        JsonExtras.fold(UnknownFields.of(List.of()), Map.of("answer", StringNode.valueOf("42")));
     assertEquals(1, folded.fields().size());
     UnknownField entry = folded.fields().get(0);
     assertEquals(WireType.LENGTH_DELIMITED, entry.wireType());
@@ -56,7 +56,8 @@ final class JsonExtrasTest {
 
   @Test
   void reFoldingTheSamePropertiesIsIdempotent() {
-    Map<String, JsonNode> extras = Map.of("a", TextNode.valueOf("1"), "b", TextNode.valueOf("2"));
+    Map<String, JsonNode> extras =
+        Map.of("a", StringNode.valueOf("1"), "b", StringNode.valueOf("2"));
     UnknownFields once = JsonExtras.fold(UnknownFields.of(List.of()), extras);
     UnknownFields twice = JsonExtras.fold(once, extras);
     assertEquals(once, twice);

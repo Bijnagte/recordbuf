@@ -7,8 +7,6 @@ import bijnagte.recordbuf.plugin.model.ProtoFile;
 import bijnagte.recordbuf.plugin.writer.AvroConverterSourceMapping;
 import bijnagte.recordbuf.plugin.writer.AvroRegistry;
 import bijnagte.recordbuf.plugin.writer.AvroSchemaGenerator;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -18,6 +16,8 @@ import java.util.Comparator;
 import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.avro.compiler.specific.SpecificCompiler;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * The Avro wire-format bridge: the concrete {@link FormatBridge} that, for an enabled file, adds a

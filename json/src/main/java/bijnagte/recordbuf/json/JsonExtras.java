@@ -3,13 +3,13 @@ package bijnagte.recordbuf.json;
 import bijnagte.recordbuf.runtime.UnknownField;
 import bijnagte.recordbuf.runtime.UnknownFields;
 import bijnagte.recordbuf.runtime.WireType;
-import com.fasterxml.jackson.databind.JsonNode;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Wire-folds the record's retained unknown JSON properties into the binary unknown-field carrier

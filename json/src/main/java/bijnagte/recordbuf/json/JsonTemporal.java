@@ -1,21 +1,20 @@
 package bijnagte.recordbuf.json;
 
 import bijnagte.recordbuf.codegen.source.JacksonTemporalFormat;
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.JsonSerializer;
-import com.fasterxml.jackson.databind.SerializerProvider;
 import com.google.protobuf.Duration;
 import com.google.protobuf.Timestamp;
-import java.io.IOException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.core.JsonParser;
+import tools.jackson.core.JsonToken;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.ValueSerializer;
 
 /**
  * JSON codecs for the temporal well-known types (the U3 module of the 2026-11-20 Jackson plan).
@@ -67,21 +66,21 @@ public final class JsonTemporal {
     return Duration.newBuilder().setSeconds(jd.getSeconds()).setNanos(jd.getNano()).build();
   }
 
-  static void writeCanonical(Timestamp t, JsonGenerator gen) throws IOException {
+  static void writeCanonical(Timestamp t, JsonGenerator gen) {
     gen.writeStartObject();
-    gen.writeStringField("seconds", Long.toString(t.getSeconds()));
-    gen.writeNumberField("nanos", t.getNanos());
+    gen.writeName("seconds").writeString(Long.toString(t.getSeconds()));
+    gen.writeName("nanos").writeNumber(t.getNanos());
     gen.writeEndObject();
   }
 
-  static void writeCanonical(Duration d, JsonGenerator gen) throws IOException {
+  static void writeCanonical(Duration d, JsonGenerator gen) {
     gen.writeStartObject();
-    gen.writeStringField("seconds", Long.toString(d.getSeconds()));
-    gen.writeNumberField("nanos", d.getNanos());
+    gen.writeName("seconds").writeString(Long.toString(d.getSeconds()));
+    gen.writeName("nanos").writeNumber(d.getNanos());
     gen.writeEndObject();
   }
 
-  static Timestamp readTimestamp(String text, JsonParser p) throws IOException {
+  static Timestamp readTimestamp(String text, JsonParser p) {
     if (p.currentToken() == JsonToken.START_OBJECT) {
       long seconds = 0;
       int nanos = 0;
@@ -101,7 +100,7 @@ public final class JsonTemporal {
     return parseIsoTimestamp(text);
   }
 
-  static Duration readDuration(String text, JsonParser p) throws IOException {
+  static Duration readDuration(String text, JsonParser p) {
     if (p.currentToken() == JsonToken.START_OBJECT) {
       long seconds = 0;
       int nanos = 0;
@@ -122,7 +121,7 @@ public final class JsonTemporal {
   }
 
   /** Serializes a {@link Timestamp} as an RFC 3339 / ISO 8601 string. */
-  public static final class TimestampIsoSerializer extends JsonSerializer<Timestamp> {
+  public static final class TimestampIsoSerializer extends ValueSerializer<Timestamp> {
 
     @Override
     public Class<Timestamp> handledType() {
@@ -130,14 +129,13 @@ public final class JsonTemporal {
     }
 
     @Override
-    public void serialize(Timestamp value, JsonGenerator gen, SerializerProvider serializers)
-        throws IOException {
+    public void serialize(Timestamp value, JsonGenerator gen, SerializationContext serializers) {
       gen.writeString(toIso(value));
     }
   }
 
   /** Reads a {@link Timestamp} given as an ISO string or the canonical object. */
-  public static final class TimestampIsoDeserializer extends JsonDeserializer<Timestamp> {
+  public static final class TimestampIsoDeserializer extends ValueDeserializer<Timestamp> {
 
     @Override
     public Class<Timestamp> handledType() {
@@ -145,13 +143,13 @@ public final class JsonTemporal {
     }
 
     @Override
-    public Timestamp deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+    public Timestamp deserialize(JsonParser p, DeserializationContext ctxt) {
       return readTimestamp(p.getText(), p);
     }
   }
 
   /** Serializes a {@link Timestamp} in the documented proto3 canonical shape. */
-  public static final class TimestampCanonicalSerializer extends JsonSerializer<Timestamp> {
+  public static final class TimestampCanonicalSerializer extends ValueSerializer<Timestamp> {
 
     @Override
     public Class<Timestamp> handledType() {
@@ -159,14 +157,13 @@ public final class JsonTemporal {
     }
 
     @Override
-    public void serialize(Timestamp value, JsonGenerator gen, SerializerProvider serializers)
-        throws IOException {
+    public void serialize(Timestamp value, JsonGenerator gen, SerializationContext serializers) {
       writeCanonical(value, gen);
     }
   }
 
   /** Reads a {@link Timestamp} given as the canonical object or an ISO string. */
-  public static final class TimestampCanonicalDeserializer extends JsonDeserializer<Timestamp> {
+  public static final class TimestampCanonicalDeserializer extends ValueDeserializer<Timestamp> {
 
     @Override
     public Class<Timestamp> handledType() {
@@ -174,13 +171,13 @@ public final class JsonTemporal {
     }
 
     @Override
-    public Timestamp deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+    public Timestamp deserialize(JsonParser p, DeserializationContext ctxt) {
       return readTimestamp(p.getText(), p);
     }
   }
 
   /** Serializes a {@link Duration} as an ISO 8601 string. */
-  public static final class DurationIsoSerializer extends JsonSerializer<Duration> {
+  public static final class DurationIsoSerializer extends ValueSerializer<Duration> {
 
     @Override
     public Class<Duration> handledType() {
@@ -188,14 +185,13 @@ public final class JsonTemporal {
     }
 
     @Override
-    public void serialize(Duration value, JsonGenerator gen, SerializerProvider serializers)
-        throws IOException {
+    public void serialize(Duration value, JsonGenerator gen, SerializationContext serializers) {
       gen.writeString(toIso(value));
     }
   }
 
   /** Reads a {@link Duration} given as an ISO string or the canonical object. */
-  public static final class DurationIsoDeserializer extends JsonDeserializer<Duration> {
+  public static final class DurationIsoDeserializer extends ValueDeserializer<Duration> {
 
     @Override
     public Class<Duration> handledType() {
@@ -203,13 +199,13 @@ public final class JsonTemporal {
     }
 
     @Override
-    public Duration deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+    public Duration deserialize(JsonParser p, DeserializationContext ctxt) {
       return readDuration(p.getText(), p);
     }
   }
 
   /** Serializes a {@link Duration} in the documented proto3 canonical shape. */
-  public static final class DurationCanonicalSerializer extends JsonSerializer<Duration> {
+  public static final class DurationCanonicalSerializer extends ValueSerializer<Duration> {
 
     @Override
     public Class<Duration> handledType() {
@@ -217,14 +213,13 @@ public final class JsonTemporal {
     }
 
     @Override
-    public void serialize(Duration value, JsonGenerator gen, SerializerProvider serializers)
-        throws IOException {
+    public void serialize(Duration value, JsonGenerator gen, SerializationContext serializers) {
       writeCanonical(value, gen);
     }
   }
 
   /** Reads a {@link Duration} given as the canonical object or an ISO string. */
-  public static final class DurationCanonicalDeserializer extends JsonDeserializer<Duration> {
+  public static final class DurationCanonicalDeserializer extends ValueDeserializer<Duration> {
 
     @Override
     public Class<Duration> handledType() {
@@ -232,19 +227,19 @@ public final class JsonTemporal {
     }
 
     @Override
-    public Duration deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+    public Duration deserialize(JsonParser p, DeserializationContext ctxt) {
       return readDuration(p.getText(), p);
     }
   }
 
   /** The (de)serializer class pair for the given temporal message type and format. */
   public static class Coords {
-    public final Class<? extends JsonSerializer<?>> serializer;
-    public final Class<? extends JsonDeserializer<?>> deserializer;
+    public final Class<? extends ValueSerializer<?>> serializer;
+    public final Class<? extends ValueDeserializer<?>> deserializer;
 
     public Coords(
-        Class<? extends JsonSerializer<?>> serializer,
-        Class<? extends JsonDeserializer<?>> deserializer) {
+        Class<? extends ValueSerializer<?>> serializer,
+        Class<? extends ValueDeserializer<?>> deserializer) {
       this.serializer = serializer;
       this.deserializer = deserializer;
     }

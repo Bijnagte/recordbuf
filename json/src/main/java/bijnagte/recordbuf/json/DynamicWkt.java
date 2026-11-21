@@ -1,12 +1,5 @@
 package bijnagte.recordbuf.json;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.NullNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import com.google.protobuf.Any;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -17,6 +10,13 @@ import com.google.protobuf.Value;
 import com.google.protobuf.Value.KindCase;
 import java.io.IOException;
 import java.util.Base64;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.NullNode;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.StringNode;
 
 /**
  * Converts between the structural well-known types and their Jackson node shapes (the U3 module of
@@ -53,7 +53,7 @@ public final class DynamicWkt {
     return switch (kind) {
       case NULL_VALUE -> F.nullNode();
       case NUMBER_VALUE -> F.numberNode(value.getNumberValue());
-      case STRING_VALUE -> new TextNode(value.getStringValue());
+      case STRING_VALUE -> new StringNode(value.getStringValue());
       case BOOL_VALUE -> value.getBoolValue() ? F.booleanNode(true) : F.booleanNode(false);
       case STRUCT_VALUE -> struct(value.getStructValue());
       case LIST_VALUE -> list(value.getListValue());
@@ -105,9 +105,7 @@ public final class DynamicWkt {
   /** Rebuilds a {@link Struct} from a JSON object node. */
   public static Struct structFrom(ObjectNode node) {
     Struct.Builder b = Struct.newBuilder();
-    node.fields()
-        .forEachRemaining(
-            entry -> b.putFields(entry.getKey(), valueFrom((JsonNode) entry.getValue())));
+    node.properties().forEach(entry -> b.putFields(entry.getKey(), valueFrom(entry.getValue())));
     return b.build();
   }
 
