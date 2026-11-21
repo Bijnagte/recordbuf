@@ -48,6 +48,12 @@ dependencies {
     // decision).
     api(libs.protobuf)
 
+    // The binary unknown-field carrier (bijnagte.recordbuf.runtime.UnknownFields): the
+    // retained unknown JSON properties are folded into it for the wire (U6). Consumers of
+    // :recordbuf-json already pull :recordbuf-runtime transitively (generated records
+    // implement ProtobufMessage), so this adds nothing new to their classpaths.
+    api(project(":recordbuf-runtime"))
+
     testImplementation(libs.jspecify)
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)

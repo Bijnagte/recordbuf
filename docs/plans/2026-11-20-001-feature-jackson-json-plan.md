@@ -261,16 +261,39 @@ visible in the generated output or a passing test before the next begins.
 
 ### U6 — Unknown JSON properties: retained via any-getter/any-setter (M)
 
-- **What:** on opted-in records, a non-component `final Map<String, JsonNode>` carrier
-  (initialized in the compact ctor, `@JsonIgnore`d from bean introspection) plus
-  `@JsonAnyGetter`/`@JsonAnySetter` (a getter returning the map, a setter adding to it). Jackson
-  reads unrecognized JSON properties into the map and re-emits them on serialize — R6. The
-  carrier is orthogonal to the binary `UnknownFields` carrier (R7); a binary-decoded record
-  serializes known fields + captured JSON extras only.
-- **Files:** `generator/.../writer/RecordSourceMapping.java` (+ `Runtime`-side helper only if the
-  map plumbing wants one — prefer inline generated code, no new runtime class).
-- **Verification:** generator unit tests: emission present iff opted in, carrier hidden from bean
-  introspection; round-trip via a real `ObjectMapper` is proven in U10 (AE3).
+- **What:** on opted-in records, the retained unknown JSON properties are a record **component**
+  `Map<String, JsonNode> jsonExtras` annotated `@JsonIgnore @JsonAnyGetter @JsonAnySetter`
+  (plus `@Nullable` — Jackson passes null when no unknown properties were present) with a
+  **compact (no-parameter) constructor** that normalizes every construction path — Jackson's
+  implicit creator, direct `new`, and the builder (R1): null singular scalars are re-bound to
+  their proto3 defaults (an explicit JSON null or a missing property; fields whose builder
+  default is `null` — presence-tracked — and Java **primitive** components — never null,
+  Jackson maps onto them — are skipped), the carrier `null` → `empty()`, and null extras → a
+  fresh mutable map. The user-defined compact constructor **must be `public`** (javac access
+  rule vs. the canonical one) and carries a generated Javadoc (the fixtures run EP
+  `NotJavadoc` + `-Werror`). **No accessor methods** — Jackson honors the annotations on the
+  record parameter/accessor: the map projects flat onto the JSON object on serialize and
+  absorbs unrecognized properties into itself on deserialize (R6). The builder carries a
+  matching `@Nullable` storage field + setter (defensively copied in the copy constructor),
+  the codec's decode passes a `null` extras argument (a decoded record has an empty map — the
+  retained bytes still round-trip through the binary `UnknownFields` carrier, R7), and its
+  encode folds the map into the carrier via the `:recordbuf-json` `JsonExtras.fold` helper
+  (idempotent: entries already in the carrier are not re-added).
+  - **Known gap — `bytes` value mapping (unowned):** the plan never assigns the proto3-JSON
+    base64 string mapping for `bytes` fields, and a plain `ObjectMapper` serializes the
+    `Bytes` object as a Bean (`{"empty":true}`). A Jackson module or per-field (de)serializer
+    is needed — **no unit currently owns it** (U8 is temporal-only); extend U8 or add a
+    `:recordbuf-json` module.
+    bytes field's Jackson round-trip is unsupported (U10 AE3 must not include one).
+- **Files:** `generator/.../writer/RecordSourceMapping.java` (component + compact ctor +
+  builder + `TypeRefs.JSON_NODE_MAP`), `codegen/.../source/Constructor.java` +
+  `codegen/.../SourceRenderer.java` (the `compact` flag — public no-parameter constructor),
+  `generator/.../writer/CodecSourceMapping.java` (decode
+  null arg + encode fold), `json/.../json/JsonExtras.java` (the fold helper — a `:recordbuf-json`
+  class, not a new `:recordbuf-runtime` class).
+- **Verification:** generator unit tests: emission present iff opted in; jackson-off output
+  byte-identical to the pre-feature output; `:recordbuf-json` unit tests for the fold
+  (idempotency, varint framing); round-trip via a real `ObjectMapper` is proven in U10 (AE3).
 
 ### U7 — Oneofs: flat + discriminator (M)
 

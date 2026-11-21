@@ -7,7 +7,9 @@ import bijnagte.recordbuf.codegen.source.CommaList;
 import bijnagte.recordbuf.codegen.source.Component;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
+import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.InterfaceSpec;
+import bijnagte.recordbuf.codegen.source.Javadoc;
 import bijnagte.recordbuf.codegen.source.Method;
 import bijnagte.recordbuf.codegen.source.Param;
 import bijnagte.recordbuf.codegen.source.RawExpr;
@@ -113,7 +115,10 @@ public final class RecordSourceMapping {
 
   /**
    * Map a message to its source-AST form (record shell + nested {@code Codec}), with the Jackson
-   * surface switch: see {@link #toSource(Message, String, boolean)} for the surface contract.
+   * surface switch: see {@link #toSource(Message, String, boolean)} for the annotation surface.
+   * When {@code jackson} the record additionally carries the {@code jsonExtras} component (the
+   * any-getter/any-setter retention pair) and a compact constructor normalizing it and the carrier,
+   * and the codec folds the map into the carrier on encode and re-seeds it on decode.
    */
   public static RecordSpec toSourceWithCodec(Message m, boolean jackson) {
     TypeRef.Named recordRef = m.type();
@@ -128,11 +133,16 @@ public final class RecordSourceMapping {
             .implementsFqns(m.interfaces().stream().map(TypeRef::fqn).toList())
             .impl(TypeRefs.PROTOBUF_MESSAGE);
 
+    // The record's header components, accumulated in declaration order so the Jackson compact
+    // constructor can mirror the header exactly.
+    List<Component> headerComponents = new ArrayList<>();
     for (Field f : m.fields()) {
       var comp = Component.type(scalarComponentType(f), f.javaName());
       jacksonAnnotation(comp, f, jackson);
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
-      result.component(comp.build());
+      Component c = comp.build();
+      headerComponents.add(c);
+      result.component(c);
     }
     for (Enum e : m.nestedEnums()) {
       result.nested(EnumSourceMapping.toSource(e, recordRef.pkg()));
@@ -147,7 +157,9 @@ public final class RecordSourceMapping {
 
     for (Oneof oneof : m.oneofs()) {
       OneofEmission oe = emitOneof(oneof, recordRef);
-      result.component(oe.component());
+      Component c = oe.component();
+      headerComponents.add(c);
+      result.component(c);
       result.nested(oe.iface());
     }
     // nested map entry records + their codecs, before the main Codec.
@@ -158,14 +170,106 @@ public final class RecordSourceMapping {
       }
     }
 
+    // The unknown-JSON-property retention pair (a file with recordbuf.jackson): the extras map IS
+    // a record component, annotated @JsonIgnore @JsonAnyGetter @JsonAnySetter on the record
+    // parameter (no accessor pair): Jackson honors the annotations on the record parameter
+    // (canonical constructor = the implicit creator) and on the implicit accessor — the map
+    // projects flat onto the JSON object and absorbs unknown JSON properties into itself during
+    // deserialization. Emitted before the carrier so the carrier stays the record's last
+    // component.
+    if (jackson) {
+      var extras =
+          Component.type(TypeRefs.JSON_NODE_MAP, "jsonExtras")
+              .annotation(Annotation.of(TypeRef.of("com.fasterxml.jackson.annotation.JsonIgnore")))
+              .annotation(
+                  Annotation.of(TypeRef.of("com.fasterxml.jackson.annotation.JsonAnyGetter")))
+              .annotation(
+                  Annotation.of(TypeRef.of("com.fasterxml.jackson.annotation.JsonAnySetter")))
+              .annotation(Annotation.NULLABLE)
+              .javadoc(
+                  Javadoc.builder()
+                      .text(
+                          "Retained unknown JSON properties, keyed by property name; projected "
+                              + "flat onto the JSON object and re-folded into this map on "
+                              + "deserialization.")
+                      .build());
+      Component extrasComp = extras.build();
+      headerComponents.add(extrasComp);
+      result.component(extrasComp);
+    }
+
     // always-on unknown-field carrier: the record's last component.
     // The import is registered by the collect() phase via component.type().
+    // Jackson-hidden when the file opts in: the binary carrier never appears in the record's JSON
+    // (the "known fields + retained JSON extras" shape) — re-emitting its captured bytes is the
+    // codec's wire job, not Jackson's.
+    var carrier = Component.type(TypeRefs.UNKNOWN_FIELDS, "unknownFields");
+    if (jackson) {
+      carrier.annotation(Annotation.of(TypeRef.of("com.fasterxml.jackson.annotation.JsonIgnore")));
+    }
+    Component carrierComp = carrier.build();
+    headerComponents.add(carrierComp);
+    result.component(carrierComp);
 
-    result.component(Component.type(TypeRefs.UNKNOWN_FIELDS, "unknownFields").build());
+    if (jackson) {
+      // The record-compact constructor (no parameter list, no parens) is the normalization point:
+      // the components are its implicit parameters, bound to the backing fields, so the body can
+      // re-assign them in place. It runs after the (synthesized, all-args) canonical constructor
+      // on every construction path — the Jackson creator, a direct {@code new}, and the builder —
+      // so each path lands on non-null, mutable state. Jackson passes its own map for the extras
+      // component (or null when no unknown properties were present) and never for the carrier (it
+      // is @JsonIgnore'd — absent from the JSON entirely), so both are normalized here.
+      //
+      // A *parameterless* form is deliberate: an explicitly declared canonical constructor would
+      // re-stamp the component's annotations onto its own parameters, and {@code @JsonIgnore} /
+      // {@code @JsonAnyGetter} carry no {@code @Target(PARAMETER)} — a javac "annotation
+      // interface not applicable" error. The header carries the any-surface annotations (they bind
+      // to the field and accessor, which is what Jackson reads); the synthesized canonical
+      // constructor needs none. `public_()` is required: JLS 8.10.2 mandates a compact
+      // constructor's access match the canonical constructor's — a public record needs a
+      // public compact constructor (a bare one is a javac "invalid canonical constructor"
+      // error).
+      Constructor.Builder cc =
+          Constructor.builder()
+              .public_()
+              .compact()
+              .javadoc(
+                  Javadoc.builder()
+                      .text(
+                          GeneratedDocs.MARKER
+                              + " Normalizes the components on every construction path: "
+                              + "null singular scalars become their proto3 defaults, the "
+                              + "carrier becomes empty(), and the retained-JSON-properties map "
+                              + "becomes a fresh mutable map. Jackson's implicit creator, a "
+                              + "direct `new`, and the builder all pass through it.\n")
+                      .build());
+      // Per-field null normalization: an explicit JSON null (or a missing property) reaches the
+      // component as null, and proto3 says a missing singular scalar is its default — so null is
+      // re-bound to the codec default. Fields whose builder default IS null (presence-tracked
+      // message/enum, explicit `optional`, oneof) are skipped: there null means "absent", which
+      // the codec already encodes correctly.
+      for (Field f : m.fields()) {
+        // Skip: a null-default field (presence-tracked — null means "absent") or a Java
+        // primitive component (never null — Jackson maps missing/explicit-null onto the
+        // primitive itself, e.g. 0/false).
+        if (hasNullDefault(f) || f.type() instanceof TypeRef.Primitive) continue;
+        String n = f.javaName();
+        cc.body(Element.expr(RawExpr.of(n + " = " + n + " == null ? @0 : " + n, defaultFor(f))));
+      }
+      cc.body(
+          If.condition("unknownFields == null")
+              .body(Element.expr(RawExpr.of("unknownFields = @0.empty()", TypeRefs.UNKNOWN_FIELDS)))
+              .build());
+      cc.body(
+          Element.expr(
+              RawExpr.of(
+                  "jsonExtras = new java.util.LinkedHashMap<>(jsonExtras == null ? new java.util.LinkedHashMap<>() : jsonExtras)")));
+      result.constructor(cc.build());
+    }
 
     // the fluent builder. Emitted after the carrier and after the codec (a forward
     // reference to the codec's inner-class is resolved by javac's inner-class resolution).
-    BuilderEmission be = emitBuilder(m);
+    BuilderEmission be = emitBuilder(m, jackson);
 
     String codecName = m.name() + "Codec";
     TypeRef.Named codecRef = recordRef.sub(codecName);
@@ -202,7 +306,7 @@ public final class RecordSourceMapping {
                 .build())
 
         // Append the nested Codec, built from the same message model.
-        .nested(CodecSourceMapping.toCodec(m));
+        .nested(CodecSourceMapping.toCodec(m, jackson));
     // Layer B interop — nested Interop class when recordbuf.protobuf_java is set. The
     // protobuf-java ref type is emitted fully-qualified by the TypeCollector's collision policy, so
     // its short name never collides with the record's own name in the same compilation unit.
@@ -216,12 +320,6 @@ public final class RecordSourceMapping {
     return result.build();
   }
 
-  /**
-   * The record component's Java type for a field: read from the model (see {@link Field#type()})
-   * rather than re-deriving it here — the loader already decided the primitive/boxed scalar form
-   * (presence tracked), the {@code List<T>} element, the map's boxed {@code Map<K, V>}, the
-   * referenced record/enum's fully-typed name, and each well-known type's native Java type.
-   */
   /**
    * Attach the Jackson JSON-surface annotation to a component when the file opts in: an explicit
    * {@code @JsonProperty("<jsonName>")} (the resolved name — the proto3 camelCase mapping or the
@@ -241,6 +339,12 @@ public final class RecordSourceMapping {
     }
   }
 
+  /**
+   * The record component's Java type for a field: read from the model (see {@link Field#type()})
+   * rather than re-deriving it here — the loader already decided the primitive/boxed scalar form
+   * (presence tracked), the {@code List<T>} element, the map's boxed {@code Map<K, V>}, the
+   * referenced record/enum's fully-typed name, and each well-known type's native Java type.
+   */
   private static TypeRef scalarComponentType(Field f) {
     // The model's fully-typed reference, verbatim. The renderer's in-scope rule drops a redundant
     // enclosing qualifier for a nested member (a nested type in the same package renders bare
@@ -370,7 +474,7 @@ public final class RecordSourceMapping {
   // - one fluent setter per component
   // - private unknownFields field with default empty()
   // - public build() terminal
-  private static BuilderEmission emitBuilder(Message m) {
+  private static BuilderEmission emitBuilder(Message m, boolean jackson) {
     String recName = m.name();
     TypeRef.Named recordRef = m.type();
     // The nested static Builder class — header first, members accumulated below.
@@ -409,16 +513,23 @@ public final class RecordSourceMapping {
               .build());
     }
     // Carrier storage field with default empty().
-    builderClz
-        .field(
-            Component.type(TypeRefs.UNKNOWN_FIELDS, "unknownFields")
-                .initializer(RawExpr.of("@0.empty()", TypeRefs.UNKNOWN_FIELDS))
-                .private_()
-                .build())
-
-        // The no-arg constructor (Java does not generate an implicit one when a parametered ctor
-        // exists).
-        .constructor(Constructor.builder().private_().body().build());
+    builderClz.field(
+        Component.type(TypeRefs.UNKNOWN_FIELDS, "unknownFields")
+            .initializer(RawExpr.of("@0.empty()", TypeRefs.UNKNOWN_FIELDS))
+            .private_()
+            .build());
+    if (jackson) {
+      // Storage for the jsonExtras component: a fresh mutable map.
+      builderClz.field(
+          Component.type(TypeRefs.JSON_NODE_MAP, "jsonExtras")
+              .annotation(Annotation.NULLABLE)
+              .initializer(RawExpr.of("new java.util.LinkedHashMap<>()"))
+              .private_()
+              .build());
+    }
+    // The no-arg constructor (Java does not generate an implicit one when a parametered ctor
+    // exists).
+    builderClz.constructor(Constructor.builder().private_().body().build());
 
     // The toBuilder copy constructor.
     var copyCtor = Constructor.builder().private_().param(recordRef, "x");
@@ -435,6 +546,11 @@ public final class RecordSourceMapping {
     // M4-C2b-2b-12: oneof component copy.
     for (var oneof : m.oneofs()) {
       copyCtor.body(Element.expr("this.@0 = x.@1()", oneof.componentName(), oneof.componentName()));
+    }
+    if (jackson) {
+      copyCtor.body(
+          Element.of(
+              "this.jsonExtras = new java.util.LinkedHashMap<>(x.jsonExtras == null ? new java.util.LinkedHashMap<>() : x.jsonExtras);"));
     }
     builderClz.constructor(
         copyCtor.body(Element.of("this.unknownFields = x.unknownFields;")).build());
@@ -484,6 +600,20 @@ public final class RecordSourceMapping {
             .param(TypeRefs.UNKNOWN_FIELDS, "unknownFields")
             .body(Element.expr("this.unknownFields = unknownFields"), Element.ret("this"))
             .build());
+    if (jackson) {
+      // The retained unknown JSON properties: the setter defensively copies so a caller passing
+      // an unmodifiable map does not poison the record.
+      builderClz.method(
+          Method.named("jsonExtras")
+              .public_()
+              .returnType(builderType)
+              .param(Param.of(TypeRefs.JSON_NODE_MAP, "jsonExtras", Annotation.NULLABLE))
+              .body(
+                  Element.expr(
+                      "this.jsonExtras = new java.util.LinkedHashMap<>(jsonExtras == null ? new java.util.LinkedHashMap<>() : jsonExtras);"),
+                  Element.ret("this"))
+              .build());
+    }
 
     // build(): constructs the record.
     List<String> ctorArgs = new ArrayList<>();
@@ -494,6 +624,7 @@ public final class RecordSourceMapping {
     for (var oneof : m.oneofs()) {
       ctorArgs.add(oneof.componentName());
     }
+    if (jackson) ctorArgs.add("jsonExtras");
     ctorArgs.add("unknownFields");
     builderClz.method(
         Method.named("build")
@@ -570,6 +701,24 @@ public final class RecordSourceMapping {
       case "double" -> RawExpr.of("0.0");
       default -> RawExpr.of("0");
     };
+  }
+
+  /**
+   * The inverse of the non-null branches of {@link #defaultFor(Field)}: true when that method would
+   * emit {@code null} (a presence-tracked singular message/enum, an explicit {@code optional}, or a
+   * WKT whose zero is absent). The compact constructor skips null-normalizing exactly these fields
+   * — there null means "absent" and must survive construction.
+   */
+  private static boolean hasNullDefault(Field f) {
+    var wkt = WellKnownTypes.resolve(f.typeUrl());
+    if (wkt != null) {
+      // A repeated WKT defaults to a fresh list; a singular WKT defaults to its zero or null.
+      if (f.label() == FieldLabel.REPEATED) return false;
+      return wkt.zeroDefault() == null;
+    }
+    if (f.isNullable()) return true;
+    return (f.kind() == FieldKind.MESSAGE || f.kind() == FieldKind.ENUM)
+        && f.label() != FieldLabel.REPEATED;
   }
 
   /**

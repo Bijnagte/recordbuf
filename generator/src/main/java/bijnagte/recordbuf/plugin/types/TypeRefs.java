@@ -1,6 +1,7 @@
 package bijnagte.recordbuf.plugin.types;
 
 import bijnagte.recordbuf.codegen.source.TypeRef;
+import java.util.List;
 
 /**
  * Shared {@link TypeRef} constants for the fully-qualified names the source mappers (and the model
@@ -50,8 +51,21 @@ public final class TypeRefs {
   public static final TypeRef NULL_NODE =
       TypeRef.named("com.fasterxml.jackson.databind.node", "NullNode");
 
+  /**
+   * The type of the record's {@code jsonExtras} component (the retained unknown JSON properties —
+   * the Jackson any-getter/any-setter surface on a {@code recordbuf.jackson} file).
+   */
+  public static final TypeRef JSON_NODE_MAP =
+      TypeRef.named("java.util", "Map", List.of(TypeRef.STRING, JSON_NODE));
+
   // --- Jackson node<->wire conversion for dynamic WKT fields (:recordbuf-json) ---
   public static final TypeRef DYNAMIC_WKT = TypeRef.of("bijnagte.recordbuf.json.DynamicWkt");
+
+  /**
+   * The retained unknown JSON properties fold helper (:recordbuf-json): the codec folds the
+   * record's {@code jsonExtras} map into the unknown-field carrier on encode.
+   */
+  public static final TypeRef JSON_EXTRAS = TypeRef.of("bijnagte.recordbuf.json.JsonExtras");
 
   // --- Avro interop bridge (bijnagte.recordbuf.avro.*) ---
   public static final TypeRef WKT_AVRO_BRIDGE =

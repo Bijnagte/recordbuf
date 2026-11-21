@@ -49,10 +49,21 @@ public final class CodecSourceMapping {
    * @return the nested {@code ClassSpec} codec node
    */
   public static ClassSpec toCodec(Message m) {
-    return doToCodec(m);
+    return doToCodec(m, false);
   }
 
-  private static ClassSpec doToCodec(Message m) {
+  /**
+   * The nested codec for a {@code recordbuf.jackson} record (J6): the record's retained unknown
+   * JSON properties ({@code jsonExtras} component) are folded into the unknown-field carrier on
+   * encode; on decode the record's canonical constructor is passed a {@code null} extras argument
+   * (normalized to a fresh empty map) — a decoded record has an empty map, and the retained bytes
+   * still round-trip through the carrier.
+   */
+  public static ClassSpec toCodec(Message m, boolean jackson) {
+    return doToCodec(m, jackson);
+  }
+
+  private static ClassSpec doToCodec(Message m, boolean jackson) {
     // Every type the codec body references (encoder/decoder/unknownFields/wire/codecDefaults,
     // plus the HashMap/ArrayList/Bytes constructors and CodecDefaults.<x>() default calls) is now
     // a TypeRef positional arg of a RawExpr, so the renderer's collect walk registers + resolves
@@ -65,13 +76,13 @@ public final class CodecSourceMapping {
         .final_()
         .javadoc(GeneratedDocs.type(null, "Wire codec for the " + recName + " record."))
         .constructor(Constructor.builder().private_().build())
-        .method(encode(m))
-        .method(decode(m))
+        .method(encode(m, jackson))
+        .method(decode(m, jackson))
         .build();
   }
 
   /** The {@code byte[] encode(Message v) throws IOException} method body. */
-  private static Method encode(Message m) {
+  private static Method encode(Message m, boolean jackson) {
     var method =
         Method.named("encode")
             .public_()
@@ -116,17 +127,29 @@ public final class CodecSourceMapping {
     }
 
     // M4-C2b-2b-5: re-emit the unknown-fields carrier, if any, preserving wire-order round-trip.
-    return method
-        .body(
-            If.condition("!v.unknownFields().isEmpty()")
+    // On a recordbuf.jackson file the record's retained unknown JSON properties are folded into
+    // the same carrier first: one synthetic length-delimited unknown field per retained property
+    // (the property name's UTF-8 bytes under its synthetic base-31 field number), so a record
+    // round-tripped through JSON survives the wire exactly as a binary-captured unknown field
+    // does.
+    Element unknownArm =
+        jackson
+            ? If.condition(
+                    "!v.unknownFields().isEmpty() || (v.jsonExtras != null && !v.jsonExtras.isEmpty())")
+                .body(
+                    Element.expr(
+                        "@0.writeUnknown(out, @1.fold(v.unknownFields(), v.jsonExtras))",
+                        TypeRefs.WIRE,
+                        TypeRefs.JSON_EXTRAS))
+                .build()
+            : If.condition("!v.unknownFields().isEmpty()")
                 .body(Element.expr("@0.writeUnknown(out, v.unknownFields())", TypeRefs.WIRE))
-                .build(),
-            Element.ret("enc.finish()"))
-        .build();
+                .build();
+    return method.body(unknownArm, Element.ret("enc.finish()")).build();
   }
 
   /** The {@code Message decode(byte[] inBytes) throws IOException} method body. */
-  private static Method decode(Message m) {
+  private static Method decode(Message m, boolean jackson) {
     var method =
         Method.named("decode")
             .public_()
@@ -261,6 +284,7 @@ public final class CodecSourceMapping {
     for (Field f : m.fields()) allNames.add(f.javaName());
     // oneof components: pass the oneof local (assigned in the tag loop, or null).
     for (var oneof : m.oneofs()) allNames.add(oneof.componentName());
+    if (jackson) allNames.add("null");
     allNames.add("unknown.build()");
     return method.body(Element.ret("new @0(@1)", m.type(), CommaList.of(allNames))).build();
   }
