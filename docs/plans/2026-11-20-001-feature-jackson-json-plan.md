@@ -36,6 +36,10 @@ From the brainstorm. `R##` IDs are stable references for the units below.
 
 - **R1 — Per-file opt-in.** A `recordbuf.jackson` file option (bool, proto tag 50004) is the single
   gate. Opted-in file ⇒ Jackson JSON surface on its records; every other file ⇒ today's output.
+  > **Superseded (default-ON flip):** `recordbuf.jackson` now resolves an *absent* option to
+  > **enabled** — only an explicit `recordbuf.jackson = false` opts a file out of the Jackson
+  > surface (and keeps the byte-identical, dependency-free output). This plan's "opt-in" wording
+  > throughout (R1, R2, U10's "opt-in files", …) is historical to the original design.
 - **R2 — Dependency rule.** Opt-in changes what generated code depends on: records carry Jackson
   annotations and the module pulls in Jackson. Files that don't opt in keep byte-identical,
   dependency-free output.
