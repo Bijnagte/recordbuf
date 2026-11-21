@@ -25,9 +25,9 @@ import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 /**
- * U2 (2026-11-20 Jackson plan): the per-file {@code recordbuf.jackson} toggle and the per-field /
- * per-oneof knobs the model carries for the Jackson JSON surface, read from both the compiled
- * (unknown-field) and uninterpreted option paths.
+ * U2 (2026-11-20 Jackson plan): the per-file {@code recordbuf.jackson} toggle — ON by default, an
+ * explicit false opts out — and the per-field / per-oneof knobs the model carries for the Jackson
+ * JSON surface, read from both the compiled (unknown-field) and uninterpreted option paths.
  */
 @SuppressWarnings("BadImport")
 class JacksonOptionsTest {
@@ -73,9 +73,10 @@ class JacksonOptionsTest {
   void fileToggleVarintPath() throws Exception {
     assertTrue(fileWithToggleVarint(1).jackson());
     assertEquals(false, fileWithToggleVarint(0).jackson());
-    // absent → false (a file without the option generates no Jackson surface).
+    // absent → true (default ON: a file without the option generates the Jackson surface; only an
+    // explicit false opts out).
     FileDescriptorProto fd = FileDescriptorProto.newBuilder().setName("f.proto").build();
-    assertEquals(false, new ModelLoader(new FileTable(""), "pkg").load(fd).jackson());
+    assertTrue(new ModelLoader(new FileTable(""), "pkg").load(fd).jackson());
   }
 
   @Test
@@ -112,13 +113,14 @@ class JacksonOptionsTest {
   private static FileDescriptorProto fileWithField(DescriptorProto msg, boolean jacksonEnabled)
       throws Exception {
     FileOptions.Builder fileOpts = FileOptions.newBuilder();
-    if (jacksonEnabled) {
-      UnknownFieldSet uf =
-          UnknownFieldSet.newBuilder()
-              .addField(50004, UnknownFieldSet.Field.newBuilder().addVarint(1).build())
-              .build();
-      fileOpts.mergeFrom(uf.toByteArray());
-    }
+    // Always write the file toggle explicitly (1 = on, 0 = explicit opt-out): with the default-ON
+    // resolution, "absent" and "false" are no longer equivalent.
+    UnknownFieldSet uf =
+        UnknownFieldSet.newBuilder()
+            .addField(
+                50004, UnknownFieldSet.Field.newBuilder().addVarint(jacksonEnabled ? 1 : 0).build())
+            .build();
+    fileOpts.mergeFrom(uf.toByteArray());
     FileDescriptorProto fd =
         FileDescriptorProto.newBuilder()
             .setName("f.proto")
@@ -149,7 +151,7 @@ class JacksonOptionsTest {
   }
 
   @Test
-  void fieldFormatWithoutFileToggleFailsLoud() throws Exception {
+  void fieldFormatWithExplicitOptOutFailsLoud() throws Exception {
     IllegalStateException e =
         assertThrows(
             IllegalStateException.class, () -> loadFieldWithFormatVarint("canonical", false));
@@ -207,7 +209,7 @@ class JacksonOptionsTest {
   }
 
   @Test
-  void oneofDiscriminatorWithoutFileToggleFailsLoud() {
+  void oneofDiscriminatorWithExplicitOptOutFailsLoud() {
     IllegalStateException e =
         assertThrows(IllegalStateException.class, () -> loadOneof("choice", "kind", false));
     String m = e.getMessage();

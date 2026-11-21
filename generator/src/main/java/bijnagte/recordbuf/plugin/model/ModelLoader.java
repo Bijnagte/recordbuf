@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -43,9 +44,10 @@ public final class ModelLoader {
   // the writers HTML-escape at emit time, so the model stores the user's raw text. Empty by
   // default so the nested load* helpers (which read it) never dereference null.
   private Map<List<Integer>, String> commentPaths = Map.of();
-  // Per-file Jackson toggle (2026-11-20 plan), resolved in load(); a per-field/oneof Jackson knob
-  // on a non-enabled file fails loud against it.
-  private boolean jacksonEnabled = false;
+  // Per-file Jackson toggle (2026-11-20 plan, default ON): resolved in load() — an absent
+  // recordbuf.jackson means the Jackson JSON surface is enabled, and only an explicit false opts
+  // this file out; a per-field/oneof Jackson knob on an opted-out file fails loud against it.
+  private boolean jacksonEnabled = true;
 
   // The three shipped proto extensions from src/main/proto/recordbuf_options.proto:
   //   (recordbuf.java_interface)        on MessageOptions, field 50000
@@ -97,8 +99,11 @@ public final class ModelLoader {
     // file-level location (path []) is deliberately NOT rendered here (D3: file-level dropped).
     this.commentPaths = indexComments(fdp);
     this.jacksonEnabled =
-        jacksonToggleFor(
-            fdp.getOptions().getUnknownFields(), fdp.getOptions().getUninterpretedOptionList());
+        Optional.ofNullable(
+                jacksonToggleFor(
+                    fdp.getOptions().getUnknownFields(),
+                    fdp.getOptions().getUninterpretedOptionList()))
+            .orElse(true);
     List<Message> topMsgs = new ArrayList<>();
     for (int i = 0; i < fdp.getMessageTypeCount(); i++) {
       DescriptorProto m = fdp.getMessageType(i);
@@ -220,8 +225,7 @@ public final class ModelLoader {
         throw new IllegalStateException(
             "recordbuf.json_oneof is set on oneof \""
                 + od.getName()
-                + "\" but the file has no"
-                + " recordbuf.jackson = true");
+                + "\" but the file opts out of the Jackson surface (recordbuf.jackson = false)");
       }
       oneofs.add(
           new Oneof(
@@ -464,8 +468,7 @@ public final class ModelLoader {
       throw new IllegalStateException(
           "recordbuf.jackson_format is set on field \""
               + f.getName()
-              + "\" but the file has no"
-              + " recordbuf.jackson = true");
+              + "\" but the file opts out of the Jackson surface (recordbuf.jackson = false)");
     }
     // The per-field JSON-surface knobs (50006/50007), read from both option paths (mirrors the
     // jackson_format pair) and validated against the file toggle. jsonName defaults to the
@@ -479,8 +482,7 @@ public final class ModelLoader {
       throw new IllegalStateException(
           "recordbuf.json_name / recordbuf.json_ignored is set on field \""
               + f.getName()
-              + "\" but the file has no"
-              + " recordbuf.jackson = true");
+              + "\" but the file opts out of the Jackson surface (recordbuf.jackson = false)");
     }
     String jsonName = !jsonNameOpt.isEmpty() ? jsonNameOpt : JavaNames.camel(f.getName());
 
@@ -646,9 +648,10 @@ public final class ModelLoader {
       if (wkt.isDynamic()) {
         // The dynamic family has no native Java type: it ONLY resolves on a jackson-enabled
         // file, where the component is the WKT's Jackson node type (the node table of the
-        // 2026-11-20 Jackson plan). Off, the feature is absent and generation fails loud
-        // (R11) with the option that would fix it. Any/NullValue stay out of v1: Any's payload
-        // is a typed message the node tree cannot faithfully rebuild (the Avro envelope unit
+        // file, where the component is the WKT's Jackson node type (the node table of the
+        // 2026-11-20 Jackson plan). Opted out (recordbuf.jackson = false), the feature is absent
+        // and generation fails loud (R11) with the option that would fix it. Any/NullValue stay
+        // out of v1: Any's payload
         // owns Any), and NullValue is a zero-arity enum with no node payload.
         String shortName = typeUrl.substring(typeUrl.lastIndexOf('.') + 1);
         if (shortName.equals("Any") || shortName.equals("NullValue")) {
@@ -656,13 +659,16 @@ public final class ModelLoader {
               "well-known type "
                   + typeUrl
                   + " is not supported"
-                  + (jacksonEnabled ? "" : " (and the file has no recordbuf.jackson = true)"));
+                  + (jacksonEnabled
+                      ? ""
+                      : " (and the file opts out of the Jackson surface with recordbuf.jackson = false)"));
         }
         if (!jacksonEnabled) {
           throw new IllegalStateException(
               "well-known type "
                   + typeUrl
-                  + " has no native Java type; set recordbuf.jackson = true on the file to use it as a Jackson node");
+                  + " has no native Java type and the file opts out of the Jackson surface; "
+                  + "remove the recordbuf.jackson = false opt-out to use it as a Jackson node");
         }
         return Objects.requireNonNull(
             wkt.nodeType(), "dynamic WKT " + typeUrl + " has no node type");
@@ -783,13 +789,14 @@ public final class ModelLoader {
   }
 
   /**
-   * Read this file's {@code recordbuf.jackson} bool option, or {@code false} when neither path
-   * carries it (absent and an explicit {@code false} are behaviorally identical: no Jackson
-   * surface). Prefers the compiled path (a resolved extension reaches us as a varint unknown field
-   * at {@code 50004}); falls back to an uninterpreted option whose dotted name equals {@link
-   * #FILE_JACKSON_NAME}.
+   * Read this file's {@code recordbuf.jackson} bool option, or {@code null} when neither path
+   * carries it (the caller applies the default: ON — an absent option enables the Jackson surface,
+   * an explicit {@code false} opts this file out). Prefers the compiled path (a resolved extension
+   * reaches us as a varint unknown field at {@code 50004}); falls back to an uninterpreted option
+   * whose dotted name equals {@link #FILE_JACKSON_NAME}.
    */
-  private static boolean jacksonToggleFor(
+  @Nullable
+  private static Boolean jacksonToggleFor(
       UnknownFieldSet unknownFields, List<UninterpretedOption> uninterpreted) {
     UnknownFieldSet.Field f = unknownFields.getField(FILE_JACKSON_TAG);
     if (!f.getVarintList().isEmpty()) {
@@ -801,7 +808,7 @@ public final class ModelLoader {
         return Boolean.parseBoolean(opt.getStringValue().toStringUtf8());
       }
     }
-    return false;
+    return null;
   }
 
   /**

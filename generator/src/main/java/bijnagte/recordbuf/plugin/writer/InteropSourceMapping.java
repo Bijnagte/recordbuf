@@ -38,13 +38,29 @@ public final class InteropSourceMapping {
 
   /**
    * Returns the nested {@code Interop} {@link ClassSpec} node that converts {@code m} to and from
-   * its protobuf-java reference type.
+   * its protobuf-java reference type, without a Jackson surface.
    *
    * @param m the message model (must have {@code protobufJava()} non-null/non-empty)
    * @param sourceName the source {@code .proto} file name (used in the Javadoc)
    * @return the nested {@code Interop} {@link ClassSpec} node
    */
   public static ClassSpec toInterop(Message m, String sourceName) {
+    return toInterop(m, sourceName, false);
+  }
+
+  /**
+   * Returns the nested {@code Interop} {@link ClassSpec} node that converts {@code m} to and from
+   * its protobuf-java reference type.
+   *
+   * @param m the message model (must have {@code protobufJava()} non-null/non-empty)
+   * @param sourceName the source {@code .proto} file name (used in the Javadoc)
+   * @param jackson when {@code true} (the file opts into recordbuf.jackson) the record carries the
+   *     {@code jsonExtras} component, so {@code from} passes a {@code null} extras argument (the
+   *     record's compact constructor normalizes it) before the empty carrier; a protobuf-java ref
+   *     never carries JSON extras
+   * @return the nested {@code Interop} {@link ClassSpec} node
+   */
+  public static ClassSpec toInterop(Message m, String sourceName, boolean jackson) {
     String refPkg = m.protobufJava();
     if (refPkg == null || refPkg.isEmpty()) {
       throw new IllegalArgumentException("toInterop: protobufJava must be non-null/non-empty");
@@ -67,7 +83,7 @@ public final class InteropSourceMapping {
                 + sourceName
                 + ". Field-by-field conversion only.");
 
-    var fromMethod = emitFrom(m, refType, recType);
+    var fromMethod = emitFrom(m, refType, recType, jackson);
     var toMethod = emitTo(m, refType, recType);
 
     return ClassSpec.named(refType.sub("Interop"))
@@ -82,7 +98,7 @@ public final class InteropSourceMapping {
 
   // -- from(reference) -> record ------------------------------------------------
 
-  private static Method emitFrom(Message m, TypeRef ref, TypeRef rec) {
+  private static Method emitFrom(Message m, TypeRef ref, TypeRef rec, boolean jackson) {
     var method = Method.named("from").public_().static_().returnType(rec).param(ref, "x");
     for (Field f : m.fields()) {
       method.body(fromLocal(f));
@@ -97,6 +113,14 @@ public final class InteropSourceMapping {
     }
     for (Oneof o : m.oneofs()) {
       ctorArgs.add("_" + o.name());
+    }
+    if (jackson) {
+      // The record carries the jsonExtras component between the oneofs and the carrier; a
+      // protobuf-java ref never has JSON extras, so pass null (the record's compact constructor
+      // normalizes null to an empty mutable map).
+      ctorArgs.add(
+          RawExpr.of(
+              "null")); // bare null: the record's nullable jsonExtras component target-types it
     }
     ctorArgs.add(RawExpr.of("@0.empty()", TypeRefs.UNKNOWN_FIELDS));
     return method.body(Element.ret("new @0(@1)", rec, CommaList.of(ctorArgs))).build();

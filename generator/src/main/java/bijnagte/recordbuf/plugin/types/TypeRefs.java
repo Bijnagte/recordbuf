@@ -74,6 +74,7 @@ public final class TypeRefs {
   public static final TypeRef.Named ARRAY_LIST = TypeRef.named("java.util", "ArrayList");
   public static final TypeRef.Named MAP = TypeRef.named("java.util", "Map");
   public static final TypeRef.Named HASH_MAP = TypeRef.named("java.util", "HashMap");
+  public static final TypeRef.Named LINKED_HASH_MAP = TypeRef.named("java.util", "LinkedHashMap");
   public static final TypeRef BYTE_BUFFER = TypeRef.named("java.nio", "ByteBuffer");
   public static final TypeRef ARRAYS = TypeRef.of("java.util.Arrays");
   public static final TypeRef BYTE_STRING = TypeRef.of("com.google.protobuf.ByteString");

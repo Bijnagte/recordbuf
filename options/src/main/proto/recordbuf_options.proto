@@ -35,12 +35,13 @@ extend google.protobuf.EnumOptions {
 // FileDescriptorProto's unknown-fields as a varint at its assigned tag, which the plugin reads
 // by tag without linking this .proto (mirroring how protobuf_java / java_interface are read).
 //
-// (recordbuf.jackson) -- per-file opt-in for the Jackson JSON surface (2026-11-20 Jackson plan).
-// When true, the records generated for this file carry the Jackson annotation surface
+// (recordbuf.jackson) -- per-file toggle for the Jackson JSON surface (2026-11-20 Jackson plan),
+// ENABLED BY DEFAULT; this FILE-level option is the opt-OUT (an explicit false): an absent
+// recordbuf.jackson generates the Jackson annotation surface
 // (@JsonProperty wire names, any-getter/any-setter unknown-property retention, flat +
-// <oneofName>Type discriminator oneofs, node-typed dynamic WKT fields) and the consuming module
-// must put Jackson on the classpath. When absent or false, generation is byte-identical to the
-// dependency-free default. The bool rides the FileDescriptorProto's unknown-fields as a varint
+// <oneofName>Type discriminator oneofs, node-typed dynamic WKT fields), and the consuming module
+// must put Jackson on the classpath; only an explicit false generates the byte-identical,
+// dependency-free output.
 // at its assigned tag, which the plugin reads by tag without linking this .proto.
 extend google.protobuf.FileOptions {
     optional recordbuf.AvroControl avro = 50003;

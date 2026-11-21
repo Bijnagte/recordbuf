@@ -128,11 +128,17 @@ public final class RecordSourceMapping {
             .public_()
             .javadoc(
                 GeneratedDocs.type(
-                    m.comment(), "Auto-generated record for the " + m.name() + " proto message."))
+                    m.comment(),
+                    baseRecordDescription(m)
+                        + (jackson
+                            ? "\n@"
+                                + "param jsonExtras retained unknown JSON properties, keyed by"
+                                + " property name; projected flat onto the JSON object and"
+                                + " re-folded into this map on deserialization"
+                            : ".")))
             .deprecated(m.deprecated())
             .implementsFqns(m.interfaces().stream().map(TypeRef::fqn).toList())
             .impl(TypeRefs.PROTOBUF_MESSAGE);
-
     for (Field f : m.fields()) {
       var comp = Component.type(scalarComponentType(f), f.javaName());
       jacksonAnnotation(comp, f, jackson);
@@ -180,18 +186,12 @@ public final class RecordSourceMapping {
                   Annotation.of(TypeRef.of("com.fasterxml.jackson.annotation.JsonAnyGetter")))
               .annotation(
                   Annotation.of(TypeRef.of("com.fasterxml.jackson.annotation.JsonAnySetter")))
-              .annotation(Annotation.NULLABLE)
-              .javadoc(
-                  Javadoc.builder()
-                      .text(
-                          "Retained unknown JSON properties, keyed by property name; projected "
-                              + "flat onto the JSON object and re-folded into this map on "
-                              + "deserialization.")
-                      .build());
+              .annotation(Annotation.NULLABLE);
       Component extrasComp = extras.build();
       result.component(extrasComp);
+      // The record header's Javadoc (set above) carries the jsonExtras documentation as a @param
+      // tag: record components cannot carry their own Javadoc block (Error Prone's NotJavadoc).
     }
-
     // always-on unknown-field carrier: the record's last component.
     // The import is registered by the collect() phase via component.type().
     // Jackson-hidden when the file opts in: the binary carrier never appears in the record's JSON
@@ -256,7 +256,8 @@ public final class RecordSourceMapping {
       cc.body(
           Element.expr(
               RawExpr.of(
-                  "jsonExtras = new java.util.LinkedHashMap<>(jsonExtras == null ? new java.util.LinkedHashMap<>() : jsonExtras)")));
+                  "jsonExtras = new @0<>(jsonExtras == null ? new @0<>() : jsonExtras)",
+                  TypeRefs.LINKED_HASH_MAP)));
       result.constructor(cc.build());
     }
 
@@ -308,9 +309,13 @@ public final class RecordSourceMapping {
       // CodeGenerator.generateRecord), so its short name occupies the declaring package and the
       // out-of-package protobuf-java reference type sharing the name is emitted fully-qualified by
       // the TypeCollector's collision policy — the ref and the record never collide.
-      result.nested(InteropSourceMapping.toInterop(m, ""));
+      result.nested(InteropSourceMapping.toInterop(m, "", jackson));
     }
     return result.build();
+  }
+
+  private static String baseRecordDescription(Message m) {
+    return "Auto-generated record for the " + m.name() + " proto message.";
   }
 
   /**
@@ -516,7 +521,7 @@ public final class RecordSourceMapping {
       builderClz.field(
           Component.type(TypeRefs.JSON_NODE_MAP, "jsonExtras")
               .annotation(Annotation.NULLABLE)
-              .initializer(RawExpr.of("new java.util.LinkedHashMap<>()"))
+              .initializer(RawExpr.of("new @0<>()", TypeRefs.LINKED_HASH_MAP))
               .private_()
               .build());
     }
@@ -542,8 +547,10 @@ public final class RecordSourceMapping {
     }
     if (jackson) {
       copyCtor.body(
-          Element.of(
-              "this.jsonExtras = new java.util.LinkedHashMap<>(x.jsonExtras == null ? new java.util.LinkedHashMap<>() : x.jsonExtras);"));
+          Element.expr(
+              RawExpr.of(
+                  "this.jsonExtras = new @0<>(x.jsonExtras == null ? new @0<>() : x.jsonExtras);",
+                  TypeRefs.LINKED_HASH_MAP)));
     }
     builderClz.constructor(
         copyCtor.body(Element.of("this.unknownFields = x.unknownFields;")).build());
@@ -603,7 +610,9 @@ public final class RecordSourceMapping {
               .param(Param.of(TypeRefs.JSON_NODE_MAP, "jsonExtras", Annotation.NULLABLE))
               .body(
                   Element.expr(
-                      "this.jsonExtras = new java.util.LinkedHashMap<>(jsonExtras == null ? new java.util.LinkedHashMap<>() : jsonExtras);"),
+                      RawExpr.of(
+                          "this.jsonExtras = new @0<>(jsonExtras == null ? new @0<>() : jsonExtras);",
+                          TypeRefs.LINKED_HASH_MAP)),
                   Element.ret("this"))
               .build());
     }

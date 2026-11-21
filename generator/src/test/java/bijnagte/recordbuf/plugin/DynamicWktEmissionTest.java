@@ -25,8 +25,9 @@ import org.junit.jupiter.api.Test;
  * recordbuf.jackson}-enabled file. A {@code google.protobuf.Value} field's record component is
  * {@code tools.jackson.databind.JsonNode}, its codec arm round-trips through the {@code
  * bijnagte.recordbuf.json.DynamicWkt} facade, and the generated JSON renders the node tree
- * natively. On a file WITHOUT the toggle the same field fails loud (R11) with the option that would
- * fix it.
+ * natively. The surface is ON by default (an absent toggle resolves to enabled); on a file with an
+ * explicit recordbuf.jackson = false the same field fails loud (R11) with the option that would fix
+ * it.
  */
 @SuppressWarnings("BadImport")
 class DynamicWktEmissionTest {
@@ -34,16 +35,18 @@ class DynamicWktEmissionTest {
   private static FileDescriptorProto descriptor(boolean jackson) throws Exception {
     FileDescriptorProto.Builder b =
         FileDescriptorProto.newBuilder().setName("dynamic.proto").setPackage("com.example");
-    if (jackson) {
-      b.setOptions(
-          FileOptions.newBuilder()
-              .mergeFrom(
-                  UnknownFieldSet.newBuilder()
-                      .addField(50004, UnknownFieldSet.Field.newBuilder().addVarint(1).build())
-                      .build()
-                      .toByteArray())
-              .build());
-    }
+    // Always write the toggle explicitly (1 = on, 0 = off): the default-ON resolution is covered
+    // by JacksonOptionsTest; this helper exists to exercise the explicit paths.
+    b.setOptions(
+        FileOptions.newBuilder()
+            .mergeFrom(
+                UnknownFieldSet.newBuilder()
+                    .addField(
+                        50004,
+                        UnknownFieldSet.Field.newBuilder().addVarint(jackson ? 1 : 0).build())
+                    .build()
+                    .toByteArray())
+            .build());
     b.addMessageType(
         DescriptorProto.newBuilder()
             .setName("Holder")
@@ -163,7 +166,7 @@ class DynamicWktEmissionTest {
   }
 
   @Test
-  void jacksonOffFileFailsLoudOnADynamicWktField() throws Exception {
+  void explicitOptOutFailsLoudOnADynamicWktField() throws Exception {
     var fd = descriptor(false);
     FileTable table = new FileTable();
     table.addAll(

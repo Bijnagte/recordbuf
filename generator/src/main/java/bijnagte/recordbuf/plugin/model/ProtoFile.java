@@ -10,9 +10,10 @@ import org.jspecify.annotations.Nullable;
  * <p>{@code javaPackage} may be empty — callers decide how to fall back (typically to the proto
  * package, then to the file stem).
  *
- * <p>{@code jackson} is the per-file {@code recordbuf.jackson} option (2026-11-20 Jackson plan):
- * when {@code true} the records of this file carry the Jackson JSON surface; a file without the
- * option (or an explicit {@code false}) generates byte-identical, dependency-free output.
+ * <p>{@code jackson} is the resolved per-file Jackson surface (2026-11-20 Jackson plan, default
+ * ON): a file without the {@code recordbuf.jackson} option generates the Jackson annotation
+ * surface; only an explicit {@code recordbuf.jackson = false} generates the byte-identical,
+ * dependency-free output.
  */
 @RecordBuilder
 public record ProtoFile(
