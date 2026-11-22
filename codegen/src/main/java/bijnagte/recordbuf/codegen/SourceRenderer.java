@@ -2,6 +2,7 @@ package bijnagte.recordbuf.codegen;
 
 import bijnagte.recordbuf.codegen.source.Annotation;
 import bijnagte.recordbuf.codegen.source.Arg;
+import bijnagte.recordbuf.codegen.source.ArgValue;
 import bijnagte.recordbuf.codegen.source.Case;
 import bijnagte.recordbuf.codegen.source.ClassSpec;
 import bijnagte.recordbuf.codegen.source.Comment;
@@ -136,54 +137,64 @@ public final class SourceRenderer {
       switch (t) {
         case RecordSpec r -> {
           r.implementsFqns().forEach(accumulated::add);
-          r.annotations().forEach(a -> accumulated.add(a.type()));
+          r.annotations().forEach(this::collectAnnotation);
           r.components()
               .forEach(c -> {
                 accumulated.add(c.type());
-                c.annotations().forEach(a -> accumulated.add(a.type()));
+                c.annotations().forEach(this::collectAnnotation);
                 if (c.initializer() != null) accumulated.addAll(c.initializer().referencedTypes());
               });
           r.methods().forEach(this::collectMethod);
         }
         case ClassSpec c -> {
           c.implementsFqns().forEach(accumulated::add);
-          c.annotations().forEach(a -> accumulated.add(a.type()));
+          c.annotations().forEach(this::collectAnnotation);
           c.fields()
               .forEach(f -> {
                 accumulated.add(f.type());
-                f.annotations().forEach(a -> accumulated.add(a.type()));
+                f.annotations().forEach(this::collectAnnotation);
                 if (f.initializer() != null) accumulated.addAll(f.initializer().referencedTypes());
               });
           c.methods().forEach(this::collectMethod);
         }
         case EnumSpec e -> {
           e.implementsFqns().forEach(accumulated::add);
-          e.annotations().forEach(a -> accumulated.add(a.type()));
+          e.annotations().forEach(this::collectAnnotation);
           e.fields()
               .forEach(f -> {
                 accumulated.add(f.type());
-                f.annotations().forEach(a -> accumulated.add(a.type()));
+                f.annotations().forEach(this::collectAnnotation);
                 if (f.initializer() != null) accumulated.addAll(f.initializer().referencedTypes());
               });
-          e.enumConstants().forEach(x -> x.annotations().forEach(a -> accumulated.add(a.type())));
+          e.enumConstants().forEach(x -> x.annotations().forEach(this::collectAnnotation));
           e.methods().forEach(this::collectMethod);
         }
         case InterfaceSpec iface -> {
           iface.extendsFqns().forEach(accumulated::add);
-          iface.annotations().forEach(a -> accumulated.add(a.type()));
+          iface.annotations().forEach(this::collectAnnotation);
           iface.methods().forEach(this::collectMethod);
         }
       }
       for (Type n : t.nested()) collect(n);
     }
 
+    /**
+     * Register one annotation for the collect phase: the annotation's own type plus every type
+     * reference its argument values carry (a class-literal value is a type reference and must be
+     * imported like any other referral site).
+     */
+    private void collectAnnotation(Annotation a) {
+      accumulated.add(a.type());
+      a.args().forEach(arg -> accumulated.addAll(arg.referencedTypes()));
+    }
+
     private void collectMethod(Method m) {
-      m.annotations().forEach(a -> accumulated.add(a.type()));
+      m.annotations().forEach(this::collectAnnotation);
       accumulated.add(m.returnType());
       m.params()
           .forEach(p -> {
             accumulated.add(p.type());
-            p.annotations().forEach(a -> accumulated.add(a.type()));
+            p.annotations().forEach(this::collectAnnotation);
           });
       m.thrown().forEach(accumulated::add);
       m.body().forEach(this::collectBody);
@@ -511,25 +522,28 @@ public final class SourceRenderer {
 
     /**
      * Render one annotation argument: the value(s), positionally (no {@code name =}) when the name
-     * is null/blank/"value", else {@code name = value}. A single value renders as a quoted string;
-     * several as a {@code {...}} array literal. GJF owns the final layout.
+     * is null/blank/"value", else {@code name = value}. A single value renders bare; several as a
+     * {@code {...}} array literal. A {@link ArgValue.Str} renders quoted; a {@link ArgValue.Ref}
+     * renders as its collector-resolved type name plus the value's suffix (unquoted — a class
+     * literal is not a string literal, and the resolved name is import- and collision-aware). GJF
+     * owns the final layout.
      */
     private String renderArg(Arg arg) {
       StringBuilder sb = new StringBuilder();
       String name = arg.name();
       boolean positional = name == null || name.isBlank() || "value".equals(name);
       if (!positional && !arg.values().isEmpty()) sb.append(name).append('=');
-      List<String> vals = arg.values();
-      if (vals.size() == 1) {
-        sb.append('"').append(vals.get(0)).append('"');
-      } else {
-        sb.append('{');
-        for (int i = 0; i < vals.size(); i++) {
-          if (i > 0) sb.append(", ");
-          sb.append('"').append(vals.get(i)).append('"');
+      List<ArgValue> vals = arg.values();
+      boolean braced = vals.size() > 1;
+      if (braced) sb.append('{');
+      for (int i = 0; i < vals.size(); i++) {
+        if (i > 0) sb.append(", ");
+        switch (vals.get(i)) {
+          case ArgValue.Str s -> sb.append('"').append(s.text()).append('"');
+          case ArgValue.Ref r -> sb.append(ci.use(r.ref(), scope())).append(r.suffix());
         }
-        sb.append('}');
       }
+      if (braced) sb.append('}');
       return sb.toString();
     }
 
