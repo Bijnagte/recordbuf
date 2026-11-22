@@ -1,0 +1,33 @@
+{
+  "name" : "n",
+  "count" : 1234567890123,
+  "flag" : true,
+  "ratio" : 0.25,
+  "blob" : "AQID/w==",
+  "nickname" : "nick",
+  "inner" : {
+    "label" : "in"
+  },
+  "value" : {
+    "k" : [ 1.5, "x", null, true ]
+  },
+  "doc" : {
+    "a" : {
+      "b" : "c"
+    }
+  },
+  "items" : [ 2.25, "y" ],
+  "values" : [ "s", {
+    "z" : false
+  } ],
+  "at" : "2025-11-20T05:01:36.789Z",
+  "span" : "PT1H1M1.5S",
+  "canonicalSpan" : {
+    "seconds" : "90",
+    "nanos" : 5
+  },
+  "chunks" : [ "AA==", "" ],
+  "futureField" : {
+    "x" : [ 1, "two" ]
+  }
+}

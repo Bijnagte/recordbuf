@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
+import bijnagte.recordbuf.fixture.JsonGolden;
 import bijnagte.recordbuf.fixture.jackson.full.rec.Full;
 import bijnagte.recordbuf.fixture.jackson.full.rec.Inner;
 import bijnagte.recordbuf.runtime.Bytes;
@@ -50,18 +51,13 @@ class JacksonRoundTripTest {
         .build();
   }
 
+  /**
+   * ISO temporals, the canonical knob's {seconds, nanos}, base64 bytes (singular + repeated), the
+   * dynamic WKT nodes verbatim, the nested message, and the proto3 camelCase names.
+   */
   @Test
-  void fullRendersTheProto3ContractShapes() {
-    JsonNode tree = M.readTree(M.writeValueAsString(full()));
-
-    assertEquals(AT.toString(), tree.get("at").asString(), "Timestamp: ISO string");
-    assertEquals("PT1H1M1.5S", tree.get("span").asString(), "Duration: ISO string");
-    assertEquals("90", tree.get("canonicalSpan").get("seconds").asString(), "canonical knob");
-    assertEquals(5, tree.get("canonicalSpan").get("nanos").asInt(), "canonical knob");
-    assertEquals("AQID/w==", tree.get("blob").asString(), "bytes: base64");
-    assertEquals(M.readTree("[\"AA==\",\"\"]"), tree.get("chunks"), "repeated bytes: base64");
-    assertEquals(M.readTree("{\"a\":{\"b\":\"c\"}}"), tree.get("doc"), "Struct: the node verbatim");
-    assertEquals("in", tree.get("inner").get("label").asString());
+  void fullRendersTheProto3ContractShapes() throws Exception {
+    JsonGolden.assertMatches("jackson/full.json", M.writeValueAsString(full()));
   }
 
   @Test
@@ -79,7 +75,7 @@ class JacksonRoundTripTest {
 
     Full back = M.readValue(M.writeValueAsString(json), Full.class);
     assertEquals(future, back.jsonExtras().get("futureField"), "retained on read");
-    assertEquals(future, M.readTree(M.writeValueAsString(back)).get("futureField"), "re-emitted");
+    JsonGolden.assertMatches("jackson/full-with-extras.json", M.writeValueAsString(back));
 
     // On the wire the property folds into the binary unknown-field carrier (keyed by a hash of its
     // name), so a decode keeps it as an unknown field and re-emits it byte-for-byte.
@@ -90,7 +86,7 @@ class JacksonRoundTripTest {
   }
 
   @Test
-  void mainBytesFixtureRoundTrips() {
+  void mainBytesFixtureRoundTrips() throws Exception {
     var sample =
         bijnagte.recordbuf.fixture.bytes.rec.Sample.builder()
             .a(Bytes.of(new byte[] {(byte) 0xc3, 0x28}))
@@ -99,12 +95,12 @@ class JacksonRoundTripTest {
 
     String json = M.writeValueAsString(sample);
 
-    assertEquals("{\"a\":\"wyg=\",\"b\":\"\"}", json);
+    JsonGolden.assertMatches("jackson/bytes-sample.json", json);
     assertEquals(sample, M.readValue(json, bijnagte.recordbuf.fixture.bytes.rec.Sample.class));
   }
 
   @Test
-  void mainWellKnownFixtureRoundTrips() {
+  void mainWellKnownFixtureRoundTrips() throws Exception {
     var sample =
         bijnagte.recordbuf.fixture.wellknown.rec.Sample.builder()
             .at(AT)
@@ -122,11 +118,9 @@ class JacksonRoundTripTest {
             .build();
 
     String json = M.writeValueAsString(sample);
-    JsonNode tree = M.readTree(json);
 
-    assertEquals("id,user.displayName", tree.get("mask").asString(), "FieldMask: path string");
-    assertEquals(M.createObjectNode(), tree.get("empty"), "Empty: {}");
-    assertEquals("CQ==", tree.get("blob").asString(), "BytesValue: base64");
+    // FieldMask: the camelCase path string; Empty: {}; BytesValue: base64.
+    JsonGolden.assertMatches("jackson/wellknown-sample.json", json);
     assertEquals(sample, M.readValue(json, bijnagte.recordbuf.fixture.wellknown.rec.Sample.class));
   }
 }

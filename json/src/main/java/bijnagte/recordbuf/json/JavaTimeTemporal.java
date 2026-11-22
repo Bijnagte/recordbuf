@@ -3,6 +3,9 @@ package bijnagte.recordbuf.json;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 import tools.jackson.core.JsonGenerator;
 import tools.jackson.core.JsonParser;
@@ -223,7 +226,35 @@ public final class JavaTimeTemporal {
     if (p.currentToken() == JsonToken.VALUE_NUMBER_INT) {
       return Instant.ofEpochSecond(p.getLongValue());
     }
-    return Instant.from(OffsetDateTime.parse(p.getString()));
+    return parseIsoInstant(p.getString());
+  }
+
+  /** Instant's first / last year, which {@code OffsetDateTime} (years ±999,999,999) cannot hold. */
+  private static final Pattern EDGE_YEAR = Pattern.compile("([+-])1000000000(-.*)");
+
+  /** One Gregorian cycle: the calendar repeats exactly every 400 years (146,097 days). */
+  private static final long CYCLE_SECONDS = 146_097L * 86_400L;
+
+  /**
+   * Parse an ISO 8601 / RFC 3339 instant. {@link Instant#toString()} renders Instant's first and
+   * last year ({@code ±1000000000}), but the JDK's ISO parser rejects those years; such a text is
+   * parsed one 400-year cycle toward zero and shifted back by exactly that cycle, so every {@link
+   * Instant} the serializer writes reads back unchanged.
+   */
+  static Instant parseIsoInstant(String text) {
+    try {
+      return Instant.from(OffsetDateTime.parse(text));
+    } catch (DateTimeParseException e) {
+      Matcher edge = EDGE_YEAR.matcher(text);
+      if (!edge.matches()) {
+        throw e;
+      }
+      boolean negative = edge.group(1).equals("-");
+      Instant shifted =
+          Instant.from(
+              OffsetDateTime.parse((negative ? "-999999600" : "+999999600") + edge.group(2)));
+      return negative ? shifted.minusSeconds(CYCLE_SECONDS) : shifted.plusSeconds(CYCLE_SECONDS);
+    }
   }
 
   /**

@@ -1,8 +1,8 @@
 package bijnagte.recordbuf.fixture.jacksonformat;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import bijnagte.recordbuf.fixture.JsonGolden;
 import bijnagte.recordbuf.fixture.jacksonformat.rec.Probe;
 import bijnagte.recordbuf.runtime.UnknownFields;
 import java.time.Duration;
@@ -30,24 +30,10 @@ class JacksonFormatTest {
         UnknownFields.empty());
   }
 
+  /** at: the default ISO string; span: the canonical object; whens: an array of ISO strings. */
   @Test
   void rendersEachFieldPerItsFormat() throws Exception {
-    Probe probe = probe();
-    String json = M.writeValueAsString(probe);
-    // at: the default ISO string.
-    assertTrue(json.contains(probe.at().toString()), json);
-    // span: the canonical object.
-    assertTrue(json.contains("\"seconds\""), json);
-    assertTrue(json.contains("\"nanos\""), json);
-    // whens: a JSON array of ISO strings.
-    assertTrue(json.contains("1970-01-01T00:00:00Z"), json);
-  }
-
-  @Test
-  void canonicalDurationRendersSecondsAndNanos() throws Exception {
-    String json = M.writeValueAsString(probe());
-    assertTrue(json.contains("\"3661\""), json);
-    assertTrue(json.contains("500000000"), json);
+    JsonGolden.assertMatches("jacksonformat/probe.json", M.writeValueAsString(probe()));
   }
 
   @Test

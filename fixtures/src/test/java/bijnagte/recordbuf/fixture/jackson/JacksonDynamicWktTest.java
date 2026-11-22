@@ -2,6 +2,7 @@ package bijnagte.recordbuf.fixture.jackson;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import bijnagte.recordbuf.fixture.JsonGolden;
 import bijnagte.recordbuf.fixture.jackson.avro.DynAvro;
 import bijnagte.recordbuf.fixture.jackson.avro.rec.Dyn;
 import bijnagte.recordbuf.fixture.jackson.avro.rec.DynAvroConverter;
@@ -68,6 +69,12 @@ class JacksonDynamicWktTest {
         .payload(payload)
         .values(List.of(M.readTree("\"s\""), M.readTree("[]")))
         .build();
+  }
+
+  @Test
+  void dynRendersItsNodesAndAnyAsJson() throws Exception {
+    JsonGolden.assertMatches("jackson/dyn-struct-any.json", M.writeValueAsString(dyn(structAny())));
+    JsonGolden.assertMatches("jackson/dyn-opaque-any.json", M.writeValueAsString(dyn(opaqueAny())));
   }
 
   @Test
