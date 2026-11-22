@@ -1,7 +1,14 @@
 # Jackson module auto-registration + `bytes` base64 mapping — implementation plan
 
-**Date:** 2026-11-21 · **Status:** PLANNED (sequence 3 of 5; U7 oneofs is deliberately last —
-`2026-11-21-005`)
+**Date:** 2026-11-21 · **Status:** DONE 2026-11-22 (sequence 3 of 5; U7 oneofs is deliberately
+last — `2026-11-21-005`). Verification: `./gradlew build` green. **Deviation — discovery is
+opt-in:** the "Current state" claim below is wrong for 3.1.8: `ServiceLoader` is reached only via
+`MapperBuilder.findAndAddModules()` (`javap`-verified; no constructor or `build()` path calls it),
+so a bare `new JsonMapper()` does **not** pick the module up. The service file is shipped and
+proven with `JsonMapper.builder().findAndAddModules()`; generated records are unaffected (the
+per-field `JsonBytes` pair works under a bare mapper, also proven). A hand-written bean holding
+`Bytes` needs discovery or `addModule(new RecordbufJsonModule())`. The module extends
+`SimpleModule` (a `JacksonModule`) rather than overriding `setupModule` by hand.
 **Origin:** the 3.x handoff's remaining item 1 (owner's steer 3: "add auto registration of a
 module `META-INF/services/tools.jackson.databind.JacksonModule` so a bare `new JsonMapper()` Just
 Works") + the origin doc's **known gap** (lines 307–312: "the plan never assigns the proto3-JSON

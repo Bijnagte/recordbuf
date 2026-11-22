@@ -18,6 +18,7 @@ import bijnagte.recordbuf.codegen.source.RecordSpec;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.json.JavaTimeTemporal;
+import bijnagte.recordbuf.json.JsonBytes;
 import bijnagte.recordbuf.plugin.model.Enum;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
@@ -88,6 +89,7 @@ public final class RecordSourceMapping {
       var comp = Component.type(scalarComponentType(f), f.javaName());
       jacksonAnnotation(comp, f, jackson);
       temporalAnnotation(comp, f, jackson);
+      bytesAnnotation(comp, f, jackson);
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       result.component(comp.build());
     }
@@ -147,6 +149,7 @@ public final class RecordSourceMapping {
       var comp = Component.type(scalarComponentType(f), f.javaName());
       jacksonAnnotation(comp, f, jackson);
       temporalAnnotation(comp, f, jackson);
+      bytesAnnotation(comp, f, jackson);
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       Component c = comp.build();
       result.component(c);
@@ -368,6 +371,51 @@ public final class RecordSourceMapping {
         Annotation.of(
             TypeRef.of("tools.jackson.databind.annotation.JsonDeserialize"),
             deArgs.toArray(new Arg[0])));
+  }
+
+  /**
+   * Attach the proto3 base64 (de)serializer pair ({@code JsonBytes}) to a {@code bytes}-family
+   * field on a jackson file: a scalar {@code bytes}, a {@code google.protobuf.BytesValue}, a {@code
+   * repeated} of either, or a map whose value is either (the record holds {@code runtime.Bytes}). A
+   * singular field sets {@code using} + {@code contentUsing}; a repeated or map field sets {@code
+   * contentUsing} only (its elements / values), as for temporals.
+   */
+  private static void bytesAnnotation(Component.Builder comp, Field f, boolean jackson) {
+    if (!jackson) {
+      return;
+    }
+    boolean element = f.label() == FieldLabel.REPEATED || f.isMap();
+    String token = f.isMap() ? f.mapValue() : f.typeUrl();
+    if (token == null || !isBytesToken(token)) {
+      return;
+    }
+    TypeRef ser = TypeRef.of(JsonBytes.B64Serializer.class.getName());
+    TypeRef de = TypeRef.of(JsonBytes.B64Deserializer.class.getName());
+    List<Arg> serArgs = new ArrayList<>();
+    List<Arg> deArgs = new ArrayList<>();
+    if (!element) {
+      serArgs.add(Arg.of("using", ArgValue.classLit(ser)));
+      deArgs.add(Arg.of("using", ArgValue.classLit(de)));
+    }
+    serArgs.add(Arg.of("contentUsing", ArgValue.classLit(ser)));
+    deArgs.add(Arg.of("contentUsing", ArgValue.classLit(de)));
+    comp.annotation(
+        Annotation.of(
+            TypeRef.of("tools.jackson.databind.annotation.JsonSerialize"),
+            serArgs.toArray(new Arg[0])));
+    comp.annotation(
+        Annotation.of(
+            TypeRef.of("tools.jackson.databind.annotation.JsonDeserialize"),
+            deArgs.toArray(new Arg[0])));
+  }
+
+  /** Whether a field / map-value type token is {@code bytes} or the {@code BytesValue} wrapper. */
+  private static boolean isBytesToken(String token) {
+    if (token.equals("bytes")) {
+      return true;
+    }
+    WellKnownTypes.Entry entry = WellKnownTypes.resolve(token);
+    return entry != null && entry.kind() == WellKnownTypes.Kind.BYTES_WRAPPER;
   }
 
   /**
