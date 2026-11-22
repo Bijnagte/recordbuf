@@ -142,4 +142,54 @@ final class JsonBytesSurfaceTest {
     assertFalse(off.contains("JsonBytes"), off);
     assertTrue(off.contains("Bytes raw"), off);
   }
+
+  @Test
+  void fieldMaskAndEmptyFieldsPinTheirPairs() {
+    Message m =
+        new Message(
+            "Masked",
+            TypeRef.named("com.example", "Masked"),
+            List.of(
+                field(
+                    "mask",
+                    1,
+                    FieldLabel.OPTIONAL,
+                    FieldKind.MESSAGE,
+                    "google.protobuf.FieldMask",
+                    TypeRefs.FIELD_MASK,
+                    null),
+                field(
+                    "nothing",
+                    2,
+                    FieldLabel.OPTIONAL,
+                    FieldKind.MESSAGE,
+                    "google.protobuf.Empty",
+                    TypeRefs.EMPTY,
+                    null)),
+            List.of(),
+            List.of(),
+            List.of(),
+            false,
+            null,
+            List.of(),
+            null);
+    RecordSpec spec = RecordSourceMapping.toSource(m, "com.example", true);
+    JavaFile file = new JavaFile("com.example", null, spec, new TypeCollector("com.example"));
+    String source =
+        SourceRenderer.render(file, GoogleJavaFormatter.getInstance())
+            .replaceAll("\\s+", " ")
+            .replace("( ", "(")
+            .replace(" )", ")");
+
+    assertTrue(
+        source.contains(
+            "@JsonSerialize(using = JsonFieldMask.Serializer.class, contentUsing ="
+                + " JsonFieldMask.Serializer.class)"),
+        source);
+    assertTrue(
+        source.contains(
+            "@JsonDeserialize(using = JsonEmpty.Deserializer.class, contentUsing ="
+                + " JsonEmpty.Deserializer.class)"),
+        source);
+  }
 }

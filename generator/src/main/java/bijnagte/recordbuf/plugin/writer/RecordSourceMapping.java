@@ -19,6 +19,8 @@ import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.codegen.source.TypeRef;
 import bijnagte.recordbuf.json.JavaTimeTemporal;
 import bijnagte.recordbuf.json.JsonBytes;
+import bijnagte.recordbuf.json.JsonEmpty;
+import bijnagte.recordbuf.json.JsonFieldMask;
 import bijnagte.recordbuf.plugin.model.Enum;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
@@ -32,6 +34,7 @@ import bijnagte.recordbuf.plugin.types.WellKnownTypes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Maps the generator's proto {@link Message} model into a {@link RecordSpec} of the pure-Java,
@@ -89,7 +92,7 @@ public final class RecordSourceMapping {
       var comp = Component.type(scalarComponentType(f), f.javaName());
       jacksonAnnotation(comp, f, jackson);
       temporalAnnotation(comp, f, jackson);
-      bytesAnnotation(comp, f, jackson);
+      runtimeValueAnnotation(comp, f, jackson);
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       result.component(comp.build());
     }
@@ -149,7 +152,7 @@ public final class RecordSourceMapping {
       var comp = Component.type(scalarComponentType(f), f.javaName());
       jacksonAnnotation(comp, f, jackson);
       temporalAnnotation(comp, f, jackson);
-      bytesAnnotation(comp, f, jackson);
+      runtimeValueAnnotation(comp, f, jackson);
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       Component c = comp.build();
       result.component(c);
@@ -374,26 +377,27 @@ public final class RecordSourceMapping {
   }
 
   /**
-   * Attach the proto3 base64 (de)serializer pair ({@code JsonBytes}) to a {@code bytes}-family
-   * field on a jackson file: a scalar {@code bytes}, a {@code google.protobuf.BytesValue}, a {@code
-   * repeated} of either, or a map whose value is either (the record holds {@code runtime.Bytes}). A
-   * singular field sets {@code using} + {@code contentUsing}; a repeated or map field sets {@code
-   * contentUsing} only (its elements / values), as for temporals.
+   * Attach the proto3 JSON (de)serializer pair for a runtime value type to a field on a jackson
+   * file: {@code JsonBytes} (base64) for a {@code bytes}-family field (scalar {@code bytes} or
+   * {@code google.protobuf.BytesValue}), {@code JsonFieldMask} (comma-joined lowerCamel paths) for
+   * a {@code FieldMask}, {@code JsonEmpty} ({@code {}}) for an {@code Empty} — singular, repeated,
+   * or as a map value. A singular field sets {@code using} + {@code contentUsing}; a repeated or
+   * map field sets {@code contentUsing} only (its elements / values), as for temporals.
    */
-  private static void bytesAnnotation(Component.Builder comp, Field f, boolean jackson) {
+  private static void runtimeValueAnnotation(Component.Builder comp, Field f, boolean jackson) {
     if (!jackson) {
       return;
     }
-    boolean element = f.label() == FieldLabel.REPEATED || f.isMap();
     String token = f.isMap() ? f.mapValue() : f.typeUrl();
-    if (token == null || !isBytesToken(token)) {
+    Class<?>[] pair = token == null ? null : runtimeValuePair(token);
+    if (pair == null) {
       return;
     }
-    TypeRef ser = TypeRef.of(JsonBytes.B64Serializer.class.getName());
-    TypeRef de = TypeRef.of(JsonBytes.B64Deserializer.class.getName());
+    TypeRef ser = TypeRef.of(pair[0].getName());
+    TypeRef de = TypeRef.of(pair[1].getName());
     List<Arg> serArgs = new ArrayList<>();
     List<Arg> deArgs = new ArrayList<>();
-    if (!element) {
+    if (f.label() != FieldLabel.REPEATED && !f.isMap()) {
       serArgs.add(Arg.of("using", ArgValue.classLit(ser)));
       deArgs.add(Arg.of("using", ArgValue.classLit(de)));
     }
@@ -409,13 +413,28 @@ public final class RecordSourceMapping {
             deArgs.toArray(new Arg[0])));
   }
 
-  /** Whether a field / map-value type token is {@code bytes} or the {@code BytesValue} wrapper. */
-  private static boolean isBytesToken(String token) {
+  /**
+   * The {serializer, deserializer} pair for a field / map-value type token that resolves to a
+   * runtime value type, or {@code null} when the token needs none.
+   */
+  private static Class<?> @Nullable [] runtimeValuePair(String token) {
     if (token.equals("bytes")) {
-      return true;
+      return new Class<?>[] {JsonBytes.B64Serializer.class, JsonBytes.B64Deserializer.class};
     }
     WellKnownTypes.Entry entry = WellKnownTypes.resolve(token);
-    return entry != null && entry.kind() == WellKnownTypes.Kind.BYTES_WRAPPER;
+    if (entry == null) {
+      return null;
+    }
+    if (entry.kind() == WellKnownTypes.Kind.BYTES_WRAPPER) {
+      return new Class<?>[] {JsonBytes.B64Serializer.class, JsonBytes.B64Deserializer.class};
+    }
+    if (TypeRefs.FIELD_MASK.equals(entry.javaType())) {
+      return new Class<?>[] {JsonFieldMask.Serializer.class, JsonFieldMask.Deserializer.class};
+    }
+    if (TypeRefs.EMPTY.equals(entry.javaType())) {
+      return new Class<?>[] {JsonEmpty.Serializer.class, JsonEmpty.Deserializer.class};
+    }
+    return null;
   }
 
   /**
