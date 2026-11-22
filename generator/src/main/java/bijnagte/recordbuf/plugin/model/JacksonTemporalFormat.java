@@ -6,14 +6,14 @@ package bijnagte.recordbuf.plugin.model;
  * {@code recordbuf.jackson}-enabled file (2026-11-20 Jackson plan).
  *
  * <p>{@link #JSON} is ISO-8601 text (the default when the option is absent on an enabled file);
- * {@link #CANONICAL} is the proto3 JSON-mapping rendering (3/6/9-group fractional seconds with a
- * {@code Z} suffix for {@code Instant}; {@code <n>}s text for {@code Duration}).
+ * {@link #CANONICAL} is the documented proto3 canonical shape — the {@code {seconds: "<int64>",
+ * nanos: <int>}} object (the field's WKT message form in JSON).
  */
 public enum JacksonTemporalFormat {
 
   /** ISO-8601 text rendering. */
   JSON,
-  /** Proto3 JSON-mapping (canonical) rendering. */
+  /** The documented proto3 canonical shape: the {seconds, nanos} object. */
   CANONICAL;
 
   /**

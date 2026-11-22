@@ -1,7 +1,10 @@
 # Jackson U8 — temporal fields: ISO default + `canonical` knob — implementation plan
 
-**Date:** 2026-11-21 · **Status:** PLANNED (sequence 1 of 5; U7 oneofs is deliberately last —
-`2026-11-21-005`)
+**Date:** 2026-11-21 · **Status:** DONE 2026-11-22 (sequence 1 of 5; U7 oneofs is deliberately
+last — `2026-11-21-005`). Verification: `./gradlew build` and `./gradlew test --rerun-tasks`
+green. The fixture test lives on the `jackson_format` proto (`JacksonFormatTest`, the three
+renderings); the native-WKT `wellknown` fixture (`Sample` / `WktInteropTest`) is the U8-adjacent
+WKT family matrix.
 **Origin:** unit U8 of `2026-11-20-001-feature-jackson-json-plan.md` (R8, P4, §11 canonical-format
 risk) + the 3.x handoff's remaining item 3 ("the 50005 `jackson_format` knob loads into the model
 but is unused; the generator never emits `@JsonSerialize`/`@JsonDeserialize`").

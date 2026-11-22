@@ -1,6 +1,5 @@
 package bijnagte.recordbuf.json;
 
-import bijnagte.recordbuf.codegen.source.JacksonTemporalFormat;
 import com.google.protobuf.Duration;
 import com.google.protobuf.Timestamp;
 import java.time.Instant;

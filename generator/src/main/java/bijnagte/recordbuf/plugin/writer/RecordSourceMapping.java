@@ -2,6 +2,7 @@ package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.source.Annotation;
 import bijnagte.recordbuf.codegen.source.Arg;
+import bijnagte.recordbuf.codegen.source.ArgValue;
 import bijnagte.recordbuf.codegen.source.ClassSpec;
 import bijnagte.recordbuf.codegen.source.CommaList;
 import bijnagte.recordbuf.codegen.source.Component;
@@ -16,10 +17,12 @@ import bijnagte.recordbuf.codegen.source.RawExpr;
 import bijnagte.recordbuf.codegen.source.RecordSpec;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.codegen.source.TypeRef;
+import bijnagte.recordbuf.json.JavaTimeTemporal;
 import bijnagte.recordbuf.plugin.model.Enum;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
+import bijnagte.recordbuf.plugin.model.JacksonTemporalFormat;
 import bijnagte.recordbuf.plugin.model.JavaNames;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.Oneof;
@@ -84,6 +87,7 @@ public final class RecordSourceMapping {
     for (Field f : m.fields()) {
       var comp = Component.type(scalarComponentType(f), f.javaName());
       jacksonAnnotation(comp, f, jackson);
+      temporalAnnotation(comp, f, jackson);
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       result.component(comp.build());
     }
@@ -142,6 +146,7 @@ public final class RecordSourceMapping {
     for (Field f : m.fields()) {
       var comp = Component.type(scalarComponentType(f), f.javaName());
       jacksonAnnotation(comp, f, jackson);
+      temporalAnnotation(comp, f, jackson);
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       Component c = comp.build();
       result.component(c);
@@ -316,6 +321,53 @@ public final class RecordSourceMapping {
 
   private static String baseRecordDescription(Message m) {
     return "Auto-generated record for the " + m.name() + " proto message.";
+  }
+
+  /**
+   * Attach the temporal (de)serializer pair to a temporal well-known type field (a {@code
+   * google.protobuf.Timestamp} / {@code google.protobuf.Duration} — the record holds the java.time
+   * types): an explicit {@code @JsonSerialize} + {@code @JsonDeserialize} naming the
+   * :recordbuf-json {@code JavaTimeTemporal} arm matching the field's {@code
+   * recordbuf.jackson_format} (default: the ISO string). A singular field sets both {@code using} +
+   * {@code contentUsing} (the content is inert on a scalar); a repeated field sets {@code
+   * contentUsing} only — the element type, so the list keeps its own container serialization.
+   */
+  private static void temporalAnnotation(Component.Builder comp, Field f, boolean jackson) {
+    if (!jackson) {
+      return;
+    }
+    WellKnownTypes.Entry entry = WellKnownTypes.resolve(f.typeUrl());
+    if (entry == null) {
+      return;
+    }
+    bijnagte.recordbuf.json.JacksonTemporalFormat format =
+        f.jacksonFormat() == null
+            ? bijnagte.recordbuf.json.JacksonTemporalFormat.JSON
+            : switch (f.jacksonFormat()) {
+              case JacksonTemporalFormat.JSON -> bijnagte.recordbuf.json.JacksonTemporalFormat.JSON;
+              case JacksonTemporalFormat.CANONICAL ->
+                  bijnagte.recordbuf.json.JacksonTemporalFormat.CANONICAL;
+            };
+    var c = JavaTimeTemporal.forType(entry.fqn(), format);
+    if (c == null) {
+      return;
+    }
+    List<Arg> serArgs = new ArrayList<>();
+    List<Arg> deArgs = new ArrayList<>();
+    if (f.label() != FieldLabel.REPEATED) {
+      serArgs.add(Arg.of("using", ArgValue.classLit(TypeRef.of(c.serializer.getName()))));
+      deArgs.add(Arg.of("using", ArgValue.classLit(TypeRef.of(c.deserializer.getName()))));
+    }
+    serArgs.add(Arg.of("contentUsing", ArgValue.classLit(TypeRef.of(c.serializer.getName()))));
+    deArgs.add(Arg.of("contentUsing", ArgValue.classLit(TypeRef.of(c.deserializer.getName()))));
+    comp.annotation(
+        Annotation.of(
+            TypeRef.of("tools.jackson.databind.annotation.JsonSerialize"),
+            serArgs.toArray(new Arg[0])));
+    comp.annotation(
+        Annotation.of(
+            TypeRef.of("tools.jackson.databind.annotation.JsonDeserialize"),
+            deArgs.toArray(new Arg[0])));
   }
 
   /**

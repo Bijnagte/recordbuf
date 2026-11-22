@@ -42,6 +42,14 @@ dependencies {
     // dependency-free (R22); :recordbuf-codegen is the generator's own concern.
     implementation(project(":recordbuf-codegen"))
 
+    // The json module (bijnagte.recordbuf.json) hosts the temporal (de)serializer arms that a
+    // generated record's temporal field references; the generator resolves the FQN pair
+    // (JavaTimeTemporal.forType) at annotation-emit time, so :recordbuf-json lands on the
+    // plugin's classpath to read the Class constants — implementation (NOT api), like
+    // :recordbuf-codegen: the emitted .rec code stays R22-clean, its consumer pulls :recordbuf-json
+    // transitively (the same R4-style transitive dependency the plan documents).
+    implementation(project(":recordbuf-json"))
+
     // Avro's specific-record compiler (generation-time only). Per the R5 decision (same output dir,
     // no gradle task, in-process generation): the plugin runs Avro's SpecificCompiler over the
     // per-file .avsc it emits, reads back the generated XSpecific.java, and emits it as a

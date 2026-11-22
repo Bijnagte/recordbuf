@@ -94,4 +94,31 @@ class AnnotationArgRefTest {
     String out = render(rec);
     assertTrue(out.contains("@SuppressWarnings({\"all\", \"unused\"})"), out);
   }
+
+  @Test
+  void binaryNameRefArgRendersNestedShortAndImportsOuter() {
+    // The Class#getName() shape (U8's JavaTimeTemporal arms): the $-separated binary name must
+    // render as the nested source form, importing the outer class once.
+    RecordSpec rec =
+        RecordSpec.named("Doc")
+            .public_()
+            .component(
+                Component.type(TypeRef.of("java.time.Instant"), "ts")
+                    .annotations(
+                        List.of(
+                            jsonSerialize(
+                                "bijnagte.recordbuf.json.JavaTimeTemporal$InstantIsoSerializer"),
+                            Annotation.SUPPRESS_ALL))
+                    .build())
+            .build();
+
+    String out = render(rec);
+    assertTrue(
+        out.contains("import bijnagte.recordbuf.json.JavaTimeTemporal;"),
+        "the nested type's outer class must be imported: " + out);
+    assertTrue(
+        out.contains("using=JavaTimeTemporal.InstantIsoSerializer.class"),
+        "the use site must render the nested source form: " + out);
+    assertTrue(out.contains("contentUsing=JavaTimeTemporal.InstantIsoSerializer.class"), out);
+  }
 }
