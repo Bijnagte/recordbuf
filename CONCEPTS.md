@@ -34,8 +34,9 @@ record: every message and enum reachable from the bridged root gets a schema /
 specific-record / converter triple, each field shape maps to an exact Avro
 representation (maps to Avro maps or key/value pair records, oneofs to unions,
 nested messages to nested records, repeated to arrays, enums to strings,
-`uint64` to a bit-exact `long`), and the record's unknown-field carrier transits
-1:1 as an always-present array. A file containing any of these shapes no longer
+`uint64` to a bit-exact `long`), and the record's unknown-field carrier has an
+always-present array slot (the converter does not transit its entries yet — it
+sets the array empty). A file containing any of these shapes no longer
 loses its whole Avro output. *Avoid:* opaque envelope wrapper for *structural* shapes — the twin maps everything it represents structurally; the envelope is not how the twin expresses its own shapes (see Opaque envelope for the one field-level return).
 
 ## Well-known types
@@ -51,7 +52,7 @@ no canonical native encoding (e.g. `Struct`, `Any`, `Value`) is rejected at
 generation rather than silently emitted as an opaque record.
 
 ### Dynamic WKT
-The `google.protobuf` WKT family that carries arbitrary, unstructured values — `Struct`, `Value`, `ListValue`, `Any`, `NullValue` (the `DYNAMIC_UNSUPPORTED` kinds) — as opposed to the natively-mapped family. A file mapping one fails generation loudly unless its per-file Jackson option is on, in which case the record holds the value as a Jackson node type (`Struct` → `ObjectNode`, `Value` → `JsonNode`, `ListValue` → `ArrayNode`, `Any` → `JsonNode`) and the wire Codec bridges to and from the standard embedded WKT wire shape. *Avoid:* "JSON WKT" (the family is JSON-native in *shape* but the term is "dynamic" because its values are unstructured).
+The `google.protobuf` WKT family that carries arbitrary, unstructured values — `Struct`, `Value`, `ListValue`, `Any`, `NullValue` (the `DYNAMIC_UNSUPPORTED` kinds) — as opposed to the natively-mapped family. On a file with the Jackson surface (on by default) the record holds the value as a Jackson node type (`Struct` → `ObjectNode`, `Value` → `JsonNode`, `ListValue` → `ArrayNode`, `Any` → `JsonNode` carrying `{typeUrl, value}`) and the wire Codec bridges to and from the standard embedded WKT wire shape; a file that opts out (`recordbuf.jackson = false`) fails generation loudly. `NullValue` is not supported either way. *Avoid:* "JSON WKT" (the family is JSON-native in *shape* but the term is "dynamic" because its values are unstructured).
 
 ## Interop adapters
 
@@ -64,4 +65,4 @@ types) with field-level record↔Avro mapping, enabling Avro-native consumers to
 message data produced by the recordbuf plugin without a protobuf dependency.
 
 ### Opaque envelope
-The Avro-twin representation for a field the structural twin cannot map — an opaque wrapper instead of a structural type. Shelved when the structural twin landed (no shape then needed it); it returns per the 2026-11-20 Jackson JSON plan for dynamic WKT fields when both the Jackson and Avro options are on, so the twin degrades those fields rather than dropping them or failing the file.
+The Avro-twin representation for a field the structural twin cannot map — an opaque wrapper instead of a structural type. Shelved when the structural twin landed (no shape then needed it), it returned with the 2026-11-20 Jackson JSON plan (U9) as the shared `RecordbufDynamicWkt` record `{format, contentType, payload}`: a dynamic WKT field on a file with both the Jackson surface and the Avro bridge on rides it (`format` = `"json"`, `contentType` = the WKT name or an `Any`'s `typeUrl`, `payload` = the node's JSON text), so the twin degrades those fields rather than dropping them or failing the file.

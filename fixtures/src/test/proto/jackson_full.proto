@@ -1,0 +1,45 @@
+// U10 (2026-11-21-004) fixture (a): the full non-oneof Jackson shape under the default-ON surface
+// (no recordbuf.jackson option -- the default is the point). Scalars, an optional scalar, a nested
+// message, the dynamic WKTs (singular + repeated), temporals in both renderings, and bytes
+// (singular + repeated). Oneofs are U7's (2026-11-21-005); this file stays oneof-free.
+// As in the main source set, the records go to a `.rec` java_package while the Avro specifics take
+// the proto package as their namespace, keeping the un-annotated SpecificCompiler output out of the
+// @NullMarked record package (all three U10 protos follow this layout).
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.jackson.full;
+
+option java_package = "bijnagte.recordbuf.fixture.jackson.full.rec";
+option java_multiple_files = true;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "recordbuf_options.proto";
+
+message Full {
+  string name = 1;
+  int64 count = 2;
+  bool flag = 3;
+  double ratio = 4;
+  bytes blob = 5;
+  optional string nickname = 6;
+  Inner inner = 7;
+
+  google.protobuf.Value value = 8;
+  google.protobuf.Struct doc = 9;
+  google.protobuf.ListValue items = 10;
+  repeated google.protobuf.Value values = 11;
+
+  // Default rendering: ISO strings.
+  google.protobuf.Timestamp at = 12;
+  google.protobuf.Duration span = 13;
+  // The jackson_format knob: the proto3 canonical {seconds, nanos} object.
+  google.protobuf.Duration canonical_span = 14 [(.recordbuf.jackson_format) = "canonical"];
+
+  repeated bytes chunks = 15;
+}
+
+message Inner {
+  string label = 1;
+}

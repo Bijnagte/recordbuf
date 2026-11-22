@@ -1,8 +1,20 @@
 # Jackson U10 — fixtures, acceptance, docs — implementation plan
 
-**Date:** 2026-11-21 · **Status:** PLANNED (sequence 4 of 5; U7 oneofs lands after this unit
-per the owner's reordering — `2026-11-21-005`; the AE2 oneof round-trip therefore lands with U7,
-not here)
+**Date:** 2026-11-21 · **Status:** DONE 2026-11-22 (sequence 4 of 5; U7 oneofs lands after this
+unit per the owner's reordering — `2026-11-21-005`; the AE2 oneof round-trip therefore lands with
+U7, not here). Verification: `./gradlew build` green; the three suites (12 tests) pass. As built:
+(c) `jackson_off.proto` drops the dynamic WKTs and the `jackson_format` knob — a jackson-off file
+cannot declare either (both fail generation); the three test protos use a `.rec` `java_package` so
+the un-annotated Avro specifics stay out of the `@NullMarked` record package (the test source set
+has no `package_suffix`); `JacksonInvarianceTest` checks the surface by reflection over
+runtime-retained annotations. The suites surfaced three pre-existing bugs, each fixed in its own
+commit first: `repeated string`/`bytes` could not be generated (codec + Avro converter,
+`9556453`); `FieldMask`/`Empty` could not round-trip through Jackson (`08ab106`); converter-built
+Avro records could not be binary-encoded (null carrier array, `6ca863f`). Retained JSON properties
+survive the wire as unknown fields (the fold keys by a name hash), not as JSON properties after a
+decode — the test asserts that, and the `RecordSourceMapping` javadoc claiming a decode
+"re-seeds" them is corrected. `CONCEPTS.md`: Dynamic WKT (default-ON, `NullValue`), Opaque
+envelope (landed as `RecordbufDynamicWkt`), Structural twin (carrier transit is still a TODO).
 **Origin:** origin unit U10 of `2026-11-20-001-feature-jackson-json-plan.md` (the integration
 gate — 2–3 test-set protos + 2–4 JUnit classes + fixtures deps + CONCEPTS.md), re-sequenced after
 U8 → U9 → module/bytes so its shapes are covered.

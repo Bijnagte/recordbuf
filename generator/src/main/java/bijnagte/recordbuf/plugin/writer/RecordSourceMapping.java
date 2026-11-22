@@ -127,7 +127,8 @@ public final class RecordSourceMapping {
    * surface switch: see {@link #toSource(Message, String, boolean)} for the annotation surface.
    * When {@code jackson} the record additionally carries the {@code jsonExtras} component (the
    * any-getter/any-setter retention pair) and a compact constructor normalizing it and the carrier,
-   * and the codec folds the map into the carrier on encode and re-seeds it on decode.
+   * and the codec folds the map into the carrier on encode (a decode reads the folded entries back
+   * as ordinary unknown fields — the property names are not on the wire).
    */
   public static RecordSpec toSourceWithCodec(Message m, boolean jackson) {
     TypeRef.Named recordRef = m.type();

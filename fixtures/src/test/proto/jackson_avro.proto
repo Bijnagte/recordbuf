@@ -1,0 +1,23 @@
+// U10 (2026-11-21-004) fixture (b): the Jackson x Avro variant. All four dynamic WKTs on a file
+// with both surfaces on, so the Avro twin carries them as the U9 RecordbufDynamicWkt envelope
+// (format = "json", contentType = the WKT FQN or an Any's typeUrl, payload = the node's JSON).
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.jackson.avro;
+
+option java_package = "bijnagte.recordbuf.fixture.jackson.avro.rec";
+option java_multiple_files = true;
+option (.recordbuf.avro) = RECORDBUF_AVRO_ON;
+
+import "google/protobuf/any.proto";
+import "google/protobuf/struct.proto";
+import "recordbuf_options.proto";
+
+message Dyn {
+  string name = 1;
+  google.protobuf.Value value = 2;
+  google.protobuf.Struct doc = 3;
+  google.protobuf.ListValue items = 4;
+  google.protobuf.Any payload = 5;
+  repeated google.protobuf.Value values = 6;
+}
