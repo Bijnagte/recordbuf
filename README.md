@@ -1,211 +1,243 @@
 # recordbuf
 
-> A `protoc` code-generation plugin that turns `.proto` files into Java records
-> with built-in protobuf codecs — no separate build step, no generated
-> dependency surface beyond the protobuf runtime.
+> A `protoc` plugin that turns `.proto` files into idiomatic Java records that act as
+> your domain model, with deterministic, generated bindings to the protobuf wire format,
+> protobuf-java, Avro, and JSON, so there is no hand-written adapter left to drift.
 
 `recordbuf` builds **`protoc-gen-recordbuf`**, a [protoc plugin](https://protobuf.dev/develop/plugins/)
-written in Java. You point `protoc` at it with a custom output flag
-(`--recordbuf_out=…`) and it emits one Java source file per `.proto`, each
-containing `record` types plus a `Codec` member that reads/writes the protobuf
-wire format.
+written in Java. Point `protoc` at it with `--recordbuf_out=…`. For every message and enum
+it emits a Java `record` / `enum` that carries:
+
+- its own protobuf **codec**, byte-compatible with protobuf-java,
+- an **unknown-field carrier**, so fields from a newer schema survive a decode → encode round-trip,
+- a **builder**, **sealed-interface oneofs**, and **native well-known types** (`Instant`, `Duration`, …),
+- optional bindings: **Jackson JSON** annotations, an **Avro** specific record + converter, and a
+  **protobuf-java interop** converter.
+
+The `.proto` is the single source of truth. Why and for whom is covered in [STRATEGY.md](./STRATEGY.md),
+and the project vocabulary (codec, unknown-field carrier, structural twin, …) is in
+[CONCEPTS.md](./CONCEPTS.md).
 
 ## Quick start
 
-Everything below uses the Gradle wrapper — not a global `gradle`.
+Everything uses the Gradle wrapper, not a global `gradle`. The project builds on a JDK 25 toolchain.
 
 ```bash
-# 1. Build the generator and produce its launcher script.
+# 1. Build the generator and its self-contained launcher.
 ./gradlew :recordbuf-generator:installDist
 
-# 2. Run it through protoc, generating into your source tree.
+# 2. Run it through protoc. Add options/src/main/proto to -I if your .proto imports
+#    recordbuf_options.proto.
 protoc --plugin=protoc-gen-recordbuf="$PWD/generator/build/install/protoc-gen-recordbuf/bin/protoc-gen-recordbuf" \
+       -I options/src/main/proto -I path/to/protos \
        --recordbuf_out=src/main/java \
-       path/to/your.proto
+       path/to/protos/your.proto
 
-# 3. Build/test the project itself.
+# 3. Build and test the project itself (compile, tests, Spotless, Checkstyle, Error Prone/NullAway).
 ./gradlew build
 ```
 
-`./gradlew :recordbuf-generator:installDist` produces a self-contained launcher
-at `generator/build/install/protoc-gen-recordbuf/bin/protoc-gen-recordbuf`, with a
-sibling `lib/` of jars: it puts the generator classpath on `$CLASSPATH` and
-execs `java -cp … bijnagte.recordbuf.plugin.Main`.
+Use the launcher under `generator/build/install/protoc-gen-recordbuf/bin/`. `installDist` also
+writes a staging script to `generator/build/scripts/`, but that one cannot find its `lib/`
+when run in place.
+
+For a Gradle build, [`fixtures/build.gradle`](./fixtures/build.gradle) shows the full wiring
+with `com.google.protobuf` (protobuf-gradle-plugin): a managed `protoc`, the recordbuf plugin,
+and the options include path.
 
 ## Usage
 
-The plugin speaks the standard protoc plugin wire protocol: it reads a single
-serialized `CodeGeneratorRequest` from **stdin** and writes a single serialized
-`CodeGeneratorResponse` to **stdout**. Generation errors are reported through the
-response `error` field (so `protoc --fail-fast=false` works); only fatal
-plugin-level failures — e.g. a malformed request — write to stderr and exit
-non-zero.
+### What gets generated
 
-For each file in the request's `file_to_generate` list, recordbuf emits one Java
-source file holding:
-
-- the message `record`(s), with nested messages/enums inlined,
-- a compact constructor that null-guards `Optional`/`List`/`Map` fields,
-- a `Codec` that provides `CodedInputStream`/`CodedOutputStream` (de)serialization,
-- an `implements` clause when the type declares the `java_interface` / `java_enum_interface`
-  option (see [Implementing user interfaces](#implementing-user-interfaces-via-custom-options)),
-- top-level `enum`s (declared before the records that reference them).
-
-Supported features: `FEATURE_PROTO3_OPTIONAL_VALUE`.
-
-### Generated types are generator-free
-
-The generated output is independent of `:recordbuf-generator`: it does not pull
-in the plugin's internals. It depends on two small, published coordinates:
-
-- the protobuf runtime (`com.google.protobuf.{CodedInputStream,CodedOutputStream}`), and
-- `bijnagte.recordbuf:recordbuf-runtime` — the small codec-helper surface the
-generated `Codec` calls into (encode/decode scaffolding, packed buffer/drain,
-tag/`skipField` primitives, the per-wire default-value table). The per-message
-field dispatch stays in the generated codec; only the mechanical framing lives
-in the runtime.
-
-Keep both `com.google.protobuf:protobuf-java` and `recordbuf-runtime` on your
-consumer classpath. The generator's own extra libraries (JSpecify nullability
-annotations, the record-builder annotation processor) do **not** leak into
-generated output.
-
-> **Do not edit generated files by hand.** Each carries a
-> `Generated by recordbuf -- DO NOT EDIT.` header. Fix the generator or the
-> `.proto` instead.
-
-### Implementing user interfaces via custom options
-
-A generated record or enum can implement one or more of *your* Java interfaces.
-Declare them with two custom options — a `repeated string` extension on
-`MessageOptions` / `EnumOptions`, defined in recordbuf's
-`recordbuf_options.proto`:
+Given:
 
 ```proto
-import "recordbuf_options.proto";   // defines the two extensions; keep on your `-I` path
+syntax = "proto3";
+package example;
+option java_package = "com.example";
 
+message Sub {
+  string text = 1;
+}
+```
+
+recordbuf emits `com/example/Sub.java` (one file per top-level type, plus a `@NullMarked`
+`package-info.java` per package):
+
+```java
+Sub s = Sub.builder().text("hi").build();
+
+byte[] wire = s.toByteArray();            // protobuf wire format (codec: Sub.SubCodec)
+Sub back = Sub.fromBytes(wire);           // unknown fields kept in back.unknownFields()
+
+String json = new ObjectMapper().writeValueAsString(s);   // Jackson surface (default on)
+SubAvro avro = SubAvroConverter.fromRecord(s);            // Avro bridge (default on)
+```
+
+| Proto shape | Generated Java |
+|---|---|
+| message | `record` implementing `bijnagte.recordbuf.runtime.ProtobufMessage`, with a compact constructor that normalizes defaults, a nested `Builder`, and a nested `<Name>Codec` |
+| `optional` / message-typed field | `@Nullable` component (JSpecify) |
+| `repeated` / `map` | `List` / `Map`, never null |
+| `oneof` | nested `sealed interface` with one `<Member>Value` record per case |
+| enum | Java `enum` with `getNumber()` / `forNumber(int)` |
+| `bytes` | `bijnagte.recordbuf.runtime.Bytes` (immutable, content-equal) |
+| `Timestamp` / `Duration` | `java.time.Instant` / `java.time.Duration` |
+| scalar wrappers | boxed primitives (`BytesValue` → `Bytes`) |
+| `FieldMask` / `Empty` | `runtime.FieldMask` / `runtime.Empty` |
+| `Struct` / `Value` / `ListValue` / `Any` | Jackson nodes (`ObjectNode` / `JsonNode` / `ArrayNode`). Requires the Jackson surface; generation fails loudly without it. |
+
+Generated files are marked `Generated by recordbuf -- DO NOT EDIT.`, so fix the generator or the
+`.proto` instead of the output. The output is Google-Java-Format clean and NullAway clean.
+
+The plugin speaks the standard protoc plugin protocol: it reads a `CodeGeneratorRequest` from
+stdin and writes a `CodeGeneratorResponse` to stdout. Generation errors go in the response's
+`error` field. Only fatal plugin failures, such as a malformed request, log to stderr (SLF4J)
+and exit non-zero. Supported features: `FEATURE_PROTO3_OPTIONAL_VALUE`.
+
+### Plugin parameters
+
+Pass these as comma-separated `key=value` pairs, e.g. `--recordbuf_out=package_suffix=.rec,avro=off:src/main/java`.
+
+| Parameter | Effect |
+|---|---|
+| `package_suffix=.rec` | Appends a suffix to every file's Java package, so records can live next to protobuf-java classes generated from the same `.proto`. |
+| `avro=on\|off` | Global default for the Avro bridge (built-in default: **on**). A per-file `recordbuf.avro` option overrides it. |
+
+### Options (`recordbuf_options.proto`)
+
+Import `recordbuf_options.proto` (from `options/src/main/proto`, on your `-I` path) to use these.
+Inside a `recordbuf.*` package, reference them with a leading dot, e.g. `(.recordbuf.java_interface)`.
+
+| Option | Scope | Effect |
+|---|---|---|
+| `java_interface` (repeated) | message | Adds `implements <fqn>` to the record |
+| `java_enum_interface` (repeated) | enum | Adds `implements <fqn>` to the enum |
+| `protobuf_java = "<java_package>"` | message | Generates a nested `Interop` with `from(X)` / `to(R)` to the protobuf-java class `X` in that package |
+| `avro = RECORDBUF_AVRO_ON\|OFF\|NONE` | file | Per-file Avro override (`NONE` falls through to the plugin parameter) |
+| `jackson = false` | file | Opts out of the Jackson JSON surface (default **on**) |
+| `jackson_format = "json"\|"canonical"` | field | Renders a `Timestamp` / `Duration` as ISO-8601 (default) or in the proto3 JSON mapping |
+| `json_oneof = "<name>"` | oneof | Renames the oneof discriminator property (default `<oneofName>Type`) |
+
+`json_name`, `json_ignored`, and `json_oneof_values` are reserved: they are declared but not yet read.
+
+#### Implementing your interfaces
+
+```proto
 message Sample {
   int32 id = 1;
   option (recordbuf.java_interface) = "com.example.ComparableThing";
-  option (recordbuf.java_interface) = "com.example.Sourced";
 }
-
 enum Color {
   option (recordbuf.java_enum_interface) = "com.example.Named";
   UNKNOWN = 0;
-  RED = 1;
 }
 ```
 
-The generated output is:
+recordbuf writes only the `implements` clause, using the fully-qualified name as plain text in
+declaration order. It never loads or checks your interface, so `javac` decides whether the type
+satisfies it, just as if you had written the clause by hand. Marker interfaces need nothing else.
+Types without the option generate unchanged. [docs/protobuf.dev-index.md](./docs/protobuf.dev-index.md)
+explains why these options live outside protobuf's namespace.
 
-```java
-public record Sample(int id)
-        implements com.example.ComparableThing, com.example.Sourced { … }
+### Bindings
 
-public enum Color implements com.example.Named { … }
-```
+- **Protobuf wire.** Always on. The codec is byte-identical to protobuf-java 4.36.2, and
+  `runtime.ProtobufMarshaller` adapts any record to a gRPC-style marshaller.
+- **protobuf-java interop.** Turned on per message with `protobuf_java`. `Sub.Interop.from(x)` / `Sub.Interop.to(r)`
+  convert field by field, including oneofs.
+- **Avro.** Default on. For each message it emits a `.avsc` schema, an Avro `SpecificRecord`
+  (`SubAvro`, generated in-process by Avro's own `SpecificCompiler`) in the natural package, and a
+  `SubAvroConverter` (`toRecord` / `fromRecord`) next to the record. The Avro output is a
+  *structural twin*: maps, oneofs (unions), nested messages, enums, `uint64`, and the unknown-field
+  carrier all map structurally.
+- **JSON (Jackson 3).** Default on. Adds `@JsonProperty` wire names, keeps unknown JSON properties
+  in a `jsonExtras` map, flattens oneofs with a `<oneofName>Type` discriminator, and
+  (de)serializes temporal fields per `jackson_format`. No module registration is needed: use a plain
+  `ObjectMapper`.
 
-**No verification burden.** recordbuf emits the `implements` clause *only* —
-never a body, and it never loads or type-checks your interface against its own
-classpath. The fully-qualified names are written as plain text (no import is
-added), so the Java compiler owns satisfaction, exactly as if you'd hand-written
-the clause. Three consequences:
+### Consumer dependencies
 
-- **Marker interfaces are free.** A type that declares only marker interfaces
-  needs no further action — it already satisfies them.
-- **Declaration order is preserved.** Interfaces are emitted in the order the
-  options are written.
-- **No option ⇒ no clause.** Types that don't declare an option are generated
-  byte-for-byte as before, so this is a no-op for existing code.
+Generated code never depends on the generator. What it needs on the classpath depends on
+which bindings are enabled:
 
-One option is declared per type, and because protobuf forbids naming the same
-extension symbol on both `MessageOptions` and `EnumOptions`, the two use distinct
-names — `java_interface` on messages and `java_enum_interface` on enums
-(field numbers 50000 / 50001). Because the extension names live in recordbuf's
-own package (not protobuf's public namespace), a consumer `.proto` nested under
-the `recordbuf` package must reference them with a leading dot, e.g.
-`(.recordbuf.java_interface)`. See
-[docs/protobuf.dev-index.md](./docs/protobuf.dev-index.md) for the full note on
-why these extensions are not part of protobuf itself.
+| Needed for | Coordinate |
+|---|---|
+| always | `bijnagte.recordbuf:recordbuf-runtime` (brings `com.google.protobuf:protobuf-java` 4.36.2) and `org.jspecify:jspecify` |
+| JSON surface (default on) | `bijnagte.recordbuf:recordbuf-json` (brings Jackson 3 databind and the annotations) |
+| Avro bridge (default on) | `bijnagte.recordbuf:recordbuf-avro` (brings `org.apache.avro:avro`) |
+| `protobuf_java` interop | protobuf-java classes generated from the same `.proto` (`protoc --java_out`) |
 
-## Project layout
-
-Four role-named subprojects live flat under the repo root; the root
-`build.gradle.kts` is a pure aggregator that co-versions them all as
-`bijnagte.recordbuf:0.0.1` via a `subprojects {…}` block.
-
-```
-build.gradle.kts              Root aggregator: no java/application plugin, just
-                              subprojects{ group; version } (KTD3) and the KTD7
-                              version-skip note.
-settings.gradle.kts           Includes the four subprojects; maps role -> dir.
-gradle/libs.versions.toml     Centralized version catalog (bump here, not in the build)
-runtime/                      :recordbuf-runtime — the I/O-framing codec-helper
-                              surface the generated Codec calls into by FQN.
-                              (Encoder/Decoder/Wire/CodecDefaults + package-info).
-options/                      :recordbuf-options — recordbuf_options.proto, the
-                              java_interface (MessageOptions, 50000) /
-                              java_enum_interface (EnumOptions, 50001) extension
-                              definitions. A protoc -I include path, not a
-                              Gradle dependency of the generator (KTD5).
-fixtures/                     :recordbuf-fixtures — per-family .proto + the
-                              interop/byte-equality and interface tests. Generates
-                              record + protobuf-java references into its own source
-                              set; the interop suite runs against the compiled
-                              fixtures artifact (KTD6).
-generator/                    :recordbuf-generator — the plugin itself.
-  src/main/java/bijnagte/recordbuf/plugin/
-    Main.java                 protoc entry point: stdin → generate → stdout
-    CodeGenerator.java        Drives generation for one CodeGeneratorRequest
-    model/                    Loaded/normalized proto model (records w/
-                              @RecordBuilder + JSpecify @NullMarked packages)
-    types/                    Type resolution (javaPackage, cross-file FQNs,
-                              Java type mapping)
-    writer/                   Emitters: records, codecs (emits runtime FQNs),
-                              enums, and the JavaWriter buffer
-  src/main/java/com/google/protobuf/compiler/
-    PluginProtos.java         protoc plugin-protocol shim. Generated/protocol
-                              glue — do not hand-rename or refactor.
-  src/test/java/bijnagte/recordbuf/plugin/
-    ImplementsClauseEmissionTest / model/   Plugin + model tests
-  build/install/           installDist output: the self-contained launcher
-                              at build/install/protoc-gen-recordbuf/bin/
-docs/                         plans (docs/plans), durable notes
-                              (docs/protobuf.dev-index.md and the ce-compound
-                              solutions under docs/solutions)
-```
-
-Versioning: every subproject inherits `bijnagte.recordbuf:0.0.1` from the root;
-the KTD7 build-time guardrail is intentionally deferred at 0.0.1 (see the
-root build for the recorded future options). `recordbuf_options.proto` lives in
-`:recordbuf-options` (`options/src/main/proto/`), not in any module's `src/main`.
-
-The `com.google.protobuf.compiler.PluginProtos` shim holds the `CodeGeneratorRequest`
-/ `CodeGeneratorResponse` classes; it is regenerated from `protoc`'s `plugin.proto`
-and is treated as out-of-scope glue.
+To get output that depends only on the runtime, turn off both default-on bindings
+(`jackson = false` and `avro=off`).
 
 ## How it works
 
+The diagram shows one `protoc` invocation, from request to generated files.
+
 ```mermaid
 flowchart TB
-  classDef external fill:#fff,stroke:#333,stroke-width:1px
-  classDef internal fill:#eef,stroke:#66a
+  P["protoc"]
+  M["Main<br/>reads CodeGeneratorRequest from stdin"]
+  L["FileTable + ModelLoader<br/>load all files into model records"]
+  T["types package<br/>Java types and WKT mapping"]
+  W["writer package<br/>record, enum, codec, interop mappings"]
+  B["bridge package<br/>Avro schema, SpecificCompiler, converter"]
+  C["recordbuf-codegen<br/>Java source AST and renderer"]
+  F["GoogleJavaFormatter"]
+  R["CodeGeneratorResponse<br/>written to stdout"]
+  J["Generated sources<br/>records, enums, Avro specifics, converters"]
 
-  P["protoc<br/>(--recordbuf_out)"]:::external
-  IN["CodeGeneratorRequest<br/>(stdin, protobuf wire)"]:::external
-  M["Main.java<br/>parse request"]:::internal
-  CG["CodeGenerator<br/>two-pass: load all, generate each"]:::internal
-  L["ModelLoader + FileTable<br/>normalize into model records"]:::internal
-  T["TypeResolver / JavaTypeMap<br/>resolve Java FQNs + types"]:::internal
-  W["writer/*<br/>Record · Codec · Enum emitters"]:::internal
-  OUT["CodeGeneratorResponse<br/>(stdout, protobuf wire)"]:::internal
-  J["Java record + Codec<br/>per .proto file"]:::external
+  P --> M
+  M --> L
+  L --> T
+  T --> W
+  T --> B
+  W --> C
+  C --> F
+  F --> R
+  B --> R
+  R --> J
 
-  P --> IN --> M --> CG --> L --> T --> W --> OUT --> P
-  OUT --> J
+  classDef external fill:#ffffff,stroke:#333333,color:#000000
+  classDef internal fill:#eeeeff,stroke:#6666aa,color:#000000
+  class P,J external
+  class M,L,T,W,B,C,F,R internal
 ```
+
+## Project layout
+
+Seven co-versioned subprojects (`bijnagte.recordbuf:0.0.1`) live in role-named directories under the
+repo root. The root `build.gradle.kts` is an aggregator that also applies the shared quality gates.
+
+| Dir | Project | Role |
+|---|---|---|
+| `generator/` | `:recordbuf-generator` | The plugin (`bijnagte.recordbuf.plugin.Main`). `model/` (proto model records), `types/` (type and WKT mapping), `writer/` (source mappings), `bridge/` (Avro bridge). `com/google/protobuf/compiler/` holds the protoc plugin-protocol shim, which is protocol glue and should not be refactored. |
+| `codegen/` | `:recordbuf-codegen` | Generator-only, dependency-free Java source AST + `SourceRenderer` (import collection, Javadoc, formatting SPI). |
+| `runtime/` | `:recordbuf-runtime` | What generated code calls: `Encoder`/`Decoder`/`Wire` framing, `UnknownFields`, `ProtobufMessage`, `ProtobufMarshaller`, `Bytes`, `FieldMask`, `Empty`, `wkt.Wkt`. |
+| `json/` | `:recordbuf-json` | Jackson support: temporal (de)serializers, `JsonExtras`, dynamic WKT bridging, the JSON envelope. |
+| `recordbuf-avro/` | `:recordbuf-avro` | Avro runtime support: WKT ↔ Avro conversions (`WktAvroBridge`). |
+| `options/` | `:recordbuf-options` | `recordbuf_options.proto`, consumed as a protoc `-I` include, not as a Gradle dependency. |
+| `fixtures/` | `:recordbuf-fixtures` | Per-feature `.proto` fixtures generated through the real launcher, plus byte-compatibility, interop, Avro, JSON, and unknown-field round-trip tests against protobuf-java 4.36.2. Its Gradle script is Groovy because of the protobuf-gradle-plugin's DSL. |
+
+Other files: `gradle/libs.versions.toml` (the version catalog, where versions are bumped),
+`config/checkstyle/checkstyle.xml` (shared Checkstyle config), `docs/plans/` (implementation plans),
+and `docs/solutions/` (documented learnings; see [docs/README.md](./docs/README.md)).
+
+## Development
+
+`./gradlew build` runs every gate. Each applies to every Java subproject, and they also cover
+the generated fixture output:
+
+- **Spotless + Google Java Format.** Run `./gradlew spotlessApply` before committing.
+- **Checkstyle.** A curated, non-formatting rule set.
+- **Error Prone + NullAway.** NullAway runs at error severity on `@NullMarked` packages.
+- **`-Werror`.** Every javac warning, including deprecation, fails the build.
+
+Generation is cached. Changing the generator re-runs fixture generation automatically, because
+`installDist` is a tracked input. Use `--rerun-tasks` only to bypass the cache. To see the
+plugin's debug logs, set `-Dorg.slf4j.simpleLogger.defaultLogLevel=debug` (they go to stderr only).
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+MIT. See [LICENSE](./LICENSE).
