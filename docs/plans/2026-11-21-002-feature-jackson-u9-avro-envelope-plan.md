@@ -1,7 +1,13 @@
 # Jackson U9 — the Jackson × Avro opaque envelope (`RecordbufDynamicWkt`) — implementation plan
 
-**Date:** 2026-11-21 · **Status:** PLANNED (sequence 2 of 5; U7 oneofs is deliberately last —
-`2026-11-21-005`)
+**Date:** 2026-11-21 · **Status:** DONE 2026-11-22 in `eabaf1b` (sequence 2 of 5; U7 oneofs is
+deliberately last — `2026-11-21-005`). Verification: `./gradlew build` green. As built: the
+facade exposes `DynamicWkt.contentType`/`payload`/`node` (the converter's `JsonPayload` path);
+`Any` encode reuses the `any`/`anyFrom` inverse pair; `NullValue` stays out (owner decision); a
+dynamic WKT as a map value or oneof member fails loud in the bridge; the codec decode arm gained
+the missing `Struct`/`ListValue` node cast; `fixtures/build.gradle` excludes the new
+`RecordbufDynamicWkt` SpecificCompiler output from EP like the other carriers; the
+`fixtures/.../dynamic.proto` fixture compiles the surface (its Avro bytes round-trip is U10/AE4).
 **Origin:** unit U9 / R10 / P1 of `2026-11-20-001-feature-jackson-json-plan.md` (the J6 envelope;
 "exactly the structural-twin plan's shelved `{format, content-type, payload}` shape — it returns
 unmodified") + the 3.x handoff's remaining item 5 + commit `bcce1fa` (U5) which promised: "Any/
