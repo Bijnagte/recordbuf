@@ -59,6 +59,9 @@ public final class TypeRefs {
   // --- Jackson node<->wire conversion for dynamic WKT fields (:recordbuf-json) ---
   public static final TypeRef DYNAMIC_WKT = TypeRef.of("bijnagte.recordbuf.json.DynamicWkt");
 
+  /** The Jackson×Avro envelope's {@code payload} host (:recordbuf-json). */
+  public static final TypeRef JSON_PAYLOAD = TypeRef.of("bijnagte.recordbuf.json.JsonPayload");
+
   /**
    * The retained unknown JSON properties fold helper (:recordbuf-json): the codec folds the
    * record's {@code jsonExtras} map into the unknown-field carrier on encode.

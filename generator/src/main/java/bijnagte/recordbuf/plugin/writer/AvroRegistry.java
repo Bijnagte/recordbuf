@@ -67,6 +67,16 @@ public final class AvroRegistry {
    */
   public static final String ONEOF_VALUE_ENTRY = "RecordbufOneofValue";
 
+  /**
+   * The fixed name of the shared dynamic-well-known-type envelope record: {@code {format: string,
+   * contentType: string, payload: string}} — the JSON envelope (P1) a {@code Struct}/{@code
+   * Value}/{@code ListValue}/{@code Any} field on a {@code recordbuf.jackson}-enabled file maps to
+   * under the Avro bridge (a dynamic WKT has no canonical wire shape, so its Jackson node rides as
+   * the envelope's {@code payload} JSON text). Emitted once per document, in the document
+   * namespace.
+   */
+  public static final String DYNAMIC_WKT_ENTRY = "RecordbufDynamicWkt";
+
   private final String documentNamespace;
   private final String entryRecordName;
   private final Map<String, String> nameByFqn;
@@ -76,6 +86,20 @@ public final class AvroRegistry {
   private final Set<String> enumFqns;
   private final Map<String, String> recordPackageByFqn;
 
+  /**
+   * True when the bridged file is {@code recordbuf.jackson}-enabled (its dynamic WKTs envelope).
+   */
+  private final boolean jacksonOn;
+
+  /**
+   * True when some reachable regular field maps to the dynamic-WKT envelope (the document emits
+   * it).
+   */
+  private final boolean hasEnvelopeField;
+
+  /** The (possibly disambiguated) name of the shared dynamic-well-known-type envelope record. */
+  private final String dynamicWktEntryName;
+
   private AvroRegistry(
       String documentNamespace,
       String entryRecordName,
@@ -84,7 +108,10 @@ public final class AvroRegistry {
       Map<String, Message> messageByFqn,
       Map<Message, String> fqnByMessage,
       Set<String> enumFqns,
-      Map<String, String> recordPackageByFqn) {
+      Map<String, String> recordPackageByFqn,
+      boolean jacksonOn,
+      boolean hasEnvelopeField,
+      String dynamicWktEntryName) {
     this.documentNamespace = documentNamespace;
     this.entryRecordName = entryRecordName;
     this.nameByFqn = nameByFqn;
@@ -93,6 +120,9 @@ public final class AvroRegistry {
     this.fqnByMessage = fqnByMessage;
     this.enumFqns = enumFqns;
     this.recordPackageByFqn = recordPackageByFqn;
+    this.jacksonOn = jacksonOn;
+    this.hasEnvelopeField = hasEnvelopeField;
+    this.dynamicWktEntryName = dynamicWktEntryName;
   }
 
   /**
@@ -108,6 +138,7 @@ public final class AvroRegistry {
    */
   public static AvroRegistry build(ProtoFile file, Message root, @Nullable FileTable table) {
     String documentNamespace = AvroSchemaGenerator.avroNamespace(file.protoPackage());
+    boolean jacksonOn = file.jackson();
 
     // Phase 1: the reachable graph, breadth-first in first-seen order.
     Map<String, Entry> entries = new LinkedHashMap<>();
@@ -123,15 +154,40 @@ public final class AvroRegistry {
       index(entry.file(), messageIndexes);
       indexEnums(entry.file(), enumIndexes);
       for (Field f : entry.message().fields()) {
-        resolveReference(f, entry, entries, queue, table, loadedFiles, messageIndexes, enumIndexes);
+        // A dynamic WKT on a jackson-enabled file maps to the JSON envelope (a shared carrier, not
+        // a record): it contributes no definition to walk. A jackson-off file never reaches the
+        // bridge with one (the loader fails loud first), so resolveReference's fail-loud for an
+        // avro-unmapped WKT is untouched.
+        if (!isEnvelopeField(f, jacksonOn)) {
+          resolveReference(
+              f, entry, entries, queue, table, loadedFiles, messageIndexes, enumIndexes);
+        }
         // A map's value is itself a type reference (a message/enum value resolves to an FQN).
         if (f.isMap() && f.mapValue() != null) {
+          // A dynamic WKT as a map value has no Avro mapping (the envelope covers regular
+          // singular/repeated fields only): fail loud rather than emit an unconvertible map.
+          if (jacksonOn && WellKnownTypes.nodeType(f.mapValue()) != null) {
+            throw new AvroUnsupportedException(
+                f.name(),
+                "a map value of a dynamic well-known type ("
+                    + normalize(f.mapValue())
+                    + ") has no Avro mapping (the JSON envelope covers regular fields only)");
+          }
           resolveTokenReference(
               f.mapValue(), entry, entries, queue, table, loadedFiles, messageIndexes, enumIndexes);
         }
       }
       for (Oneof oneof : entry.message().oneofs()) {
         for (Field member : oneof.members()) {
+          // A dynamic WKT as a oneof member has no Avro mapping (a wrapper would lose the node
+          // shape): fail loud rather than emit an unconvertible oneof.
+          if (jacksonOn && WellKnownTypes.nodeType(member.typeUrl()) != null) {
+            throw new AvroUnsupportedException(
+                member.name(),
+                "a oneof member of a dynamic well-known type ("
+                    + normalize(member.typeUrl())
+                    + ") has no Avro mapping (the JSON envelope covers regular fields only)");
+          }
           resolveReference(
               member, entry, entries, queue, table, loadedFiles, messageIndexes, enumIndexes);
         }
@@ -197,6 +253,24 @@ public final class AvroRegistry {
       }
     }
 
+    // The shared dynamic-well-known-type envelope record: emitted when some reachable regular field
+    // maps to it, and named like the unknown-field entry record — fixed name, disambiguated/failing
+    // loud only if a reachable name would occupy it (reachable names carry the "Avro" suffix, so in
+    // practice they never do).
+    boolean hasEnvelopeField = needsEnvelope(entries, jacksonOn);
+    String dynamicName = DYNAMIC_WKT_ENTRY;
+    if (hasEnvelopeField
+        && claimedNames.containsKey(namespaceKeyRaw(documentNamespace, dynamicName))) {
+      String segment = lastSegment(documentNamespace);
+      if (segment.isEmpty()) {
+        throw new AvroUnsupportedException(
+            DYNAMIC_WKT_ENTRY,
+            "a reachable message occupies the dynamic-well-known-type envelope record's name; the"
+                + " Avro bridge cannot disambiguate");
+      }
+      dynamicName = segment + DYNAMIC_WKT_ENTRY;
+    }
+
     return new AvroRegistry(
         documentNamespace,
         entryName,
@@ -205,7 +279,10 @@ public final class AvroRegistry {
         messageByFqn,
         fqnByMessage,
         collectEnums(entries, enumIndexes),
-        recordPackageByFqn);
+        recordPackageByFqn,
+        jacksonOn,
+        hasEnvelopeField,
+        dynamicName);
   }
 
   // ---- resolution ----
@@ -438,6 +515,46 @@ public final class AvroRegistry {
   /** The name of the shared unknown-field entry record for this document. */
   public String entryRecordName() {
     return entryRecordName;
+  }
+
+  /** True when the bridged file is {@code recordbuf.jackson}-enabled. */
+  public boolean jacksonOn() {
+    return jacksonOn;
+  }
+
+  /**
+   * Whether some reachable regular field maps to the dynamic-WKT envelope (the document emits it).
+   */
+  public boolean hasEnvelopeField() {
+    return hasEnvelopeField;
+  }
+
+  /** The (possibly disambiguated) name of the shared dynamic-well-known-type envelope record. */
+  public String dynamicWktEntryName() {
+    return dynamicWktEntryName;
+  }
+
+  /**
+   * Whether a regular field maps to the shared dynamic-well-known-type envelope: a node-typed WKT
+   * ({@code Struct}/{@code Value}/{@code ListValue}/{@code Any}) on a jackson-enabled file.
+   */
+  public boolean isEnvelopeField(Field f) {
+    return jacksonOn && WellKnownTypes.nodeType(f.typeUrl()) != null;
+  }
+
+  /** The {@link #isEnvelopeField(Field)} rule with an explicit jackson flag (the graph walk). */
+  private static boolean isEnvelopeField(Field f, boolean jacksonOn) {
+    return jacksonOn && WellKnownTypes.nodeType(f.typeUrl()) != null;
+  }
+
+  /** Whether any reachable regular field maps to the dynamic-well-known-type envelope. */
+  private static boolean needsEnvelope(Map<String, Entry> entries, boolean jacksonOn) {
+    for (Entry e : entries.values()) {
+      for (Field f : e.message().fields()) {
+        if (!f.isMap() && isEnvelopeField(f, jacksonOn)) return true;
+      }
+    }
+    return false;
   }
 
   /** Every reachable message's proto FQN, in first-seen (breadth-first) order. */

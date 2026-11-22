@@ -1,0 +1,38 @@
+// U9 (2026-11-21-002 Jackson × Avro envelope): the dynamic WKT fixture. `google.protobuf.Struct` /
+// `Value` / `ListValue` / `Any` have no structural Avro mapping, so on this module's default-ON
+// avro bridge the generated SampleAvro carries them as the shared envelope record
+// ([null, RecordbufDynamicWkt]; format = "json", contentType = the WKT FQN or, for Any, its
+// typeUrl) instead of failing the bridge. The .rec record side carries the Jackson node type
+// (jackson is also default-ON), so this fixture is where record / avro / jackson meet for the
+// dynamic WKTs. Its generated output compiles under the fixtures' full Error Prone scope; the
+// Avro bytes round-trip itself is U10's acceptance test.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.dynamic;
+option java_package = "bijnagte.recordbuf.fixture.dynamic";
+option java_multiple_files = true;
+
+import "google/protobuf/struct.proto"; // Struct, Value, ListValue
+import "google/protobuf/any.proto"; // Any
+import "google/protobuf/wrappers.proto"; // StringValue
+
+message Sample {
+  // Document-structured dynamic WKT -> tools.jackson.databind.node.ObjectNode.
+  google.protobuf.Struct doc = 1;
+
+  // Arbitrary-JSON dynamic WKT -> tools.jackson.databind.JsonNode.
+  google.protobuf.Value value = 2;
+
+  // JSON-array dynamic WKT -> tools.jackson.databind.node.ArrayNode.
+  google.protobuf.ListValue items = 3;
+
+  // Dynamic container WKT -> JsonNode ({typeUrl, value}); the envelope contentType is its typeUrl.
+  google.protobuf.Any payload = 4;
+
+  // Repeated dynamic WKT: each avro array element rides the same [null, envelope] union.
+  repeated google.protobuf.Value values = 5;
+
+  // A structured (non-dynamic) WKT field: the envelope record must ride ALONGSIDE the twin's
+  // dedicated avro types in one schema.
+  google.protobuf.StringValue label = 6;
+}

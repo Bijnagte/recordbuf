@@ -19,7 +19,10 @@ import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.Oneof;
 import bijnagte.recordbuf.plugin.types.TypeRefs;
+import bijnagte.recordbuf.plugin.types.WellKnownTypes;
+import bijnagte.recordbuf.plugin.types.WellKnownTypes.Entry;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -144,6 +147,13 @@ public final class AvroConverterSourceMapping {
       Field f, String param, String builder, AvroRegistry registry, String specificRecordPkg) {
     String getter = param + ".get" + cap(f.javaName());
     String var = builder + "." + f.javaName();
+
+    // The U9 JSON envelope: a node-typed dynamic WKT on a jackson-enabled file round-trips as the
+    // shared envelope record ({format, contentType, payload}); absent (the union's null branch)
+    // stays a null component.
+    if (registry != null && registry.isEnvelopeField(f)) {
+      return envelopeArm(var, getter + "()", f, true, registry);
+    }
 
     String wkt = AvroSchemaGenerator.typeUrlIfWkt(f);
     if (wkt != null) {
@@ -420,6 +430,12 @@ public final class AvroConverterSourceMapping {
     String setter = param + ".set" + cap(f.javaName());
     String accessor = record + "." + f.javaName() + "()";
 
+    // The U9 JSON envelope: a node-typed dynamic WKT component round-trips as the shared envelope
+    // record; an absent (null) component sets the union's null branch.
+    if (registry != null && registry.isEnvelopeField(f)) {
+      return envelopeArm(setter, accessor, f, false, registry);
+    }
+
     String wkt = AvroSchemaGenerator.typeUrlIfWkt(f);
     if (wkt != null) {
       return wktFromRecord(wkt, setter, accessor);
@@ -468,6 +484,62 @@ public final class AvroConverterSourceMapping {
     }
     throw new AvroUnsupportedException(
         f.name(), "cannot map record field to an Avro field ('" + f.typeUrl() + "')");
+  }
+
+  /**
+   * The U9 Jackson×Avro envelope arm, in the two directions a dynamic-WKT field rides it:
+   *
+   * <ul>
+   *   <li><b>record → specific (fromRecord):</b> a null component takes the union's null branch;
+   *       otherwise {@code new RecordbufDynamicWkt("json", DynamicWkt.contentType(<wkt FQN>, node),
+   *       DynamicWkt.payload(node).jsonText())} — the content type is the WKT FQN, or an {@code
+   *       Any}'s own {@code typeUrl}.
+   *   <li><b>specific → record (toRecord):</b> a null envelope stays an absent (null) component;
+   *       otherwise {@code DynamicWkt.node(JsonPayload.of(payload))}, cast to the component's
+   *       concrete node type when it is narrower than {@code JsonNode}. The {@code contentType} is
+   *       informational: the payload is self-describing JSON.
+   * </ul>
+   *
+   * <p>A repeated field maps the same arm per element.
+   *
+   * @param target the record-side builder setter (toRecord) or the Avro-side setter (fromRecord)
+   * @param source the side holding the value, as a rendered expression
+   * @param f the field
+   * @param toRecord true for specific→record, false for record→specific
+   * @param registry the reachable-type registry, providing the envelope record and its namespace
+   */
+  private static Element envelopeArm(
+      String target, String source, Field f, boolean toRecord, AvroRegistry registry) {
+    TypeRef envelope = TypeRef.named(registry.documentNamespace(), registry.dynamicWktEntryName());
+    String wktFqn = AvroSchemaGenerator.normalizeRef(f.typeUrl());
+    Entry entry = Objects.requireNonNull(WellKnownTypes.resolve(f.typeUrl()), "dynamic WKT");
+    TypeRef nodeType = Objects.requireNonNull(entry.nodeType(), "dynamic WKT node type");
+    // `%s` is the per-value operand: the lambda parameter for a repeated field (mapped per
+    // element),
+    // the source expression itself for a singular one.
+    boolean needsCast = toRecord && !nodeType.equals(TypeRefs.JSON_NODE);
+    String convert;
+    if (toRecord) {
+      String cast = needsCast ? "(@4) " : "";
+      convert = "%s == null ? null : " + cast + "@2.node(@3.of(%s.getPayload().toString()))";
+    } else {
+      convert =
+          "%s == null ? null : new @2(\"json\", @3.contentType(\""
+              + wktFqn
+              + "\", %s), @3.payload(%s).jsonText())";
+    }
+    String template =
+        f.isRepeated()
+            ? "@0(@1.stream().map(v -> " + convert.replace("%s", "v") + ").toList())"
+            : "@0(" + convert.replace("%s", "@1") + ")";
+    // Pass the node type only when the cast uses it: every TypeRef argument becomes an import.
+    if (needsCast) {
+      return Element.expr(
+          template, target, source, TypeRefs.DYNAMIC_WKT, TypeRefs.JSON_PAYLOAD, nodeType);
+    }
+    return toRecord
+        ? Element.expr(template, target, source, TypeRefs.DYNAMIC_WKT, TypeRefs.JSON_PAYLOAD)
+        : Element.expr(template, target, source, envelope, TypeRefs.DYNAMIC_WKT);
   }
 
   private static Element wktFromRecord(String wkt, String setter, String accessor) {

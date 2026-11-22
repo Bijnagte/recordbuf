@@ -19,6 +19,7 @@ import bijnagte.recordbuf.plugin.model.ProtoFile;
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
 import com.google.protobuf.DescriptorProtos.OneofDescriptorProto;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Parser;
@@ -506,5 +507,74 @@ class AvroSchemaGeneratorTest {
     Schema message = parser.parse(MAPPER.writeValueAsString(doc.get("message")));
     assertEquals("SampleAvro", message.getName());
     assertFalse(message.getFields().isEmpty());
+  }
+
+  @Test
+  void jacksonOnDynamicWktFieldsMapToTheSharedEnvelope() throws Exception {
+    Message root =
+        message(
+            "Sample",
+            "p",
+            field("value", 1, "google.protobuf.Value"),
+            repeatedField("values", 2, "google.protobuf.Value"),
+            field("payload", 3, "google.protobuf.Any"),
+            field("at", 4, "google.protobuf.Timestamp"));
+    ProtoFile pf =
+        new ProtoFile(
+            "a.proto",
+            "p",
+            "",
+            List.of(root),
+            List.of(),
+            false,
+            null,
+            AvroToggle.OFF,
+            /* jackson= */ true);
+
+    JsonNode doc = tree(pf, root, null);
+
+    // The envelope is emitted once, as a shared carrier in the document namespace.
+    JsonNode types = doc.get("types");
+    int envelopes = 0;
+    for (JsonNode t : types) {
+      if (t.get("name").asString().equals(AvroRegistry.DYNAMIC_WKT_ENTRY)) {
+        envelopes++;
+        List<String> names = new ArrayList<>();
+        t.get("fields").forEach(f -> names.add(f.get("name").asString()));
+        assertEquals(List.of("format", "contentType", "payload"), names);
+        assertEquals("p", t.get("namespace").asString());
+      }
+    }
+    assertEquals(1, envelopes, "the envelope record is emitted exactly once");
+
+    // Singular dynamic WKTs: a null-first union over the envelope.
+    for (String name : List.of("value", "payload")) {
+      JsonNode type = rootField(doc, name).get("type");
+      assertEquals("null", type.get(0).asString(), name);
+      assertEquals(AvroRegistry.DYNAMIC_WKT_ENTRY, type.get(1).asString(), name);
+    }
+    // Repeated: an array whose items are the same union.
+    JsonNode values = rootField(doc, "values").get("type");
+    assertEquals("array", values.get("type").asString());
+    assertEquals(AvroRegistry.DYNAMIC_WKT_ENTRY, values.get("items").get(1).asString());
+    // Structured WKTs keep their structural-twin mapping.
+    assertFalse(
+        rootField(doc, "at").get("type").toString().contains(AvroRegistry.DYNAMIC_WKT_ENTRY));
+
+    // And the document is valid Avro, parsed in the bridge's order.
+    Parser parser = new Parser();
+    for (JsonNode def : types) {
+      parser.parse(MAPPER.writeValueAsString(def));
+    }
+    Schema message = parser.parse(MAPPER.writeValueAsString(doc.get("message")));
+    assertEquals("SampleAvro", message.getName());
+  }
+
+  @Test
+  void jacksonOffDynamicWktStillFailsLoud() {
+    Message root = message("Sample", "p", field("value", 1, "google.protobuf.Value"));
+
+    assertThrows(
+        AvroUnsupportedException.class, () -> tree(file("a.proto", "p", root), root, null));
   }
 }

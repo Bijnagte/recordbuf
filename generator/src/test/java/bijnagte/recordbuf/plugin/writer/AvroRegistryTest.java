@@ -100,6 +100,20 @@ class AvroRegistryTest {
         /* jackson= */ false);
   }
 
+  /** A {@link #file} variant on a {@code recordbuf.jackson}-enabled file (the U9 envelope path). */
+  private static ProtoFile jacksonFile(String fileName, String pkg, Message... messages) {
+    return new ProtoFile(
+        fileName,
+        pkg,
+        "",
+        List.of(messages),
+        List.of(),
+        false,
+        null,
+        AvroToggle.OFF,
+        /* jackson= */ true);
+  }
+
   private static FileTable tableOf(FileDescriptorProto... files) {
     FileTable table = new FileTable();
     table.addAll(List.of(files));
@@ -232,6 +246,43 @@ class AvroRegistryTest {
     assertThrows(
         AvroUnsupportedException.class,
         () -> AvroRegistry.build(file("a.proto", "p", root), root, null));
+  }
+
+  @Test
+  void jacksonOnDynamicWktEnvelopesWithoutContributingARecord() throws Exception {
+    Message root =
+        message(
+            "Sample",
+            "p",
+            field("s", 1, "google.protobuf.Struct"),
+            field("a", 2, "google.protobuf.Any"),
+            field("v", 3, "google.protobuf.Value"));
+
+    AvroRegistry registry = AvroRegistry.build(jacksonFile("a.proto", "p", root), root, null);
+
+    assertTrue(registry.hasEnvelopeField());
+    assertEquals(AvroRegistry.DYNAMIC_WKT_ENTRY, registry.dynamicWktEntryName());
+    assertTrue(registry.isEnvelopeField(root.fields().get(0)));
+    // Only the root record is emitted (the envelope contributes a shared definition, not a walk).
+    assertEquals(List.of("p.Sample"), List.copyOf(registry.protoFqns()));
+  }
+
+  @Test
+  void jacksonOffDynamicWktStillFailsLoud() throws Exception {
+    Message root = message("Sample", "p", field("payload", 1, "google.protobuf.Struct"));
+
+    assertThrows(
+        AvroUnsupportedException.class,
+        () -> AvroRegistry.build(file("a.proto", "p", root), root, null));
+  }
+
+  @Test
+  void jacksonOnDynamicWktMapValueFailsLoud() throws Exception {
+    Message root = message("Sample", "p", mapField("entries", "string", "google.protobuf.Value"));
+
+    assertThrows(
+        AvroUnsupportedException.class,
+        () -> AvroRegistry.build(jacksonFile("a.proto", "p", root), root, null));
   }
 
   @Test

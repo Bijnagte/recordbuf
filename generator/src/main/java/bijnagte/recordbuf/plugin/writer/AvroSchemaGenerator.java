@@ -60,14 +60,18 @@ import tools.jackson.databind.node.ObjectNode;
  *   <tr><td>google.protobuf.DoubleValue</td><td>[null, double]</td></tr>
  *   <tr><td>google.protobuf.FieldMask</td><td>[null, string]</td></tr>
  *   <tr><td>google.protobuf.NullValue</td><td>[null, the NullValue closed enum]</td></tr>
+ *   <tr><td>a dynamic WKT ({@code Struct}/{@code Value}/{@code ListValue}/{@code Any}) on a
+ *   jackson-enabled file</td><td>[null, {type:record,name:RecordbufDynamicWkt,
+ *   fields:[format,contentType,payload]}] — the JSON envelope</td></tr>
  *   <tr><td>google.protobuf.Empty</td><td>{type:record,name:Empty, fields:[]}</td></tr>
  * </table>
  *
  * <p>WKTs are inlined wherever referenced (their nodes appear in the document); a well-known type
  * with no static schema (a <em>dynamic</em> WKT such as {@code Struct} or {@code Any}) is
- * <em>not</em> in the table and is therefore a message reference the registry must resolve — and it
- * resolves nowhere, so it fails loud: the registry rejects the bridge rather than emit a schema
- * that silently drops data.
+ * <em>not</em> in the table: on a jackson-enabled file it maps to the shared JSON envelope record
+ * ({@link #dynamicWktRecord}); on a jackson-disabled file it is a message reference that resolves
+ * nowhere, so the registry fails loud — rejecting the bridge rather than emit a schema that
+ * silently drops data.
  *
  * <p><b>Enum mapping.</b> An enum maps to {@code string}, the named constant's <em>name</em> — the
  * open-ended choice for undefined values: an unknown wire number survives as a (possibly
@@ -257,6 +261,22 @@ public final class AvroSchemaGenerator {
       }
       types.add(oneofRec);
     }
+    // The shared dynamic-well-known-type envelope record (the U9 JSON envelope), emitted when some
+    // reachable regular field maps to it; a name collision with a reachable record fails loud.
+    if (registry.hasEnvelopeField()) {
+      String dynamicName = registry.dynamicWktEntryName();
+      if (!addedNames.add(dynamicName)) {
+        throw new AvroUnsupportedException(
+            dynamicName,
+            "a reachable name occupies the dynamic-well-known-type envelope record's name;"
+                + " the Avro bridge cannot disambiguate");
+      }
+      ObjectNode envRec = dynamicWktRecord(registry);
+      if (envRec.path("namespace").asString("").isEmpty()) {
+        envRec.put("namespace", registry.documentNamespace());
+      }
+      types.add(envRec);
+    }
     // The shared unknown-field entry record every bridged record references.
     if (!addedNames.add(registry.entryRecordName())) {
       throw new AvroUnsupportedException(
@@ -321,6 +341,41 @@ public final class AvroSchemaGenerator {
     union.add(text("bytes"));
     value.set("type", union);
     fields.add(value);
+    rec.set("fields", fields);
+    return rec;
+  }
+
+  /**
+   * The field type of a dynamic-WKT envelope field (a singular field, or one element of a
+   * repeated): the shared envelope record under a {@code null}-first union — every WKT field is a
+   * presence value, so an absent one is the union's null branch.
+   */
+  static JsonNode envelopeTypeNode(AvroRegistry registry) {
+    ArrayNode union = MAPPER.createArrayNode();
+    union.add(text("null"));
+    union.add(text(registry.dynamicWktEntryName()));
+    return union;
+  }
+
+  /**
+   * The shared dynamic-well-known-type envelope record (the U9 JSON envelope, P1): the node's
+   * {@code contentType} — the well-known type's FQN — and its JSON text as {@code payload}, fixed
+   * to the json format.
+   */
+  static ObjectNode dynamicWktRecord(AvroRegistry registry) {
+    ObjectNode rec = MAPPER.createObjectNode();
+    rec.put("type", "record");
+    rec.put("name", registry.dynamicWktEntryName());
+    ArrayNode fields = MAPPER.createArrayNode();
+    ObjectNode format = fieldNodeRaw("format", text("string"));
+    format.put("default", "json");
+    fields.add(format);
+    ObjectNode contentType = fieldNodeRaw("contentType", text("string"));
+    contentType.put("default", "");
+    fields.add(contentType);
+    ObjectNode payload = fieldNodeRaw("payload", text("string"));
+    payload.put("default", "");
+    fields.add(payload);
     rec.set("fields", fields);
     return rec;
   }
@@ -474,6 +529,11 @@ public final class AvroSchemaGenerator {
     if (f.isRepeated()) {
       return arrayType(elementNode(f, registry));
     }
+    // The U9 JSON envelope: a node-typed dynamic WKT on a jackson-enabled file maps to the shared
+    // envelope record under a null-first union (every WKT field is a presence value).
+    if (registry != null && registry.isEnvelopeField(f)) {
+      return envelopeTypeNode(registry);
+    }
     String wktFqn = typeUrlIfWkt(f);
     JsonNode wkt = wktFqn == null ? null : WKT_SCHEMA.get(wktFqn);
     if (wkt != null) return wkt;
@@ -508,6 +568,9 @@ public final class AvroSchemaGenerator {
    * reachable record name).
    */
   static JsonNode elementNode(Field f, AvroRegistry registry) {
+    if (registry != null && registry.isEnvelopeField(f)) {
+      return envelopeTypeNode(registry);
+    }
     String wktFqn = typeUrlIfWkt(f);
     JsonNode wkt = wktFqn == null ? null : WKT_SCHEMA.get(wktFqn);
     if (wkt != null) return wkt;
@@ -880,6 +943,7 @@ public final class AvroSchemaGenerator {
       Message m = registry.messageOf(fqn);
       if (m == null) continue;
       for (Field f : m.fields()) {
+        if (registry.isEnvelopeField(f)) continue; // an envelope field references no WKT named type
         collectWktNamedField(f, out, seen);
       }
       for (Oneof oneof : m.oneofs()) {
