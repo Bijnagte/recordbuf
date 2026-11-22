@@ -7,13 +7,16 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import bijnagte.recordbuf.fixture.JsonGolden;
+import bijnagte.recordbuf.fixture.jackson.oneof.EventAvro;
 import bijnagte.recordbuf.fixture.jackson.oneof.rec.Event;
+import bijnagte.recordbuf.fixture.jackson.oneof.rec.EventAvroConverter;
 import bijnagte.recordbuf.fixture.oneof.rec.Color;
 import bijnagte.recordbuf.fixture.oneof.rec.Compat;
 import bijnagte.recordbuf.fixture.oneof.rec.Sub;
 import bijnagte.recordbuf.runtime.Bytes;
 import java.time.Instant;
 import java.util.List;
+import org.apache.avro.util.ClassSecurityValidator;
 import org.junit.jupiter.api.Test;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
@@ -105,5 +108,25 @@ class JacksonOneofRoundTripTest {
 
     assertNull(back.choice());
     assertInstanceOf(Compat.class, back);
+  }
+
+  @Test
+  void pairedMembersRoundTripThroughAvroBinary() throws Exception {
+    var b = ClassSecurityValidator.builder();
+    for (String name : List.of("EventAvro", "RecordbufOneofValue", "RecordbufUnknownField")) {
+      b.add("bijnagte.recordbuf.fixture.jackson.oneof." + name);
+    }
+    ClassSecurityValidator.setGlobal(b.build());
+    for (Event.When when :
+        List.of(
+            new Event.When.AtValue(Instant.ofEpochSecond(1_763_614_896L, 789_000)),
+            new Event.When.BlobValue(Bytes.of(new byte[] {1, 2, 3})),
+            new Event.When.LabelValue("l"))) {
+      Event event = Event.builder().id(7).when(when).build();
+
+      var binary = EventAvroConverter.fromRecord(event).toByteBuffer();
+
+      assertEquals(event, EventAvroConverter.toRecord(EventAvro.fromByteBuffer(binary)));
+    }
   }
 }

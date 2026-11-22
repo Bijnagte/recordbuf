@@ -1,15 +1,13 @@
 // U7 (2026-11-21-005) fixture: a oneof with a recordbuf.json_oneof discriminator override and
 // members whose JSON needs a (de)serializer pair (Timestamp, bytes), complementing the main
 // oneof.proto fixture (default discriminator; scalar / enum / message members). Same `.rec`
-// java_package layout as the other U10 jackson protos. The Avro bridge is off: the structural twin
-// cannot yet map a well-known type as a oneof member ("unresolvable oneof message member").
+// java_package layout as the other U10 jackson protos.
 syntax = "proto3";
 
 package bijnagte.recordbuf.fixture.jackson.oneof;
 
 option java_package = "bijnagte.recordbuf.fixture.jackson.oneof.rec";
 option java_multiple_files = true;
-option (.recordbuf.avro) = RECORDBUF_AVRO_OFF;
 
 import "google/protobuf/timestamp.proto";
 import "recordbuf_options.proto";

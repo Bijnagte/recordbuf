@@ -179,17 +179,12 @@ public final class AvroRegistry {
       }
       for (Oneof oneof : entry.message().oneofs()) {
         for (Field member : oneof.members()) {
-          // A dynamic WKT as a oneof member has no Avro mapping (a wrapper would lose the node
-          // shape): fail loud rather than emit an unconvertible oneof.
-          if (jacksonOn && WellKnownTypes.nodeType(member.typeUrl()) != null) {
-            throw new AvroUnsupportedException(
-                member.name(),
-                "a oneof member of a dynamic well-known type ("
-                    + normalize(member.typeUrl())
-                    + ") has no Avro mapping (the JSON envelope covers regular fields only)");
+          // A dynamic WKT oneof member rides the shared oneof-value wrapper with the JSON envelope
+          // as its value (a shared carrier, not a record): it contributes no definition to walk.
+          if (!isEnvelopeField(member, jacksonOn)) {
+            resolveReference(
+                member, entry, entries, queue, table, loadedFiles, messageIndexes, enumIndexes);
           }
-          resolveReference(
-              member, entry, entries, queue, table, loadedFiles, messageIndexes, enumIndexes);
         }
       }
       for (Message nested : entry.message().nestedMessages()) {
@@ -547,11 +542,19 @@ public final class AvroRegistry {
     return jacksonOn && WellKnownTypes.nodeType(f.typeUrl()) != null;
   }
 
-  /** Whether any reachable regular field maps to the dynamic-well-known-type envelope. */
+  /**
+   * Whether any reachable regular field or oneof member maps to the dynamic-well-known-type
+   * envelope.
+   */
   private static boolean needsEnvelope(Map<String, Entry> entries, boolean jacksonOn) {
     for (Entry e : entries.values()) {
       for (Field f : e.message().fields()) {
         if (!f.isMap() && isEnvelopeField(f, jacksonOn)) return true;
+      }
+      for (Oneof oneof : e.message().oneofs()) {
+        for (Field member : oneof.members()) {
+          if (isEnvelopeField(member, jacksonOn)) return true;
+        }
       }
     }
     return false;

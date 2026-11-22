@@ -325,9 +325,10 @@ public final class AvroConverterSourceMapping {
     If.Builder b = If.condition(getter + " == null").body(Element.expr(var + "(null)"));
     // Message members each ride their own specific-record subtype in the Avro union; the
     // scalar/enum members ride one shared {tag, value} wrapper, dispatched by the member's tag.
-    boolean hasScalar = oneof.members().stream().anyMatch(m -> m.kind() != FieldKind.MESSAGE);
+    boolean hasScalar =
+        oneof.members().stream().anyMatch(m -> AvroSchemaGenerator.ridesValueWrapper(m, registry));
     for (Field member : oneof.members()) {
-      if (member.kind() != FieldKind.MESSAGE) {
+      if (AvroSchemaGenerator.ridesValueWrapper(member, registry)) {
         continue;
       }
       String fqn = member.typeUrl();
@@ -348,49 +349,175 @@ public final class AvroConverterSourceMapping {
               var + "(new @0(@1.toRecord(m)))", memberValueRef(oneof, member), refConverter));
     }
     if (hasScalar) {
-      b.elseIf(
-          RawExpr.of(getter + " instanceof @0 env", oneofValueRecord(specificRecordPkg)),
-          oneofValueToRecord(oneof, var, "env"));
+      boolean onlyWrapper =
+          oneof.members().stream()
+              .allMatch(m -> AvroSchemaGenerator.ridesValueWrapper(m, registry));
+      if (onlyWrapper) {
+        // Every member rides the wrapper, so the Avro field IS the wrapper type: no instanceof
+        // (Error Prone's BadInstanceof), just a typed local.
+        b.else_(
+            Element.local(oneofValueRecord(specificRecordPkg), "env", getter),
+            oneofValueToRecord(oneof, var, "env", registry));
+      } else {
+        b.elseIf(
+            RawExpr.of(getter + " instanceof @0 env", oneofValueRecord(specificRecordPkg)),
+            oneofValueToRecord(oneof, var, "env", registry));
+      }
     }
     return b.build();
   }
 
-  private static Element oneofValueToRecord(Oneof oneof, String var, String local) {
+  private static Element oneofValueToRecord(
+      Oneof oneof, String var, String local, AvroRegistry registry) {
     List<Field> scalarMembers =
-        oneof.members().stream().filter(m -> m.kind() != FieldKind.MESSAGE).toList();
+        oneof.members().stream()
+            .filter(m -> AvroSchemaGenerator.ridesValueWrapper(m, registry))
+            .toList();
     if (scalarMembers.isEmpty()) {
-      return Element.of(""); // no scalar/enum members; the envelope branch is unused
+      return Element.of(""); // no wrapper-riding members; the envelope branch is unused
     }
     Field first = scalarMembers.get(0);
     If.Builder b =
         If.condition(local + ".getTag() == " + first.number())
-            .body(memberValueToRecordBody(oneof, first, var, local));
+            .body(memberValueToRecordBody(oneof, first, var, local, registry));
     for (int i = 1; i < scalarMembers.size(); i++) {
       Field member = scalarMembers.get(i);
       b.elseIf(
           local + ".getTag() == " + member.number(),
-          memberValueToRecordBody(oneof, member, var, local));
+          memberValueToRecordBody(oneof, member, var, local, registry));
     }
     return b.build();
   }
 
   private static Element memberValueToRecordBody(
-      Oneof oneof, Field member, String var, String local) {
-    TypeRef valueRec = memberValueRef(oneof, member);
-    if (member.kind() == FieldKind.ENUM) {
-      // The envelope stores the enum number (an int); recover the enum via forNumber.
-      return Element.expr(
-          var + "(new @0(@1.forNumber((Integer) " + local + ".getValue())))",
-          valueRec,
-          enumType(member));
-    }
-    if ("string".equals(member.typeUrl())) {
-      // Avro decodes a string as a CharSequence (Utf8), not a String; materialize via toString.
-      return Element.expr(var + "(new @0(" + local + ".getValue().toString()))", valueRec);
-    }
-    // Numeric scalars: the envelope value is the boxed primitive; downcast to the record's type.
+      Oneof oneof, Field member, String var, String local, AvroRegistry registry) {
     return Element.expr(
-        var + "(new @0((@1) " + local + ".getValue()))", valueRec, scalarWrapperType(member));
+        var + "(new @0(@1))",
+        memberValueRef(oneof, member),
+        fromWrapperValue(member, local + ".getValue()", registry));
+  }
+
+  /**
+   * A wrapper-riding oneof member's value read back from the shared wrapper's {@code value} union
+   * (an {@code Object}), converted to the record's member type: the inverse of {@link
+   * #toWrapperValue}.
+   */
+  private static RawExpr fromWrapperValue(Field member, String value, AvroRegistry registry) {
+    if (member.kind() == FieldKind.ENUM) {
+      // The wrapper stores the enum number (an int); recover the enum via forNumber.
+      return RawExpr.of("@0.forNumber((Integer) " + value + ")", enumType(member));
+    }
+    if (registry.isEnvelopeField(member)) {
+      TypeRef envelope =
+          TypeRef.named(registry.documentNamespace(), registry.dynamicWktEntryName());
+      TypeRef nodeType =
+          Objects.requireNonNull(
+              Objects.requireNonNull(WellKnownTypes.resolve(member.typeUrl())).nodeType());
+      String parse = "@0.node(@1.of(((@2) " + value + ").getPayload().toString()))";
+      return nodeType.equals(TypeRefs.JSON_NODE)
+          ? RawExpr.of(parse, TypeRefs.DYNAMIC_WKT, TypeRefs.JSON_PAYLOAD, envelope)
+          : RawExpr.of(
+              "(@3) " + parse, TypeRefs.DYNAMIC_WKT, TypeRefs.JSON_PAYLOAD, envelope, nodeType);
+    }
+    String wkt = AvroSchemaGenerator.typeUrlIfWkt(member);
+    if (wkt == null) {
+      return switch (member.typeUrl()) {
+        // Avro decodes a string as a CharSequence (Utf8), not a String; materialize via toString.
+        case "string" -> RawExpr.of(value + ".toString()");
+        case "bytes" -> bytesFromAvro(value);
+        // Numeric scalars: the wrapper value is the boxed primitive; downcast to the record's type.
+        default -> RawExpr.of("(@0) " + value, scalarWrapperType(member));
+      };
+    }
+    return switch (wkt) {
+      case "google.protobuf.Timestamp" ->
+          RawExpr.of("@0.instantFromMicros((Long) " + value + ")", TypeRefs.WKT_AVRO_BRIDGE);
+      case "google.protobuf.Duration" ->
+          RawExpr.of(
+              "@0.ofSeconds(((@1) " + value + ").getSeconds(), ((@1) " + value + ").getNanos())",
+              TypeRefs.DURATION,
+              avroWktRecord("Duration"));
+      case "google.protobuf.Empty" -> RawExpr.of("@0.instance()", TypeRefs.EMPTY);
+      // An empty mask is stored as the union's null branch.
+      case "google.protobuf.FieldMask" ->
+          RawExpr.of(
+              "@0.of(@1.fieldMaskFromAvro("
+                  + value
+                  + " == null ? null : "
+                  + value
+                  + ".toString()))",
+              TypeRefs.FIELD_MASK,
+              TypeRefs.WKT_AVRO_BRIDGE);
+      case "google.protobuf.StringValue" -> RawExpr.of(value + ".toString()");
+      case "google.protobuf.BytesValue" -> bytesFromAvro(value);
+      case "google.protobuf.Int32Value", "google.protobuf.UInt32Value" ->
+          RawExpr.of("(Integer) " + value);
+      case "google.protobuf.Int64Value", "google.protobuf.UInt64Value" ->
+          RawExpr.of("(Long) " + value);
+      case "google.protobuf.FloatValue" -> RawExpr.of("(Float) " + value);
+      case "google.protobuf.DoubleValue" -> RawExpr.of("(Double) " + value);
+      case "google.protobuf.BoolValue" -> RawExpr.of("(Boolean) " + value);
+      default -> throw new AvroUnsupportedException(member.name(), "no oneof mapping for " + wkt);
+    };
+  }
+
+  /**
+   * A wrapper-riding oneof member's record value as the shared wrapper's {@code value}: an enum as
+   * its number, bytes as a ByteBuffer, a well-known type as its Avro form (a Timestamp as epoch
+   * micros -- the resolution a regular Timestamp field has in Avro -- a Duration / Empty as their
+   * records, a FieldMask as its path string), a dynamic WKT as the JSON envelope.
+   */
+  private static RawExpr toWrapperValue(Field member, String value, AvroRegistry registry) {
+    if (member.kind() == FieldKind.ENUM) {
+      return RawExpr.of(value + ".getNumber()");
+    }
+    if (registry.isEnvelopeField(member)) {
+      return RawExpr.of(
+          "new @0(\"json\", @1.contentType(\""
+              + AvroSchemaGenerator.normalizeRef(member.typeUrl())
+              + "\", "
+              + value
+              + "), @1.payload("
+              + value
+              + ").jsonText())",
+          TypeRef.named(registry.documentNamespace(), registry.dynamicWktEntryName()),
+          TypeRefs.DYNAMIC_WKT);
+    }
+    String wkt = AvroSchemaGenerator.typeUrlIfWkt(member);
+    if (wkt == null) {
+      return "bytes".equals(member.typeUrl())
+          ? RawExpr.of("@0.wrap(" + value + ".toByteArray())", TypeRefs.BYTE_BUFFER)
+          : RawExpr.of(value);
+    }
+    return switch (wkt) {
+      case "google.protobuf.Timestamp" ->
+          RawExpr.of("@0.instantToMicros(" + value + ")", TypeRefs.WKT_AVRO_BRIDGE);
+      // The floor pair (non-negative nanos), as for a regular Duration field.
+      case "google.protobuf.Duration" ->
+          RawExpr.of(
+              "new @0(" + value + ".toSeconds(), " + value + ".toNanosPart())",
+              avroWktRecord("Duration"));
+      case "google.protobuf.Empty" -> RawExpr.of("new @0()", avroWktRecord("Empty"));
+      case "google.protobuf.FieldMask" ->
+          RawExpr.of("@0.fieldMaskToAvro(" + value + ".paths())", TypeRefs.WKT_AVRO_BRIDGE);
+      case "google.protobuf.BytesValue" ->
+          RawExpr.of("@0.wrap(" + value + ".toByteArray())", TypeRefs.BYTE_BUFFER);
+      default -> RawExpr.of(value);
+    };
+  }
+
+  /** A {@code bytes} union value (a ByteBuffer) as the record's {@code Bytes}. */
+  private static RawExpr bytesFromAvro(String value) {
+    return RawExpr.of(
+        "@0.of(@1.bytes((@2) " + value + "))",
+        TypeRefs.BYTES,
+        TypeRefs.WKT_AVRO_BRIDGE,
+        TypeRefs.BYTE_BUFFER);
+  }
+
+  /** A WKT named record the Avro bridge generates (its {@code Duration} / {@code Empty}). */
+  private static TypeRef avroWktRecord(String name) {
+    return TypeRef.named(AvroSchemaGenerator.WKT_NAMED_NAMESPACE, name);
   }
 
   private static TypeRef memberValueRef(Oneof oneof, Field member) {
@@ -624,7 +751,7 @@ public final class AvroConverterSourceMapping {
     If.Builder b = If.condition(accessor + " == null").body(Element.expr(setter + "(null)"));
     for (Field member : oneof.members()) {
       TypeRef valueRec = memberValueRef(oneof, member);
-      if (member.kind() == FieldKind.MESSAGE) {
+      if (!AvroSchemaGenerator.ridesValueWrapper(member, registry)) {
         String fqn = member.typeUrl();
         String refName = registry.nameOf(fqn);
         String refNs = registry.namespaceOf(fqn);
@@ -640,14 +767,17 @@ public final class AvroConverterSourceMapping {
             RawExpr.of(accessor + " instanceof @0 w", valueRec),
             Element.expr(setter + "(@0.fromRecord(w.value()))", refConverter));
       } else {
-        // scalar/enum member: ride the shared {tag, value} wrapper; an enum rides its number.
+        // a wrapper-riding member: the shared {tag, value} wrapper, the value in its Avro form.
         String tag = String.valueOf(member.number());
-        String valueExpr = member.kind() == FieldKind.ENUM ? "w.value().getNumber()" : "w.value()";
+        RawExpr wrapperValue = toWrapperValue(member, "w.value()", registry);
+        // A member whose Avro form ignores the value (Empty) binds no pattern variable.
+        String binding = wrapperValue.template().contains("w.value()") ? " w" : "";
         b.elseIf(
-            RawExpr.of(accessor + " instanceof @0 w", valueRec),
+            RawExpr.of(accessor + " instanceof @0" + binding, valueRec),
             Element.expr(
-                setter + "(new @0(" + tag + ", " + valueExpr + "))",
-                oneofValueRecord(specificRecordPkg)));
+                setter + "(new @0(" + tag + ", @1))",
+                oneofValueRecord(specificRecordPkg),
+                wrapperValue));
       }
     }
     return b.build();

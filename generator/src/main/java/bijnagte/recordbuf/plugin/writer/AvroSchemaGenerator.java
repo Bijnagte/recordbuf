@@ -255,7 +255,7 @@ public final class AvroSchemaGenerator {
             "a reachable name occupies the shared oneof-value wrapper's name; the Avro bridge "
                 + "cannot disambiguate");
       }
-      ObjectNode oneofRec = oneofValueRecord();
+      ObjectNode oneofRec = oneofValueRecord(registry);
       if (oneofRec.path("namespace").asString("").isEmpty()) {
         oneofRec.put("namespace", registry.documentNamespace());
       }
@@ -302,17 +302,35 @@ public final class AvroSchemaGenerator {
     return doc;
   }
 
-  /** Whether any reachable oneof group carries a scalar or enum member (those ride the wrapper). */
-  private static boolean oneofNeedsValueWrapper(AvroRegistry registry) {
+  /**
+   * Whether a oneof member rides the shared {@code {tag, value}} wrapper rather than its own
+   * specific record: every member except a user message -- scalars, enums, well-known types (their
+   * Avro value in the union), and dynamic well-known types on a jackson file (the JSON envelope).
+   */
+  static boolean ridesValueWrapper(Field member, AvroRegistry registry) {
+    return member.kind() != FieldKind.MESSAGE
+        || typeUrlIfWkt(member) != null
+        || registry.isEnvelopeField(member);
+  }
+
+  /** The reachable oneof members, across every reachable message. */
+  private static List<Field> reachableOneofMembers(AvroRegistry registry) {
+    List<Field> out = new ArrayList<>();
     for (String fqn : registry.protoFqns()) {
       Message m = registry.messageOf(fqn);
       if (m == null) continue;
       for (Oneof oneof : m.oneofs()) {
-        for (Field member : oneof.members()) {
-          if (member.kind() != FieldKind.MESSAGE || typeUrlIfWkt(member) != null) {
-            return true;
-          }
-        }
+        out.addAll(oneof.members());
+      }
+    }
+    return out;
+  }
+
+  /** Whether any reachable oneof group carries a member that rides the wrapper. */
+  private static boolean oneofNeedsValueWrapper(AvroRegistry registry) {
+    for (Field member : reachableOneofMembers(registry)) {
+      if (ridesValueWrapper(member, registry)) {
+        return true;
       }
     }
     return false;
@@ -320,9 +338,12 @@ public final class AvroSchemaGenerator {
 
   /**
    * The shared oneof-value wrapper record: {@code tag} is the active member's proto field number
-   * (the same discriminant the record-side oneof carries) and {@code value} its native value.
+   * (the same discriminant the record-side oneof carries) and {@code value} its Avro value. The
+   * value union holds the primitive branches every document carries, plus a named-record branch for
+   * each record-shaped member value the reachable oneofs use: the WKT {@code Duration} and {@code
+   * Empty} records and the dynamic-WKT JSON envelope.
    */
-  static ObjectNode oneofValueRecord() {
+  static ObjectNode oneofValueRecord(AvroRegistry registry) {
     ObjectNode rec = MAPPER.createObjectNode();
     rec.put("type", "record");
     rec.put("name", AvroRegistry.ONEOF_VALUE_ENTRY);
@@ -339,6 +360,17 @@ public final class AvroSchemaGenerator {
     union.add(text("float"));
     union.add(text("boolean"));
     union.add(text("bytes"));
+    Set<String> named = new LinkedHashSet<>();
+    for (Field member : reachableOneofMembers(registry)) {
+      if (registry.isEnvelopeField(member)) {
+        named.add(registry.dynamicWktEntryName());
+      } else if ("google.protobuf.Duration".equals(typeUrlIfWkt(member))) {
+        named.add(WKT_NAMED_NAMESPACE + ".Duration");
+      } else if ("google.protobuf.Empty".equals(typeUrlIfWkt(member))) {
+        named.add(WKT_NAMED_NAMESPACE + ".Empty");
+      }
+    }
+    named.forEach(n -> union.add(text(n)));
     value.set("type", union);
     fields.add(value);
     rec.set("fields", fields);
@@ -436,12 +468,12 @@ public final class AvroSchemaGenerator {
     Set<String> branches = new LinkedHashSet<>();
     union.add(text("null"));
     branches.add("null");
-    // KTD5: scalar/enum members ride the shared oneof-value wrapper {tag, value} (a union of raw
-    // branches would silently collide — string scalar vs enum-to-string — and could not carry the
-    // case identity, KTD2); message members ride their own specific records.
+    // KTD5: scalar/enum/well-known-type members ride the shared oneof-value wrapper {tag, value} (a
+    // union of raw branches would silently collide — string scalar vs enum-to-string — and could
+    // not carry the case identity, KTD2); user message members ride their own specific records.
     for (Field member : oneof.members()) {
       JsonNode branch;
-      if (member.kind() == FieldKind.MESSAGE && typeUrlIfWkt(member) == null) {
+      if (!ridesValueWrapper(member, registry)) {
         String refName = registry.nameOf(member.typeUrl());
         if (refName == null) {
           throw new AvroUnsupportedException(

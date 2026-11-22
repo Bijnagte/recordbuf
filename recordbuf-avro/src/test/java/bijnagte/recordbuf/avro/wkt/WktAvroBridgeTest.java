@@ -1,10 +1,13 @@
 package bijnagte.recordbuf.avro.wkt;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.ByteBuffer;
+import java.time.Instant;
 import java.util.List;
 import org.apache.avro.Schema;
 import org.junit.jupiter.api.Test;
@@ -123,5 +126,30 @@ class WktAvroBridgeTest {
     assertTrue(WktAvroBridge.isUnrecognizedDynamic("google.protobuf.Struct"));
     assertTrue(WktAvroBridge.isUnrecognizedDynamic("google.protobuf.Any"));
     assertFalse(WktAvroBridge.isUnrecognizedDynamic("google.protobuf.Timestamp"));
+  }
+
+  @Test
+  void instantMicrosRoundTripAtMicrosecondResolution() {
+    for (Instant i :
+        List.of(
+            Instant.EPOCH,
+            Instant.ofEpochSecond(1_763_614_896L, 789_123_000),
+            Instant.ofEpochSecond(-1, 999_999_000))) {
+      assertEquals(i, WktAvroBridge.instantFromMicros(WktAvroBridge.instantToMicros(i)));
+    }
+    // Below the microsecond the conversion floors, before and after the epoch.
+    assertEquals(
+        Instant.ofEpochSecond(-1, 999_999_000),
+        WktAvroBridge.instantFromMicros(
+            WktAvroBridge.instantToMicros(Instant.ofEpochSecond(-1, 999_999_999))));
+  }
+
+  @Test
+  void bytesCopiesTheRemainingViewWithoutMovingIt() {
+    ByteBuffer view = ByteBuffer.wrap(new byte[] {9, 1, 2, 3, 9}, 1, 3).slice();
+    view.position(1);
+
+    assertArrayEquals(new byte[] {2, 3}, WktAvroBridge.bytes(view));
+    assertEquals(1, view.position());
   }
 }

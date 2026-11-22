@@ -15,9 +15,10 @@ member factory parameters repeat the wrapper's temporal / runtime-value pair. Te
 override + Timestamp/bytes members, golden JSON under `json/oneof/`). The 50008 guard was already
 correct under default-ON and is covered by `JacksonOptionsTest`. Found on the way and fixed first
 in `ebddafe`: oneof members that are `bytes` or a well-known type generated code that did not
-compile (codec only; byte-compat fixture `oneof_wkt.proto`). Still open: the Avro structural twin
-cannot map a well-known type as a oneof member (`jackson_oneof.proto` / `oneof_wkt.proto` turn
-Avro off).
+compile (codec only; byte-compat fixture `oneof_wkt.proto`). Follow-up (same day): the Avro twin
+now maps well-known-type and dynamic-WKT oneof members too -- they ride the shared `{tag, value}`
+wrapper in their Avro form (a Timestamp as epoch micros, as for a regular field; Duration / Empty /
+the JSON envelope as extra union branches) -- so both fixtures run with Avro on.
 **Origin:** origin unit U7 + decision P2 of `2026-11-20-001-feature-jackson-json-plan.md`
 (flat oneof rendering: `@JsonUnwrapped` + per-member rename + generated discriminator getter +
 `@JsonCreator` factory binding the U6 sponge), re-sequenced **last** so U8/U9/module/bytes/U10

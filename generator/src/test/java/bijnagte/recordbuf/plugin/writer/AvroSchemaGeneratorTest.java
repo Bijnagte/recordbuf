@@ -360,6 +360,52 @@ class AvroSchemaGeneratorTest {
   }
 
   @Test
+  void wellKnownTypeOneofMembersRideTheWrapperWithTheirRecordBranches() throws Exception {
+    Oneof when =
+        new Oneof(
+            "when",
+            TypeRef.named("p", "When"),
+            OneofDescriptorProto.newBuilder().setName("when").build(),
+            DescriptorProto.newBuilder().setName("Sample").build(),
+            List.of(
+                field("at", 1, "google.protobuf.Timestamp"),
+                field("span", 2, "google.protobuf.Duration"),
+                field("nothing", 3, "google.protobuf.Empty")),
+            /* jsonOneof= */ null);
+    Message root =
+        new Message(
+            "Sample",
+            TypeRef.named("p", "Sample"),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(when),
+            false,
+            null,
+            List.of(),
+            null);
+
+    JsonNode doc = tree(file("a.proto", "p", root), root, null);
+
+    // Every member rides the shared wrapper: the oneof is [null, wrapper].
+    JsonNode union = rootField(doc, "when").get("type");
+    assertEquals(2, union.size(), union.toString());
+    assertEquals("RecordbufOneofValue", union.get(1).asString());
+    // The wrapper's value union gains the record-shaped member values (the Timestamp is a long).
+    JsonNode types = doc.get("types");
+    JsonNode wrapper = types.get(typeNameIndex(types, "RecordbufOneofValue"));
+    String value = wrapper.get("fields").get(1).get("type").toString();
+    assertTrue(value.contains("\"bijnagte.recordbuf.avro.wkt.Duration\""), value);
+    assertTrue(value.contains("\"bijnagte.recordbuf.avro.wkt.Empty\""), value);
+    // And the document parses, the named branches defined before the wrapper references them.
+    Parser parser = new Parser();
+    for (JsonNode def : types) {
+      parser.parse(MAPPER.writeValueAsString(def));
+    }
+    parser.parse(MAPPER.writeValueAsString(doc.get("message")));
+  }
+
+  @Test
   void everyRecordCarriesTheTrailingUnknownFields() throws Exception {
     Message card = message("Card", "p", field("number", 1, "string"));
     Message root = message("Sample", "p", field("t", 1, "string"), field("card", 2, "p.Card"));
