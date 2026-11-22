@@ -117,10 +117,7 @@ class OneofJsonSurfaceTest {
   void componentIsUnwrappedAndWrappersCarryTheMemberNameAndPair() {
     String src = render(event(true, null, ""));
 
-    assertTrue(
-        src.contains(
-            "@JsonUnwrapped @JsonInclude(JsonInclude.Include.NON_NULL) @Nullable When when"),
-        src);
+    assertTrue(src.contains("@JsonUnwrapped @Nullable When when"), src);
     assertTrue(
         src.contains(
             "record AtValue(@JsonProperty(\"at\") @JsonSerialize(using ="
@@ -146,16 +143,12 @@ class OneofJsonSurfaceTest {
   void discriminatorDefaultsToTheOneofNameAndHonorsTheOverride() {
     String byDefault = render(event(true, null, ""));
     assertTrue(
-        byDefault.contains(
-            "@JsonProperty(\"whenType\") @JsonInclude(JsonInclude.Include.NON_NULL) @Nullable"
-                + " public String whenType()"),
+        byDefault.contains("@JsonProperty(\"whenType\") @Nullable" + " public String whenType()"),
         byDefault);
 
     String overridden = render(event(true, "kind", ""));
     assertTrue(
-        overridden.contains(
-            "@JsonProperty(\"kind\") @JsonInclude(JsonInclude.Include.NON_NULL) @Nullable"
-                + " public String whenType()"),
+        overridden.contains("@JsonProperty(\"kind\") @Nullable" + " public String whenType()"),
         overridden);
     assertTrue(
         overridden.contains("@JsonProperty(\"kind\") @Nullable String whenType,"),

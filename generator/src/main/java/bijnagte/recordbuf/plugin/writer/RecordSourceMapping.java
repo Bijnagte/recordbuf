@@ -535,10 +535,10 @@ public final class RecordSourceMapping {
     var componentBuilder = Component.type(ifaceRef, componentName);
     if (jackson) {
       // Flat JSON (U7): the set member's wrapper is inlined into the record's object -- its single
-      // renamed property appears at the top level -- and an unset oneof contributes nothing.
-      componentBuilder
-          .annotation(Annotation.of(TypeRef.of("com.fasterxml.jackson.annotation.JsonUnwrapped")))
-          .annotation(jsonIncludeNonNull());
+      // renamed property appears at the top level. An unset oneof contributes nothing through the
+      // record-level @JsonInclude(NON_NULL).
+      componentBuilder.annotation(
+          Annotation.of(TypeRef.of("com.fasterxml.jackson.annotation.JsonUnwrapped")));
     }
     var component = componentBuilder.annotation(Annotation.NULLABLE).build();
 
@@ -744,7 +744,6 @@ public final class RecordSourceMapping {
                               + " oneof: the set member's JSON name, or null when unset.\n")
                       .build())
               .annotation(jsonProperty(property))
-              .annotation(jsonIncludeNonNull())
               .annotation(Annotation.NULLABLE)
               .returnType(TypeRef.STRING);
       for (Field member : oneof.members()) {

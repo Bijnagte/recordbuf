@@ -18,7 +18,9 @@ in `ebddafe`: oneof members that are `bytes` or a well-known type generated code
 compile (codec only; byte-compat fixture `oneof_wkt.proto`). Follow-up (same day): the Avro twin
 now maps well-known-type and dynamic-WKT oneof members too -- they ride the shared `{tag, value}`
 wrapper in their Avro form (a Timestamp as epoch micros, as for a regular field; Duration / Empty /
-the JSON envelope as extra union branches) -- so both fixtures run with Avro on.
+the JSON envelope as extra union branches) -- so both fixtures run with Avro on. Later still: every jackson
+record carries a record-level `@JsonInclude(NON_NULL)`, which replaced the per-component / per-method
+`@JsonInclude` on the oneof and its discriminator.
 **Origin:** origin unit U7 + decision P2 of `2026-11-20-001-feature-jackson-json-plan.md`
 (flat oneof rendering: `@JsonUnwrapped` + per-member rename + generated discriminator getter +
 `@JsonCreator` factory binding the U6 sponge), re-sequenced **last** so U8/U9/module/bytes/U10
