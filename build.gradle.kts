@@ -55,7 +55,15 @@ subprojects {
                     "**/com/google/protobuf/compiler/**",
                     "**/build/generated/**",
                 )
+                // Spotless 8.11 resolves GJF 2.0.0's cleanup machinery
+                // (CleanupPass) through the provisioned-jar classloader; in a
+                // daemon whose classloader state for that jar is stale/detached
+                // this surfaces as NoClassDefFoundError on every file. Disabling
+                // cleanup keeps the gate on the core GJF formatter only (format
+                // output for well-formed code is unchanged); unused imports stay
+                // enforced by the checkstyle UnusedImports rule.
                 googleJavaFormat(libs.versions.google.java.format.get())
+                    .cleanup(false)
             }
         }
     }

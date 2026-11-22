@@ -116,6 +116,11 @@ consult it when orienting to the codebase or discussing domain concepts.
   `java` source set, so skipped). The `:recordbuf-fixtures` module additionally pulls its
   recordbuf-generated `.rec` output into the formatted set, so generated records are
   expected to be format-clean.
+  `googleJavaFormat` is configured with `.cleanup(false)`: Spotless 8.11 resolves GJF 2.0.0's
+  cleanup machinery (`CleanupPass`) through the provisioned-jar classloader, and a daemon whose
+  classloader state for that jar is stale surfaces that as `NoClassDefFoundError` on every file
+  (2026-11-22; the gate went red for a whole branch for it). Cleanup off keeps the gate on the
+  core formatter; unused imports stay enforced by the checkstyle `UnusedImports` rule.
 - **Checkstyle: WIRED (non-formatting quality gate, complementary to Spotless).** The root
   `build.gradle.kts` applies Gradle's built-in `checkstyle` plugin to **every** Java
   subproject via the same `subprojects { withPlugin("java") { … } }` block that owns
