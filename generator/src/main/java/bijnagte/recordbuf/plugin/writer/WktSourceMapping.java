@@ -238,6 +238,48 @@ final class WktSourceMapping {
     return Case.of(String.valueOf(num), assignment);
   }
 
+  /**
+   * The wire bytes of one WKT value, as an expression -- for a oneof member, which is written
+   * whenever it is set (no default elision): {@code Wkt.timestamp(x)}, {@code Wkt.wrap(Wkt.Wrap.K,
+   * x)}, or {@code DynamicWkt.encode("<fqn>", x)}.
+   *
+   * @param value the rendered value expression
+   */
+  static RawExpr encodeValue(Field f, Entry entry, String value) {
+    if (entry.nodeType() != null) {
+      return RawExpr.of("@0.encode(\"" + f.typeUrl() + "\", @1)", TypeRefs.DYNAMIC_WKT, value);
+    }
+    if (entry.hasZeroDefault()) {
+      return RawExpr.of("@0.@1(@2)", TypeRefs.WKT, encodeMethod(f.typeUrl()), value);
+    }
+    return RawExpr.of("@0.wrap(@0.Wrap.@1, @2)", TypeRefs.WKT, wrapKind(f.typeUrl()), value);
+  }
+
+  /**
+   * One WKT value decoded from its wire bytes, as an expression (the inverse of {@link
+   * #encodeValue}), cast to the member's Java type where the runtime returns a wider one.
+   *
+   * @param bytes the rendered wire-bytes expression
+   */
+  static RawExpr decodeValue(Field f, Entry entry, String bytes) {
+    TypeRef nodeType = entry.nodeType();
+    if (nodeType != null) {
+      return nodeType.equals(TypeRefs.JSON_NODE)
+          ? RawExpr.of("@0.decode(\"" + f.typeUrl() + "\", @1)", TypeRefs.DYNAMIC_WKT, bytes)
+          : RawExpr.of(
+              "(@2) @0.decode(\"" + f.typeUrl() + "\", @1)", TypeRefs.DYNAMIC_WKT, bytes, nodeType);
+    }
+    if (entry.hasZeroDefault()) {
+      return RawExpr.of("@0.@1(@2)", TypeRefs.WKT, parseMethod(f.typeUrl()), bytes);
+    }
+    return RawExpr.of(
+        "(@0) @1.parse(@1.Wrap.@2, @3)",
+        requireType(entry),
+        TypeRefs.WKT,
+        wrapKind(f.typeUrl()),
+        bytes);
+  }
+
   private static TypeRef requireType(Entry entry) {
     return Objects.requireNonNull(entry.javaType(), "WKT javaType must resolve");
   }

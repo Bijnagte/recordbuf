@@ -779,7 +779,18 @@ public final class CodecSourceMapping {
     sw.caseArm("null");
     for (Field f : o.members()) {
       String bnd = String.valueOf(f.name().charAt(0)) + "_";
-      if (f.isMessage()) {
+      Entry wktMember = WktSourceMapping.resolve(f);
+      if (wktMember != null) {
+        // A well-known-type member: its native value through the Wkt / DynamicWkt bridge, written
+        // whenever set (a oneof member has presence -- no default elision).
+        String recName = iface + "." + JavaNames.cap(f.name()) + "Value";
+        sw.caseArm(
+            recName + " " + bnd,
+            Element.expr(
+                "out.writeByteArray(@0, @1)",
+                f.number(),
+                WktSourceMapping.encodeValue(f, wktMember, bnd + ".value()")));
+      } else if (f.isMessage()) {
         String sealedSub = iface + "." + JavaNames.cap(f.name()) + "Value";
         sw.caseArm(
             sealedSub + " " + bnd,
@@ -795,7 +806,12 @@ public final class CodecSourceMapping {
         WireScalar wire = wireScalar(f);
         String call = encodeCall(wire);
         sw.caseArm(
-            recName + " " + bnd, Element.expr("out.@0(@1, @2.value())", call, f.number(), bnd));
+            recName + " " + bnd,
+            Element.expr(
+                "out.@0(@1, @2.value()" + (wire == WireScalar.BYTES ? ".toByteArray()" : "") + ")",
+                call,
+                f.number(),
+                bnd));
       }
     }
     return sw.build();
@@ -828,6 +844,11 @@ public final class CodecSourceMapping {
     // the renderer drops the in-scope enclosing segment so it renders in the baseline's
     // <Iface>.<Name>Value form.
     TypeRef wrapper = recordRef.sub(iface).sub(JavaNames.cap(f.name()) + "Value");
+    Entry wktMember = WktSourceMapping.resolve(f);
+    if (wktMember != null) {
+      return RawExpr.of(
+          "new @0(@1)", wrapper, WktSourceMapping.decodeValue(f, wktMember, "in.readByteArray()"));
+    }
     if (f.isMessage()) {
       return RawExpr.of("new @0(@1.decode(in.readByteArray()))", wrapper, codecRef(f));
     }

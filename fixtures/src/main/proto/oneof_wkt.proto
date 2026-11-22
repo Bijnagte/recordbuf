@@ -1,0 +1,25 @@
+// Per-family interop fixture for oneof members that are not plain scalars / enums / messages: a
+// well-known type (structured, wrapper, dynamic) and bytes. A set member is always on the wire,
+// zero values included (a oneof member has presence). The Avro bridge is off: the structural twin
+// cannot yet map a well-known type as a oneof member.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.oneofwkt;
+
+option java_package = "bijnagte.recordbuf.fixture.oneofwkt";
+option java_multiple_files = true;
+option (.recordbuf.avro) = RECORDBUF_AVRO_OFF;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+import "recordbuf_options.proto";
+
+message Sample {
+  oneof v {
+    google.protobuf.Timestamp at = 1;
+    google.protobuf.Int32Value count = 2;
+    bytes blob = 3;
+    google.protobuf.Value value = 4;
+  }
+}
