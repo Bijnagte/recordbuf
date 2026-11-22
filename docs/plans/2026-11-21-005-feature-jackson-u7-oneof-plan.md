@@ -1,7 +1,23 @@
 # Jackson U7 — oneof rendering (`@JsonUnwrapped` + discriminator + creator) — implementation plan
 
-**Date:** 2026-11-21 · **Status:** PLANNED (sequence 5 of 5 — the last unit, per the owner's
-reordering; landing it closes the 2026-11-20 Jackson plan)
+**Date:** 2026-11-21 · **Status:** DONE 2026-11-22 (sequence 5 of 5 — the last unit; it closes
+the 2026-11-20 Jackson plan). Verification: `./gradlew build` green. The P2 risk flag resolved in
+favor of the primary mechanism: a spike against the pinned 3.1.8 confirmed `@JsonUnwrapped` on a
+sealed-interface component serializes the runtime wrapper, and that the `@JsonCreator` factory
+keeps both the `@JsonAnySetter` sponge and the components' (de)serializer pairs (Jackson merges a
+property's annotations across component and factory parameter) — no serializer companion. As
+built: the member selection lives in a tested `:recordbuf-json` helper, `JsonOneof.select`, which
+the factory calls (smaller generated code than an inline body); the discriminator method is
+`<oneof>Type()` and fails generation if its method or JSON name collides with a field or member;
+member factory parameters repeat the wrapper's temporal / runtime-value pair. Tests:
+`OneofJsonSurfaceTest` (generator, 5), `JsonOneofTest` (json, 4), `JacksonOneofRoundTripTest`
+(fixtures, 7, against `oneof.proto` and a new test-set `jackson_oneof.proto` carrying the 50008
+override + Timestamp/bytes members, golden JSON under `json/oneof/`). The 50008 guard was already
+correct under default-ON and is covered by `JacksonOptionsTest`. Found on the way and fixed first
+in `ebddafe`: oneof members that are `bytes` or a well-known type generated code that did not
+compile (codec only; byte-compat fixture `oneof_wkt.proto`). Still open: the Avro structural twin
+cannot map a well-known type as a oneof member (`jackson_oneof.proto` / `oneof_wkt.proto` turn
+Avro off).
 **Origin:** origin unit U7 + decision P2 of `2026-11-20-001-feature-jackson-json-plan.md`
 (flat oneof rendering: `@JsonUnwrapped` + per-member rename + generated discriminator getter +
 `@JsonCreator` factory binding the U6 sponge), re-sequenced **last** so U8/U9/module/bytes/U10

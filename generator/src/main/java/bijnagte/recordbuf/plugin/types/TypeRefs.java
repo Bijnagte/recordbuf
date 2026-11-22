@@ -59,6 +59,12 @@ public final class TypeRefs {
   // --- Jackson node<->wire conversion for dynamic WKT fields (:recordbuf-json) ---
   public static final TypeRef DYNAMIC_WKT = TypeRef.of("bijnagte.recordbuf.json.DynamicWkt");
 
+  /** The flat-oneof member selection a jackson record's JSON creator calls (:recordbuf-json). */
+  public static final TypeRef JSON_ONEOF = TypeRef.of("bijnagte.recordbuf.json.JsonOneof");
+
+  /** {@code java.util.Objects}. */
+  public static final TypeRef OBJECTS = TypeRef.named("java.util", "Objects");
+
   /** The Jackson×Avro envelope's {@code payload} host (:recordbuf-json). */
   public static final TypeRef JSON_PAYLOAD = TypeRef.of("bijnagte.recordbuf.json.JsonPayload");
 
