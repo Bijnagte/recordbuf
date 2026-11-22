@@ -135,6 +135,14 @@ class OneofJsonSurfaceTest {
   }
 
   @Test
+  void jacksonRecordsOmitNullProperties() {
+    assertTrue(
+        render(event(true, null, ""))
+            .contains("@JsonInclude(JsonInclude.Include.NON_NULL) public record Event("));
+    assertFalse(render(event(false, null, "")).contains("JsonInclude"));
+  }
+
+  @Test
   void discriminatorDefaultsToTheOneofNameAndHonorsTheOverride() {
     String byDefault = render(event(true, null, ""));
     assertTrue(

@@ -123,4 +123,15 @@ class JacksonRoundTripTest {
     JsonGolden.assertMatches("jackson/wellknown-sample.json", json);
     assertEquals(sample, M.readValue(json, bijnagte.recordbuf.fixture.wellknown.rec.Sample.class));
   }
+
+  /** Absent values are omitted, not written as null, and read back as absent. */
+  @Test
+  void absentValuesAreOmitted() throws Exception {
+    var sample = bijnagte.recordbuf.fixture.wellknown.rec.Sample.builder().at(AT).build();
+
+    String json = M.writeValueAsString(sample);
+
+    JsonGolden.assertMatches("jackson/wellknown-sparse.json", json);
+    assertEquals(sample, M.readValue(json, bijnagte.recordbuf.fixture.wellknown.rec.Sample.class));
+  }
 }

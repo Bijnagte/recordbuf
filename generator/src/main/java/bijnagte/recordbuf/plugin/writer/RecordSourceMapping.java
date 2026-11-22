@@ -151,6 +151,11 @@ public final class RecordSourceMapping {
             .deprecated(m.deprecated())
             .implementsFqns(m.interfaces().stream().map(TypeRef::fqn).toList())
             .impl(TypeRefs.PROTOBUF_MESSAGE);
+    if (jackson) {
+      // Absent values (an unset message / optional / wrapper / oneof) are omitted from the JSON
+      // object rather than written as null; a missing property still reads back as null.
+      result.annotation(jsonIncludeNonNull());
+    }
     for (Field f : m.fields()) {
       var comp = Component.type(scalarComponentType(f), f.javaName());
       jacksonAnnotation(comp, f, jackson);
