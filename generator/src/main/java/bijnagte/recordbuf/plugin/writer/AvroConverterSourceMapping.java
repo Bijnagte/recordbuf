@@ -434,9 +434,13 @@ public final class AvroConverterSourceMapping {
     for (Oneof oneof : message.oneofs()) {
       method.body(oneofFromRecord(oneof, "s", "r", registry, specificRecordPkg));
     }
-    // TODO(avro): transite the record's unknown-field carrier into the specific record; deferred
-    // for the checkpoint.
-    return method.body(Element.ret("s")).build();
+    // TODO(avro): transit the record's unknown-field carrier into the specific record. Until then
+    // the always-present (non-nullable) carrier array is set empty, so the specific record the
+    // converter returns can be Avro-encoded (a null array fails the binary write).
+    return method
+        .body(Element.expr("s.setUnknownFields(@0.of())", TypeRefs.LIST))
+        .body(Element.ret("s"))
+        .build();
   }
 
   private static Element fromRecordField(

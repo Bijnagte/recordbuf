@@ -186,6 +186,22 @@ class AvroInteropTest {
   // ── Avro binary round-trip (proves SpecificCompiler product is a working Avro type) ───
 
   @Test
+  void converterOutputEncodesToAvroBinary() throws IOException {
+    // fromRecord builds the specific record through its no-arg constructor, so every non-nullable
+    // field -- the unknown-field carrier array included -- must be set or the binary write fails.
+    bijnagte.recordbuf.fixture.i32.rec.Sample original =
+        bijnagte.recordbuf.fixture.i32.rec.Sample.builder().a(7).build();
+
+    ByteBuffer encoded =
+        bijnagte.recordbuf.fixture.i32.rec.SampleAvroConverter.fromRecord(original).toByteBuffer();
+
+    assertEquals(
+        original,
+        bijnagte.recordbuf.fixture.i32.rec.SampleAvroConverter.toRecord(
+            bijnagte.recordbuf.fixture.i32.SampleAvro.fromByteBuffer(encoded)));
+  }
+
+  @Test
   void i32_binaryAvroRoundTrip() throws IOException {
     bijnagte.recordbuf.fixture.i32.SampleAvro original =
         bijnagte.recordbuf.fixture.i32.SampleAvro.newBuilder().setA(12345).build();

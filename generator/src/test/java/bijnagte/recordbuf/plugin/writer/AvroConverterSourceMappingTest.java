@@ -141,6 +141,9 @@ class AvroConverterSourceMappingTest {
     assertTrue(
         out.contains("s.setTs(r.ts())"),
         "WKT field set directly on the Avro record (Timestamp resolves to Instant on both sides)");
+    assertTrue(
+        out.contains("s.setUnknownFields(List.of())"),
+        "the non-nullable carrier array is set so the specific record can be Avro-encoded");
   }
 
   @Test
