@@ -1,0 +1,16 @@
+// Per-family interop fixture for the repeated length-delimited scalars (repeated string / bytes).
+// Unlike the numeric scalars (packed.proto), proto3 never packs these: every element is its own
+// tag + length + payload field, the empty string / empty bytes included. The record is emitted to
+// the `.rec` sibling package (package_suffix=.rec) and the protobuf-java reference to this natural
+// package, as for every byte-compat family.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.repeated;
+
+option java_package = "bijnagte.recordbuf.fixture.repeated";
+option java_multiple_files = true;
+
+message Sample {
+  repeated string a = 1;
+  repeated bytes b = 2;
+}

@@ -569,6 +569,14 @@ public final class CodecSourceMapping {
     String getter = "v." + f.javaName() + "()";
     int num = f.number();
     WireScalar wire = wireScalar(f);
+    // Length-delimited scalars are never packed: one tagged field per element, the empty string /
+    // bytes included (unlike a singular field, a repeated element has no default to elide).
+    if (wire == WireScalar.STRING || wire == WireScalar.BYTES) {
+      String element = wire == WireScalar.BYTES ? "_x.toByteArray()" : "_x";
+      return For.enhanced("var _x", getter)
+          .body(Element.expr("out.@0(@1, " + element + ")", encodeCall(wire), num))
+          .build();
+    }
     // Packed scalar: emit one length-delimited group when the list is non-empty.
     return If.condition("!@0.isEmpty()", getter)
         .body(
@@ -585,6 +593,15 @@ public final class CodecSourceMapping {
     int num = f.number();
     String local = f.javaName();
     WireScalar wire = wireScalar(f);
+    // Length-delimited scalars: each tag occurrence carries exactly one element.
+    if (wire == WireScalar.STRING) {
+      return Case.of(String.valueOf(num), Element.expr("@0.add(in.readString())", local));
+    }
+    if (wire == WireScalar.BYTES) {
+      return Case.of(
+          String.valueOf(num),
+          Element.expr("@0.add(@1.of(in.readBytes().toByteArray()))", local, TypeRefs.BYTES));
+    }
     return Case.of(
         String.valueOf(num),
         LocalVar.builder(TypeRef.Primitive.INT, "_lim")
@@ -594,7 +611,9 @@ public final class CodecSourceMapping {
   }
 
   private static Element emitRepeatedLocalInit(Field f) {
-    return LocalVar.builder(TypeRefs.LIST.withGenerics(TypeRef.boxedFor(f.typeUrl())), f.javaName())
+    TypeRef element =
+        wireScalar(f) == WireScalar.BYTES ? TypeRefs.BYTES : TypeRef.boxedFor(f.typeUrl());
+    return LocalVar.builder(TypeRefs.LIST.withGenerics(element), f.javaName())
         .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST));
   }
 

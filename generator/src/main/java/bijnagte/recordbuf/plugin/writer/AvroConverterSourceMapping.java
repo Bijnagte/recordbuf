@@ -171,6 +171,20 @@ public final class AvroConverterSourceMapping {
     if (f.kind() == FieldKind.ENUM) {
       return Element.expr("@0(@1().value())", var, getter);
     }
+    // Repeated length-delimited scalars convert per element: Avro's array of string is a
+    // List<CharSequence>, its array of bytes a List<ByteBuffer>.
+    if (f.kind() == FieldKind.SCALAR && f.isRepeated() && "string".equals(f.typeUrl())) {
+      return Element.expr("@0(@1().stream().map(CharSequence::toString).toList())", var, getter);
+    }
+    if (f.kind() == FieldKind.SCALAR && f.isRepeated() && "bytes".equals(f.typeUrl())) {
+      return Element.expr(
+          "@0(@1().stream().map(e -> @2.of(@3.copyOfRange(e.array(), e.arrayOffset()"
+              + " + e.position(), e.arrayOffset() + e.limit()))).toList())",
+          var,
+          getter,
+          TypeRefs.BYTES,
+          TypeRefs.ARRAYS);
+    }
     if (f.kind() == FieldKind.SCALAR && "bytes".equals(f.typeUrl())) {
       return Element.expr(
           "@0(@1() != null ? @2.of(@3.copyOf(@1().array(), @1().remaining())) : @2.empty())",
@@ -466,6 +480,17 @@ public final class AvroConverterSourceMapping {
     }
     if (f.kind() == FieldKind.ENUM) {
       return Element.expr("@0(@1.name())", setter, accessor); // enum -> string
+    }
+    // Repeated length-delimited scalars convert per element (see the toRecord arms).
+    if (f.kind() == FieldKind.SCALAR && f.isRepeated() && "string".equals(f.typeUrl())) {
+      return Element.expr("@0(@1.copyOf(@2))", setter, TypeRefs.LIST, accessor);
+    }
+    if (f.kind() == FieldKind.SCALAR && f.isRepeated() && "bytes".equals(f.typeUrl())) {
+      return Element.expr(
+          "@0(@2.stream().map(e -> @1.wrap(e.toByteArray())).toList())",
+          setter,
+          TypeRefs.BYTE_BUFFER,
+          accessor);
     }
     if (f.kind() == FieldKind.SCALAR && "bytes".equals(f.typeUrl())) {
       return Element.expr("@0(@1.wrap(@2.toByteArray()))", setter, TypeRefs.BYTE_BUFFER, accessor);
