@@ -16,7 +16,7 @@ that turns `.proto` files into Java records + protobuf codecs.
     into (`bijnagte.recordbuf.runtime`).
   - `:recordbuf-options` → `options/` — the `recordbuf_options.proto`.
   - `:recordbuf-codegen` → `codegen/` — the generator-only Java source AST + renderer.
-  - `:recordbuf-avro` → `recordbuf-avro/` — Avro runtime support (WKT ↔ Avro conversions).
+  - `:recordbuf-avro` → `avro/` — Avro runtime support (WKT ↔ Avro conversions).
   - `:recordbuf-json` → `json/` — Jackson support generated records use (temporal /
     bytes / `FieldMask` / `Empty` (de)serializers, `RecordbufJsonModule`, `JsonOneof`,
     `DynamicWkt`, `JsonFieldMaskFilter`). Same Error Prone + NullAway wiring as the runtime.
@@ -179,9 +179,11 @@ consult it when orienting to the codebase or discussing domain concepts.
   severity flags (`-XepAllWarningsAsErrors`, etc.) only rescale EP's *own* checks, and a Checkstyle
   regex would be brittle. The escape hatch is a scoped `@SuppressWarnings("deprecation")` — currently
   the two `TypeRef` internal-bridge call sites that delegate to the still-`@Deprecated` `TypeCollector`
-  API. Note the protobuf-gradle-plugin 0.10.0 `Configuration.setVisible(boolean)` deprecation
-  (documented in `fixtures/build.gradle`) is a Gradle *configuration-time* warning, unaffected by
-  this javac-level gate.
+  API. Note protobuf-gradle-plugin 0.10.0 used to emit a Gradle *configuration-time*
+  `Configuration.setVisible(boolean)` deprecation (see the note in `fixtures/build.gradle`);
+  that call was removed upstream in 0.10.1 (PR #816) and the fixtures pin it, so the warning
+  is gone — and in any case a configuration-time warning would not be affected by this javac
+  gate.
   - **Javadoc-before-annotations (Oracle standard, this session):** `SourceRenderer` now emits the
     Javadoc block *before* the annotation list at every site (record, component, class, enum,
     enum-constant, interface, field, method), per the Oracle JavaDoc spec ("a documentation comment

@@ -21,7 +21,7 @@ google-java-format = "2.0.0"   # latest (pulled from the catalog by build.gradle
 protobuf          = "4.36.2"
 avro                = "1.12.2"
 # NOTE: the com.google.protobuf (Protobuf-Gradle-plugin) version is pinned inline
-# in fixtures/build.gradle.kts as id("com.google.protobuf") version "0.10.0".
+# in fixtures/build.gradle's buildscript classpath as 0.10.1 (see that file).
 # It is deliberately NOT a [plugins]-catalog entry: a catalog key named
 # `protobuf-...` would be grouped under the `protobuf` version prefix and break
 # the `libs.versions.protobuf` accessor.
