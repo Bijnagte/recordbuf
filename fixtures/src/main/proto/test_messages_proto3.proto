@@ -37,7 +37,8 @@
 //      fixtures/src/test/resources/golden/gap-ledger.md. Commenting a field out leaves its field
 //      number free, so a payload that carries it still round-trips as an unknown field.
 //      A gap that does not stop generation (`uint32-negative-carrier-wire`,
-//      `repeated-enum-unpacked-only`, `packed-false-ignored`, `repeated-wkt-default-element`) keeps
+//      `repeated-enum-unpacked-only`, `packed-false-ignored`, `repeated-wkt-default-element`,
+//      `enum-default-value-written`) keeps
 //      its fields active and carries only the marker comment above one representative field.
 // -----------------------------------------------------------------------------
 
@@ -124,6 +125,7 @@ message TestAllTypesProto3 {
   NestedMessage optional_nested_message = 18;
   ForeignMessage optional_foreign_message = 19;
 
+  // GAP(enum-default-value-written): a singular enum field that holds its default (value 0) is written, one tag and one zero byte; protobuf-java writes nothing. The field generates fine and stays active.
   NestedEnum optional_nested_enum = 21;
   ForeignEnum optional_foreign_enum = 22;
   AliasedEnum optional_aliased_enum = 23;

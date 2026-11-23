@@ -10,6 +10,8 @@ Each row is one scenario group, not one upstream case. `status` is one of:
 
 `category` is `binary`, `json` or `text-format`. Groups are named after the upstream function that runs them (`TestValidDataForType`) or, for scenarios inside a function, the upstream test-name prefix. A cell must not contain `|`.
 
+A `covered` group is mirrored, not necessarily passing: a case recordbuf cannot satisfy yet runs as a dynamic test that aborts with the id of the [gap ledger](gap-ledger.md) row that explains it, and fails if it starts passing (the mirror's table of known gaps is in the test class). So a gap row stays in the ledger as a construct row while the cases it explains are covered here.
+
 U21 to U25 flip `gap` rows to `covered` as they mirror groups, and delete the `conformance-only` ledger rows that no longer apply.
 
 | group | category | status | reference |
@@ -20,10 +22,10 @@ U21 to U25 flip `gap` rows to `covered` as they mirror groups, and delete the `c
 | TestUnmatchedGroup | binary | gap | conformance-binary-malformed |
 | TestUnknownWireType | binary | gap | conformance-binary-malformed |
 | TestInvalidUtf8String | binary | gap | conformance-binary-malformed |
-| TestValidDataForType | binary | gap | conformance-binary-valid-scalars |
-| TestValidDataForRepeatedScalarMessage | binary | gap | conformance-binary-valid-scalars |
-| TestValidDataForMapType | binary | gap | conformance-binary-valid-map |
-| TestOverwriteMessageValueMap | binary | gap | conformance-binary-valid-map |
+| TestValidDataForType | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryValidDataConformanceTest#validDataForType |
+| TestValidDataForRepeatedScalarMessage | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryValidDataConformanceTest#validDataForRepeatedScalarMessage |
+| TestValidDataForMapType | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryValidDataConformanceTest#validDataForMapType |
+| TestOverwriteMessageValueMap | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryValidDataConformanceTest#overwriteMessageValueMap |
 | TestValidDataForOneofType | binary | gap | oneof-snake-case-member |
 | TestMergeOneofMessage | binary | gap | oneof-snake-case-member |
 | TestOneofMessage | binary | gap | oneof-snake-case-member |
