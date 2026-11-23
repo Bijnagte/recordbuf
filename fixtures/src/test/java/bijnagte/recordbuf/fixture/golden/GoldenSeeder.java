@@ -13,7 +13,6 @@ import com.google.protobuf.Message;
 import com.google.protobuf.MessageLite;
 import com.google.protobuf.util.JsonFormat;
 import java.io.IOException;
-import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
@@ -21,6 +20,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Seeds missing goldens, and only missing ones. For every registered case and every format the case
@@ -43,10 +44,12 @@ import java.util.List;
  * </ul>
  *
  * <p>Run it with {@code ./gradlew :recordbuf-fixtures:seedGoldens}. It is not part of {@code
- * check}. The report is printed to standard output; this module has no logging framework on its
- * test classpath, and the report is the output of the command rather than a diagnostic.
+ * check}. The command logs the report through SLF4J at INFO; the slf4j-simple binding writes that
+ * to standard error.
  */
 public final class GoldenSeeder {
+
+  private static final Logger LOG = LoggerFactory.getLogger(GoldenSeeder.class);
 
   private GoldenSeeder() {}
 
@@ -72,33 +75,36 @@ public final class GoldenSeeder {
   public record Report(
       List<Created> created, List<String> skippedExisting, List<Inapplicable> notApplicable) {
 
-    /** Prints the report as plain text. */
-    public void print(PrintStream out) {
-      out.println("created (" + created.size() + "):");
+    /** Renders the report as plain text, one entry per line. */
+    public String render() {
+      StringBuilder text = new StringBuilder();
+      text.append("created (").append(created.size()).append("):\n");
       for (Created golden : created) {
-        out.println(
-            "  "
-                + golden.relativePath()
-                + (golden.needsReview()
+        text.append("  ")
+            .append(golden.relativePath())
+            .append(
+                golden.needsReview()
                     ? "  REVIEW (Jackson: recordbuf's own output, no independent source)"
-                    : ""));
+                    : "")
+            .append('\n');
       }
-      out.println("skipped, already exist (" + skippedExisting.size() + "):");
+      text.append("skipped, already exist (").append(skippedExisting.size()).append("):\n");
       for (String path : skippedExisting) {
-        out.println("  " + path);
+        text.append("  ").append(path).append('\n');
       }
-      out.println("not applicable (" + notApplicable.size() + "):");
+      text.append("not applicable (").append(notApplicable.size()).append("):\n");
       for (Inapplicable pair : notApplicable) {
-        out.println(
-            "  "
-                + pair.family()
-                + "/"
-                + pair.name()
-                + " ["
-                + pair.extension()
-                + "]: "
-                + pair.reason());
+        text.append("  ")
+            .append(pair.family())
+            .append('/')
+            .append(pair.name())
+            .append(" [")
+            .append(pair.extension())
+            .append("]: ")
+            .append(pair.reason())
+            .append('\n');
       }
+      return text.toString();
     }
   }
 
@@ -155,7 +161,7 @@ public final class GoldenSeeder {
     if (args.length != 1) {
       throw new IllegalArgumentException("usage: GoldenSeeder <golden root directory>");
     }
-    seed(Path.of(args[0]), GoldenCaseRegistry.sources()).print(System.out);
+    LOG.info("{}", seed(Path.of(args[0]), GoldenCaseRegistry.sources()).render());
   }
 
   private static byte[] seedContent(GoldenFormat format, Object record) throws Exception {

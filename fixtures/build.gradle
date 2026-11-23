@@ -109,6 +109,11 @@ dependencies {
     // of the WKT .protos (descriptor.proto) needed to compile recordbuf_options.
     implementation protobufJava
     testImplementation libs.junit.jupiter
+    // SLF4J for the golden seeder's report (GoldenSeeder.main logs through it). slf4j-simple is the
+    // binding; it writes to stderr, so a seedGoldens run shows the report there. Mirrors
+    // :recordbuf-generator.
+    testImplementation libs.slf4j.api
+    testRuntimeOnly libs.slf4j.simple
     // The proto3-JSON oracle for the canonical-format tests: JsonFormat prints a .rec record's
     // wire bytes (parsed through the protobuf-java reference) as canonical JSON. TEST-ONLY --
     // generated .rec code never imports it (R22), so it stays off the main compile classpath.

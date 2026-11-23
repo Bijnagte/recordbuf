@@ -18,9 +18,7 @@ import bijnagte.recordbuf.fixture.i32.rec.Sample;
 import bijnagte.recordbuf.runtime.Bytes;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.util.JsonFormat;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -107,12 +105,6 @@ class GoldenSeederTest {
     return Files.readString(root.resolve(FAMILY).resolve(file));
   }
 
-  private static String printed(GoldenSeeder.Report report) {
-    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-    report.print(new PrintStream(bytes, true, StandardCharsets.UTF_8));
-    return bytes.toString(StandardCharsets.UTF_8);
-  }
-
   /** Every golden of an applicable case is created, and Jackson alone is flagged for review. */
   @Test
   void absentGoldens_areCreated_andOnlyJacksonIsFlaggedForReview(@TempDir Path root)
@@ -128,7 +120,7 @@ class GoldenSeederTest {
     }
     assertEquals(List.of(), report.skippedExisting());
     assertEquals(List.of(), report.notApplicable());
-    String text = printed(report);
+    String text = report.render();
     assertTrue(text.contains("seeded/compat-populated.jackson.json  REVIEW"), text);
     assertFalse(text.contains("pb.hex  REVIEW"), text);
   }
@@ -222,7 +214,7 @@ class GoldenSeederTest {
     assertEquals(
         List.of(FAMILY + "/int32.pb.hex"),
         report.created().stream().map(GoldenSeeder.Created::relativePath).toList());
-    assertTrue(printed(report).contains("seeded/int32 [proto3.json]: the message has no Interop"));
+    assertTrue(report.render().contains("seeded/int32 [proto3.json]: the message has no Interop"));
   }
 
   /** A format with no seeding source is refused rather than seeded from the wrong place. */
