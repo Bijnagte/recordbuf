@@ -20,16 +20,148 @@ import org.junit.jupiter.api.io.TempDir;
 class GapLedgerTest {
 
   private static final String LEDGER_RESOURCE = "/golden/gap-ledger.md";
+  private static final String MANIFEST_RESOURCE = "/golden/conformance-manifest.md";
+  private static final String MANIFEST_HEADER =
+      "| group | category | status | reference |\n| --- | --- | --- | --- |\n";
   private static final String HEADER =
       "| id | construct or scenario | formats | kind | reason |\n| --- | --- | --- | --- | --- |\n";
 
   /** The committed ledger passes against the real vendored protos. */
   @Test
   void realLedger_agreesWithRealProtos() throws IOException {
-    GapLedger ledger = GapLedger.parse(readLedgerResource());
+    GapLedger ledger = GapLedger.parse(readResource(LEDGER_RESOURCE));
     List<GapLedger.Marker> markers = GapLedger.scan(GapLedger.defaultProtoRoot());
 
     assertEquals(List.of(), ledger.problems(markers));
+  }
+
+  /** The committed manifest agrees with the committed ledger, and has rows in every status. */
+  @Test
+  void realManifest_agreesWithRealLedger() throws IOException {
+    GapLedger ledger = GapLedger.parse(readResource(LEDGER_RESOURCE));
+    List<GapLedger.ManifestRow> rows = GapLedger.parseManifest(readResource(MANIFEST_RESOURCE));
+
+    assertEquals(List.of(), ledger.manifestProblems(rows));
+    assertTrue(
+        rows.stream().anyMatch(row -> row.status() == GapLedger.Status.GAP),
+        "the manifest has no gap rows");
+    assertTrue(
+        rows.stream().anyMatch(row -> row.status() == GapLedger.Status.NOT_APPLICABLE),
+        "the manifest has no not-applicable rows");
+  }
+
+  /** A covered row with no test reference fails, and the message names the group. */
+  @Test
+  void coveredRowWithoutTestReference_fails() {
+    GapLedger ledger = GapLedger.parse(HEADER);
+    List<GapLedger.ManifestRow> rows =
+        GapLedger.parseManifest(MANIFEST_HEADER + "| TestX | binary | covered |  |\n");
+
+    List<String> problems = ledger.manifestProblems(rows);
+
+    assertEquals(1, problems.size(), problems.toString());
+    assertTrue(problems.get(0).contains("'TestX'"), problems.get(0));
+    assertTrue(problems.get(0).contains("names no test"), problems.get(0));
+  }
+
+  /** A covered row must name a real class and method; a stale or misspelled one fails. */
+  @Test
+  void coveredRow_requiresExistingTestMethod() {
+    GapLedger ledger = GapLedger.parse(HEADER);
+    String self = GapLedgerTest.class.getName();
+    List<GapLedger.ManifestRow> rows =
+        GapLedger.parseManifest(
+            MANIFEST_HEADER
+                + "| Real | binary | covered | `"
+                + self
+                + "#duplicateId_fails` |\n"
+                + "| NoMethod | binary | covered | "
+                + self
+                + "#noSuchMethod |\n"
+                + "| NoClass | json | covered | no.such.Type#test |\n"
+                + "| NoHash | json | covered | JustAName |\n");
+
+    List<String> problems = ledger.manifestProblems(rows);
+
+    assertEquals(3, problems.size(), problems.toString());
+    assertTrue(problems.get(0).contains("'NoMethod'"), problems.get(0));
+    assertTrue(problems.get(1).contains("'NoClass'"), problems.get(1));
+    assertTrue(problems.get(2).contains("not Class#method"), problems.get(2));
+  }
+
+  /** A gap row with no ledger id fails, and so does one naming an id the ledger lacks. */
+  @Test
+  void gapRow_requiresExistingLedgerId() {
+    GapLedger ledger =
+        GapLedger.parse(HEADER + "| known-id | scenario | pb.hex | conformance-only | r |\n");
+    List<GapLedger.ManifestRow> rows =
+        GapLedger.parseManifest(
+            MANIFEST_HEADER
+                + "| NoId | binary | gap |  |\n"
+                + "| BadId | binary | gap | known-id, missing-id |\n");
+
+    List<String> problems = ledger.manifestProblems(rows);
+
+    assertEquals(2, problems.size(), problems.toString());
+    assertTrue(problems.get(0).contains("'NoId'"), problems.get(0));
+    assertTrue(problems.get(0).contains("no ledger id"), problems.get(0));
+    assertTrue(problems.get(1).contains("'missing-id'"), problems.get(1));
+  }
+
+  /** A conformance-only ledger row that no manifest gap row names fails. */
+  @Test
+  void conformanceOnlyRowMissingFromManifest_fails() {
+    GapLedger ledger =
+        GapLedger.parse(
+            HEADER
+                + "| named | scenario a | pb.hex | conformance-only | r |\n"
+                + "| orphan | scenario b | pb.hex | conformance-only | r |\n"
+                + "| construct-row | construct | pb.hex | construct | r |\n");
+    List<GapLedger.ManifestRow> rows =
+        GapLedger.parseManifest(
+            MANIFEST_HEADER
+                + "| TestA | binary | gap | named |\n"
+                + "| TestB | json | not-applicable | Google-owned (R15) |\n");
+
+    List<String> problems = ledger.manifestProblems(rows);
+
+    assertEquals(1, problems.size(), problems.toString());
+    assertTrue(problems.get(0).contains("'orphan'"), problems.get(0));
+  }
+
+  /** A not-applicable row needs a reason, and a group name may appear only once. */
+  @Test
+  void notApplicableWithoutReason_andDuplicateGroup_fail() {
+    GapLedger ledger = GapLedger.parse(HEADER);
+    List<GapLedger.ManifestRow> rows =
+        GapLedger.parseManifest(
+            MANIFEST_HEADER
+                + "| TestA | binary | not-applicable |  |\n"
+                + "| TestA | json | not-applicable | proto2 |\n");
+
+    List<String> problems = ledger.manifestProblems(rows);
+
+    assertEquals(2, problems.size(), problems.toString());
+    assertTrue(problems.get(0).contains("gives no reason"), problems.get(0));
+    assertTrue(problems.get(1).contains("'TestA'"), problems.get(1));
+    assertTrue(problems.get(1).contains("more than once"), problems.get(1));
+  }
+
+  /** An unknown status or category is rejected at parse time, with its line number. */
+  @Test
+  void parseManifest_rejectsUnknownStatusAndCategory() {
+    IllegalArgumentException status =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> GapLedger.parseManifest(MANIFEST_HEADER + "| T | binary | done | x |\n"));
+    IllegalArgumentException category =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> GapLedger.parseManifest(MANIFEST_HEADER + "| T | proto | gap | x |\n"));
+
+    assertTrue(status.getMessage().contains("line 3"), status.getMessage());
+    assertTrue(status.getMessage().contains("unknown status 'done'"), status.getMessage());
+    assertTrue(category.getMessage().contains("unknown category 'proto'"), category.getMessage());
   }
 
   /** A marker with no ledger row fails, and the message names the marker and its location. */
@@ -127,10 +259,10 @@ class GapLedgerTest {
     Files.writeString(root.resolve(name), content, StandardCharsets.UTF_8);
   }
 
-  private static String readLedgerResource() throws IOException {
-    try (InputStream in = GapLedgerTest.class.getResourceAsStream(LEDGER_RESOURCE)) {
+  private static String readResource(String resource) throws IOException {
+    try (InputStream in = GapLedgerTest.class.getResourceAsStream(resource)) {
       if (in == null) {
-        throw new IllegalStateException("missing test resource " + LEDGER_RESOURCE);
+        throw new IllegalStateException("missing test resource " + resource);
       }
       return new String(in.readAllBytes(), StandardCharsets.UTF_8);
     }
