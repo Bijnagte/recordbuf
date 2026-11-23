@@ -21,6 +21,8 @@ option java_multiple_files = true;
 // field per packed encoding so the length-delimited framing plus each value
 // width (varint vs zigzag vs fixed-width vs IEEE float/double) is exercised.
 message Sample {
+    // GAP(packed-decode-unpacked-input): the generated decoder reads the length-delimited form only,
+    // so a list written unpacked (one tag per element) is not decoded.
     repeated int32  a = 1;
     repeated int64  b = 2;
     repeated fixed32 c = 3;

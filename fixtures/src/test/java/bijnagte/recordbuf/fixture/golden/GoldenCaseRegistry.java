@@ -10,6 +10,10 @@ import bijnagte.recordbuf.fixture.jackson.JacksonKnobsCases;
 import bijnagte.recordbuf.fixture.jackson.JacksonOneofCases;
 import bijnagte.recordbuf.fixture.jackson.JacksonRoundTripCases;
 import bijnagte.recordbuf.fixture.jacksonformat.JacksonFormatCases;
+import bijnagte.recordbuf.fixture.optional.OptionalCases;
+import bijnagte.recordbuf.fixture.order.OrderCases;
+import bijnagte.recordbuf.fixture.packed.PackedCases;
+import bijnagte.recordbuf.fixture.repeated.RepeatedCases;
 import bijnagte.recordbuf.fixture.string.StringCases;
 import java.util.List;
 
@@ -35,6 +39,10 @@ public final class GoldenCaseRegistry {
         new IntCases(),
         new FixedCases(),
         new StringCases(),
-        new BytesCases());
+        new BytesCases(),
+        new PackedCases(),
+        new RepeatedCases(),
+        new OptionalCases(),
+        new OrderCases());
   }
 }
