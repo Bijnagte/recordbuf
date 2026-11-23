@@ -327,3 +327,16 @@ tasks.named('check').configure {
 tasks.named('test').configure {
     finalizedBy tasks.named('jacocoTestReport')
 }
+
+// U10 (2026-11-23-001, KTD6): seed golden files that do not exist yet, from each format's
+// independent source, into the SOURCE tree (not build/). Write-missing-only: it never overwrites a
+// golden and fails if asked to. Deliberately not wired into check/build. Review the printed report,
+// above all the Jackson goldens it flags, before committing what it wrote.
+tasks.register('seedGoldens', JavaExec) {
+    group = 'verification'
+    description = 'Writes missing golden files for the registered cases; never overwrites.'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'bijnagte.recordbuf.fixture.golden.GoldenSeeder'
+    args layout.projectDirectory.dir('src/test/resources/golden').asFile.absolutePath
+    jvmArgs '-Dorg.apache.avro.SERIALIZABLE_PACKAGES=bijnagte.recordbuf.fixture'
+}

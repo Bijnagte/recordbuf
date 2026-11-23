@@ -145,7 +145,11 @@ public final class GoldenAssertions {
     return new IllegalArgumentException("malformed hex golden " + source + ": " + problem);
   }
 
-  private static String normalizeJson(String text) {
+  /**
+   * Parses JSON text and pretty-prints it with the printer {@link #assertJsonMatches} compares
+   * with. The seeding task writes Jackson and Avro JSON goldens in this form.
+   */
+  public static String normalizeJson(String text) {
     JsonNode tree = MAPPER.readTree(text);
     return MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(tree);
   }
