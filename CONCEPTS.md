@@ -66,3 +66,14 @@ message data produced by the recordbuf plugin without a protobuf dependency.
 
 ### Opaque envelope
 The Avro-twin representation for a field the structural twin cannot map — an opaque wrapper instead of a structural type. Shelved when the structural twin landed (no shape then needed it), it returned with the 2026-11-20 Jackson JSON plan (U9) as the shared `RecordbufDynamicWkt` record `{format, contentType, payload}`: a dynamic WKT field on a file with both the Jackson surface and the Avro bridge on rides it (`format` = `"json"`, `contentType` = the WKT name or an `Any`'s `typeUrl`, `payload` = the node's JSON text), so the twin degrades those fields rather than dropping them or failing the file.
+
+## Compatibility testing
+
+### Golden
+A committed copy of one fixture record's serialized form in one format: Jackson JSON, proto3 JSON, canonical Avro JSON, protobuf binary, or Avro binary. A golden is seeded once from the producing library and then frozen. It changes only by a reviewed hand edit, and the suite never rewrites it. JSON goldens are compared after both sides are normalized to pretty-printed tree text, so member order counts and whitespace does not. Binary goldens are compared byte-for-byte. *Avoid:* "snapshot" (implies the test may regenerate it).
+
+### Expected-after-trip record
+The record that a golden must deserialize to when its format loses information by design. Examples: a `json_ignored` field, unknown fields under proto3 JSON, a Jackson field mask. Each lossy case declares one per format, which keeps the reverse equality assertion strict.
+
+### Gap ledger
+The tracked list of proto constructs and conformance scenarios that recordbuf does not support yet. Each entry is a gap-tracking comment on a construct commented out in the vendored `test_messages_proto3.proto`, or a recorded conformance scenario. Gaps close one at a time: uncomment, fix the generator, add goldens, and remove the entry. A commented-out field still round-trips on the wire through the unknown-field carrier, so the ledger is what keeps such a gap visible.
