@@ -77,10 +77,13 @@ public final class DynamicWkt {
   }
 
   /**
-   * The node shape of an {@link Any}, in the well-known-types' canonical JSON mapping: an object
-   * with {@code typeUrl} and {@code value}, where {@code value} is the decoded JSON representation
-   * for the structural types and the payload's base64 for everything else — exactly protobuf's own
-   * Any JSON mapping, so a round-trip is lossless.
+   * The node shape of an {@link Any}: an object with {@code typeUrl} and {@code value} (recordbuf's
+   * mapping, not proto3 JSON's {@code @type}-inlined form), where {@code value} is the decoded JSON
+   * of a {@code Struct} / {@code Value} / {@code ListValue} payload and the payload's base64 for
+   * everything else. {@link #anyFrom(String, JsonNode)} is its inverse, with these edge cases: a
+   * structural payload that cannot be parsed is also written as base64 (and read back as such for
+   * {@code Struct} / {@code ListValue}), and an empty {@code Value} payload (no kind set) omits the
+   * {@code value} member, distinct from an explicit null ({@code 08 00}) which is {@code null}.
    */
   public static ObjectNode any(Any any) {
     ObjectNode node = F.objectNode();
@@ -89,8 +92,12 @@ public final class DynamicWkt {
       switch (any.getTypeUrl()) {
         case "type.googleapis.com/google.protobuf.Struct" ->
             node.set("value", struct(Struct.parseFrom(any.getValue())));
-        case "type.googleapis.com/google.protobuf.Value" ->
-            node.set("value", value(Value.parseFrom(any.getValue())));
+        case "type.googleapis.com/google.protobuf.Value" -> {
+          Value v = Value.parseFrom(any.getValue());
+          if (v.getKindCase() != KindCase.KIND_NOT_SET) {
+            node.set("value", value(v));
+          }
+        }
         case "type.googleapis.com/google.protobuf.ListValue" ->
             node.set("value", list(ListValue.parseFrom(any.getValue())));
         default -> node.put("value", base64(any.getValue()));
@@ -141,25 +148,60 @@ public final class DynamicWkt {
   }
 
   /**
-   * Rebuilds an {@link Any} from its canonical JSON mapping (the inverse of {@link #any(Any)}):
-   * structural typeUrls re-encode their message from the decoded node; any other typeUrl takes the
-   * payload back from base64. A null/absent {@code value} node clears the payload.
+   * Rebuilds an {@link Any} from its JSON mapping (the inverse of {@link #any(Any)}): structural
+   * typeUrls re-encode their message from the decoded node; any other typeUrl takes the payload
+   * back from base64. An absent {@code value} clears the payload; a {@code null} one does too,
+   * except for a {@code Value}, where it is the explicit null kind.
+   *
+   * @throws IllegalArgumentException if the node's shape does not fit the typeUrl (a {@code Struct}
+   *     needs an object, a {@code ListValue} an array; a string is also accepted for those two as
+   *     the base64 of an unparseable payload) or an opaque payload is not a base64 string
    */
   public static Any anyFrom(String typeUrl, JsonNode valueNode) {
     Any.Builder b = Any.newBuilder().setTypeUrl(typeUrl);
-    if (valueNode == null || valueNode.isNull()) {
+    if (valueNode == null) {
       return b.build();
     }
     switch (typeUrl) {
-      case "type.googleapis.com/google.protobuf.Struct" ->
+      case "type.googleapis.com/google.protobuf.Struct" -> {
+        if (valueNode.isObject()) {
           b.setValue(structFrom((ObjectNode) valueNode).toByteString());
+        } else {
+          b.setValue(rawPayload(typeUrl, valueNode));
+        }
+      }
       case "type.googleapis.com/google.protobuf.Value" ->
           b.setValue(valueFrom(valueNode).toByteString());
-      case "type.googleapis.com/google.protobuf.ListValue" ->
+      case "type.googleapis.com/google.protobuf.ListValue" -> {
+        if (valueNode.isArray()) {
           b.setValue(listFrom((ArrayNode) valueNode).toByteString());
-      default -> b.setValue(ByteString.copyFrom(Base64.getDecoder().decode(valueNode.asString())));
+        } else {
+          b.setValue(rawPayload(typeUrl, valueNode));
+        }
+      }
+      default -> b.setValue(rawPayload(typeUrl, valueNode));
     }
     return b.build();
+  }
+
+  /** An opaque payload: a base64 string (or null for none); anything else is malformed. */
+  private static ByteString rawPayload(String typeUrl, JsonNode valueNode) {
+    if (valueNode.isNull()) {
+      return ByteString.EMPTY;
+    }
+    if (!valueNode.isString()) {
+      throw new IllegalArgumentException(
+          "an Any node for "
+              + typeUrl
+              + " must carry its payload as a base64 string (or the matching structure), got: "
+              + valueNode);
+    }
+    try {
+      return ByteString.copyFrom(Base64.getDecoder().decode(valueNode.asString()));
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException(
+          "an Any node for " + typeUrl + " has a payload that is not valid base64", e);
+    }
   }
 
   /**

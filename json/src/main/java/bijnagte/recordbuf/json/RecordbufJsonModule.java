@@ -6,7 +6,7 @@ import bijnagte.recordbuf.runtime.FieldMask;
 import tools.jackson.databind.module.SimpleModule;
 
 /**
- * The recordbuf Jackson module: registers the proto3 JSON mappings for the runtime value types —
+ * The recordbuf Jackson module: registers recordbuf's JSON mappings for the runtime value types —
  * {@link Bytes} as a base64 string ({@link JsonBytes}), {@link FieldMask} as an array of its
  * lowerCamel paths ({@link JsonFieldMask}), and {@link Empty} as {@code {}} ({@link JsonEmpty}).
  *

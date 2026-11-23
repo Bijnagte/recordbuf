@@ -6,6 +6,7 @@ import java.util.List;
 import tools.jackson.core.JsonGenerator;
 import tools.jackson.core.JsonParser;
 import tools.jackson.core.JsonToken;
+import tools.jackson.databind.DatabindException;
 import tools.jackson.databind.DeserializationContext;
 import tools.jackson.databind.SerializationContext;
 import tools.jackson.databind.ValueDeserializer;
@@ -16,8 +17,9 @@ import tools.jackson.databind.ValueSerializer;
  * in lowerCamelCase -- the generated records' JSON property names ({@code "user.display_name"}
  * &rarr; {@code "user.displayName"}). Reading converts each segment back to snake_case before
  * {@link FieldMask#of} normalizes the set. A snake_case segment that does not survive the camel
- * round trip (an underscore before a digit or another underscore) is not representable. Registered
- * per field by generated records and in {@link RecordbufJsonModule}.
+ * round trip (an underscore before a digit or another underscore: {@code line_1} would read back as
+ * {@code line1}) is not representable, so writing it fails rather than silently naming another
+ * field. Registered per field by generated records and in {@link RecordbufJsonModule}.
  */
 public final class JsonFieldMask {
 
@@ -35,8 +37,14 @@ public final class JsonFieldMask {
 
     @Override
     public void serialize(FieldMask value, JsonGenerator gen, SerializationContext serializers) {
+      List<String> paths;
+      try {
+        paths = jsonPaths(value);
+      } catch (IllegalArgumentException e) {
+        throw DatabindException.from(gen, e.getMessage());
+      }
       gen.writeStartArray();
-      for (String path : jsonPaths(value)) {
+      for (String path : paths) {
         gen.writeString(path);
       }
       gen.writeEndArray();
@@ -74,11 +82,21 @@ public final class JsonFieldMask {
    *
    * @param mask the mask
    * @return the JSON paths
+   * @throws IllegalArgumentException if a path does not survive the camelCase round trip
    */
   public static List<String> jsonPaths(FieldMask mask) {
     List<String> camel = new ArrayList<>();
     for (String path : mask.paths()) {
-      camel.add(snakeToCamel(path));
+      String json = snakeToCamel(path);
+      if (!camelToSnake(json).equals(path)) {
+        throw new IllegalArgumentException(
+            "field mask path \""
+                + path
+                + "\" cannot be written as a lowerCamel JSON path (it would read back as \""
+                + camelToSnake(json)
+                + "\")");
+      }
+      camel.add(json);
     }
     return camel;
   }

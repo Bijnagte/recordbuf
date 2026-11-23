@@ -3,6 +3,7 @@ package bijnagte.recordbuf.json;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import bijnagte.recordbuf.runtime.Empty;
 import bijnagte.recordbuf.runtime.FieldMask;
@@ -25,6 +26,18 @@ class JsonFieldMaskEmptyTest {
 
     assertEquals(List.of("a", "fooBar.bazQux", "z.yX"), JsonFieldMask.jsonPaths(mask));
     assertEquals(mask, JsonFieldMask.fromJsonPaths(List.of("a", "fooBar.bazQux", "z.yX")));
+  }
+
+  @Test
+  void aPathThatDoesNotSurviveTheCamelRoundTripFailsInsteadOfRenamingAField() {
+    for (String path : List.of("addr.line_1", "a__b")) {
+      var e =
+          assertThrows(
+              IllegalArgumentException.class, () -> JsonFieldMask.jsonPaths(FieldMask.of(path)));
+
+      assertTrue(String.valueOf(e.getMessage()).contains("cannot be written"), e.getMessage());
+    }
+    assertThrows(JacksonException.class, () -> M.writeValueAsString(FieldMask.of("addr.line_1")));
   }
 
   @Test

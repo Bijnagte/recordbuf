@@ -198,6 +198,22 @@ class OneofJsonSurfaceTest {
   void discriminatorCollidingWithAFieldFailsGeneration() {
     var e = assertThrows(IllegalStateException.class, () -> render(event(true, null, "when_type")));
 
-    assertTrue(String.valueOf(e.getMessage()).contains("collides with a field"), e.getMessage());
+    assertTrue(
+        String.valueOf(e.getMessage()).contains("collides with a field's JSON name"),
+        e.getMessage());
+  }
+
+  /**
+   * A field whose accessor is already {@code whenType()} only collides with the discriminator's
+   * Java method, not its JSON property once json_oneof renames that: the method steps aside.
+   */
+  @Test
+  void javaOnlyCollisionRenamesTheDiscriminatorMethodInsteadOfFailing() {
+    // field when_type: Java accessor whenType(), JSON name whenType; discriminator property "kind"
+    String src = render(event(true, "kind", "when_type"));
+
+    assertTrue(src.contains("@JsonProperty(\"kind\") @Nullable public String whenJsonType()"), src);
+    assertTrue(src.contains("@JsonProperty(\"kind\") @Nullable String whenJsonType,"), src);
+    assertTrue(src.contains("JsonOneof.select(\"when\", whenJsonType,"), src);
   }
 }

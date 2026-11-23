@@ -726,18 +726,24 @@ public final class RecordSourceMapping {
     List<Element> body = new ArrayList<>();
     for (Oneof oneof : m.oneofs()) {
       String property = discriminatorProperty(oneof);
-      String method = oneof.componentName() + "Type";
-      if (javaNames.contains(method) || jsonNames.contains(property)) {
+      // Only the JSON property name is part of the JSON contract, so only a collision there fails
+      // (and recordbuf.json_oneof renames it). The Java method is an implementation detail: when
+      // <oneof>Type is taken (e.g. by a field's accessor) it steps aside to <oneof>JsonType, then
+      // <oneof>JsonType2, ...
+      if (jsonNames.contains(property)) {
         throw new IllegalStateException(
             "oneof \""
                 + oneof.name()
                 + "\" in "
                 + m.name()
-                + ": its JSON discriminator (method "
-                + method
-                + "(), property \""
+                + ": its JSON discriminator property \""
                 + property
-                + "\") collides with a field; rename one, or set recordbuf.json_oneof");
+                + "\" collides with a field's JSON name; rename the field, or set"
+                + " recordbuf.json_oneof on the oneof");
+      }
+      String method = oneof.componentName() + "Type";
+      for (int attempt = 1; javaNames.contains(method); attempt++) {
+        method = oneof.componentName() + "JsonType" + (attempt == 1 ? "" : attempt);
       }
       javaNames.add(method);
       jsonNames.add(property);

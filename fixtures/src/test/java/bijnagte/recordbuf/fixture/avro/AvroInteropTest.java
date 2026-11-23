@@ -183,6 +183,28 @@ class AvroInteropTest {
     assertEquals(d, back.span());
   }
 
+  @Test
+  void wellKnownHugeDurationRoundTripsThroughAvro() {
+    // Beyond ~292 years Duration.toNanos() overflows: the converter must take the nano fraction
+    // from toNanosPart() instead.
+    for (Duration d :
+        List.of(
+            Duration.ofSeconds(Long.MAX_VALUE, 999_999_999),
+            Duration.ofSeconds(Long.MIN_VALUE),
+            Duration.ofDays(365 * 1000L))) {
+      bijnagte.recordbuf.fixture.wellknown.rec.Sample original =
+          bijnagte.recordbuf.fixture.wellknown.rec.Sample.builder().span(d).build();
+
+      bijnagte.recordbuf.fixture.wellknown.SampleAvro s =
+          bijnagte.recordbuf.fixture.wellknown.rec.SampleAvroConverter.fromRecord(original);
+
+      assertEquals(
+          d,
+          bijnagte.recordbuf.fixture.wellknown.rec.SampleAvroConverter.toRecord(s).span(),
+          d.toString());
+    }
+  }
+
   // ── Avro binary round-trip (proves SpecificCompiler product is a working Avro type) ───
 
   @Test

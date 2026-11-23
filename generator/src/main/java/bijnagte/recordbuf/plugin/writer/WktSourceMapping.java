@@ -202,40 +202,14 @@ final class WktSourceMapping {
   }
 
   static Case dynamicDecodeCase(Field f, Entry entry, String in) {
-    int num = f.number();
-    String name = f.javaName();
-    String read = in + ".readByteArray()";
-    // decode() returns a JsonNode; a Struct / ListValue component (ObjectNode / ArrayNode) needs a
-    // cast to its concrete node type. No cast when the component is already JsonNode (Value / Any).
-    TypeRef nodeType = Objects.requireNonNull(entry.nodeType(), "dynamic WKT has no node type");
-    boolean needsCast = !nodeType.equals(TypeRefs.JSON_NODE);
+    // decodeValue() returns the node cast to the component's concrete type where it is narrower
+    // than JsonNode (Struct -> ObjectNode, ListValue -> ArrayNode).
+    RawExpr decoded = decodeValue(f, entry, in + ".readByteArray()");
     Element assignment =
         f.label() == FieldLabel.REPEATED
-            ? needsCast
-                ? Element.expr(
-                    "@0.add((@3) @1.decode(\"" + f.typeUrl() + "\", @2))",
-                    name,
-                    TypeRefs.DYNAMIC_WKT,
-                    read,
-                    nodeType)
-                : Element.expr(
-                    "@0.add(@1.decode(\"" + f.typeUrl() + "\", @2))",
-                    name,
-                    TypeRefs.DYNAMIC_WKT,
-                    read)
-            : needsCast
-                ? Element.expr(
-                    "@0 = (@3) @1.decode(\"" + f.typeUrl() + "\", @2)",
-                    name,
-                    TypeRefs.DYNAMIC_WKT,
-                    read,
-                    nodeType)
-                : Element.expr(
-                    "@0 = @1.decode(\"" + f.typeUrl() + "\", @2)",
-                    name,
-                    TypeRefs.DYNAMIC_WKT,
-                    read);
-    return Case.of(String.valueOf(num), assignment);
+            ? Element.expr("@0.add(@1)", f.javaName(), decoded)
+            : Element.expr("@0 = @1", f.javaName(), decoded);
+    return Case.of(String.valueOf(f.number()), assignment);
   }
 
   /**

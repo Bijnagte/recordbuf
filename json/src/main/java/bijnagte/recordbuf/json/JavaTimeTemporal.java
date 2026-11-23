@@ -142,13 +142,13 @@ public final class JavaTimeTemporal {
 
     @Override
     public void serialize(Duration value, JsonGenerator gen, SerializationContext serializers) {
-      // The WKT {seconds, nanos} contract is the FLOOR pair — java.time's getSeconds()/getNano()
-      // is the *truncating* pair (a negative duration's {getSeconds, getNano} is the wrong
-      // value), so derive the floor seconds with the canonical toSeconds/toNanos decomposition.
-      long seconds = value.toSeconds();
+      // The {seconds, nanos} pair is the FLOOR pair: whole seconds rounded toward negative
+      // infinity plus a non-negative nano fraction (a negative duration of -1.5s is {-2,
+      // 500000000}). toSeconds() / toNanosPart() give exactly that without overflow, unlike
+      // toNanos() which fails beyond ~292 years.
       gen.writeStartObject();
-      gen.writeName("seconds").writeString(Long.toString(seconds));
-      gen.writeName("nanos").writeNumber((int) (value.toNanos() - seconds * 1_000_000_000L));
+      gen.writeName("seconds").writeString(Long.toString(value.toSeconds()));
+      gen.writeName("nanos").writeNumber(value.toNanosPart());
       gen.writeEndObject();
     }
   }

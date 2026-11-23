@@ -116,4 +116,19 @@ class JacksonResolutionTest {
     assertEquals(defaults, M.readValue("{}", Sample.class));
     assertEquals(defaults, M.readValue("{\"c\":null,\"i\":null,\"j\":null}", Sample.class));
   }
+
+  /** The canonical {seconds, nanos} Duration renders at any length, not just under ~292 years. */
+  @Test
+  void canonicalDurationsKeepTheirFullRange() {
+    for (Duration span :
+        List.of(
+            Duration.ofSeconds(Long.MIN_VALUE),
+            Duration.ofSeconds(Long.MAX_VALUE, 999_999_999),
+            Duration.ofDays(365 * 1000L),
+            Duration.ofMillis(-1500))) {
+      Probe p = new Probe(Instant.EPOCH, span, List.of(), null, UnknownFields.empty());
+
+      assertEquals(p, roundTrip(p, Probe.class), span.toString());
+    }
+  }
 }

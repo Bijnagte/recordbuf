@@ -714,7 +714,7 @@ public final class AvroConverterSourceMapping {
       // Duration: java.time.Duration <-> avro.wkt.Duration {seconds: long, nanos: int}.
       case "google.protobuf.Duration" ->
           Element.expr(
-              "@0(@1 == null ? null : new @2(@1.toSeconds(), (int) (@1.toNanos() - @1.toSeconds() * 1_000_000_000L)))",
+              "@0(@1 == null ? null : new @2(@1.toSeconds(), @1.toNanosPart()))",
               setter,
               accessor,
               TypeRef.named(AvroSchemaGenerator.WKT_NAMED_NAMESPACE, "Duration"));

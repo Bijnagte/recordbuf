@@ -149,12 +149,17 @@ explains why these options live outside protobuf's namespace.
 - **Avro.** Default on. For each message it emits a `.avsc` schema, an Avro `SpecificRecord`
   (`SubAvro`, generated in-process by Avro's own `SpecificCompiler`) in the natural package, and a
   `SubAvroConverter` (`toRecord` / `fromRecord`) next to the record. The Avro output is a
-  *structural twin*: maps, oneofs (unions), nested messages, enums, `uint64`, and the unknown-field
-  carrier all map structurally.
+  *structural twin*: maps, oneofs (unions), nested messages, enums and `uint64` map structurally.
+  The unknown-field carrier has an (empty) slot in the Avro record but its entries are not copied
+  across yet, so unknown fields do not survive an Avro round trip.
 - **JSON (Jackson 3).** Default on. Adds `@JsonProperty` wire names, keeps unknown JSON properties
   in a `jsonExtras` map, flattens oneofs with a `<oneofName>Type` discriminator, and
-  (de)serializes temporal fields per `jackson_format`. No module registration is needed: use a plain
-  `ObjectMapper`.
+  (de)serializes temporal fields per `jackson_format`. Generated records need no module
+  registration (each field carries its own (de)serializer annotations): use a plain `JsonMapper`.
+  Your own classes holding `Bytes`, `FieldMask` or `Empty` need
+  `JsonMapper.builder().findAndAddModules()` (Jackson 3 discovery is opt-in) or `addModule(new
+  RecordbufJsonModule())`. A `FieldMask` is a JSON array of lowerCamel paths, and
+  `JsonFieldMaskFilter` projects a JSON tree onto a mask.
 
 ### Consumer dependencies
 
