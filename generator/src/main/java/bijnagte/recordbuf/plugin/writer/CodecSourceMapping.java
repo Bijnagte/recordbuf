@@ -94,36 +94,18 @@ public final class CodecSourceMapping {
                 Element.expr("var enc = @0.start()", TypeRefs.ENCODER),
                 Element.expr("var out = enc.out()"));
 
-    // Sort by field number for wire-order correctness (OrderTest proves this).
-    var sortedFields = m.fields().stream().sorted(Comparator.comparingInt(Field::number)).toList();
-
-    for (Field f : sortedFields) {
-      Entry wktEntry = WktSourceMapping.resolve(f);
-      if (wktEntry != null) {
-        var wkt0 = Objects.requireNonNull(wktEntry);
-        method.body(WktSourceMapping.emitEncode(f, wkt0, "out", "v"));
-      } else {
-        Element e =
-            switch (f.kind()) {
-              case FieldKind.MAP -> emitMapEncode(f);
-              case FieldKind.MESSAGE ->
-                  f.label() == FieldLabel.REPEATED
-                      ? emitRepeatedMessageEncode(f)
-                      : emitMessageEncode(f);
-              case FieldKind.ENUM ->
-                  f.label() == FieldLabel.REPEATED ? emitRepeatedEnumEncode(f) : emitEnumEncode(f);
-              case FieldKind.SCALAR ->
-                  f.label() == FieldLabel.REPEATED
-                      ? emitRepeatedScalarEncode(f)
-                      : emitScalarEncode(f);
-            };
-        method.body(e);
-      }
+    // Every field AND every oneof member is one numbered slot; the slots are written in ascending
+    // field-number order across both, as protobuf-java does (OrderTest / OneofOrderTest prove it).
+    List<EncodeSlot> slots = new ArrayList<>();
+    for (Field f : m.fields()) {
+      slots.add(new EncodeSlot(f.number(), regularFieldEncode(f)));
     }
-
-    // Oneof members: pattern-matching switch on the sealed-interface component.
     for (Oneof o : m.oneofs()) {
-      method.body(emitOneofEncode(o));
+      slots.addAll(oneofEncodeSlots(o));
+    }
+    slots.sort(Comparator.comparingInt(EncodeSlot::number));
+    for (EncodeSlot slot : slots) {
+      method.body(slot.element());
     }
 
     // M4-C2b-2b-5: re-emit the unknown-fields carrier, if any, preserving wire-order round-trip.
@@ -766,55 +748,71 @@ public final class CodecSourceMapping {
 
   // --- Oneof encode / decode ---
 
+  /** One field's (or one oneof member's) encode statement, keyed by its field number. */
+  private record EncodeSlot(int number, Element element) {}
+
+  /** The encode statement of a regular (non-oneof) field. */
+  private static Element regularFieldEncode(Field f) {
+    Entry wktEntry = WktSourceMapping.resolve(f);
+    if (wktEntry != null) {
+      return WktSourceMapping.emitEncode(f, wktEntry, "out", "v");
+    }
+    return switch (f.kind()) {
+      case FieldKind.MAP -> emitMapEncode(f);
+      case FieldKind.MESSAGE ->
+          f.label() == FieldLabel.REPEATED ? emitRepeatedMessageEncode(f) : emitMessageEncode(f);
+      case FieldKind.ENUM ->
+          f.label() == FieldLabel.REPEATED ? emitRepeatedEnumEncode(f) : emitEnumEncode(f);
+      case FieldKind.SCALAR ->
+          f.label() == FieldLabel.REPEATED ? emitRepeatedScalarEncode(f) : emitScalarEncode(f);
+    };
+  }
+
   /**
-   * Emit the oneof group encode: a pattern-matching {@code switch} on the sealed-interface
-   * component. {@code case null -> {}} skips; message members dispatch through their nested codec;
-   * scalar/enum members dispatch through the wire primitive that matches their field type.
+   * One encode slot per oneof member: {@code if (v.<oneof>() instanceof <Wrapper> x_) { write }}.
+   * Guarded writes (rather than one {@code switch} over the component) let each member sit at its
+   * own field number among the regular fields, so the wire order matches protobuf-java's. Message
+   * members dispatch through their nested codec; scalar / enum / well-known-type members through
+   * the wire primitive (or Wkt bridge) that matches their field type.
    */
-  private static Element emitOneofEncode(Oneof o) {
+  private static List<EncodeSlot> oneofEncodeSlots(Oneof o) {
     String iface = o.ifaceName();
-    String cmp = o.componentName();
-    String getter = "v." + cmp + "()";
-    Switch.Builder sw = Switch.on(getter);
-    sw.caseArm("null");
+    String getter = "v." + o.componentName() + "()";
+    List<EncodeSlot> slots = new ArrayList<>();
     for (Field f : o.members()) {
       String bnd = String.valueOf(f.name().charAt(0)) + "_";
+      String recName = iface + "." + JavaNames.cap(f.name()) + "Value";
       Entry wktMember = WktSourceMapping.resolve(f);
+      Element write;
       if (wktMember != null) {
         // A well-known-type member: its native value through the Wkt / DynamicWkt bridge, written
         // whenever set (a oneof member has presence -- no default elision).
-        String recName = iface + "." + JavaNames.cap(f.name()) + "Value";
-        sw.caseArm(
-            recName + " " + bnd,
+        write =
             Element.expr(
                 "out.writeByteArray(@0, @1)",
                 f.number(),
-                WktSourceMapping.encodeValue(f, wktMember, bnd + ".value()")));
+                WktSourceMapping.encodeValue(f, wktMember, bnd + ".value()"));
       } else if (f.isMessage()) {
-        String sealedSub = iface + "." + JavaNames.cap(f.name()) + "Value";
-        sw.caseArm(
-            sealedSub + " " + bnd,
+        write =
             Element.expr(
-                "out.writeByteArray(@0, @1.encode(@2.value()))", f.number(), codecRef(f), bnd));
+                "out.writeByteArray(@0, @1.encode(@2.value()))", f.number(), codecRef(f), bnd);
       } else if (f.kind() == FieldKind.ENUM) {
-        String recName = iface + "." + JavaNames.cap(f.name()) + "Value";
-        sw.caseArm(
-            recName + " " + bnd,
-            Element.expr("out.writeEnum(@0, @1.value().getNumber())", f.number(), bnd));
+        write = Element.expr("out.writeEnum(@0, @1.value().getNumber())", f.number(), bnd);
       } else {
-        String recName = iface + "." + JavaNames.cap(f.name()) + "Value";
         WireScalar wire = wireScalar(f);
-        String call = encodeCall(wire);
-        sw.caseArm(
-            recName + " " + bnd,
+        write =
             Element.expr(
                 "out.@0(@1, @2.value()" + (wire == WireScalar.BYTES ? ".toByteArray()" : "") + ")",
-                call,
+                encodeCall(wire),
                 f.number(),
-                bnd));
+                bnd);
       }
+      slots.add(
+          new EncodeSlot(
+              f.number(),
+              If.condition("@0 instanceof @1 @2", getter, recName, bnd).body(write).build()));
     }
-    return sw.build();
+    return slots;
   }
 
   /**

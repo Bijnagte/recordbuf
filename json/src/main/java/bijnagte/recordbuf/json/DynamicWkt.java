@@ -127,7 +127,11 @@ public final class DynamicWkt {
     } else if (node.isBoolean()) {
       b.setBoolValue(node.booleanValue());
     } else if (node.isNumber()) {
-      b.setNumberValue(node.decimalValue().doubleValue());
+      // doubleValue(), not decimalValue().doubleValue(): a Value may legally hold NaN or
+      // +-Infinity,
+      // which have no BigDecimal form (Jackson throws), and every finite value converts
+      // identically.
+      b.setNumberValue(node.doubleValue());
     } else if (node.stringValueOpt().isPresent()) {
       b.setStringValue(node.asString());
     } else if (node.isObject()) {

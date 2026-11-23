@@ -1,0 +1,24 @@
+// Per-family interop fixture for the wire order of a oneof among regular fields. protobuf-java
+// writes every field -- oneof members included -- in ascending field-number order, so a oneof
+// member numbered between (or below) regular fields must interleave with them, not be written
+// after all of them. Here `o` has members 2 and 6 around the regular fields 1, 4 and 9.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.oneoforder;
+
+option java_package = "bijnagte.recordbuf.fixture.oneoforder";
+option java_multiple_files = true;
+
+message Sample {
+  int32 first = 1;
+  oneof o {
+    string s = 2;
+    int32 n = 6;
+  }
+  int32 mid = 4;
+  repeated string tail = 9;
+  oneof p {
+    bytes blob = 3;
+    int64 big = 8;
+  }
+}

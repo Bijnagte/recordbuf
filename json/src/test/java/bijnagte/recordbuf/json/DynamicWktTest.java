@@ -127,4 +127,26 @@ class DynamicWktTest {
       assertThrows(IllegalArgumentException.class, () -> DynamicWkt.encode(ANY, node), json);
     }
   }
+
+  /** NaN and the infinities are legal Value numbers: they decode and encode back byte-equal. */
+  @Test
+  void nonFiniteNumbersRoundTripThroughTheWire() throws Exception {
+    for (double d : new double[] {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY}) {
+      byte[] value = Value.newBuilder().setNumberValue(d).build().toByteArray();
+      byte[] struct =
+          Struct.newBuilder()
+              .putFields("n", Value.newBuilder().setNumberValue(d).build())
+              .build()
+              .toByteArray();
+
+      assertArrayEquals(
+          value,
+          DynamicWkt.encode(
+              "google.protobuf.Value", DynamicWkt.decode("google.protobuf.Value", value)));
+      assertArrayEquals(
+          struct,
+          DynamicWkt.encode(
+              "google.protobuf.Struct", DynamicWkt.decode("google.protobuf.Struct", struct)));
+    }
+  }
 }
