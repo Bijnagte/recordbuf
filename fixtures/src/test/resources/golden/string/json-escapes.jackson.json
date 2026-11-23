@@ -1,0 +1,5 @@
+{
+  "a" : "\"quoted\" back\\slash",
+  "b" : "tab\tnewline\nnul\u0000",
+  "c" : "</script>"
+}

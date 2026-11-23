@@ -1,65 +1,23 @@
 package bijnagte.recordbuf.fixture.bytes;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
-import bijnagte.recordbuf.fixture.bytes.rec.Sample.SampleCodec;
-import bijnagte.recordbuf.runtime.Bytes;
-import com.google.protobuf.ByteString;
-import org.junit.jupiter.api.Test;
+import bijnagte.recordbuf.fixture.golden.GoldenMatrix;
+import bijnagte.recordbuf.fixture.golden.GoldenStore;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.DynamicNode;
+import org.junit.jupiter.api.TestFactory;
 
 /**
- * Byte-and-semantic interop of the generated record codec against the protobuf-java reference for
- * the {@code bytes} field family.
- *
- * <p>The record under test lives in a sibling {@code .rec} package and is referred to by
- * fully-qualified name. The protobuf-java reference lives in this same package (so {@code Sample}
- * is unqualified), avoiding a same-simple-name import collision.
- *
- * <p>The values exercise the length-delimited raw-byte encoding: an empty array (proto3 default,
- * omitted on the wire) and a non-empty array with mixed-sign bytes that forces real
- * length-delimited framing and raw byte content (bytes 0x7f and 0x80 prove the value is framed as
- * raw bytes, not a signed primitive).
+ * The {@code bytes} golden family (see {@link BytesCases}): every case is checked forward and
+ * reverse in each format it applies to, and reported as skipped, with the reason, in each it does
+ * not. The protobuf binary format carries the byte comparison against protobuf-java and the decode
+ * of protobuf-java's bytes that this class used to assert by hand.
  */
 class BytesTest {
 
-  // bijnagte.recordbuf.fixture.bytes.rec.Sample field order: a bytes, b bytes.
-  private static final byte[] A = {}; // empty, proto3 default -> omitted
-  private static final byte[] B = {1, -1, 0, 127, -128, 65}; // mixed-sign raw bytes, non-default
+  private static final BytesCases SOURCE = new BytesCases();
 
-  /**
-   * Our byte output for the non-default fields must match protobuf-java's {@code toByteArray()}:
-   * field tag numbers included, length-delimited raw bytes, empty-array default omitted.
-   */
-  @Test
-  void byteEqual() throws Exception {
-    byte[] theirs = newBuilder().build().toByteArray();
-    byte[] ours = SampleCodec.encode(sample());
-    assertArrayEquals(theirs, ours, "record encode must equal protobuf-java toByteArray");
-  }
-
-  /** The non-default bytes are present on the wire; decode from protobuf-java bytes. */
-  @Test
-  void interopDecodesProtobuf() throws Exception {
-    byte[] theirs = newBuilder().build().toByteArray();
-    bijnagte.recordbuf.fixture.bytes.rec.Sample parsed = SampleCodec.decode(theirs);
-    assertEquals(sample(), parsed);
-  }
-
-  @Test
-  void roundTrip() throws Exception {
-    bijnagte.recordbuf.fixture.bytes.rec.Sample v = sample();
-    assertEquals(v, SampleCodec.decode(SampleCodec.encode(v)));
-  }
-
-  private static bijnagte.recordbuf.fixture.bytes.rec.Sample sample() {
-    return bijnagte.recordbuf.fixture.bytes.rec.Sample.builder()
-        .a(Bytes.of(A))
-        .b(Bytes.of(B))
-        .build();
-  }
-
-  private static Sample.Builder newBuilder() {
-    return Sample.newBuilder().setA(ByteString.copyFrom(A)).setB(ByteString.copyFrom(B));
+  @TestFactory
+  Stream<DynamicNode> bytesCases_matchTheirGoldensForwardAndReverse() {
+    return GoldenMatrix.of(GoldenStore.classpath(), SOURCE.formats()).tests(SOURCE.cases());
   }
 }

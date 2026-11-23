@@ -1,12 +1,16 @@
 package bijnagte.recordbuf.fixture.golden;
 
+import bijnagte.recordbuf.fixture.bytes.BytesCases;
 import bijnagte.recordbuf.fixture.canonicalformat.CanonicalFormatCases;
 import bijnagte.recordbuf.fixture.corpus.TestAllTypesCorpusCases;
+import bijnagte.recordbuf.fixture.fixed.FixedCases;
+import bijnagte.recordbuf.fixture.i32.IntCases;
 import bijnagte.recordbuf.fixture.jackson.JacksonDynamicWktCases;
 import bijnagte.recordbuf.fixture.jackson.JacksonKnobsCases;
 import bijnagte.recordbuf.fixture.jackson.JacksonOneofCases;
 import bijnagte.recordbuf.fixture.jackson.JacksonRoundTripCases;
 import bijnagte.recordbuf.fixture.jacksonformat.JacksonFormatCases;
+import bijnagte.recordbuf.fixture.string.StringCases;
 import java.util.List;
 
 /**
@@ -27,6 +31,10 @@ public final class GoldenCaseRegistry {
         new JacksonOneofCases(),
         new JacksonFormatCases(),
         new JacksonKnobsCases(),
-        new CanonicalFormatCases());
+        new CanonicalFormatCases(),
+        new IntCases(),
+        new FixedCases(),
+        new StringCases(),
+        new BytesCases());
   }
 }
