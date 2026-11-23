@@ -27,11 +27,11 @@ U21 to U25 flip `gap` rows to `covered` as they mirror groups, and delete the `c
 | TestValidDataForMapType | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryValidDataConformanceTest#validDataForMapType |
 | TestOverwriteMessageValueMap | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryValidDataConformanceTest#overwriteMessageValueMap |
 | TestValidDataForOneofType | binary | gap | oneof-snake-case-member |
-| TestMergeOneofMessage | binary | gap | oneof-snake-case-member |
+| TestMergeOneofMessage | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryBehaviorConformanceTest#mergeOneofMessage |
 | TestOneofMessage | binary | gap | oneof-snake-case-member |
-| TestUnknownMessage | binary | gap | conformance-binary-unknowns |
-| TestUnknownOrdering | binary | gap | conformance-binary-unknowns |
-| RunRecursionLimitTests | binary | gap | conformance-binary-recursion |
+| TestUnknownMessage | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryBehaviorConformanceTest#unknownMessage |
+| TestUnknownOrdering | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryBehaviorConformanceTest#unknownOrdering |
+| RunRecursionLimitTests | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryBehaviorConformanceTest#recursionLimit |
 | RunBinaryPerformanceTests | binary | not-applicable | Opt-in performance run (`performance_` flag), not part of the correctness suite |
 | RunJsonTests top level (HelloWorld, IgnoreUnknownJson*) | json | gap | interop-all-types |
 | RunJsonTests top level (RejectTopLevelNull) | json | not-applicable | Google-owned (R15): `JsonFormat` rejects the input before `Interop` runs |

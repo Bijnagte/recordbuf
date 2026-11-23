@@ -39,7 +39,8 @@
 //      A gap that does not stop generation (`uint32-negative-carrier-wire`,
 //      `repeated-enum-unpacked-only`, `packed-false-ignored`, `repeated-wkt-default-element`,
 //      `enum-default-value-written`, `decode-wire-type-unchecked`, `invalid-utf8-accepted`,
-//      `tag-varint-truncated-accepted`) keeps
+//      `tag-varint-truncated-accepted`, `message-field-not-merged`,
+//      `decode-recursion-unlimited`) keeps
 //      its fields active and carries only the marker comment above one representative field.
 // -----------------------------------------------------------------------------
 
@@ -126,6 +127,7 @@ message TestAllTypesProto3 {
   string optional_string = 14;
   bytes optional_bytes = 15;
 
+  // GAP(message-field-not-merged): the generated decoder replaces a message field that occurs again on the wire, instead of merging the second occurrence into the first (a oneof message arm behaves the same); the field generates fine and stays active.
   NestedMessage optional_nested_message = 18;
   ForeignMessage optional_foreign_message = 19;
 
@@ -137,6 +139,7 @@ message TestAllTypesProto3 {
   string optional_string_piece = 24 [ctype = STRING_PIECE];
   string optional_cord = 25 [ctype = CORD];
 
+  // GAP(decode-recursion-unlimited): the generated decoder opens a fresh CodedInputStream for every nested message, so no nesting depth is ever counted and a deeply nested input is not rejected (20,000 levels overflow the stack); the field generates fine and stays active.
   TestAllTypesProto3 recursive_message = 27;
 
   // Repeated
