@@ -296,6 +296,11 @@ public final class AvroConverterSourceMapping {
     }
     TypeRef refConverter =
         TypeRef.named(refRecPkg, AvroSchemaGenerator.specificRecordName(ref.name()) + "Converter");
+    if (registry.isCycleClosing(f)) {
+      // A cycle-closing reference is a null-first union in Avro: an absent value is the null
+      // branch.
+      return Element.expr("@0(@1() == null ? null : @2.toRecord(@1()))", var, getter, refConverter);
+    }
     return Element.expr("@0(@1.toRecord(@2()))", var, refConverter, getter);
   }
 

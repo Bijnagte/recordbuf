@@ -15,7 +15,9 @@ import bijnagte.recordbuf.plugin.types.WellKnownTypes;
 import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Deque;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -100,6 +102,12 @@ public final class AvroRegistry {
   /** The (possibly disambiguated) name of the shared dynamic-well-known-type envelope record. */
   private final String dynamicWktEntryName;
 
+  /**
+   * The singular message fields that close a cycle (see {@link #isCycleClosing}). Identity-keyed: a
+   * field is one declaration, and two equal fields of different messages are different fields.
+   */
+  private final Set<Field> cycleClosingFields;
+
   private AvroRegistry(
       String documentNamespace,
       String entryRecordName,
@@ -111,7 +119,8 @@ public final class AvroRegistry {
       Map<String, String> recordPackageByFqn,
       boolean jacksonOn,
       boolean hasEnvelopeField,
-      String dynamicWktEntryName) {
+      String dynamicWktEntryName,
+      Set<Field> cycleClosingFields) {
     this.documentNamespace = documentNamespace;
     this.entryRecordName = entryRecordName;
     this.nameByFqn = nameByFqn;
@@ -123,6 +132,7 @@ public final class AvroRegistry {
     this.jacksonOn = jacksonOn;
     this.hasEnvelopeField = hasEnvelopeField;
     this.dynamicWktEntryName = dynamicWktEntryName;
+    this.cycleClosingFields = cycleClosingFields;
   }
 
   /**
@@ -277,7 +287,71 @@ public final class AvroRegistry {
         recordPackageByFqn,
         jacksonOn,
         hasEnvelopeField,
-        dynamicName);
+        dynamicName,
+        cycleClosingFields(entries));
+  }
+
+  // ---- cycles ----
+
+  /**
+   * The singular message fields that close a cycle: a field of message A referencing message B when
+   * B reaches A through message references. Every message reference is an edge (singular, repeated,
+   * map-value and oneof-member), but only a singular field is collected: an empty array or map is
+   * finite, and a oneof member is already in a null-first union. A self-reference closes its cycle.
+   */
+  private static Set<Field> cycleClosingFields(Map<String, Entry> entries) {
+    Map<String, Set<String>> edges = new LinkedHashMap<>();
+    for (Entry entry : entries.values()) {
+      Set<String> targets = new LinkedHashSet<>();
+      for (Field f : entry.message().fields()) {
+        String target = referencedEntry(f, entries);
+        if (target != null) targets.add(target);
+      }
+      for (Oneof oneof : entry.message().oneofs()) {
+        for (Field member : oneof.members()) {
+          String target = referencedEntry(member, entries);
+          if (target != null) targets.add(target);
+        }
+      }
+      edges.put(entry.fqn(), targets);
+    }
+    Set<Field> closing = Collections.newSetFromMap(new IdentityHashMap<>());
+    for (Entry entry : entries.values()) {
+      for (Field f : entry.message().fields()) {
+        if (f.isRepeated() || f.isMap() || f.kind() != FieldKind.MESSAGE) continue;
+        String target = referencedEntry(f, entries);
+        if (target != null && reaches(target, entry.fqn(), edges)) closing.add(f);
+      }
+    }
+    return closing;
+  }
+
+  /** The reachable message a field references (a map's value counts), or null if none is. */
+  private static @Nullable String referencedEntry(Field f, Map<String, Entry> entries) {
+    String token = null;
+    if (f.isMap()) {
+      token = f.mapValue();
+    } else if (f.kind() == FieldKind.MESSAGE) {
+      token = f.typeUrl();
+    }
+    String ref = normalize(token);
+    return entries.containsKey(ref) ? ref : null;
+  }
+
+  /** Whether {@code to} is reachable from {@code from} along the reference edges (or equals it). */
+  private static boolean reaches(String from, String to, Map<String, Set<String>> edges) {
+    Set<String> seen = new LinkedHashSet<>();
+    Deque<String> stack = new ArrayDeque<>();
+    stack.push(from);
+    while (!stack.isEmpty()) {
+      String current = stack.pop();
+      if (current.equals(to)) return true;
+      if (!seen.add(current)) continue;
+      for (String next : edges.getOrDefault(current, Set.of())) {
+        stack.push(next);
+      }
+    }
+    return false;
   }
 
   // ---- resolution ----
@@ -618,5 +692,13 @@ public final class AvroRegistry {
   /** Whether the token names an enum this graph indexed (enum references map to a string). */
   public boolean isEnum(String token) {
     return enumFqns.contains(normalize(token));
+  }
+
+  /**
+   * Whether a singular message field closes a cycle in the reachable graph. Only these are nullable
+   * in the Avro twin, so a finite recursive value can leave them absent.
+   */
+  public boolean isCycleClosing(Field f) {
+    return cycleClosingFields.contains(f);
   }
 }

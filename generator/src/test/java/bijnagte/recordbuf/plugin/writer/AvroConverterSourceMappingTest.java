@@ -453,4 +453,64 @@ class AvroConverterSourceMappingTest {
     assertTrue(out.contains("b.empties(s.getEmpties().stream().map(v -> v == null ? null : "), out);
     assertFalse(out.contains("s.getDurations().getSeconds()"), out);
   }
+
+  @Test
+  void cycleClosingSingularReferenceIsNullCheckedInBothDirections() {
+    Field child =
+        new Field(
+            "child",
+            "child",
+            1,
+            FieldLabel.OPTIONAL,
+            FieldKind.MESSAGE,
+            "p.Node",
+            TypeRef.OBJECT,
+            null,
+            null,
+            false,
+            null,
+            null,
+            false,
+            /* jacksonFormat= */ null,
+            "child",
+            /* jsonIgnored= */ false);
+    Message node =
+        new Message(
+            "Node",
+            TypeRef.named("p", "Node"),
+            List.of(child),
+            List.of(),
+            List.of(),
+            List.of(),
+            false,
+            null,
+            List.of(),
+            null);
+    ProtoFile file =
+        new ProtoFile(
+            "a.proto",
+            "p",
+            "",
+            List.of(node),
+            List.of(),
+            false,
+            null,
+            AvroToggle.ON,
+            /* jackson= */ false);
+    AvroRegistry registry = AvroRegistry.build(file, node, null);
+
+    String out =
+        AvroConverterSourceMapping.generate(
+            "Node", "a.proto", node, "NodeAvro", "p", "p.rec", registry, Formatter.IDENTITY);
+
+    // An Avro null is the absent message, and an absent message is an Avro null.
+    assertTrue(
+        out.contains(
+            "b.child(s.getChild() == null ? null : NodeAvroConverter.toRecord(s.getChild()))"),
+        out);
+    assertTrue(
+        out.contains(
+            "s.setChild(r.child() == null ? null : NodeAvroConverter.fromRecord(r.child()))"),
+        out);
+  }
 }

@@ -174,15 +174,7 @@ public final class AvroBridge implements FormatBridge {
     try {
       Path avscPath = tmp.resolve("document.avsc");
       Files.writeString(avscPath, avscJson);
-      // The document is {protocol, namespace, types[], message}: the Avro Schema.Parser parses
-      // one schema node, so feed it the types definitions first (its name cache resolves the
-      // cross-references) and then the root record.
-      JsonNode doc = new ObjectMapper().readTree(avscJson);
-      Schema.Parser parser = new Schema.Parser();
-      for (JsonNode type : doc.get("types")) {
-        parser.parse(type.toString());
-      }
-      Schema parsed = parser.parse(doc.get("message").toString());
+      Schema parsed = parseDocument(new ObjectMapper().readTree(avscJson));
       Path outDir = tmp.resolve("generated");
       Files.createDirectories(outDir);
       new SpecificCompiler(parsed).compileToDestination(avscPath.toFile(), outDir.toFile());
@@ -221,6 +213,24 @@ public final class AvroBridge implements FormatBridge {
         // best-effort temp cleanup
       }
     }
+  }
+
+  /**
+   * Parse a {@code .avsc} document ({@code {protocol, namespace, types[], message}}) into its root
+   * schema, with every type it defines registered in the parser. Names resolve once the whole
+   * document is read, not per definition: a type may reference one defined later in {@code types}
+   * (a mutual cycle, or a nested type that references the root message, which is parsed last). A
+   * definition that is parsed alone and references a later one fails with {@code Undefined schema}.
+   *
+   * @param doc the parsed document
+   * @return the parsed root schema
+   */
+  public static Schema parseDocument(JsonNode doc) {
+    Schema.Parser parser = new Schema.Parser();
+    for (JsonNode type : doc.get("types")) {
+      parser.parseInternal(type.toString());
+    }
+    return parser.parse(doc.get("message").toString());
   }
 
   /** The package a generated specific class declares (its first {@code package <ns>;} line). */

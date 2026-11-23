@@ -435,4 +435,35 @@ class AvroRegistryTest {
     assertEquals(3, registry.protoFqns().size());
     assertNull(registry.nameOf("b.Thing"));
   }
+
+  @Test
+  void cycleClosingFieldsAreTheSingularReferencesOnACycle() throws Exception {
+    Message node = message("Node", "p", field("child", 1, "p.Node"), field("a", 2, "p.A"));
+    Message a = message("A", "p", field("b", 1, "p.B"));
+    Message b = message("B", "p", field("a", 1, "p.A"));
+
+    AvroRegistry registry = AvroRegistry.build(file("a.proto", "p", node, a, b), node, null);
+
+    // Node reaches itself through child, so child closes its own cycle; A and B close theirs.
+    assertTrue(registry.isCycleClosing(node.fields().get(0)), "Node.child");
+    assertTrue(registry.isCycleClosing(a.fields().get(0)), "A.b");
+    assertTrue(registry.isCycleClosing(b.fields().get(0)), "B.a");
+    // Node.a leads into the A/B cycle, which never returns to Node: not cycle-closing.
+    assertFalse(registry.isCycleClosing(node.fields().get(1)), "Node.a");
+  }
+
+  @Test
+  void identicalFieldsOfDifferentMessagesAreTrackedSeparately() throws Exception {
+    // Both Node.next and Other.next are "p.Node" references with equal components; only the one
+    // that closes a cycle (Node.next, through Node itself) is cycle-closing.
+    Field nodeNext = field("next", 1, "p.Node");
+    Message node = message("Node", "p", nodeNext);
+    Message other = message("Other", "p", field("next", 1, "p.Node"));
+    Message root = message("Root", "p", field("other", 1, "p.Other"));
+
+    AvroRegistry registry = AvroRegistry.build(file("a.proto", "p", root, node, other), root, null);
+
+    assertTrue(registry.isCycleClosing(nodeNext));
+    assertFalse(registry.isCycleClosing(other.fields().get(0)));
+  }
 }
