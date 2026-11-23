@@ -35,6 +35,10 @@ public final class TypeRefs {
   // --- well-known-type codec helper (bijnagte.recordbuf.runtime.wkt.Wkt) ---
   public static final TypeRef WKT = TypeRef.of("bijnagte.recordbuf.runtime.wkt.Wkt");
 
+  // --- well-known-type protobuf-java conversions (runtime.wkt.ProtobufJavaWkt) ---
+  public static final TypeRef PROTOBUF_JAVA_WKT =
+      TypeRef.of("bijnagte.recordbuf.runtime.wkt.ProtobufJavaWkt");
+
   // --- well-known-type native Java types (the types WellKnownTypes entries resolve to) ---
   public static final TypeRef INSTANT = TypeRef.named("java.time", "Instant");
   public static final TypeRef DURATION = TypeRef.named("java.time", "Duration");

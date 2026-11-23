@@ -1,0 +1,19 @@
+{
+  "duration" : "PT0S",
+  "timestamp" : "1970-01-01T00:00:00Z",
+  "fieldMask" : [ ],
+  "empty" : { },
+  "repeatedBoolWrapper" : [ ],
+  "repeatedInt32Wrapper" : [ ],
+  "repeatedUint32Wrapper" : [ ],
+  "repeatedInt64Wrapper" : [ ],
+  "repeatedUint64Wrapper" : [ ],
+  "repeatedFloatWrapper" : [ ],
+  "repeatedDoubleWrapper" : [ ],
+  "repeatedStringWrapper" : [ ],
+  "repeatedBytesWrapper" : [ ],
+  "repeatedDuration" : [ "PT0S", "PT1S" ],
+  "repeatedTimestamp" : [ ],
+  "repeatedFieldMask" : [ ],
+  "repeatedEmpty" : [ { }, { } ]
+}

@@ -22,8 +22,11 @@ import bijnagte.recordbuf.plugin.model.JavaNames;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.Oneof;
 import bijnagte.recordbuf.plugin.types.TypeRefs;
+import bijnagte.recordbuf.plugin.types.WellKnownTypes;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Maps a {@code recordbuf.protobuf_java}-opted {@link Message} into a nested {@link ClassSpec}
@@ -129,6 +132,10 @@ public final class InteropSourceMapping {
   private static List<Element> fromLocal(Field f) {
     String cap = JavaNames.protobufJavaAccessor(f.name());
     List<Element> out = new ArrayList<>();
+    NativeWkt wkt = nativeWkt(f);
+    if (wkt != null) {
+      return nativeWktFrom(f, wkt);
+    }
     if (f.isMap()) {
       boolean hasBytes = "bytes".equals(f.mapKey()) || "bytes".equals(f.mapValue());
       if (!hasBytes) {
@@ -217,6 +224,38 @@ public final class InteropSourceMapping {
   }
 
   /**
+   * A natively mapped well-known type field, read from protobuf-java through {@link
+   * bijnagte.recordbuf.runtime.wkt.ProtobufJavaWkt}. A singular wrapper is {@code null} when
+   * absent; a singular structured WKT reads as its zero default when absent; a repeated field
+   * converts every element.
+   */
+  private static List<Element> nativeWktFrom(Field f, NativeWkt wkt) {
+    String cap = JavaNames.protobufJavaAccessor(f.name());
+    if (f.isRepeated()) {
+      return List.of(
+          LocalVar.builder(f.type(), "_" + f.javaName())
+              .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)),
+          For.enhanced("var _e", "x.get@0List()", cap)
+              .body(
+                  Element.expr(
+                      "_@0.add(@1.@2(_e))",
+                      f.javaName(),
+                      TypeRefs.PROTOBUF_JAVA_WKT,
+                      wkt.fromProtobuf()))
+              .build());
+    }
+    String absent = wkt.entry().hasZeroDefault() ? zeroDefault(wkt) : "null";
+    return List.of(
+        Element.expr(
+            "var _@0 = x.has@1() ? @2.@3(x.get@1()) : @4",
+            f.javaName(),
+            cap,
+            TypeRefs.PROTOBUF_JAVA_WKT,
+            wkt.fromProtobuf(),
+            absent));
+  }
+
+  /**
    * A singular enum's record value. proto3 has no enum presence, so the default 0 reads as absent
    * (null); an explicit {@code optional} enum has presence, so its set 0 is the zero constant.
    */
@@ -262,6 +301,10 @@ public final class InteropSourceMapping {
     String cap = JavaNames.protobufJavaAccessor(f.name());
     final Element out;
     String src = "r." + f.javaName() + "()";
+    NativeWkt wkt = nativeWkt(f);
+    if (wkt != null) {
+      return nativeWktTo(f, wkt);
+    }
 
     if (f.isMap()) {
       out =
@@ -318,6 +361,40 @@ public final class InteropSourceMapping {
     return out;
   }
 
+  /**
+   * A natively mapped well-known type field, written to protobuf-java through {@link
+   * bijnagte.recordbuf.runtime.wkt.ProtobufJavaWkt}. A singular wrapper is set when present. A
+   * singular structured WKT is set only when it differs from its zero default (KTD7), as the binary
+   * encoder skips the default. A repeated field converts every element, defaults included.
+   */
+  private static Element nativeWktTo(Field f, NativeWkt wkt) {
+    String cap = JavaNames.protobufJavaAccessor(f.name());
+    String src = "r." + f.javaName() + "()";
+    if (f.isRepeated()) {
+      return For.enhanced("var _e", src)
+          .body(
+              Element.expr(
+                  "_b.add@0(@1.@2(_e))", cap, TypeRefs.PROTOBUF_JAVA_WKT, wkt.toProtobuf()))
+          .build();
+    }
+    if (wkt.entry().hasZeroDefault()) {
+      // The record component is @Nullable (its constructor normalizes null to the zero default).
+      return If.condition("@0 != null && !@1.equals(@0)", src, zeroDefault(wkt))
+          .body(
+              Element.expr(
+                  "_b.set@0(@1.@2(@3))", cap, TypeRefs.PROTOBUF_JAVA_WKT, wkt.toProtobuf(), src))
+          .build();
+    }
+    // Use a local variable so NullAway can track the non-null guard
+    String local = "n" + cap;
+    return If.condition("@0 != null", src)
+        .body(
+            Element.expr("var @0 = @1", local, src),
+            Element.expr(
+                "_b.set@0(@1.@2(@3))", cap, TypeRefs.PROTOBUF_JAVA_WKT, wkt.toProtobuf(), local))
+        .build();
+  }
+
   private static Element toSetStatement(Field f, String src) {
     String cap = JavaNames.protobufJavaAccessor(f.name());
     if (f.kind() == FieldKind.ENUM) {
@@ -372,6 +449,44 @@ public final class InteropSourceMapping {
   }
 
   // -- helpers ------------------------------------------------------------------
+
+  /**
+   * A natively mapped well-known type: its registry entry and the {@code ProtobufJavaWkt} methods
+   * that convert it from protobuf-java ({@code fromProtobuf}) and to it ({@code toProtobuf}). Null
+   * for every other field, including the dynamic WKTs, which keep their own arm until U7.
+   */
+  private record NativeWkt(WellKnownTypes.Entry entry, String fromProtobuf, String toProtobuf) {}
+
+  private static @Nullable NativeWkt nativeWkt(Field f) {
+    if (f.kind() != FieldKind.MESSAGE) {
+      return null;
+    }
+    WellKnownTypes.Entry entry = WellKnownTypes.resolve(f.typeUrl());
+    if (entry == null || entry.isDynamic()) {
+      return null;
+    }
+    return switch (entry.fqn()) {
+      case "google.protobuf.Timestamp" -> new NativeWkt(entry, "toInstant", "fromInstant");
+      case "google.protobuf.Duration" -> new NativeWkt(entry, "toDuration", "fromDuration");
+      case "google.protobuf.FieldMask" -> new NativeWkt(entry, "toFieldMask", "fromFieldMask");
+      case "google.protobuf.Empty" -> new NativeWkt(entry, "toEmpty", "fromEmpty");
+      case "google.protobuf.BoolValue" -> new NativeWkt(entry, "toBoolean", "boolValue");
+      case "google.protobuf.Int32Value" -> new NativeWkt(entry, "toInt32", "int32Value");
+      case "google.protobuf.UInt32Value" -> new NativeWkt(entry, "toUint32", "uint32Value");
+      case "google.protobuf.Int64Value" -> new NativeWkt(entry, "toInt64", "int64Value");
+      case "google.protobuf.UInt64Value" -> new NativeWkt(entry, "toUint64", "uint64Value");
+      case "google.protobuf.FloatValue" -> new NativeWkt(entry, "toFloat", "floatValue");
+      case "google.protobuf.DoubleValue" -> new NativeWkt(entry, "toDouble", "doubleValue");
+      case "google.protobuf.StringValue" -> new NativeWkt(entry, "toStringValue", "stringValue");
+      case "google.protobuf.BytesValue" -> new NativeWkt(entry, "toBytes", "bytesValue");
+      default -> null;
+    };
+  }
+
+  /** The zero default of a structured WKT, as the record's field initializer spells it. */
+  private static String zeroDefault(NativeWkt wkt) {
+    return Objects.requireNonNull(wkt.entry().zeroDefault());
+  }
 
   /** The record sibling short name from the field's typeUrl last segment. */
   private static String recordSiblingFqn(Field f) {
