@@ -1,0 +1,48 @@
+{
+  "name": "d",
+  "value": {
+    "bijnagte.recordbuf.fixture.jackson.avro.RecordbufDynamicWkt": {
+      "format": "json",
+      "contentType": "google.protobuf.Value",
+      "payload": "{\"k\":[1.5,\"x\",null]}"
+    }
+  },
+  "doc": {
+    "bijnagte.recordbuf.fixture.jackson.avro.RecordbufDynamicWkt": {
+      "format": "json",
+      "contentType": "google.protobuf.Struct",
+      "payload": "{\"a\":{\"b\":true}}"
+    }
+  },
+  "items": {
+    "bijnagte.recordbuf.fixture.jackson.avro.RecordbufDynamicWkt": {
+      "format": "json",
+      "contentType": "google.protobuf.ListValue",
+      "payload": "[2.25]"
+    }
+  },
+  "payload": {
+    "bijnagte.recordbuf.fixture.jackson.avro.RecordbufDynamicWkt": {
+      "format": "json",
+      "contentType": "type.googleapis.com/com.example.Opaque",
+      "payload": "{\"typeUrl\":\"type.googleapis.com/com.example.Opaque\",\"value\":\"CJYB\"}"
+    }
+  },
+  "values": [
+    {
+      "bijnagte.recordbuf.fixture.jackson.avro.RecordbufDynamicWkt": {
+        "format": "json",
+        "contentType": "google.protobuf.Value",
+        "payload": "\"s\""
+      }
+    },
+    {
+      "bijnagte.recordbuf.fixture.jackson.avro.RecordbufDynamicWkt": {
+        "format": "json",
+        "contentType": "google.protobuf.Value",
+        "payload": "[]"
+      }
+    }
+  ],
+  "unknownFields": []
+}
