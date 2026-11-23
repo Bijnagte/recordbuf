@@ -60,6 +60,9 @@ nullaway            = { group = "com.uber.nullaway", name = "nullaway", version.
 # consumed by GENERATED code (CodedInputStream/CodedOutputStream at user
 # classpath). Pulled here so we can bump in one place.
 protobuf          = { group = "com.google.protobuf", name = "protobuf-java", version.ref = "protobuf" }
+# protobuf-java-util -- JsonFormat, the proto3-JSON oracle the fixtures' canonical-JSON tests
+# print .rec records through (record -> wire bytes -> reference message -> canonical text).
+protobuf-java-util = { group = "com.google.protobuf", name = "protobuf-java-util", version.ref = "protobuf" }
 # Avro (org.apache.avro) -- the alternative-wire-format bridge's runtime dependency.
 # Pulled here so the Avro version is bumped in one place, next to the protobuf pin.
 avro                = { group = "org.apache.avro", name = "avro", version.ref = "avro" }

@@ -108,6 +108,10 @@ dependencies {
     // of the WKT .protos (descriptor.proto) needed to compile recordbuf_options.
     implementation protobufJava
     testImplementation libs.junit.jupiter
+    // The proto3-JSON oracle for the canonical-format tests: JsonFormat prints a .rec record's
+    // wire bytes (parsed through the protobuf-java reference) as canonical JSON. TEST-ONLY --
+    // generated .rec code never imports it (R22), so it stays off the main compile classpath.
+    testImplementation libs.protobuf.java.util
     testRuntimeOnly libs.junit.platform.launcher
 
     // U2: Error Prone + NullAway prove the generated codec is nullness-safe by construction
