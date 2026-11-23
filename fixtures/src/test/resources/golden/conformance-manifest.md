@@ -14,6 +14,8 @@ A `covered` group is mirrored, not necessarily passing: a case recordbuf cannot 
 
 U21 to U25 flip `gap` rows to `covered` as they mirror groups, and delete the `conformance-only` ledger rows that no longer apply.
 
+A `gap` row can name only ledger ids, not a test, so a JSON group that is mirrored but gated is listed here as `gap` and its mirror is named in this paragraph. Every JSON scenario targets `TestAllTypesProto3`, which has no generated `Interop` converter while `interop-all-types` is open, so the recordbuf half of a mirrored scenario (`JsonFormat` to the protobuf-java message, `Interop.from`, the record, `Interop.to`, `JsonFormat` back) cannot run yet. [`JsonCoreConformanceTest`](../../java/bijnagte/recordbuf/fixture/conformance/JsonCoreConformanceTest.java) mirrors the `RunJsonTests` top level (`HelloWorld`, `IgnoreUnknownJson*`), `RunJsonTestsForFieldNameConvention`, `RunJsonTestsForNonRepeatedTypes`, `RunJsonTestsForRepeatedTypes` and the `IgnoreUnknownEnumStringValue*` scenarios of `RunJsonTestsForUnknownEnumStringValues`: each scenario has a `portCheck` test that runs now against protobuf-java alone (proving the port is faithful) and a `recordbuf` test that aborts with `interop-all-types` (or with the id of the commented-out construct the scenario names) and runs for real once the gap closes. The group's `gap` row flips to `covered` in the change that closes `interop-all-types`, when that test class becomes its reference.
+
 | group | category | status | reference |
 | --- | --- | --- | --- |
 | TestPrematureEOFForType | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryMalformedConformanceTest#prematureEofForType |
@@ -37,7 +39,7 @@ U21 to U25 flip `gap` rows to `covered` as they mirror groups, and delete the `c
 | RunJsonTests top level (RejectTopLevelNull) | json | not-applicable | Google-owned (R15): `JsonFormat` rejects the input before `Interop` runs |
 | RunJsonTestsForFieldNameConvention | json | gap | interop-all-types, field-name-uppercase-start |
 | RunJsonTestsForFieldNameConvention (malformed syntax: unquoted names, trailing commas, comments, missing commas, duplicate names) | json | not-applicable | Google-owned (R15) |
-| RunJsonTestsForNonRepeatedTypes | json | gap | interop-all-types |
+| RunJsonTestsForNonRepeatedTypes | json | gap | interop-all-types, oneof-snake-case-member, map-message-value, enum-alias-name-collision |
 | RunJsonTestsForNonRepeatedTypes (out-of-range and non-integer numbers, bad literals) | json | not-applicable | Google-owned (R15) |
 | RunJsonTestsForRepeatedTypes | json | gap | interop-all-types |
 | RunJsonTestsForRepeatedTypes (single value for repeated field) | json | not-applicable | Google-owned (R15) |
@@ -51,7 +53,7 @@ U21 to U25 flip `gap` rows to `covered` as they mirror groups, and delete the `c
 | RunJsonTestsForValue | json | gap | interop-all-types |
 | RunJsonTestsForAny | json | gap | interop-all-types |
 | RunJsonTestsForAny (bad type URL, empty type and value) | json | not-applicable | Google-owned (R15) |
-| RunJsonTestsForUnknownEnumStringValues (IgnoreUnknownEnumStringValue*) | json | gap | interop-all-types |
+| RunJsonTestsForUnknownEnumStringValues (IgnoreUnknownEnumStringValue*) | json | gap | interop-all-types, map-enum-value |
 | RunJsonTestsForUnknownEnumStringValues (RejectUnknownEnumStringValue*) | json | not-applicable | Google-owned (R15) |
 | RunJsonTestsForStoresDefaultPrimitive | json | not-applicable | Proto2 only: `RunJsonTests` calls it for proto2 message types, not for proto3 |
 | RunJsonTestsForReservedFields | json | not-applicable | Defined in the suite but not called by `RunJsonTests` at v36.2 |
