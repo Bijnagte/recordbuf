@@ -16,12 +16,12 @@ U21 to U25 flip `gap` rows to `covered` as they mirror groups, and delete the `c
 
 | group | category | status | reference |
 | --- | --- | --- | --- |
-| TestPrematureEOFForType | binary | gap | conformance-binary-malformed |
-| TestIllegalTags | binary | gap | conformance-binary-malformed |
+| TestPrematureEOFForType | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryMalformedConformanceTest#prematureEofForType |
+| TestIllegalTags | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryMalformedConformanceTest#illegalTags |
 | TestIllegalLengths | binary | not-applicable | Named in the plan, but absent from `binary_json_conformance_suite.cc` at v36.2: no such group exists at the pinned tag |
-| TestUnmatchedGroup | binary | gap | conformance-binary-malformed |
-| TestUnknownWireType | binary | gap | conformance-binary-malformed |
-| TestInvalidUtf8String | binary | gap | conformance-binary-malformed |
+| TestUnmatchedGroup | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryMalformedConformanceTest#unmatchedGroup |
+| TestUnknownWireType | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryMalformedConformanceTest#unknownWireType |
+| TestInvalidUtf8String | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryMalformedConformanceTest#invalidUtf8String |
 | TestValidDataForType | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryValidDataConformanceTest#validDataForType |
 | TestValidDataForRepeatedScalarMessage | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryValidDataConformanceTest#validDataForRepeatedScalarMessage |
 | TestValidDataForMapType | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryValidDataConformanceTest#validDataForMapType |

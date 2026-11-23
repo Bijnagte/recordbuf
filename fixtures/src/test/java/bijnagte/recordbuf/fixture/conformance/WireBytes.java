@@ -9,7 +9,8 @@ import java.nio.charset.StandardCharsets;
  * Builders for arbitrary protobuf wire bytes, ported from the helpers at the top of the official
  * conformance suite ({@code binary_json_conformance_suite.cc} and {@code binary_wireformat.h} at
  * protobuf {@code v36.2}): {@code varint}, {@code longvarint}, {@code delim}, {@code u32}, {@code
- * u64}, {@code flt}, {@code dbl}, {@code zz32}, {@code zz64}, {@code tag}, {@code len}.
+ * u64}, {@code flt}, {@code dbl}, {@code zz32}, {@code zz64}, {@code tag}, {@code len}, {@code
+ * group}.
  *
  * <p>They build payloads byte by byte, rather than through a message API, so a scenario can carry
  * input a serializer never writes: over-long varints, out-of-range values, unordered map entries.
@@ -26,6 +27,12 @@ final class WireBytes {
 
   /** Wire type of a length-prefixed field. */
   static final int WIRETYPE_LENGTH_DELIMITED = 2;
+
+  /** Wire type that opens a group. */
+  static final int WIRETYPE_START_GROUP = 3;
+
+  /** Wire type that closes a group. */
+  static final int WIRETYPE_END_GROUP = 4;
 
   /** Wire type of a little-endian 4-byte field. */
   static final int WIRETYPE_FIXED32 = 5;
@@ -120,6 +127,24 @@ final class WireBytes {
   /** Returns the whole length-delimited field: tag, length and {@code content}. */
   static byte[] len(int fieldNumber, byte[] content) {
     return cat(tag(fieldNumber, WIRETYPE_LENGTH_DELIMITED), delim(content));
+  }
+
+  /**
+   * Returns a whole group field: the start-group tag, {@code content} and the end-group tag of
+   * {@code fieldNumber}.
+   */
+  static byte[] group(int fieldNumber, byte[] content) {
+    return cat(
+        tag(fieldNumber, WIRETYPE_START_GROUP), content, tag(fieldNumber, WIRETYPE_END_GROUP));
+  }
+
+  /** Returns {@code octets}, each taken as one byte, as written in a C++ {@code "\x80"} literal. */
+  static byte[] raw(int... octets) {
+    byte[] bytes = new byte[octets.length];
+    for (int i = 0; i < octets.length; i++) {
+      bytes[i] = (byte) octets[i];
+    }
+    return bytes;
   }
 
   /** Returns the concatenation of {@code parts}. */

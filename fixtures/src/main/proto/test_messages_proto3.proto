@@ -38,7 +38,8 @@
 //      number free, so a payload that carries it still round-trips as an unknown field.
 //      A gap that does not stop generation (`uint32-negative-carrier-wire`,
 //      `repeated-enum-unpacked-only`, `packed-false-ignored`, `repeated-wkt-default-element`,
-//      `enum-default-value-written`) keeps
+//      `enum-default-value-written`, `decode-wire-type-unchecked`, `invalid-utf8-accepted`,
+//      `tag-varint-truncated-accepted`) keeps
 //      its fields active and carries only the marker comment above one representative field.
 // -----------------------------------------------------------------------------
 
@@ -105,7 +106,9 @@ message TestAllTypesProto3 {
 
   // Singular
   // test [kotlin] comment
+  // GAP(decode-wire-type-unchecked): the generated decoder dispatches a known field on its field number alone and never checks the wire type, so a known field arriving with wire type 6 or 7, or a packed enum region that ends early, decodes without an error; the field generates fine and stays active.
   int32 optional_int32 = 1;
+  // GAP(tag-varint-truncated-accepted): the decoder reads each tag with CodedInputStream.readTag, which drops the bytes of a tag varint beyond 32 bits, so an over-long or out-of-range tag is accepted; the field generates fine and stays active.
   int64 optional_int64 = 2;
   // GAP(uint32-negative-carrier-wire): a uint32 above Integer.MAX_VALUE (a negative carrier) is written as a ten-byte sign-extended varint instead of five bytes; the field generates fine and stays active.
   uint32 optional_uint32 = 3;
@@ -119,6 +122,7 @@ message TestAllTypesProto3 {
   float optional_float = 11;
   double optional_double = 12;
   bool optional_bool = 13;
+  // GAP(invalid-utf8-accepted): the decoder reads a string with CodedInputStream.readString, which replaces invalid UTF-8 instead of rejecting it; the field generates fine and stays active.
   string optional_string = 14;
   bytes optional_bytes = 15;
 
