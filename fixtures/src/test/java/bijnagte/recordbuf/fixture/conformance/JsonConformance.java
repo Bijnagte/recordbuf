@@ -27,7 +27,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -55,10 +54,8 @@ import tools.jackson.databind.json.JsonMapper;
  *       and that {@code JsonFormat} behaves as upstream expects.
  *   <li>{@code recordbuf} is the recordbuf half, through the {@link Proto3JsonFormat} adapter (R15,
  *       KTD2): {@code JsonFormat} parse, {@code Interop.from}, the record, {@code Interop.to},
- *       {@code JsonFormat} print, then the same expectation as the port check. While {@link
- *       Proto3JsonFormat#notApplicableReason} reports no {@code Interop} on {@code
- *       TestAllTypesProto3} (gap {@code interop-all-types}), the half aborts with that id. Once
- *       {@code Interop} exists the half runs for real and any failure is a recordbuf bug.
+ *       {@code JsonFormat} print, then the same expectation as the port check. The half runs for
+ *       real; a failure is a recordbuf bug, unless the scenario is listed in {@code KNOWN_GAPS}.
  * </ul>
  *
  * <p>The vendored proto has constructs commented out (see {@link Blocker}). The generated reference
@@ -78,7 +75,21 @@ final class JsonConformance {
 
   private static final String REFERENCE_MESSAGE_NAME = "TestAllTypesProto3";
   private static final String NULL_VALUE_TYPE = ".google.protobuf.NullValue";
-  private static final String INTEROP_GAP_ID = "interop-all-types";
+
+  /**
+   * The scenarios whose recordbuf half fails on a construct the record path gets wrong, by the id
+   * of its gap-ledger row. The reference has the construct, so no {@link Blocker} applies. Such a
+   * half runs and aborts with its id; a half that passes fails the test, so closing the gap forces
+   * removing its entry.
+   */
+  private static final Map<String, String> KNOWN_GAPS =
+      Map.of(
+          "EnumFieldUnknownValue", "enum-unknown-number-default",
+          "FieldMask", "field-mask-path-order",
+          "EmptyFieldMask", "repeated-wkt-default-element",
+          "TimestampEpochValue", "repeated-wkt-default-element",
+          "TimestampZeroNormalized", "repeated-wkt-default-element",
+          "TimestampHasZeroFractionalDigit", "repeated-wkt-default-element");
 
   static final Descriptor REFERENCE =
       com.google.protobuf_test_messages.proto3.TestAllTypesProto3.getDescriptor();
@@ -264,15 +275,22 @@ final class JsonConformance {
       throw new TestAbortedException(
           "gap "
               + blocker.ledgerId()
-              + ": the vendored proto has the construct this scenario names commented out (also gap "
-              + INTEROP_GAP_ID
-              + ")");
+              + ": the vendored proto has the construct this scenario names commented out");
     }
-    Optional<String> noInterop =
-        JSON_FORMAT.notApplicableReason(TestAllTypesProto3.fromBytes(new byte[0]));
-    if (noInterop.isPresent()) {
-      throw new TestAbortedException("gap " + INTEROP_GAP_ID + ": " + noInterop.get());
+    String knownGap = KNOWN_GAPS.get(scenario.name());
+    if (knownGap == null) {
+      runRecordbufHalf(scenario);
+      return;
     }
+    try {
+      runRecordbufHalf(scenario);
+    } catch (AssertionError | RuntimeException failure) {
+      throw new TestAbortedException("gap " + knownGap + ": " + failure.getMessage(), failure);
+    }
+    fail(scenario.name() + " passes now: remove its KNOWN_GAPS entry for gap " + knownGap);
+  }
+
+  private static void runRecordbufHalf(Case scenario) throws Exception {
     Object record =
         switch (scenario.input()) {
           case JsonInput json ->

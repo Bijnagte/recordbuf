@@ -31,10 +31,9 @@ import tools.jackson.databind.JsonNode;
  * non-canonical message (R15, Google-owned; the manifest lists them as not applicable).
  *
  * <p>Each scenario runs as a dynamic container with a {@code portCheck} (protobuf-java alone, runs
- * now) and a {@code recordbuf} half (aborts with {@code interop-all-types}, or with the id of the
- * commented-out construct the scenario names, until the gap closes); see {@link JsonConformance}.
- * An {@code Any} scenario names {@code TestAllTypesProto3} or a well-known type, and the shared
- * type registry resolves both.
+ * now) and a {@code recordbuf} half (aborts with the id of the gap the scenario names, until the
+ * gap closes); see {@link JsonConformance}. An {@code Any} scenario names {@code
+ * TestAllTypesProto3} or a well-known type, and the shared type registry resolves both.
  */
 class JsonWktConformanceTest {
 

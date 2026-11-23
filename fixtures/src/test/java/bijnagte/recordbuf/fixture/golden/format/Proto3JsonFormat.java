@@ -31,7 +31,7 @@ public final class Proto3JsonFormat implements GoldenFormat.Json {
 
   private final JsonFormat.TypeRegistry typeRegistry;
 
-  /** A format whose printer and parser resolve no {@code Any} type, as the golden corpus needs. */
+  /** A format whose printer and parser resolve no {@code Any} type. */
   public Proto3JsonFormat() {
     this(JsonFormat.TypeRegistry.getEmptyTypeRegistry());
   }

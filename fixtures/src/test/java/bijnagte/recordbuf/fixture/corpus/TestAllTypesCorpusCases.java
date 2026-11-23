@@ -16,6 +16,7 @@ import com.google.protobuf.Any;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Struct;
 import com.google.protobuf.Value;
+import com.google.protobuf.util.JsonFormat;
 import com.google.protobuf_test_messages.proto3.rec.ForeignEnum;
 import com.google.protobuf_test_messages.proto3.rec.ForeignMessage;
 import com.google.protobuf_test_messages.proto3.rec.TestAllTypesProto3;
@@ -37,11 +38,14 @@ import tools.jackson.databind.node.ObjectNode;
  * populated and the default {@code TestAllTypesProto3}, and the two small messages that have a
  * proto3 JSON path.
  *
- * <p>Which formats serve which message follows the gap ledger. {@code TestAllTypesProto3} has no
- * generated {@code Interop} (gap {@code interop-all-types}), so it has no proto3 JSON; the whole
- * file has Avro switched off (gap {@code avro-surface}), so no message in it has an Avro golden.
- * {@code ForeignMessage} and {@code NestedMessage} do carry an {@code Interop}, so they run in
- * proto3 JSON too.
+ * <p>Which formats serve which message follows the gap ledger and the JSON printer. The {@code
+ * TestAllTypesProto3} cases run in proto3 JSON except {@link #POPULATED}, whose {@code
+ * repeated_any} holds an {@code Any} of a type with no descriptor, which {@code JsonFormat} cannot
+ * print (the case with that element replaced is {@code all-types-proto3-json}), and {@code
+ * all-types-wire-gaps}, whose default-valued repeated WKT elements its golden cannot hold (gap
+ * {@code repeated-wkt-default-element}). The whole file has Avro switched off (gap {@code
+ * avro-surface}), so no message in it has an Avro golden. {@code ForeignMessage} and {@code
+ * NestedMessage} run in proto3 JSON too.
  *
  * <p>Maps are built as {@link LinkedHashMap}s with several entries. The record's codec writes a map
  * in the iteration order of the {@code Map} the record holds, so the insertion order of these maps
@@ -57,15 +61,25 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
   /** The case name of the populated {@code TestAllTypesProto3}. */
   public static final String POPULATED = "all-types-populated";
 
-  private static final String NO_INTEROP =
-      "TestAllTypesProto3 has no generated Interop converter while the option is commented out"
-          + " (gap interop-all-types), so it cannot cross to protobuf-java for proto3 JSON";
+  /** The case name of the populated record whose {@code repeated_any} holds only a Struct. */
+  private static final String PROTO3_JSON_POPULATED = "all-types-proto3-json";
 
   private static final String WIRE_GAPS =
       "the record sets fields whose protobuf binary encoding differs from protobuf-java's, or that"
           + " recordbuf cannot read back from protobuf-java's bytes (gaps"
           + " uint32-negative-carrier-wire, repeated-enum-unpacked-only, packed-false-ignored and"
           + " repeated-wkt-default-element)";
+
+  private static final String PROTO3_JSON_WIRE_GAPS =
+      "the proto3 JSON golden is protobuf-java's JsonFormat of the record's own protobuf binary"
+          + " bytes, which drop the default-valued repeated Duration, Timestamp, FieldMask and Empty"
+          + " elements (gap repeated-wkt-default-element), so the golden would not hold the record's"
+          + " elements";
+
+  private static final String OPAQUE_ANY =
+      "protobuf-java's JsonFormat cannot print an Any whose type URL has no descriptor"
+          + " (repeated_any holds type.googleapis.com/com.example.Opaque), a Google-owned JSON limit"
+          + " (R15), not a recordbuf gap; case all-types-proto3-json is the same record without it";
 
   private static final String NO_AVRO =
       "the file test_messages_proto3.proto has Avro switched off (gap avro-surface), so no message"
@@ -80,7 +94,11 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
       Bytes.of(new byte[] {0, 1, (byte) 0x7f, (byte) 0x80, (byte) 0xff});
 
   private final ProtobufBinaryFormat protobufBinary = new ProtobufBinaryFormat();
-  private final Proto3JsonFormat proto3Json = new Proto3JsonFormat();
+  private final Proto3JsonFormat proto3Json =
+      new Proto3JsonFormat(
+          JsonFormat.TypeRegistry.newBuilder()
+              .add(com.google.protobuf_test_messages.proto3.TestAllTypesProto3.getDescriptor())
+              .build());
   private final JacksonFormat jackson = new JacksonFormat();
   private final AvroJsonFormat avroJson = new AvroJsonFormat();
   private final AvroBinaryFormat avroBinary = new AvroBinaryFormat();
@@ -93,21 +111,40 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
   @Override
   public List<GoldenCase> cases() {
     return List.of(
-        allTypes(POPULATED, populated()),
+        populatedCase(),
+        allTypes(PROTO3_JSON_POPULATED, populatedWithStructAny()),
         allTypes("all-types-default", TestAllTypesProto3.builder().build()),
         wireGapFields(),
         interopMessage("foreign-message", ForeignMessage.builder().c(Integer.MIN_VALUE).build()),
         interopMessage("nested-message", NestedMessage.builder().a(Integer.MAX_VALUE).build()));
   }
 
-  private GoldenCase allTypes(String name, TestAllTypesProto3 record) {
-    return GoldenCase.builder(FAMILY, name, record)
+  private GoldenCase populatedCase() {
+    return GoldenCase.builder(FAMILY, POPULATED, populated())
         .lossless(protobufBinary)
-        .notApplicable(proto3Json, NO_INTEROP)
+        .notApplicable(proto3Json, OPAQUE_ANY)
         .lossless(jackson)
         .notApplicable(avroJson, NO_AVRO)
         .notApplicable(avroBinary, NO_AVRO)
         .build(formats());
+  }
+
+  private GoldenCase allTypes(String name, TestAllTypesProto3 record) {
+    return GoldenCase.builder(FAMILY, name, record)
+        .lossless(protobufBinary)
+        .lossless(proto3Json)
+        .lossless(jackson)
+        .notApplicable(avroJson, NO_AVRO)
+        .notApplicable(avroBinary, NO_AVRO)
+        .build(formats());
+  }
+
+  /**
+   * The populated record with its {@code repeated_any} holding only the Struct {@code Any}, the
+   * element the proto3 JSON printer can resolve.
+   */
+  private static TestAllTypesProto3 populatedWithStructAny() {
+    return populated().toBuilder().repeatedAny(List.of(structAny())).build();
   }
 
   /**
@@ -119,7 +156,7 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
   private GoldenCase wireGapFields() {
     return GoldenCase.builder(FAMILY, "all-types-wire-gaps", wireGaps())
         .notApplicable(protobufBinary, WIRE_GAPS)
-        .notApplicable(proto3Json, NO_INTEROP)
+        .notApplicable(proto3Json, PROTO3_JSON_WIRE_GAPS)
         .lossless(jackson)
         .notApplicable(avroJson, NO_AVRO)
         .notApplicable(avroBinary, NO_AVRO)

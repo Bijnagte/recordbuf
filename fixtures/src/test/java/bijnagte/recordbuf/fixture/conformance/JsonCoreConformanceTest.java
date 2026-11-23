@@ -33,8 +33,8 @@ import org.junit.jupiter.api.TestFactory;
  * Google-owned); {@code RunJsonTestsForStoresDefaultPrimitive} is proto2 only upstream.
  *
  * <p>Each scenario runs as a dynamic container with a {@code portCheck} (protobuf-java alone, runs
- * now) and a {@code recordbuf} half (aborts with {@code interop-all-types}, or with the id of the
- * commented-out construct the scenario names, until the gap closes); see {@link JsonConformance}.
+ * now) and a {@code recordbuf} half (aborts with the id of the gap the scenario names, until the
+ * gap closes); see {@link JsonConformance}.
  */
 class JsonCoreConformanceTest {
 
