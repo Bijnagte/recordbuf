@@ -1,0 +1,29 @@
+// Avro probe for singular well-known types: Duration, BytesValue, Timestamp and StringValue. The
+// Avro converter maps each singular value through the same per-value conversion as the repeated
+// arms: the Duration as the floor pair, the BytesValue read by position and remaining. The recordbuf
+// record and its Avro twin are generated from this file. Avro and Jackson are on by default for this
+// file.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.avrosingular;
+option java_package = "bijnagte.recordbuf.fixture.avrosingular";
+option java_multiple_files = true;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/wrappers.proto";
+import "google/protobuf/timestamp.proto";
+
+// The target message comes first in the file (KTD2): one singular field of each WKT kind.
+message Sample {
+  // Singular Duration.
+  google.protobuf.Duration span = 1;
+
+  // Singular BytesValue.
+  google.protobuf.BytesValue blob = 2;
+
+  // Singular Timestamp.
+  google.protobuf.Timestamp at = 3;
+
+  // Singular StringValue.
+  google.protobuf.StringValue text = 4;
+}

@@ -2,6 +2,7 @@ package bijnagte.recordbuf.fixture.golden;
 
 import bijnagte.recordbuf.fixture.annotations.AnnotationsCases;
 import bijnagte.recordbuf.fixture.avroenum.AvroEnumCases;
+import bijnagte.recordbuf.fixture.avrosingular.AvroSingularCases;
 import bijnagte.recordbuf.fixture.avrostructured.AvroStructuredCases;
 import bijnagte.recordbuf.fixture.avrowrappers.AvroWrappersCases;
 import bijnagte.recordbuf.fixture.bytes.BytesCases;
@@ -75,6 +76,7 @@ public final class GoldenCaseRegistry {
         new AnnotationsCases(),
         new AvroEnumCases(),
         new AvroWrappersCases(),
-        new AvroStructuredCases());
+        new AvroStructuredCases(),
+        new AvroSingularCases());
   }
 }

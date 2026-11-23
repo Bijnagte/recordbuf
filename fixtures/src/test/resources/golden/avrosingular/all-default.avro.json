@@ -1,0 +1,14 @@
+{
+  "span" : {
+    "bijnagte.recordbuf.avro.wkt.Duration" : {
+      "seconds" : 0,
+      "nanos" : 0
+    }
+  },
+  "blob" : null,
+  "at" : {
+    "long" : 0
+  },
+  "text" : null,
+  "unknownFields" : [ ]
+}

@@ -1,0 +1,18 @@
+{
+  "span" : {
+    "bijnagte.recordbuf.avro.wkt.Duration" : {
+      "seconds" : -2,
+      "nanos" : 500000000
+    }
+  },
+  "blob" : {
+    "bytes" : "\u0000ÿ"
+  },
+  "at" : {
+    "long" : 1700000000123456
+  },
+  "text" : {
+    "string" : "héllo 世界"
+  },
+  "unknownFields" : [ ]
+}
