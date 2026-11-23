@@ -1,0 +1,28 @@
+{
+  "at" : {
+    "long" : 0
+  },
+  "span" : {
+    "bijnagte.recordbuf.avro.wkt.Duration" : {
+      "seconds" : 0,
+      "nanos" : 0
+    }
+  },
+  "mask" : null,
+  "i32" : null,
+  "i64" : null,
+  "dbl" : null,
+  "flt" : null,
+  "flag" : null,
+  "text" : null,
+  "blob" : null,
+  "empty" : {
+    "bijnagte.recordbuf.avro.wkt.Empty" : { }
+  },
+  "whens" : [ {
+    "long" : 0
+  }, {
+    "long" : 1000000
+  } ],
+  "unknownFields" : [ ]
+}

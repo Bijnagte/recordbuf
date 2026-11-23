@@ -1,0 +1,73 @@
+{
+  "i64" : [ {
+    "key" : -10,
+    "value" : "minus ten"
+  }, {
+    "key" : 20,
+    "value" : "twenty"
+  } ],
+  "u32" : [ {
+    "key" : 3,
+    "value" : "three"
+  }, {
+    "key" : 30,
+    "value" : "thirty"
+  } ],
+  "u64" : [ {
+    "key" : 4,
+    "value" : "four"
+  }, {
+    "key" : 40,
+    "value" : "forty"
+  } ],
+  "s32" : [ {
+    "key" : -5,
+    "value" : "minus five"
+  }, {
+    "key" : 50,
+    "value" : "fifty"
+  } ],
+  "s64" : [ {
+    "key" : -6,
+    "value" : "minus six"
+  }, {
+    "key" : 60,
+    "value" : "sixty"
+  } ],
+  "f32" : [ {
+    "key" : 7,
+    "value" : "seven"
+  }, {
+    "key" : 70,
+    "value" : "seventy"
+  } ],
+  "f64" : [ {
+    "key" : 8,
+    "value" : "eight"
+  }, {
+    "key" : 80,
+    "value" : "eighty"
+  } ],
+  "sf32" : [ {
+    "key" : -9,
+    "value" : "minus nine"
+  }, {
+    "key" : 90,
+    "value" : "ninety"
+  } ],
+  "sf64" : [ {
+    "key" : -1,
+    "value" : "minus one"
+  }, {
+    "key" : 100,
+    "value" : "hundred"
+  } ],
+  "flag" : [ {
+    "key" : false,
+    "value" : "no"
+  }, {
+    "key" : true,
+    "value" : "yes"
+  } ],
+  "unknownFields" : [ ]
+}

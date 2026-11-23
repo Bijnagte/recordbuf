@@ -1,0 +1,19 @@
+{
+  "a" : {
+    "k" : -2,
+    "x" : 1,
+    "z" : 7
+  },
+  "b" : [ {
+    "key" : 1,
+    "value" : "one"
+  }, {
+    "key" : 2,
+    "value" : "two"
+  } ],
+  "c" : {
+    "off" : false,
+    "on" : true
+  },
+  "unknownFields" : [ ]
+}

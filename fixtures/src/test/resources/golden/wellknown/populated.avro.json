@@ -1,0 +1,44 @@
+{
+  "at" : {
+    "long" : 1700000000000000
+  },
+  "span" : {
+    "bijnagte.recordbuf.avro.wkt.Duration" : {
+      "seconds" : 3600,
+      "nanos" : 0
+    }
+  },
+  "mask" : {
+    "string" : "a.b,c"
+  },
+  "i32" : {
+    "int" : 42
+  },
+  "i64" : {
+    "long" : 7
+  },
+  "dbl" : {
+    "double" : 3.14
+  },
+  "flt" : {
+    "float" : 2.5
+  },
+  "flag" : {
+    "boolean" : true
+  },
+  "text" : {
+    "string" : "hi"
+  },
+  "blob" : {
+    "bytes" : "\u0001\u0002\u0003"
+  },
+  "empty" : {
+    "bijnagte.recordbuf.avro.wkt.Empty" : { }
+  },
+  "whens" : [ {
+    "long" : 1000000
+  }, {
+    "long" : 2000000
+  } ],
+  "unknownFields" : [ ]
+}

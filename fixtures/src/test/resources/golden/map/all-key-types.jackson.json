@@ -1,0 +1,42 @@
+{
+  "i64" : {
+    "-10" : "minus ten",
+    "20" : "twenty"
+  },
+  "u32" : {
+    "3" : "three",
+    "30" : "thirty"
+  },
+  "u64" : {
+    "4" : "four",
+    "40" : "forty"
+  },
+  "s32" : {
+    "-5" : "minus five",
+    "50" : "fifty"
+  },
+  "s64" : {
+    "-6" : "minus six",
+    "60" : "sixty"
+  },
+  "f32" : {
+    "7" : "seven",
+    "70" : "seventy"
+  },
+  "f64" : {
+    "8" : "eight",
+    "80" : "eighty"
+  },
+  "sf32" : {
+    "-9" : "minus nine",
+    "90" : "ninety"
+  },
+  "sf64" : {
+    "-1" : "minus one",
+    "100" : "hundred"
+  },
+  "flag" : {
+    "false" : "no",
+    "true" : "yes"
+  }
+}
