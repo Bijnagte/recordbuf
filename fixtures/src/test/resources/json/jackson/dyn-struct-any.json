@@ -1,0 +1,19 @@
+{
+  "name" : "d",
+  "value" : {
+    "k" : [ 1.5, "x", null ]
+  },
+  "doc" : {
+    "a" : {
+      "b" : true
+    }
+  },
+  "items" : [ 2.25 ],
+  "payload" : {
+    "typeUrl" : "type.googleapis.com/google.protobuf.Struct",
+    "value" : {
+      "k" : "v"
+    }
+  },
+  "values" : [ "s", [ ] ]
+}

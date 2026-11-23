@@ -222,12 +222,12 @@ tasks.named("compileJava", JavaCompile).configure {
         // Exclude the protobuf-java reference (proto/main/java/ -- unmarked, upstream FQN false
         // positives) and the Avro-specific records the SpecificCompiler emits (third-party code,
         // not recordbuf's own .rec output): the per-message *Avro records, the shared
-        // RecordbufUnknownField / RecordbufOneofValue carriers, and the WKT avro records in the
-        // dedicated avro/wkt package. The .rec files (records + converters) remain in full EP scope.
+        // RecordbufUnknownField / RecordbufOneofValue / RecordbufDynamicWkt carriers, and the WKT
+        // avro records in the dedicated avro/wkt package. The .rec files (records + converters) remain in full EP scope.
         // Note: excludedPaths is matched against the FULL file path, so a package prefix must end
         // in ".../" + a trailing ".*" to also match the files inside it ("avro/wkt/" alone only
         // matches the directory, never ".../avro/wkt/Duration.java").
-        excludedPaths = '.*/proto/main/java/.*|.*Avro.java|.*RecordbufUnknownField.java|.*RecordbufOneofValue.java|.*avro/wkt/.*'
+        excludedPaths = '.*/proto/main/java/.*|.*Avro.java|.*RecordbufUnknownField.java|.*RecordbufOneofValue.java|.*RecordbufDynamicWkt.java|.*avro/wkt/.*'
     }
 }
 
@@ -240,12 +240,12 @@ tasks.named("compileTestJava", JavaCompile).configure {
         disable("UndefinedEquals")
         // Exclude the Avro-specific records Avro's SpecificCompiler generates from the test
         // protos (third-party code, not recordbuf's own .rec output): the per-message *Avro
-        // records, the shared RecordbufUnknownField / RecordbufOneofValue carriers, and the WKT
-        // avro records in the dedicated avro/wkt package. The .rec files (records + converters)
+        // records, the shared RecordbufUnknownField / RecordbufOneofValue / RecordbufDynamicWkt
+        // carriers, and the WKT avro records in the dedicated avro/wkt package. The .rec files (records + converters)
         // remain in full EP scope. The test source set has no protobuf-java reference (the java
         // builtin is removed for test protos), so no path prefix is needed there.
         excludedPaths =
-            '.*Avro.java|.*RecordbufUnknownField.java|.*RecordbufOneofValue.java|.*avro/wkt/.*'
+            '.*Avro.java|.*RecordbufUnknownField.java|.*RecordbufOneofValue.java|.*RecordbufDynamicWkt.java|.*avro/wkt/.*'
     }
 }
 

@@ -2,7 +2,7 @@
 
 **Product contract** — authored in the 2026-11-20 ce-brainstorm session; that draft is superseded by this
 document, and §1 restates the contract as the single source of truth
-**Date:** 2026-11-20 · **Status:** IMPLEMENTED (migrated to the Jackson 3.x line 2026-11-21; see Current state)
+**Date:** 2026-11-20 · **Status:** DONE 2026-11-22 — all units landed (U1–U6, U8, U9, module/bytes, U10, U7); migrated to the Jackson 3.x line 2026-11-21 (see Current state)
 **Related plans:** `2026-11-17-012` Avro structural twin (landed; source of the shelved envelope),
 `2026-11-07-001` native WKT (dynamic-WKT fail-loud it lifts), `2026-11-06-001` Avro schema-jackson
 refactor (the generator already runs on a Jackson tree for `.avsc` — R10 rides the same seam).
@@ -26,6 +26,12 @@ deliberate decision, since databind 3.x reads that very package (verified from i
 The migration also fixed a latent bug 2.x masked: the generator's Timestamp `.avsc` fragment
 literal carried a stray trailing `}` that 2.x `readTree` silently tolerated and 3.x rejects —
 removed in `AvroSchemaGenerator`.
+
+**Complete (2026-11-22).** The remaining units were split into five plans (`2026-11-21-001` U8
+temporals, `-002` U9 Avro envelope, `-003` module + bytes, `-004` U10 fixtures/acceptance, `-005`
+U7 oneofs), all DONE; each records its as-built deviations. Owner direction recorded during U10:
+**proto3 JSON compatibility is not a goal** (e.g. int64 renders as a JSON number), but a JSON
+round trip must keep full Java resolution — pinned by the fixtures' `JacksonResolutionTest`.
 
 Note: P3's original "bump to 2.23.0" pin is superseded by this 3.x line; the
 `2026-11-06-001` Avro schema-jackson plan's 2.22.1-BOM-alignment rationale is likewise historical.

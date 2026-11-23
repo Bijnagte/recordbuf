@@ -1,0 +1,27 @@
+// U8 (2026-11-20 Jackson plan) temporal fixture: a single message with a temporal well-known
+// field per rendering — the default ISO string (singular), the explicit canonical object, and a
+// repeated field (the contentUsing arm on a list). The .rec record holds the java.time types;
+// the test round-trips it through a plain Jackson ObjectMapper via the generated
+// @JsonSerialize / @JsonDeserialize annotations, asserting both the per-field renderings and the
+// accept-all reader.
+syntax = "proto3";
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "recordbuf_options.proto";
+
+package bijnagte.recordbuf.fixture.jacksonformat;
+
+option java_package = "bijnagte.recordbuf.fixture.jacksonformat";
+option java_multiple_files = true;
+
+message Probe {
+  // Default jackson_format (json): renders as an RFC 3339 / ISO 8601 string.
+  google.protobuf.Timestamp at = 1;
+
+  // Explicit canonical: renders as the proto3 canonical {seconds, nanos} object.
+  google.protobuf.Duration span = 2 [(.recordbuf.jackson_format) = "canonical"];
+
+  // Repeated: the element rendering rides on contentUsing; the list itself is a JSON array.
+  repeated google.protobuf.Timestamp whens = 3;
+}

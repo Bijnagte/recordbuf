@@ -41,9 +41,31 @@ class WktTest {
 
   @Test
   void durationRoundTripsSubSecondAndBeyond() throws Exception {
-    for (Duration d : List.of(Duration.ofSeconds(17), Duration.ofMillis(250), Duration.ZERO)) {
+    for (Duration d :
+        List.of(
+            Duration.ofSeconds(17),
+            Duration.ofMillis(250),
+            Duration.ZERO,
+            Duration.ofMillis(-1500),
+            Duration.ofNanos(-1))) {
       assertEquals(d, Wkt.parseDuration(Wkt.duration(d)));
     }
+  }
+
+  @Test
+  void negativeDurationEncodesSameSignedSecondsAndNanos() throws Exception {
+    // proto: seconds and nanos share a sign; -1.5s is {-1, -500000000}, byte-equal to
+    // protobuf-java.
+    assertArrayEquals(
+        com.google.protobuf.Duration.newBuilder()
+            .setSeconds(-1)
+            .setNanos(-500_000_000)
+            .build()
+            .toByteArray(),
+        Wkt.duration(Duration.ofMillis(-1500)));
+    assertArrayEquals(
+        com.google.protobuf.Duration.newBuilder().setNanos(-1).build().toByteArray(),
+        Wkt.duration(Duration.ofNanos(-1)));
   }
 
   @Test

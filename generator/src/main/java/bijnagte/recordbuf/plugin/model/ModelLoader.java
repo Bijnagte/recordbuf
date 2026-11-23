@@ -637,10 +637,9 @@ public final class ModelLoader {
   }
 
   /**
-   * The Java type for a message/enum field: a well-known type's native Java type (failing loudly
-   * when none exists — the generator does not support dynamic WKTs), otherwise the referenced
-   * record/enum's fully-typed {@link TypeRef.Named} (its declaring java package plus nesting chain,
-   * resolved through the {@link FileTable}).
+   * The Java type for a message/enum field: a well-known type's native Java type, otherwise the
+   * referenced record/enum's fully-typed {@link TypeRef.Named} (its declaring java package plus
+   * nesting chain, resolved through the {@link FileTable}).
    */
   private TypeRef referenceType(String typeUrl) {
     WellKnownTypes.Entry wkt = WellKnownTypes.resolve(typeUrl);
@@ -648,13 +647,11 @@ public final class ModelLoader {
       if (wkt.isDynamic()) {
         // The dynamic family has no native Java type: it ONLY resolves on a jackson-enabled
         // file, where the component is the WKT's Jackson node type (the node table of the
-        // file, where the component is the WKT's Jackson node type (the node table of the
         // 2026-11-20 Jackson plan). Opted out (recordbuf.jackson = false), the feature is absent
-        // and generation fails loud (R11) with the option that would fix it. Any/NullValue stay
-        // out of v1: Any's payload
-        // owns Any), and NullValue is a zero-arity enum with no node payload.
-        String shortName = typeUrl.substring(typeUrl.lastIndexOf('.') + 1);
-        if (shortName.equals("Any") || shortName.equals("NullValue")) {
+        // and generation fails loud (R11) with the option that would fix it.
+        // Any resolves like the rest of the family (a JsonNode carrying {typeUrl, value}).
+        // NullValue stays out of v1: it is a zero-arity enum whose node is always JSON null.
+        if (typeUrl.endsWith(".NullValue")) {
           throw new IllegalStateException(
               "well-known type "
                   + typeUrl

@@ -104,14 +104,14 @@ class OneofEmissionTest {
   @Test
   void codecEncodesPerMemberRecordViaTypeDispatch() {
     String src = generatedSource(simpleFile());
-    // The encode should use a pattern-matching switch on the sealed interface
-    // with a case for the per-member record type.
+    // The encode writes each member through a guarded pattern match on the sealed interface, so
+    // it can sit at its own field number among the regular fields (protobuf-java's wire order).
     assertTrue(
-        src.contains("case " + NAME_REC + " "),
-        "the codec encode should have a case for the per-member record type:\n" + src);
-    assertTrue(
+        src.contains(COMPONENT + "() instanceof " + NAME_REC + " "),
+        "the codec encode should guard the per-member record type:\n" + src);
+    assertFalse(
         src.contains("case null"),
-        "the switch should have a null case for the absent oneof:\n" + src);
+        "the encode no longer switches over the whole oneof component:\n" + src);
   }
 
   @Test

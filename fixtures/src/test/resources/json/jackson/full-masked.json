@@ -1,0 +1,10 @@
+{
+  "name" : "n",
+  "inner" : {
+    "label" : "in"
+  },
+  "canonicalSpan" : {
+    "seconds" : "90",
+    "nanos" : 5
+  }
+}

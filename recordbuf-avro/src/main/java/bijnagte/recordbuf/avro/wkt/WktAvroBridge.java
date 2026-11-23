@@ -1,5 +1,7 @@
 package bijnagte.recordbuf.avro.wkt;
 
+import java.nio.ByteBuffer;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -133,6 +135,27 @@ public final class WktAvroBridge {
     long secs = Math.floorDiv(micros, 1_000_000L);
     int nanos = (int) (Math.floorMod(micros, 1_000_000L) * 1000L);
     return new long[] {secs, nanos};
+  }
+
+  /** An {@link Instant} as epoch micros (floored; lossy below the microsecond, as above). */
+  public static long instantToMicros(Instant instant) {
+    return timestampToMicros(instant.getEpochSecond(), instant.getNano());
+  }
+
+  /** Epoch micros as an {@link Instant} (the inverse of {@link #instantToMicros}). */
+  public static Instant instantFromMicros(long micros) {
+    long[] parts = timestampFromMicros(micros);
+    return Instant.ofEpochSecond(parts[0], parts[1]);
+  }
+
+  /**
+   * A {@code bytes} datum's content: the buffer's remaining bytes, copied without disturbing its
+   * position (an Avro {@link ByteBuffer} may be a view at a non-zero offset of a larger array).
+   */
+  public static byte[] bytes(ByteBuffer buffer) {
+    byte[] out = new byte[buffer.remaining()];
+    buffer.duplicate().get(out);
+    return out;
   }
 
   // Duration: the structured pair is the same shape on both sides (AE2: lossless, >1s nanos OK).

@@ -15,6 +15,11 @@ that turns `.proto` files into Java records + protobuf codecs.
   - `:recordbuf-runtime` → `runtime/` — the codec helpers generated code calls
     into (`bijnagte.recordbuf.runtime`).
   - `:recordbuf-options` → `options/` — the `recordbuf_options.proto`.
+  - `:recordbuf-codegen` → `codegen/` — the generator-only Java source AST + renderer.
+  - `:recordbuf-avro` → `recordbuf-avro/` — Avro runtime support (WKT ↔ Avro conversions).
+  - `:recordbuf-json` → `json/` — Jackson support generated records use (temporal /
+    bytes / `FieldMask` / `Empty` (de)serializers, `RecordbufJsonModule`, `JsonOneof`,
+    `DynamicWkt`, `JsonFieldMaskFilter`). Same Error Prone + NullAway wiring as the runtime.
   - `:recordbuf-fixtures` → `fixtures/` — interop/interface test fixtures.
   There is **no top-level `src/`**; each module has its own `src/`.
 - Main class: `bijnagte.recordbuf.plugin.Main` (in `:recordbuf-generator`);
@@ -116,6 +121,11 @@ consult it when orienting to the codebase or discussing domain concepts.
   `java` source set, so skipped). The `:recordbuf-fixtures` module additionally pulls its
   recordbuf-generated `.rec` output into the formatted set, so generated records are
   expected to be format-clean.
+  `googleJavaFormat` is configured with `.cleanup(false)`: Spotless 8.11 resolves GJF 2.0.0's
+  cleanup machinery (`CleanupPass`) through the provisioned-jar classloader, and a daemon whose
+  classloader state for that jar is stale surfaces that as `NoClassDefFoundError` on every file
+  (2026-11-22; the gate went red for a whole branch for it). Cleanup off keeps the gate on the
+  core formatter; unused imports stay enforced by the checkstyle `UnusedImports` rule.
 - **Checkstyle: WIRED (non-formatting quality gate, complementary to Spotless).** The root
   `build.gradle.kts` applies Gradle's built-in `checkstyle` plugin to **every** Java
   subproject via the same `subprojects { withPlugin("java") { … } }` block that owns
@@ -182,7 +192,8 @@ consult it when orienting to the codebase or discussing domain concepts.
 - **WKT `Duration` ↔ avro `wkt.Duration` pair (generator `AvroConverterSourceMapping`):** the avro WKT
   schema is `{seconds: long, nanos: int}` with `nanos` **non-negative** (the canonical
   seconds+fraction decomposition), so the generated conversion must use the **floor** pair
-  `java.time.Duration.toSeconds()` + the fraction `(int) (toNanos() - toSeconds() * 1_000_000_000L)` —
+  `java.time.Duration.toSeconds()` + the fraction `toNanosPart()` (NOT `toNanos() - toSeconds()*1e9`,
+  which overflows beyond ~292 years) —
   NOT `getSeconds()`/`getNano()` (which is `truncate` toward zero: for a negative duration the pair
   `{getSeconds(), getNano()}` is the *wrong* avro value, e.g. -1.5s would encode as {-1, +500M} =
   -0.5s). The reverse direction uses `ofSeconds(avro.getSeconds(), avro.getNanos() % 1_000_000_000L)`.

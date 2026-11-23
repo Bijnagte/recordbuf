@@ -1,10 +1,16 @@
 package bijnagte.recordbuf.plugin;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import bijnagte.recordbuf.codegen.source.TypeRef;
+import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FileTable;
+import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.ModelLoader;
+import bijnagte.recordbuf.plugin.model.ProtoFile;
+import bijnagte.recordbuf.plugin.types.WellKnownTypes;
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.EnumDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
@@ -182,42 +188,69 @@ class DynamicWktEmissionTest {
   }
 
   @Test
-  void anyAndNullValueStayUnsupportedEvenOnJacksonFiles() throws Exception {
-    for (String type : new String[] {"google.protobuf.Any", "google.protobuf.NullValue"}) {
-      FileDescriptorProto fd =
-          FileDescriptorProto.newBuilder()
-              .setName("t.proto")
-              .setPackage("com.example")
-              .setOptions(
-                  FileOptions.newBuilder()
-                      .mergeFrom(
-                          UnknownFieldSet.newBuilder()
-                              .addField(
-                                  50004, UnknownFieldSet.Field.newBuilder().addVarint(1).build())
-                              .build()
-                              .toByteArray())
-                      .build())
-              .addMessageType(
-                  DescriptorProto.newBuilder()
-                      .setName("H")
-                      .addField(
-                          FieldDescriptorProto.newBuilder()
-                              .setName("a")
-                              .setNumber(1)
-                              .setLabel(Label.LABEL_OPTIONAL)
-                              .setType(Type.TYPE_MESSAGE)
-                              .setTypeName(type)))
-              .build();
-      FileTable table = new FileTable();
-      table.addAll(
-          List.of(
-              wktFile("google/protobuf/struct.proto"), wktFile("google/protobuf/wrappers.proto")));
-      var ex =
-          assertThrows(
-              IllegalStateException.class, () -> new ModelLoader(table, "com.example").load(fd));
-      String msg = Objects.requireNonNull(ex.getMessage());
-      assertTrue(
-          msg.contains("not supported"), type + " must fail loud with a clear message: " + msg);
-    }
+  void anyResolvesToJsonNodeOnJacksonFiles() throws Exception {
+    ProtoFile file = loadSingleField("google.protobuf.Any", true);
+    Message h =
+        file.messages().stream().filter(m -> m.name().equals("H")).findFirst().orElseThrow();
+    Field a = h.fields().get(0);
+    TypeRef expected =
+        Objects.requireNonNull(WellKnownTypes.resolve("google.protobuf.Any")).nodeType();
+    assertEquals(expected, a.type(), "Any must resolve to its Jackson node type on a jackson file");
+  }
+
+  @Test
+  void anyFailsLoudOnAJacksonOptOutFile() throws Exception {
+    var ex =
+        assertThrows(
+            IllegalStateException.class, () -> loadSingleField("google.protobuf.Any", false));
+    String msg = Objects.requireNonNull(ex.getMessage());
+    assertTrue(
+        msg.contains("recordbuf.jackson"),
+        "the failure must name the option that would fix it: " + msg);
+  }
+
+  @Test
+  void nullValueStaysUnsupportedEvenOnJacksonFiles() throws Exception {
+    var ex =
+        assertThrows(
+            IllegalStateException.class, () -> loadSingleField("google.protobuf.NullValue", true));
+    String msg = Objects.requireNonNull(ex.getMessage());
+    assertTrue(msg.contains("not supported"), "NullValue must fail loud: " + msg);
+  }
+
+  /** Loads a file declaring message {@code H} with one singular field {@code a} of {@code type}. */
+  private static ProtoFile loadSingleField(String type, boolean jackson) throws Exception {
+    FileDescriptorProto fd =
+        FileDescriptorProto.newBuilder()
+            .setName("t.proto")
+            .setPackage("com.example")
+            .setOptions(
+                FileOptions.newBuilder()
+                    .mergeFrom(
+                        UnknownFieldSet.newBuilder()
+                            .addField(
+                                50004,
+                                UnknownFieldSet.Field.newBuilder()
+                                    .addVarint(jackson ? 1 : 0)
+                                    .build())
+                            .build()
+                            .toByteArray())
+                    .build())
+            .addMessageType(
+                DescriptorProto.newBuilder()
+                    .setName("H")
+                    .addField(
+                        FieldDescriptorProto.newBuilder()
+                            .setName("a")
+                            .setNumber(1)
+                            .setLabel(Label.LABEL_OPTIONAL)
+                            .setType(Type.TYPE_MESSAGE)
+                            .setTypeName(type)))
+            .build();
+    FileTable table = new FileTable();
+    table.addAll(
+        List.of(
+            wktFile("google/protobuf/struct.proto"), wktFile("google/protobuf/wrappers.proto")));
+    return new ModelLoader(table, "com.example").load(fd);
   }
 }

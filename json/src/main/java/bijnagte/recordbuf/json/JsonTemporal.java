@@ -1,6 +1,5 @@
 package bijnagte.recordbuf.json;
 
-import bijnagte.recordbuf.codegen.source.JacksonTemporalFormat;
 import com.google.protobuf.Duration;
 import com.google.protobuf.Timestamp;
 import java.time.Instant;
@@ -82,40 +81,16 @@ public final class JsonTemporal {
 
   static Timestamp readTimestamp(String text, JsonParser p) {
     if (p.currentToken() == JsonToken.START_OBJECT) {
-      long seconds = 0;
-      int nanos = 0;
-      while (p.nextToken() != JsonToken.END_OBJECT) {
-        if (p.currentName().equals("seconds")) {
-          p.nextToken();
-          seconds = Long.parseLong(p.getValueAsString());
-        } else if (p.currentName().equals("nanos")) {
-          p.nextToken();
-          nanos = (int) p.getLongValue();
-        } else {
-          p.skipChildren();
-        }
-      }
-      return Timestamp.newBuilder().setSeconds(seconds).setNanos(nanos).build();
+      SecondsNanos pair = SecondsNanos.read(p);
+      return Timestamp.newBuilder().setSeconds(pair.seconds()).setNanos(pair.nanos()).build();
     }
     return parseIsoTimestamp(text);
   }
 
   static Duration readDuration(String text, JsonParser p) {
     if (p.currentToken() == JsonToken.START_OBJECT) {
-      long seconds = 0;
-      int nanos = 0;
-      while (p.nextToken() != JsonToken.END_OBJECT) {
-        if (p.currentName().equals("seconds")) {
-          p.nextToken();
-          seconds = Long.parseLong(p.getValueAsString());
-        } else if (p.currentName().equals("nanos")) {
-          p.nextToken();
-          nanos = (int) p.getLongValue();
-        } else {
-          p.skipChildren();
-        }
-      }
-      return Duration.newBuilder().setSeconds(seconds).setNanos(nanos).build();
+      SecondsNanos pair = SecondsNanos.read(p);
+      return Duration.newBuilder().setSeconds(pair.seconds()).setNanos(pair.nanos()).build();
     }
     return parseIsoDuration(text);
   }

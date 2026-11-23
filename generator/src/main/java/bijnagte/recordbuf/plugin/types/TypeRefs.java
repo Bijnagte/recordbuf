@@ -59,11 +59,14 @@ public final class TypeRefs {
   // --- Jackson node<->wire conversion for dynamic WKT fields (:recordbuf-json) ---
   public static final TypeRef DYNAMIC_WKT = TypeRef.of("bijnagte.recordbuf.json.DynamicWkt");
 
-  /**
-   * The retained unknown JSON properties fold helper (:recordbuf-json): the codec folds the
-   * record's {@code jsonExtras} map into the unknown-field carrier on encode.
-   */
-  public static final TypeRef JSON_EXTRAS = TypeRef.of("bijnagte.recordbuf.json.JsonExtras");
+  /** The flat-oneof member selection a jackson record's JSON creator calls (:recordbuf-json). */
+  public static final TypeRef JSON_ONEOF = TypeRef.of("bijnagte.recordbuf.json.JsonOneof");
+
+  /** {@code java.util.Objects}. */
+  public static final TypeRef OBJECTS = TypeRef.named("java.util", "Objects");
+
+  /** The Jackson×Avro envelope's {@code payload} host (:recordbuf-json). */
+  public static final TypeRef JSON_PAYLOAD = TypeRef.of("bijnagte.recordbuf.json.JsonPayload");
 
   // --- Avro interop bridge (bijnagte.recordbuf.avro.*) ---
   public static final TypeRef WKT_AVRO_BRIDGE =

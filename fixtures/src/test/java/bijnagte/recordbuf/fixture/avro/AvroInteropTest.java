@@ -183,7 +183,45 @@ class AvroInteropTest {
     assertEquals(d, back.span());
   }
 
+  @Test
+  void wellKnownHugeDurationRoundTripsThroughAvro() {
+    // Beyond ~292 years Duration.toNanos() overflows: the converter must take the nano fraction
+    // from toNanosPart() instead.
+    for (Duration d :
+        List.of(
+            Duration.ofSeconds(Long.MAX_VALUE, 999_999_999),
+            Duration.ofSeconds(Long.MIN_VALUE),
+            Duration.ofDays(365 * 1000L))) {
+      bijnagte.recordbuf.fixture.wellknown.rec.Sample original =
+          bijnagte.recordbuf.fixture.wellknown.rec.Sample.builder().span(d).build();
+
+      bijnagte.recordbuf.fixture.wellknown.SampleAvro s =
+          bijnagte.recordbuf.fixture.wellknown.rec.SampleAvroConverter.fromRecord(original);
+
+      assertEquals(
+          d,
+          bijnagte.recordbuf.fixture.wellknown.rec.SampleAvroConverter.toRecord(s).span(),
+          d.toString());
+    }
+  }
+
   // ── Avro binary round-trip (proves SpecificCompiler product is a working Avro type) ───
+
+  @Test
+  void converterOutputEncodesToAvroBinary() throws IOException {
+    // fromRecord builds the specific record through its no-arg constructor, so every non-nullable
+    // field -- the unknown-field carrier array included -- must be set or the binary write fails.
+    bijnagte.recordbuf.fixture.i32.rec.Sample original =
+        bijnagte.recordbuf.fixture.i32.rec.Sample.builder().a(7).build();
+
+    ByteBuffer encoded =
+        bijnagte.recordbuf.fixture.i32.rec.SampleAvroConverter.fromRecord(original).toByteBuffer();
+
+    assertEquals(
+        original,
+        bijnagte.recordbuf.fixture.i32.rec.SampleAvroConverter.toRecord(
+            bijnagte.recordbuf.fixture.i32.SampleAvro.fromByteBuffer(encoded)));
+  }
 
   @Test
   void i32_binaryAvroRoundTrip() throws IOException {

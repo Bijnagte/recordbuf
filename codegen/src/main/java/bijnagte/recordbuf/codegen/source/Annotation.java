@@ -32,8 +32,7 @@ public record Annotation(TypeRef type, List<Arg> args) {
   public static Annotation suppressWarnings(String... names) {
     if (names.length == 0)
       return new Annotation(TypeRef.of("java.lang.SuppressWarnings"), List.of());
-    return new Annotation(
-        TypeRef.of("java.lang.SuppressWarnings"), List.of(new Arg(null, List.of(names))));
+    return new Annotation(TypeRef.of("java.lang.SuppressWarnings"), List.of(Arg.of(null, names)));
   }
 
   /**
@@ -42,6 +41,5 @@ public record Annotation(TypeRef type, List<Arg> args) {
    * blank-named (positional) arg whose values carry the array literal.
    */
   public static final Annotation SUPPRESS_ALL =
-      new Annotation(
-          TypeRef.of("java.lang.SuppressWarnings"), List.of(new Arg(null, List.of("all"))));
+      new Annotation(TypeRef.of("java.lang.SuppressWarnings"), List.of(Arg.of(null, "all")));
 }

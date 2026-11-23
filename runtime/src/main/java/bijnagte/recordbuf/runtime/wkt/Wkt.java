@@ -95,9 +95,20 @@ public final class Wkt {
 
   // ---- Duration ---------------------------------------------------------------
 
-  /** Encode a {@code google.protobuf.Duration} value ({@link java.time.Duration}) to its frame. */
+  /**
+   * Encode a {@code google.protobuf.Duration} value ({@link java.time.Duration}) to its frame. The
+   * proto shape requires {@code seconds} and {@code nanos} to share a sign ({@code -1.5s} is {@code
+   * {-1, -500000000}}), while {@link Duration} holds the floor pair with non-negative nanos ({@code
+   * {-2, 500000000}}): a negative duration with a fraction is shifted one second toward zero.
+   */
   public static byte[] duration(Duration v) throws IOException {
-    return secondsNanosFrame(v.getSeconds(), v.getNano());
+    long seconds = v.getSeconds();
+    int nanos = v.getNano();
+    if (seconds < 0 && nanos > 0) {
+      seconds += 1;
+      nanos -= 1_000_000_000;
+    }
+    return secondsNanosFrame(seconds, nanos);
   }
 
   /**

@@ -141,6 +141,9 @@ class AvroConverterSourceMappingTest {
     assertTrue(
         out.contains("s.setTs(r.ts())"),
         "WKT field set directly on the Avro record (Timestamp resolves to Instant on both sides)");
+    assertTrue(
+        out.contains("s.setUnknownFields(List.of())"),
+        "the non-nullable carrier array is set so the specific record can be Avro-encoded");
   }
 
   @Test
@@ -193,5 +196,90 @@ class AvroConverterSourceMappingTest {
     assertTrue(
         out.contains("Bytes.of(Arrays.copyOf(s.getA().array()"),
         "toRecord wraps a ByteBuffer's raw array into a Bytes");
+  }
+
+  private static Field dynamicField(String name, int number, String typeUrl, FieldLabel label) {
+    return new Field(
+        name,
+        name,
+        number,
+        label,
+        FieldKind.MESSAGE,
+        typeUrl,
+        TypeRef.OBJECT,
+        null,
+        null,
+        true,
+        null,
+        null,
+        false,
+        /* jacksonFormat= */ null,
+        "jsonName",
+        /* jsonIgnored= */ false);
+  }
+
+  @Test
+  void dynamicWktFieldsRoundTripThroughTheEnvelopeOnJacksonFiles() {
+    Message m =
+        new Message(
+            "Sample",
+            TypeRef.named("bijnagte.recordbuf.fixture", "Sample"),
+            List.of(
+                dynamicField("doc", 1, "google.protobuf.Struct", FieldLabel.OPTIONAL),
+                dynamicField("payload", 2, "google.protobuf.Any", FieldLabel.OPTIONAL),
+                dynamicField("values", 3, "google.protobuf.Value", FieldLabel.REPEATED)),
+            List.of(),
+            List.of(),
+            List.of(),
+            false,
+            null,
+            List.of(),
+            null);
+    ProtoFile file =
+        new ProtoFile(
+            "sample.proto",
+            "sample",
+            "bijnagte.recordbuf.fixture",
+            List.of(m),
+            List.of(),
+            false,
+            null,
+            AvroToggle.ON,
+            /* jackson= */ true);
+
+    String out =
+        AvroConverterSourceMapping.generate(
+            "Sample",
+            "sample.proto",
+            m,
+            "SampleAvro",
+            "bijnagte.recordbuf.fixture.rec",
+            "bijnagte.recordbuf.fixture",
+            AvroRegistry.build(file, m, null),
+            Formatter.IDENTITY);
+
+    // record -> specific: the envelope carries "json", the content type, and the node's JSON text.
+    assertTrue(
+        out.contains(
+            "s.setDoc(r.doc() == null ? null : new RecordbufDynamicWkt(\"json\","
+                + " DynamicWkt.contentType(\"google.protobuf.Struct\", r.doc()),"
+                + " DynamicWkt.payload(r.doc()).jsonText()))"),
+        out);
+    // Any's content type comes from the facade too (its typeUrl, resolved at runtime).
+    assertTrue(out.contains("DynamicWkt.contentType(\"google.protobuf.Any\", r.payload())"), out);
+    // specific -> record: parsed back through JsonPayload, cast only when narrower than JsonNode.
+    assertTrue(
+        out.contains(
+            "b.doc(s.getDoc() == null ? null : (ObjectNode)"
+                + " DynamicWkt.node(JsonPayload.of(s.getDoc().getPayload().toString())))"),
+        out);
+    assertTrue(
+        out.contains(
+            "b.payload(s.getPayload() == null ? null :"
+                + " DynamicWkt.node(JsonPayload.of(s.getPayload().getPayload().toString())))"),
+        out);
+    // Repeated fields map the same arm per element.
+    assertTrue(out.contains("s.getValues().stream().map(v -> v == null ? null :"), out);
+    assertTrue(out.contains("r.values().stream().map(v -> v == null ? null :"), out);
   }
 }

@@ -28,8 +28,11 @@ import tools.jackson.databind.node.StringNode;
  *
  * <p>{@link Any} maps to its {@code type_url} / {@code value} JSON shape (the JSON mapping
  * prescribed by the well-known-types documentation): the resulting object node carries {@code
- * typeUrl} and a {@code value} node reconstructed from the embedded payload when it can be decoded,
- * else {@code null}.
+ * typeUrl} and a {@code value} node reconstructed from the embedded payload for the structural
+ * types, else the payload's base64 — so {@link #anyFrom(String, JsonNode)} rebuilds it losslessly.
+ *
+ * <p>{@link #contentType}, {@link #payload} and {@link #node} serve the Jackson×Avro envelope
+ * ({@code RecordbufDynamicWkt}) the generated Avro converters map dynamic-WKT fields through.
  */
 public final class DynamicWkt {
 
@@ -74,10 +77,13 @@ public final class DynamicWkt {
   }
 
   /**
-   * The node shape of an {@link Any}, in the well-known-types' canonical JSON mapping: an object
-   * with {@code typeUrl} and {@code value}, where {@code value} is the decoded JSON representation
-   * for the structural types and the payload's base64 for everything else — exactly protobuf's own
-   * Any JSON mapping, so a round-trip is lossless.
+   * The node shape of an {@link Any}: an object with {@code typeUrl} and {@code value} (recordbuf's
+   * mapping, not proto3 JSON's {@code @type}-inlined form), where {@code value} is the decoded JSON
+   * of a {@code Struct} / {@code Value} / {@code ListValue} payload and the payload's base64 for
+   * everything else. {@link #anyFrom(String, JsonNode)} is its inverse, with these edge cases: a
+   * structural payload that cannot be parsed is also written as base64 (and read back as such for
+   * {@code Struct} / {@code ListValue}), and an empty {@code Value} payload (no kind set) omits the
+   * {@code value} member, distinct from an explicit null ({@code 08 00}) which is {@code null}.
    */
   public static ObjectNode any(Any any) {
     ObjectNode node = F.objectNode();
@@ -86,8 +92,12 @@ public final class DynamicWkt {
       switch (any.getTypeUrl()) {
         case "type.googleapis.com/google.protobuf.Struct" ->
             node.set("value", struct(Struct.parseFrom(any.getValue())));
-        case "type.googleapis.com/google.protobuf.Value" ->
-            node.set("value", value(Value.parseFrom(any.getValue())));
+        case "type.googleapis.com/google.protobuf.Value" -> {
+          Value v = Value.parseFrom(any.getValue());
+          if (v.getKindCase() != KindCase.KIND_NOT_SET) {
+            node.set("value", value(v));
+          }
+        }
         case "type.googleapis.com/google.protobuf.ListValue" ->
             node.set("value", list(ListValue.parseFrom(any.getValue())));
         default -> node.put("value", base64(any.getValue()));
@@ -117,7 +127,11 @@ public final class DynamicWkt {
     } else if (node.isBoolean()) {
       b.setBoolValue(node.booleanValue());
     } else if (node.isNumber()) {
-      b.setNumberValue(node.decimalValue().doubleValue());
+      // doubleValue(), not decimalValue().doubleValue(): a Value may legally hold NaN or
+      // +-Infinity,
+      // which have no BigDecimal form (Jackson throws), and every finite value converts
+      // identically.
+      b.setNumberValue(node.doubleValue());
     } else if (node.stringValueOpt().isPresent()) {
       b.setStringValue(node.asString());
     } else if (node.isObject()) {
@@ -138,44 +152,87 @@ public final class DynamicWkt {
   }
 
   /**
-   * Rebuilds an {@link Any} from its canonical JSON mapping (the inverse of {@link #any(Any)}):
-   * structural typeUrls re-encode their message from the decoded node; any other typeUrl takes the
-   * payload back from base64. A null/absent {@code value} node clears the payload.
+   * Rebuilds an {@link Any} from its JSON mapping (the inverse of {@link #any(Any)}): structural
+   * typeUrls re-encode their message from the decoded node; any other typeUrl takes the payload
+   * back from base64. An absent {@code value} clears the payload; a {@code null} one does too,
+   * except for a {@code Value}, where it is the explicit null kind.
+   *
+   * @throws IllegalArgumentException if the node's shape does not fit the typeUrl (a {@code Struct}
+   *     needs an object, a {@code ListValue} an array; a string is also accepted for those two as
+   *     the base64 of an unparseable payload) or an opaque payload is not a base64 string
    */
   public static Any anyFrom(String typeUrl, JsonNode valueNode) {
     Any.Builder b = Any.newBuilder().setTypeUrl(typeUrl);
-    if (valueNode == null || valueNode.isNull()) {
+    if (valueNode == null) {
       return b.build();
     }
     switch (typeUrl) {
-      case "type.googleapis.com/google.protobuf.Struct" ->
+      case "type.googleapis.com/google.protobuf.Struct" -> {
+        if (valueNode.isObject()) {
           b.setValue(structFrom((ObjectNode) valueNode).toByteString());
+        } else {
+          b.setValue(rawPayload(typeUrl, valueNode));
+        }
+      }
       case "type.googleapis.com/google.protobuf.Value" ->
           b.setValue(valueFrom(valueNode).toByteString());
-      case "type.googleapis.com/google.protobuf.ListValue" ->
+      case "type.googleapis.com/google.protobuf.ListValue" -> {
+        if (valueNode.isArray()) {
           b.setValue(listFrom((ArrayNode) valueNode).toByteString());
-      default -> b.setValue(ByteString.copyFrom(Base64.getDecoder().decode(valueNode.asString())));
+        } else {
+          b.setValue(rawPayload(typeUrl, valueNode));
+        }
+      }
+      default -> b.setValue(rawPayload(typeUrl, valueNode));
     }
     return b.build();
+  }
+
+  /** An opaque payload: a base64 string (or null for none); anything else is malformed. */
+  private static ByteString rawPayload(String typeUrl, JsonNode valueNode) {
+    if (valueNode.isNull()) {
+      return ByteString.EMPTY;
+    }
+    if (!valueNode.isString()) {
+      throw new IllegalArgumentException(
+          "an Any node for "
+              + typeUrl
+              + " must carry its payload as a base64 string (or the matching structure), got: "
+              + valueNode);
+    }
+    try {
+      return ByteString.copyFrom(Base64.getDecoder().decode(valueNode.asString()));
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException(
+          "an Any node for " + typeUrl + " has a payload that is not valid base64", e);
+    }
   }
 
   /**
    * Wire-encode a Jackson node as the byte content of the named well-known type (the {@code
    * writeByteArray} payload of a message-field wire arm): {@code Struct}/{@code Value} and {@code
-   * ListValue} nodes become their WKT message's serialized bytes.
+   * ListValue} nodes become their WKT message's serialized bytes, and an {@code Any} node (the
+   * {@code {typeUrl, value}} object {@link #any(Any)} produces) becomes its {@code Any} message via
+   * {@link #anyFrom(String, JsonNode)} — the exact inverse of {@link #any(Any)}, so the round-trip
+   * is lossless.
    *
    * @param wktFqn the WKT's canonical FQN ({@code google.protobuf.Struct} / {@code Value} / {@code
-   *     ListValue})
+   *     ListValue} / {@code Any})
    * @param node the field's node value (non-null; absent fields are skipped by the caller)
    * @return the WKT's serialized bytes
    * @throws IOException if serialization fails
-   * @throws IllegalArgumentException for any other FQN (the generator only emits these three)
+   * @throws IllegalArgumentException for any other FQN (the generator only emits these four), or an
+   *     {@code Any} node without a textual {@code typeUrl}
    */
   public static byte[] encode(String wktFqn, JsonNode node) throws IOException {
     return switch (shortName(wktFqn)) {
       case "Struct" -> structFrom(needObjectNode(node, wktFqn)).toByteArray();
       case "Value" -> valueFrom(node).toByteArray();
       case "ListValue" -> listFrom(needArrayNode(node, wktFqn)).toByteArray();
+      case "Any" -> {
+        ObjectNode object = needObjectNode(node, wktFqn);
+        yield anyFrom(typeUrl(object), object.get("value")).toByteArray();
+      }
       default ->
           throw new IllegalArgumentException(
               "DynamicWkt.encode: unsupported well-known type " + wktFqn);
@@ -185,10 +242,11 @@ public final class DynamicWkt {
   /**
    * Wire-decode the byte content of the named well-known type back into a Jackson node (the mirror
    * of {@link #encode}): a {@code Value} field reads back as a {@code Value} node, a {@code Struct}
-   * field as its object node, a {@code ListValue} field as its array node.
+   * field as its object node, a {@code ListValue} field as its array node, and an {@code Any} field
+   * as its {@code {typeUrl, value}} object ({@link #any(Any)}).
    *
    * @param wktFqn the WKT's canonical FQN ({@code google.protobuf.Struct} / {@code Value} / {@code
-   *     ListValue})
+   *     ListValue} / {@code Any})
    * @param content the wire bytes (a {@code readByteArray} result)
    * @return the decoded node
    * @throws com.google.protobuf.InvalidProtocolBufferException if the bytes are not a valid WKT
@@ -199,10 +257,58 @@ public final class DynamicWkt {
       case "Struct" -> struct(Struct.parseFrom(content));
       case "Value" -> value(Value.parseFrom(content));
       case "ListValue" -> list(ListValue.parseFrom(content));
+      case "Any" -> any(Any.parseFrom(content));
       default ->
           throw new IllegalArgumentException(
               "DynamicWkt.decode: unsupported well-known type " + wktFqn);
     };
+  }
+
+  /**
+   * The Jackson×Avro envelope's {@code contentType} for a dynamic-WKT field value: the well-known
+   * type's proto FQN, except for {@code Any}, whose content type is the value's own {@code typeUrl}
+   * (the type actually packed inside it).
+   *
+   * @param wktFqn the field's WKT FQN ({@code google.protobuf.Struct} / {@code Value} / {@code
+   *     ListValue} / {@code Any})
+   * @param node the field's node value (non-null)
+   * @return the envelope content type
+   */
+  public static String contentType(String wktFqn, JsonNode node) {
+    return shortName(wktFqn).equals("Any") ? typeUrl(needObjectNode(node, wktFqn)) : wktFqn;
+  }
+
+  /**
+   * The Jackson×Avro envelope's {@code payload} for a dynamic-WKT field value: the node's JSON
+   * text. Content-lossless — {@link #node(JsonPayload)} parses it back to an equal node.
+   *
+   * @param node the field's node value (non-null)
+   * @return the node as a JSON payload
+   */
+  public static JsonPayload payload(JsonNode node) {
+    return JsonPayload.of(MAPPER.writeValueAsString(node));
+  }
+
+  /**
+   * Parses an envelope {@code payload} back into its node (the inverse of {@link
+   * #payload(JsonNode)}). A malformed payload means a corrupted Avro datum and fails loud with
+   * Jackson's unchecked {@code JacksonException}.
+   *
+   * @param payload the envelope payload
+   * @return the parsed node
+   */
+  public static JsonNode node(JsonPayload payload) {
+    return MAPPER.readTree(payload.jsonText());
+  }
+
+  /** The required, textual {@code typeUrl} member of an {@code Any} node. */
+  private static String typeUrl(ObjectNode node) {
+    JsonNode typeUrl = node.get("typeUrl");
+    if (typeUrl == null || !typeUrl.isString()) {
+      throw new IllegalArgumentException(
+          "an Any node must carry a textual 'typeUrl' member, got: " + node);
+    }
+    return typeUrl.asString();
   }
 
   private static ObjectNode needObjectNode(JsonNode node, String wktFqn) {

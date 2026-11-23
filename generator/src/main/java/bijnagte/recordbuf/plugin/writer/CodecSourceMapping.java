@@ -53,11 +53,11 @@ public final class CodecSourceMapping {
   }
 
   /**
-   * The nested codec for a {@code recordbuf.jackson} record (J6): the record's retained unknown
-   * JSON properties ({@code jsonExtras} component) are folded into the unknown-field carrier on
-   * encode; on decode the record's canonical constructor is passed a {@code null} extras argument
-   * (normalized to a fresh empty map) — a decoded record has an empty map, and the retained bytes
-   * still round-trip through the carrier.
+   * The nested codec for a {@code recordbuf.jackson} record (J6): on decode the record's canonical
+   * constructor is passed a {@code null} extras argument (normalized to a fresh empty map) — a
+   * decoded record has an empty extras map. The {@code jsonExtras} component is JSON-only: the
+   * encode never writes it to the wire, so a property name can never occupy (or collide with) a
+   * field number; the binary unknown-field carrier round-trips exactly as before.
    */
   public static ClassSpec toCodec(Message m, boolean jackson) {
     return doToCodec(m, jackson);
@@ -76,13 +76,13 @@ public final class CodecSourceMapping {
         .final_()
         .javadoc(GeneratedDocs.type(null, "Wire codec for the " + recName + " record."))
         .constructor(Constructor.builder().private_().build())
-        .method(encode(m, jackson))
+        .method(encode(m))
         .method(decode(m, jackson))
         .build();
   }
 
   /** The {@code byte[] encode(Message v) throws IOException} method body. */
-  private static Method encode(Message m, boolean jackson) {
+  private static Method encode(Message m) {
     var method =
         Method.named("encode")
             .public_()
@@ -94,57 +94,27 @@ public final class CodecSourceMapping {
                 Element.expr("var enc = @0.start()", TypeRefs.ENCODER),
                 Element.expr("var out = enc.out()"));
 
-    // Sort by field number for wire-order correctness (OrderTest proves this).
-    var sortedFields = m.fields().stream().sorted(Comparator.comparingInt(Field::number)).toList();
-
-    for (Field f : sortedFields) {
-      Entry wktEntry = WktSourceMapping.resolve(f);
-      if (wktEntry != null) {
-        var wkt0 = Objects.requireNonNull(wktEntry);
-        method.body(WktSourceMapping.emitEncode(f, wkt0, "out", "v"));
-      } else {
-        Element e =
-            switch (f.kind()) {
-              case FieldKind.MAP -> emitMapEncode(f);
-              case FieldKind.MESSAGE ->
-                  f.label() == FieldLabel.REPEATED
-                      ? emitRepeatedMessageEncode(f)
-                      : emitMessageEncode(f);
-              case FieldKind.ENUM ->
-                  f.label() == FieldLabel.REPEATED ? emitRepeatedEnumEncode(f) : emitEnumEncode(f);
-              case FieldKind.SCALAR ->
-                  f.label() == FieldLabel.REPEATED
-                      ? emitRepeatedScalarEncode(f)
-                      : emitScalarEncode(f);
-            };
-        method.body(e);
-      }
+    // Every field AND every oneof member is one numbered slot; the slots are written in ascending
+    // field-number order across both, as protobuf-java does (OrderTest / OneofOrderTest prove it).
+    List<EncodeSlot> slots = new ArrayList<>();
+    for (Field f : m.fields()) {
+      slots.add(new EncodeSlot(f.number(), regularFieldEncode(f)));
     }
-
-    // Oneof members: pattern-matching switch on the sealed-interface component.
     for (Oneof o : m.oneofs()) {
-      method.body(emitOneofEncode(o));
+      slots.addAll(oneofEncodeSlots(o));
+    }
+    slots.sort(Comparator.comparingInt(EncodeSlot::number));
+    for (EncodeSlot slot : slots) {
+      method.body(slot.element());
     }
 
     // M4-C2b-2b-5: re-emit the unknown-fields carrier, if any, preserving wire-order round-trip.
-    // On a recordbuf.jackson file the record's retained unknown JSON properties are folded into
-    // the same carrier first: one synthetic length-delimited unknown field per retained property
-    // (the property name's UTF-8 bytes under its synthetic base-31 field number), so a record
-    // round-tripped through JSON survives the wire exactly as a binary-captured unknown field
-    // does.
+    // The retained unknown JSON properties of a jackson record (jsonExtras) are JSON-only: they are
+    // deliberately NOT written to the wire, so no property name can ever occupy a field number.
     Element unknownArm =
-        jackson
-            ? If.condition(
-                    "!v.unknownFields().isEmpty() || (v.jsonExtras != null && !v.jsonExtras.isEmpty())")
-                .body(
-                    Element.expr(
-                        "@0.writeUnknown(out, @1.fold(v.unknownFields(), v.jsonExtras))",
-                        TypeRefs.WIRE,
-                        TypeRefs.JSON_EXTRAS))
-                .build()
-            : If.condition("!v.unknownFields().isEmpty()")
-                .body(Element.expr("@0.writeUnknown(out, v.unknownFields())", TypeRefs.WIRE))
-                .build();
+        If.condition("!v.unknownFields().isEmpty()")
+            .body(Element.expr("@0.writeUnknown(out, v.unknownFields())", TypeRefs.WIRE))
+            .build();
     return method.body(unknownArm, Element.ret("enc.finish()")).build();
   }
 
@@ -569,6 +539,14 @@ public final class CodecSourceMapping {
     String getter = "v." + f.javaName() + "()";
     int num = f.number();
     WireScalar wire = wireScalar(f);
+    // Length-delimited scalars are never packed: one tagged field per element, the empty string /
+    // bytes included (unlike a singular field, a repeated element has no default to elide).
+    if (wire == WireScalar.STRING || wire == WireScalar.BYTES) {
+      String element = wire == WireScalar.BYTES ? "_x.toByteArray()" : "_x";
+      return For.enhanced("var _x", getter)
+          .body(Element.expr("out.@0(@1, " + element + ")", encodeCall(wire), num))
+          .build();
+    }
     // Packed scalar: emit one length-delimited group when the list is non-empty.
     return If.condition("!@0.isEmpty()", getter)
         .body(
@@ -585,6 +563,15 @@ public final class CodecSourceMapping {
     int num = f.number();
     String local = f.javaName();
     WireScalar wire = wireScalar(f);
+    // Length-delimited scalars: each tag occurrence carries exactly one element.
+    if (wire == WireScalar.STRING) {
+      return Case.of(String.valueOf(num), Element.expr("@0.add(in.readString())", local));
+    }
+    if (wire == WireScalar.BYTES) {
+      return Case.of(
+          String.valueOf(num),
+          Element.expr("@0.add(@1.of(in.readBytes().toByteArray()))", local, TypeRefs.BYTES));
+    }
     return Case.of(
         String.valueOf(num),
         LocalVar.builder(TypeRef.Primitive.INT, "_lim")
@@ -594,7 +581,9 @@ public final class CodecSourceMapping {
   }
 
   private static Element emitRepeatedLocalInit(Field f) {
-    return LocalVar.builder(TypeRefs.LIST.withGenerics(TypeRef.boxedFor(f.typeUrl())), f.javaName())
+    TypeRef element =
+        wireScalar(f) == WireScalar.BYTES ? TypeRefs.BYTES : TypeRef.boxedFor(f.typeUrl());
+    return LocalVar.builder(TypeRefs.LIST.withGenerics(element), f.javaName())
         .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST));
   }
 
@@ -747,39 +736,71 @@ public final class CodecSourceMapping {
 
   // --- Oneof encode / decode ---
 
+  /** One field's (or one oneof member's) encode statement, keyed by its field number. */
+  private record EncodeSlot(int number, Element element) {}
+
+  /** The encode statement of a regular (non-oneof) field. */
+  private static Element regularFieldEncode(Field f) {
+    Entry wktEntry = WktSourceMapping.resolve(f);
+    if (wktEntry != null) {
+      return WktSourceMapping.emitEncode(f, wktEntry, "out", "v");
+    }
+    return switch (f.kind()) {
+      case FieldKind.MAP -> emitMapEncode(f);
+      case FieldKind.MESSAGE ->
+          f.label() == FieldLabel.REPEATED ? emitRepeatedMessageEncode(f) : emitMessageEncode(f);
+      case FieldKind.ENUM ->
+          f.label() == FieldLabel.REPEATED ? emitRepeatedEnumEncode(f) : emitEnumEncode(f);
+      case FieldKind.SCALAR ->
+          f.label() == FieldLabel.REPEATED ? emitRepeatedScalarEncode(f) : emitScalarEncode(f);
+    };
+  }
+
   /**
-   * Emit the oneof group encode: a pattern-matching {@code switch} on the sealed-interface
-   * component. {@code case null -> {}} skips; message members dispatch through their nested codec;
-   * scalar/enum members dispatch through the wire primitive that matches their field type.
+   * One encode slot per oneof member: {@code if (v.<oneof>() instanceof <Wrapper> x_) { write }}.
+   * Guarded writes (rather than one {@code switch} over the component) let each member sit at its
+   * own field number among the regular fields, so the wire order matches protobuf-java's. Message
+   * members dispatch through their nested codec; scalar / enum / well-known-type members through
+   * the wire primitive (or Wkt bridge) that matches their field type.
    */
-  private static Element emitOneofEncode(Oneof o) {
+  private static List<EncodeSlot> oneofEncodeSlots(Oneof o) {
     String iface = o.ifaceName();
-    String cmp = o.componentName();
-    String getter = "v." + cmp + "()";
-    Switch.Builder sw = Switch.on(getter);
-    sw.caseArm("null");
+    String getter = "v." + o.componentName() + "()";
+    List<EncodeSlot> slots = new ArrayList<>();
     for (Field f : o.members()) {
       String bnd = String.valueOf(f.name().charAt(0)) + "_";
-      if (f.isMessage()) {
-        String sealedSub = iface + "." + JavaNames.cap(f.name()) + "Value";
-        sw.caseArm(
-            sealedSub + " " + bnd,
+      String recName = iface + "." + JavaNames.cap(f.name()) + "Value";
+      Entry wktMember = WktSourceMapping.resolve(f);
+      Element write;
+      if (wktMember != null) {
+        // A well-known-type member: its native value through the Wkt / DynamicWkt bridge, written
+        // whenever set (a oneof member has presence -- no default elision).
+        write =
             Element.expr(
-                "out.writeByteArray(@0, @1.encode(@2.value()))", f.number(), codecRef(f), bnd));
+                "out.writeByteArray(@0, @1)",
+                f.number(),
+                WktSourceMapping.encodeValue(f, wktMember, bnd + ".value()"));
+      } else if (f.isMessage()) {
+        write =
+            Element.expr(
+                "out.writeByteArray(@0, @1.encode(@2.value()))", f.number(), codecRef(f), bnd);
       } else if (f.kind() == FieldKind.ENUM) {
-        String recName = iface + "." + JavaNames.cap(f.name()) + "Value";
-        sw.caseArm(
-            recName + " " + bnd,
-            Element.expr("out.writeEnum(@0, @1.value().getNumber())", f.number(), bnd));
+        write = Element.expr("out.writeEnum(@0, @1.value().getNumber())", f.number(), bnd);
       } else {
-        String recName = iface + "." + JavaNames.cap(f.name()) + "Value";
         WireScalar wire = wireScalar(f);
-        String call = encodeCall(wire);
-        sw.caseArm(
-            recName + " " + bnd, Element.expr("out.@0(@1, @2.value())", call, f.number(), bnd));
+        write =
+            Element.expr(
+                "out.@0(@1, @2.value()" + (wire == WireScalar.BYTES ? ".toByteArray()" : "") + ")",
+                encodeCall(wire),
+                f.number(),
+                bnd);
       }
+      slots.add(
+          new EncodeSlot(
+              f.number(),
+              If.condition("@0 instanceof @1 @2", getter, recName, bnd).body(write).build()));
     }
-    return sw.build();
+    return slots;
   }
 
   /**
@@ -809,6 +830,11 @@ public final class CodecSourceMapping {
     // the renderer drops the in-scope enclosing segment so it renders in the baseline's
     // <Iface>.<Name>Value form.
     TypeRef wrapper = recordRef.sub(iface).sub(JavaNames.cap(f.name()) + "Value");
+    Entry wktMember = WktSourceMapping.resolve(f);
+    if (wktMember != null) {
+      return RawExpr.of(
+          "new @0(@1)", wrapper, WktSourceMapping.decodeValue(f, wktMember, "in.readByteArray()"));
+    }
     if (f.isMessage()) {
       return RawExpr.of("new @0(@1.decode(in.readByteArray()))", wrapper, codecRef(f));
     }

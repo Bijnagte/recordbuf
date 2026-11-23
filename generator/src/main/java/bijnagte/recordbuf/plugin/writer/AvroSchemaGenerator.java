@@ -60,14 +60,18 @@ import tools.jackson.databind.node.ObjectNode;
  *   <tr><td>google.protobuf.DoubleValue</td><td>[null, double]</td></tr>
  *   <tr><td>google.protobuf.FieldMask</td><td>[null, string]</td></tr>
  *   <tr><td>google.protobuf.NullValue</td><td>[null, the NullValue closed enum]</td></tr>
+ *   <tr><td>a dynamic WKT ({@code Struct}/{@code Value}/{@code ListValue}/{@code Any}) on a
+ *   jackson-enabled file</td><td>[null, {type:record,name:RecordbufDynamicWkt,
+ *   fields:[format,contentType,payload]}] — the JSON envelope</td></tr>
  *   <tr><td>google.protobuf.Empty</td><td>{type:record,name:Empty, fields:[]}</td></tr>
  * </table>
  *
  * <p>WKTs are inlined wherever referenced (their nodes appear in the document); a well-known type
  * with no static schema (a <em>dynamic</em> WKT such as {@code Struct} or {@code Any}) is
- * <em>not</em> in the table and is therefore a message reference the registry must resolve — and it
- * resolves nowhere, so it fails loud: the registry rejects the bridge rather than emit a schema
- * that silently drops data.
+ * <em>not</em> in the table: on a jackson-enabled file it maps to the shared JSON envelope record
+ * ({@link #dynamicWktRecord}); on a jackson-disabled file it is a message reference that resolves
+ * nowhere, so the registry fails loud — rejecting the bridge rather than emit a schema that
+ * silently drops data.
  *
  * <p><b>Enum mapping.</b> An enum maps to {@code string}, the named constant's <em>name</em> — the
  * open-ended choice for undefined values: an unknown wire number survives as a (possibly
@@ -251,11 +255,27 @@ public final class AvroSchemaGenerator {
             "a reachable name occupies the shared oneof-value wrapper's name; the Avro bridge "
                 + "cannot disambiguate");
       }
-      ObjectNode oneofRec = oneofValueRecord();
+      ObjectNode oneofRec = oneofValueRecord(registry);
       if (oneofRec.path("namespace").asString("").isEmpty()) {
         oneofRec.put("namespace", registry.documentNamespace());
       }
       types.add(oneofRec);
+    }
+    // The shared dynamic-well-known-type envelope record (the U9 JSON envelope), emitted when some
+    // reachable regular field maps to it; a name collision with a reachable record fails loud.
+    if (registry.hasEnvelopeField()) {
+      String dynamicName = registry.dynamicWktEntryName();
+      if (!addedNames.add(dynamicName)) {
+        throw new AvroUnsupportedException(
+            dynamicName,
+            "a reachable name occupies the dynamic-well-known-type envelope record's name;"
+                + " the Avro bridge cannot disambiguate");
+      }
+      ObjectNode envRec = dynamicWktRecord(registry);
+      if (envRec.path("namespace").asString("").isEmpty()) {
+        envRec.put("namespace", registry.documentNamespace());
+      }
+      types.add(envRec);
     }
     // The shared unknown-field entry record every bridged record references.
     if (!addedNames.add(registry.entryRecordName())) {
@@ -282,17 +302,35 @@ public final class AvroSchemaGenerator {
     return doc;
   }
 
-  /** Whether any reachable oneof group carries a scalar or enum member (those ride the wrapper). */
-  private static boolean oneofNeedsValueWrapper(AvroRegistry registry) {
+  /**
+   * Whether a oneof member rides the shared {@code {tag, value}} wrapper rather than its own
+   * specific record: every member except a user message -- scalars, enums, well-known types (their
+   * Avro value in the union), and dynamic well-known types on a jackson file (the JSON envelope).
+   */
+  static boolean ridesValueWrapper(Field member, AvroRegistry registry) {
+    return member.kind() != FieldKind.MESSAGE
+        || typeUrlIfWkt(member) != null
+        || registry.isEnvelopeField(member);
+  }
+
+  /** The reachable oneof members, across every reachable message. */
+  private static List<Field> reachableOneofMembers(AvroRegistry registry) {
+    List<Field> out = new ArrayList<>();
     for (String fqn : registry.protoFqns()) {
       Message m = registry.messageOf(fqn);
       if (m == null) continue;
       for (Oneof oneof : m.oneofs()) {
-        for (Field member : oneof.members()) {
-          if (member.kind() != FieldKind.MESSAGE || typeUrlIfWkt(member) != null) {
-            return true;
-          }
-        }
+        out.addAll(oneof.members());
+      }
+    }
+    return out;
+  }
+
+  /** Whether any reachable oneof group carries a member that rides the wrapper. */
+  private static boolean oneofNeedsValueWrapper(AvroRegistry registry) {
+    for (Field member : reachableOneofMembers(registry)) {
+      if (ridesValueWrapper(member, registry)) {
+        return true;
       }
     }
     return false;
@@ -300,9 +338,12 @@ public final class AvroSchemaGenerator {
 
   /**
    * The shared oneof-value wrapper record: {@code tag} is the active member's proto field number
-   * (the same discriminant the record-side oneof carries) and {@code value} its native value.
+   * (the same discriminant the record-side oneof carries) and {@code value} its Avro value. The
+   * value union holds the primitive branches every document carries, plus a named-record branch for
+   * each record-shaped member value the reachable oneofs use: the WKT {@code Duration} and {@code
+   * Empty} records and the dynamic-WKT JSON envelope.
    */
-  static ObjectNode oneofValueRecord() {
+  static ObjectNode oneofValueRecord(AvroRegistry registry) {
     ObjectNode rec = MAPPER.createObjectNode();
     rec.put("type", "record");
     rec.put("name", AvroRegistry.ONEOF_VALUE_ENTRY);
@@ -319,8 +360,54 @@ public final class AvroSchemaGenerator {
     union.add(text("float"));
     union.add(text("boolean"));
     union.add(text("bytes"));
+    Set<String> named = new LinkedHashSet<>();
+    for (Field member : reachableOneofMembers(registry)) {
+      if (registry.isEnvelopeField(member)) {
+        named.add(registry.dynamicWktEntryName());
+      } else if ("google.protobuf.Duration".equals(typeUrlIfWkt(member))) {
+        named.add(WKT_NAMED_NAMESPACE + ".Duration");
+      } else if ("google.protobuf.Empty".equals(typeUrlIfWkt(member))) {
+        named.add(WKT_NAMED_NAMESPACE + ".Empty");
+      }
+    }
+    named.forEach(n -> union.add(text(n)));
     value.set("type", union);
     fields.add(value);
+    rec.set("fields", fields);
+    return rec;
+  }
+
+  /**
+   * The field type of a dynamic-WKT envelope field (a singular field, or one element of a
+   * repeated): the shared envelope record under a {@code null}-first union — every WKT field is a
+   * presence value, so an absent one is the union's null branch.
+   */
+  static JsonNode envelopeTypeNode(AvroRegistry registry) {
+    ArrayNode union = MAPPER.createArrayNode();
+    union.add(text("null"));
+    union.add(text(registry.dynamicWktEntryName()));
+    return union;
+  }
+
+  /**
+   * The shared dynamic-well-known-type envelope record (the U9 JSON envelope, P1): the node's
+   * {@code contentType} — the well-known type's FQN — and its JSON text as {@code payload}, fixed
+   * to the json format.
+   */
+  static ObjectNode dynamicWktRecord(AvroRegistry registry) {
+    ObjectNode rec = MAPPER.createObjectNode();
+    rec.put("type", "record");
+    rec.put("name", registry.dynamicWktEntryName());
+    ArrayNode fields = MAPPER.createArrayNode();
+    ObjectNode format = fieldNodeRaw("format", text("string"));
+    format.put("default", "json");
+    fields.add(format);
+    ObjectNode contentType = fieldNodeRaw("contentType", text("string"));
+    contentType.put("default", "");
+    fields.add(contentType);
+    ObjectNode payload = fieldNodeRaw("payload", text("string"));
+    payload.put("default", "");
+    fields.add(payload);
     rec.set("fields", fields);
     return rec;
   }
@@ -381,12 +468,12 @@ public final class AvroSchemaGenerator {
     Set<String> branches = new LinkedHashSet<>();
     union.add(text("null"));
     branches.add("null");
-    // KTD5: scalar/enum members ride the shared oneof-value wrapper {tag, value} (a union of raw
-    // branches would silently collide — string scalar vs enum-to-string — and could not carry the
-    // case identity, KTD2); message members ride their own specific records.
+    // KTD5: scalar/enum/well-known-type members ride the shared oneof-value wrapper {tag, value} (a
+    // union of raw branches would silently collide — string scalar vs enum-to-string — and could
+    // not carry the case identity, KTD2); user message members ride their own specific records.
     for (Field member : oneof.members()) {
       JsonNode branch;
-      if (member.kind() == FieldKind.MESSAGE && typeUrlIfWkt(member) == null) {
+      if (!ridesValueWrapper(member, registry)) {
         String refName = registry.nameOf(member.typeUrl());
         if (refName == null) {
           throw new AvroUnsupportedException(
@@ -474,6 +561,11 @@ public final class AvroSchemaGenerator {
     if (f.isRepeated()) {
       return arrayType(elementNode(f, registry));
     }
+    // The U9 JSON envelope: a node-typed dynamic WKT on a jackson-enabled file maps to the shared
+    // envelope record under a null-first union (every WKT field is a presence value).
+    if (registry != null && registry.isEnvelopeField(f)) {
+      return envelopeTypeNode(registry);
+    }
     String wktFqn = typeUrlIfWkt(f);
     JsonNode wkt = wktFqn == null ? null : WKT_SCHEMA.get(wktFqn);
     if (wkt != null) return wkt;
@@ -508,6 +600,9 @@ public final class AvroSchemaGenerator {
    * reachable record name).
    */
   static JsonNode elementNode(Field f, AvroRegistry registry) {
+    if (registry != null && registry.isEnvelopeField(f)) {
+      return envelopeTypeNode(registry);
+    }
     String wktFqn = typeUrlIfWkt(f);
     JsonNode wkt = wktFqn == null ? null : WKT_SCHEMA.get(wktFqn);
     if (wkt != null) return wkt;
@@ -880,6 +975,7 @@ public final class AvroSchemaGenerator {
       Message m = registry.messageOf(fqn);
       if (m == null) continue;
       for (Field f : m.fields()) {
+        if (registry.isEnvelopeField(f)) continue; // an envelope field references no WKT named type
         collectWktNamedField(f, out, seen);
       }
       for (Oneof oneof : m.oneofs()) {

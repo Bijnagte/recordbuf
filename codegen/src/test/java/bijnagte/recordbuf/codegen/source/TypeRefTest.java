@@ -174,4 +174,52 @@ class TypeRefTest {
     assertEquals("com.foo.Bar", top.importFqn());
     assertEquals("Bar", top.renderedShort());
   }
+
+  @Test
+  void of_parsesBinaryNameTailIntoNestingChain() {
+    TypeRef r = TypeRef.of("com.foo.Outer$Inner");
+    assertTrue(r instanceof TypeRef.Named);
+    TypeRef.Named n = (TypeRef.Named) r;
+    assertEquals("com.foo", n.pkg());
+    assertEquals(List.of("Outer"), n.enclosing());
+    assertEquals("Inner", n.shortName());
+    assertEquals("com.foo.Outer.Inner", n.fqn());
+    assertEquals("com.foo.Outer", n.importFqn());
+    assertEquals("Outer", n.collisionKey());
+    assertEquals("Outer.Inner", n.renderedShort());
+  }
+
+  @Test
+  void of_parsesDeeplyNestedBinaryName() {
+    TypeRef.Named n = (TypeRef.Named) TypeRef.of("com.foo.Outer$Mid$Inner");
+    assertEquals("com.foo", n.pkg());
+    assertEquals(List.of("Outer", "Mid"), n.enclosing());
+    assertEquals("Inner", n.shortName());
+    assertEquals("com.foo.Outer.Mid.Inner", n.fqn());
+    assertEquals("Outer.Mid.Inner", n.renderedShort());
+  }
+
+  @Test
+  void of_binaryNameResolvesNestedShortAndCollidesOnOuter() {
+    TypeRef r = TypeRef.of("com.foo.Outer$Inner");
+    assertEquals("Outer.Inner", r.resolved("bijnagte.recordbuf", Set.of()));
+    assertEquals("com.foo.Outer.Inner", r.resolved("bijnagte.recordbuf", Set.of("Outer")));
+  }
+
+  @Test
+  void of_binaryNameWithGenericArgsParsesBaseAndArgs() {
+    TypeRef.Named n = (TypeRef.Named) TypeRef.of("java.util.Map$Entry<java.lang.String>");
+    assertEquals("java.util", n.pkg());
+    assertEquals(List.of("Map"), n.enclosing());
+    assertEquals("Entry", n.shortName());
+    assertEquals("Map.Entry<String>", n.resolved("bijnagte.recordbuf", Set.of()));
+  }
+
+  @Test
+  void of_binaryNameInDefaultPackageContributesNoImport() {
+    TypeRef.Named n = (TypeRef.Named) TypeRef.of("Outer$Inner");
+    assertEquals("", n.pkg());
+    assertEquals(List.of("Outer"), n.enclosing());
+    assertTrue(n.referencedTypes().isEmpty());
+  }
 }

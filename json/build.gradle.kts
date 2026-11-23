@@ -42,11 +42,6 @@ dependencies {
     // jar, so it is part of this module's API surface for consumers of generated code.
     api(libs.jackson.annotations)
 
-    // The temporal format enum (bijnagte.recordbuf.codegen.source.JacksonTemporalFormat) that
-    // generated temporal codecs switch on -- exposed so consumers of :recordbuf-json (and of
-    // generated code) resolve it from the dependency-free codegen source spine.
-    api(project(":recordbuf-codegen"))
-
     // Generated code that calls these helpers also reaches protobuf's well-known
     // types (Struct/Value/ListValue/NullValue/Any/Timestamp/Duration), so protobuf
     // must flow transitively to every consumer (mirrors the :recordbuf-runtime R4

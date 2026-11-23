@@ -86,8 +86,12 @@ public sealed interface TypeRef extends Formattable {
    * Parse a type reference string into a {@link TypeRef}.
    *
    * <p>Syntax: {@code [pkg.]Short<args>} where {@code args} is an optional comma-separated list of
-   * nested type references. Also handles bare primitive names (no dot, no angle brackets) and a
-   * trailing {@code []} array suffix, which parses as an {@link Array} of the element type.
+   *
+   * <p>Syntax: {@code [pkg.]Short<args>} where {@code args} is an optional comma-separated list of
+   * nested type references. A {@code $} in the simple-name tail separates nested levels (the
+   * binary-name form, as produced by {@link Class#getName()}). Also handles bare primitive names
+   * (no dot, no angle brackets) and a trailing {@code []} array suffix, which parses as an {@link
+   * Array} of the element type.
    *
    * <p>Examples:
    *
@@ -98,6 +102,7 @@ public sealed interface TypeRef extends Formattable {
    *   <li>{@code "int"} → {@code Named("", "int", [])} (bare name, no package)
    *   <li>{@code "java.util.List<String>[]"} → {@code Array(Named("java.util", "List", [Named("",
    *       "String", [])]))}
+   *   <li>{@code "com.foo.Outer$Inner"} → {@code Named("com.foo", ["Outer"], "Inner", [])}
    * </ul>
    */
   static TypeRef of(String ref) {
@@ -110,9 +115,9 @@ public sealed interface TypeRef extends Formattable {
     if (lt < 0) {
       int lastDot = ref.lastIndexOf('.');
       if (lastDot < 0) {
-        return Named.ofBase("", ref);
+        return baseNamed("", ref);
       }
-      return Named.ofBase(ref.substring(0, lastDot), ref.substring(lastDot + 1));
+      return baseNamed(ref.substring(0, lastDot), ref.substring(lastDot + 1));
     }
     String base = ref.substring(0, lt);
     String argsStr = ref.substring(lt + 1, ref.lastIndexOf('>'));
@@ -120,7 +125,25 @@ public sealed interface TypeRef extends Formattable {
     String pkg = lastDot < 0 ? "" : base.substring(0, lastDot);
     String short_ = lastDot < 0 ? base : base.substring(lastDot + 1);
     List<TypeRef> genericArgs = parseGenericArgs(argsStr);
-    return named(pkg, short_, genericArgs);
+    Named baseRef = baseNamed(pkg, short_);
+    return new Named(pkg, baseRef.enclosing(), baseRef.shortName(), genericArgs);
+  }
+
+  /**
+   * The base {@link Named} for a package plus the simple-name tail of a type string. A tail with no
+   * {@code $} is the type itself; a {@code $}-separated tail is a nested type in binary-name form
+   * (the shape of {@link Class#getName()}): each segment becomes one enclosing level, so {@code
+   * baseNamed("com.foo", "Outer$Inner")} is {@code com.foo.Outer.Inner} — imported as {@code
+   * com.foo.Outer}, rendered {@code Outer.Inner}.
+   */
+  private static Named baseNamed(String pkg, String tail) {
+    String[] segments = tail.split("\\$");
+    if (segments.length == 1) {
+      return Named.ofBase(pkg, tail);
+    }
+    List<String> enclosing = new ArrayList<>(List.of(segments));
+    String inner = enclosing.remove(enclosing.size() - 1);
+    return new Named(pkg, enclosing, inner, List.of());
   }
 
   /**

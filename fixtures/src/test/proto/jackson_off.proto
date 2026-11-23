@@ -1,0 +1,32 @@
+// U10 (2026-11-21-004) fixture (c): the invariance twin of jackson_full.proto with the explicit
+// opt-out. It carries the same shapes MINUS the two a jackson-off file cannot declare: the dynamic
+// WKTs (generation fails loud without the Jackson surface, R11) and the jackson_format knob
+// (rejected on a file without the toggle). The generated record must carry no Jackson surface.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.jackson.off;
+
+option java_package = "bijnagte.recordbuf.fixture.jackson.off.rec";
+option java_multiple_files = true;
+option (.recordbuf.jackson) = false;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "recordbuf_options.proto";
+
+message Off {
+  string name = 1;
+  int64 count = 2;
+  bool flag = 3;
+  double ratio = 4;
+  bytes blob = 5;
+  optional string nickname = 6;
+  Inner inner = 7;
+  google.protobuf.Timestamp at = 12;
+  google.protobuf.Duration span = 13;
+  repeated bytes chunks = 15;
+}
+
+message Inner {
+  string label = 1;
+}

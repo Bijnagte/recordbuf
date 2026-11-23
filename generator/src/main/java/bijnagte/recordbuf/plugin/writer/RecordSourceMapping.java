@@ -2,6 +2,7 @@ package bijnagte.recordbuf.plugin.writer;
 
 import bijnagte.recordbuf.codegen.source.Annotation;
 import bijnagte.recordbuf.codegen.source.Arg;
+import bijnagte.recordbuf.codegen.source.ArgValue;
 import bijnagte.recordbuf.codegen.source.ClassSpec;
 import bijnagte.recordbuf.codegen.source.CommaList;
 import bijnagte.recordbuf.codegen.source.Component;
@@ -16,18 +17,26 @@ import bijnagte.recordbuf.codegen.source.RawExpr;
 import bijnagte.recordbuf.codegen.source.RecordSpec;
 import bijnagte.recordbuf.codegen.source.Type;
 import bijnagte.recordbuf.codegen.source.TypeRef;
+import bijnagte.recordbuf.json.JavaTimeTemporal;
+import bijnagte.recordbuf.json.JsonBytes;
+import bijnagte.recordbuf.json.JsonEmpty;
+import bijnagte.recordbuf.json.JsonFieldMask;
 import bijnagte.recordbuf.plugin.model.Enum;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
+import bijnagte.recordbuf.plugin.model.JacksonTemporalFormat;
 import bijnagte.recordbuf.plugin.model.JavaNames;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.Oneof;
 import bijnagte.recordbuf.plugin.types.TypeRefs;
 import bijnagte.recordbuf.plugin.types.WellKnownTypes;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Maps the generator's proto {@link Message} model into a {@link RecordSpec} of the pure-Java,
@@ -84,6 +93,8 @@ public final class RecordSourceMapping {
     for (Field f : m.fields()) {
       var comp = Component.type(scalarComponentType(f), f.javaName());
       jacksonAnnotation(comp, f, jackson);
+      temporalAnnotation(comp, f, jackson);
+      runtimeValueAnnotation(comp, f, jackson);
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       result.component(comp.build());
     }
@@ -95,7 +106,7 @@ public final class RecordSourceMapping {
     // M4-C2b-2b-12: oneof groups. Each contributes one @Nullable record component and
     // one nested sealed interface (the per-member value records live inside it).
     for (Oneof oneof : m.oneofs()) {
-      OneofEmission oe = emitOneof(oneof, recordRef);
+      OneofEmission oe = emitOneof(oneof, recordRef, false);
       result.component(oe.component());
       result.nested(oe.iface());
     }
@@ -117,8 +128,8 @@ public final class RecordSourceMapping {
    * Map a message to its source-AST form (record shell + nested {@code Codec}), with the Jackson
    * surface switch: see {@link #toSource(Message, String, boolean)} for the annotation surface.
    * When {@code jackson} the record additionally carries the {@code jsonExtras} component (the
-   * any-getter/any-setter retention pair) and a compact constructor normalizing it and the carrier,
-   * and the codec folds the map into the carrier on encode and re-seeds it on decode.
+   * any-getter/any-setter retention pair) and a compact constructor normalizing it and the carrier.
+   * The extras are JSON-only: the codec neither writes them to the wire nor reads them from it.
    */
   public static RecordSpec toSourceWithCodec(Message m, boolean jackson) {
     TypeRef.Named recordRef = m.type();
@@ -134,14 +145,22 @@ public final class RecordSourceMapping {
                             ? "\n@"
                                 + "param jsonExtras retained unknown JSON properties, keyed by"
                                 + " property name; projected flat onto the JSON object and"
-                                + " re-folded into this map on deserialization"
+                                + " absorbed from it on deserialization (JSON only: never written"
+                                + " to the wire)"
                             : ".")))
             .deprecated(m.deprecated())
             .implementsFqns(m.interfaces().stream().map(TypeRef::fqn).toList())
             .impl(TypeRefs.PROTOBUF_MESSAGE);
+    if (jackson) {
+      // Absent values (an unset message / optional / wrapper / oneof) are omitted from the JSON
+      // object rather than written as null; a missing property still reads back as null.
+      result.annotation(jsonIncludeNonNull());
+    }
     for (Field f : m.fields()) {
       var comp = Component.type(scalarComponentType(f), f.javaName());
       jacksonAnnotation(comp, f, jackson);
+      temporalAnnotation(comp, f, jackson);
+      runtimeValueAnnotation(comp, f, jackson);
       if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       Component c = comp.build();
       result.component(c);
@@ -158,7 +177,7 @@ public final class RecordSourceMapping {
     }
 
     for (Oneof oneof : m.oneofs()) {
-      OneofEmission oe = emitOneof(oneof, recordRef);
+      OneofEmission oe = emitOneof(oneof, recordRef, jackson);
       Component c = oe.component();
       result.component(c);
       result.nested(oe.iface());
@@ -311,11 +330,132 @@ public final class RecordSourceMapping {
       // the TypeCollector's collision policy — the ref and the record never collide.
       result.nested(InteropSourceMapping.toInterop(m, "", jackson));
     }
+    // U7: a jackson record with oneofs renders them flat -- the discriminator method(s) and the
+    // @JsonCreator factory that reads the flat form back.
+    if (jackson && !m.oneofs().isEmpty()) {
+      oneofJsonSurface(m).forEach(result::method);
+    }
     return result.build();
   }
 
   private static String baseRecordDescription(Message m) {
     return "Auto-generated record for the " + m.name() + " proto message.";
+  }
+
+  /**
+   * Attach the temporal (de)serializer pair to a temporal well-known type field (a {@code
+   * google.protobuf.Timestamp} / {@code google.protobuf.Duration} — the record holds the java.time
+   * types): an explicit {@code @JsonSerialize} + {@code @JsonDeserialize} naming the
+   * :recordbuf-json {@code JavaTimeTemporal} arm matching the field's {@code
+   * recordbuf.jackson_format} (default: the ISO string). A singular field sets both {@code using} +
+   * {@code contentUsing} (the content is inert on a scalar); a repeated field sets {@code
+   * contentUsing} only — the element type, so the list keeps its own container serialization.
+   */
+  private static void temporalAnnotation(Component.Builder comp, Field f, boolean jackson) {
+    temporalAnnotations(f, jackson).forEach(comp::annotation);
+  }
+
+  /** The {@link #temporalAnnotation} pair as annotations (empty when the field needs none). */
+  private static List<Annotation> temporalAnnotations(Field f, boolean jackson) {
+    if (!jackson) {
+      return List.of();
+    }
+    WellKnownTypes.Entry entry = WellKnownTypes.resolve(f.typeUrl());
+    if (entry == null) {
+      return List.of();
+    }
+    bijnagte.recordbuf.json.JacksonTemporalFormat format =
+        f.jacksonFormat() == null
+            ? bijnagte.recordbuf.json.JacksonTemporalFormat.JSON
+            : switch (f.jacksonFormat()) {
+              case JacksonTemporalFormat.JSON -> bijnagte.recordbuf.json.JacksonTemporalFormat.JSON;
+              case JacksonTemporalFormat.CANONICAL ->
+                  bijnagte.recordbuf.json.JacksonTemporalFormat.CANONICAL;
+            };
+    var c = JavaTimeTemporal.forType(entry.fqn(), format);
+    if (c == null) {
+      return List.of();
+    }
+    return serializerPair(
+        f.label() == FieldLabel.REPEATED,
+        TypeRef.of(c.serializer.getName()),
+        TypeRef.of(c.deserializer.getName()));
+  }
+
+  /**
+   * The {@code @JsonSerialize} + {@code @JsonDeserialize} pair naming {@code ser} / {@code de}: a
+   * single value sets {@code using} + {@code contentUsing} (the content is inert on a scalar); a
+   * container (a repeated field, a map) sets {@code contentUsing} only -- its elements / values, so
+   * the container keeps its own serialization.
+   */
+  private static List<Annotation> serializerPair(boolean container, TypeRef ser, TypeRef de) {
+    List<Arg> serArgs = new ArrayList<>();
+    List<Arg> deArgs = new ArrayList<>();
+    if (!container) {
+      serArgs.add(Arg.of("using", ArgValue.classLit(ser)));
+      deArgs.add(Arg.of("using", ArgValue.classLit(de)));
+    }
+    serArgs.add(Arg.of("contentUsing", ArgValue.classLit(ser)));
+    deArgs.add(Arg.of("contentUsing", ArgValue.classLit(de)));
+    return List.of(
+        Annotation.of(
+            TypeRef.of("tools.jackson.databind.annotation.JsonSerialize"),
+            serArgs.toArray(new Arg[0])),
+        Annotation.of(
+            TypeRef.of("tools.jackson.databind.annotation.JsonDeserialize"),
+            deArgs.toArray(new Arg[0])));
+  }
+
+  /**
+   * Attach the proto3 JSON (de)serializer pair for a runtime value type to a field on a jackson
+   * file: {@code JsonBytes} (base64) for a {@code bytes}-family field (scalar {@code bytes} or
+   * {@code google.protobuf.BytesValue}), {@code JsonFieldMask} (an array of lowerCamel paths) for a
+   * {@code FieldMask}, {@code JsonEmpty} ({@code {}}) for an {@code Empty} — singular, repeated, or
+   * as a map value. A singular field sets {@code using} + {@code contentUsing}; a repeated or map
+   * field sets {@code contentUsing} only (its elements / values), as for temporals.
+   */
+  private static void runtimeValueAnnotation(Component.Builder comp, Field f, boolean jackson) {
+    runtimeValueAnnotations(f, jackson).forEach(comp::annotation);
+  }
+
+  /** The {@link #runtimeValueAnnotation} pair as annotations (empty when the field needs none). */
+  private static List<Annotation> runtimeValueAnnotations(Field f, boolean jackson) {
+    if (!jackson) {
+      return List.of();
+    }
+    String token = f.isMap() ? f.mapValue() : f.typeUrl();
+    Class<?>[] pair = token == null ? null : runtimeValuePair(token);
+    if (pair == null) {
+      return List.of();
+    }
+    return serializerPair(
+        f.label() == FieldLabel.REPEATED || f.isMap(),
+        TypeRef.of(pair[0].getName()),
+        TypeRef.of(pair[1].getName()));
+  }
+
+  /**
+   * The {serializer, deserializer} pair for a field / map-value type token that resolves to a
+   * runtime value type, or {@code null} when the token needs none.
+   */
+  private static Class<?> @Nullable [] runtimeValuePair(String token) {
+    if (token.equals("bytes")) {
+      return new Class<?>[] {JsonBytes.B64Serializer.class, JsonBytes.B64Deserializer.class};
+    }
+    WellKnownTypes.Entry entry = WellKnownTypes.resolve(token);
+    if (entry == null) {
+      return null;
+    }
+    if (entry.kind() == WellKnownTypes.Kind.BYTES_WRAPPER) {
+      return new Class<?>[] {JsonBytes.B64Serializer.class, JsonBytes.B64Deserializer.class};
+    }
+    if (TypeRefs.FIELD_MASK.equals(entry.javaType())) {
+      return new Class<?>[] {JsonFieldMask.Serializer.class, JsonFieldMask.Deserializer.class};
+    }
+    if (TypeRefs.EMPTY.equals(entry.javaType())) {
+      return new Class<?>[] {JsonEmpty.Serializer.class, JsonEmpty.Deserializer.class};
+    }
+    return null;
   }
 
   /**
@@ -334,6 +474,17 @@ public final class RecordSourceMapping {
           Annotation.of(
               TypeRef.of("com.fasterxml.jackson.annotation.JsonProperty"),
               Arg.of(null, f.jsonName())));
+      if (f.type() instanceof TypeRef.Primitive) {
+        // A missing or null primitive is its proto3 default (0 / false): Jackson 3 otherwise fails
+        // it (FAIL_ON_NULL_FOR_PRIMITIVES is on by default), so partial JSON could not be read.
+        comp.annotation(
+            Annotation.of(
+                TypeRef.of("com.fasterxml.jackson.annotation.JsonSetter"),
+                Arg.of(
+                    "nulls",
+                    new ArgValue.Ref(
+                        TypeRef.named("com.fasterxml.jackson.annotation", "Nulls"), ".AS_EMPTY"))));
+      }
     }
   }
 
@@ -384,7 +535,7 @@ public final class RecordSourceMapping {
    * Choice.NameValue} are not import-eligible. Message member permits are resolved via {@code
    * TypeRef.of(...)}; the renderer collects it and resolves it to a short name.
    */
-  private static OneofEmission emitOneof(Oneof oneof, TypeRef.Named recordRef) {
+  private static OneofEmission emitOneof(Oneof oneof, TypeRef.Named recordRef, boolean jackson) {
     String ifaceName = oneof.ifaceName();
     String componentName = oneof.componentName();
     // The oneof interface — the loader-derived, fully-typed reference (nested in the record).
@@ -392,7 +543,15 @@ public final class RecordSourceMapping {
 
     // 1. The @Nullable record component in the enclosing record.
     //    Import is registered by the collect() phase via Annotation.NULLABLE.type().
-    var component = Component.type(ifaceRef, componentName).annotation(Annotation.NULLABLE).build();
+    var componentBuilder = Component.type(ifaceRef, componentName);
+    if (jackson) {
+      // Flat JSON (U7): the set member's wrapper is inlined into the record's object -- its single
+      // renamed property appears at the top level. An unset oneof contributes nothing through the
+      // record-level @JsonInclude(NON_NULL).
+      componentBuilder.annotation(
+          Annotation.of(TypeRef.of("com.fasterxml.jackson.annotation.JsonUnwrapped")));
+    }
+    var component = componentBuilder.annotation(Annotation.NULLABLE).build();
 
     // 2. Build the sealed interface: extends clause + permits + per-member records + default
     // value().
@@ -431,7 +590,7 @@ public final class RecordSourceMapping {
                       null, "Auto-generated record for the " + valName + " oneof value."))
               .public_()
               .implementsFqn(ifaceName) // in-package member: renders short
-              .component(Component.type(valType, "value").build())
+              .component(oneofValueComponent(member, valType, jackson))
               .build();
       iface.nested(wr);
     }
@@ -459,6 +618,231 @@ public final class RecordSourceMapping {
    * and returns both rather than mutating the caller's record builder.
    */
   private record OneofEmission(Component component, InterfaceSpec iface) {}
+
+  /** {@code @JsonInclude(JsonInclude.Include.NON_NULL)}. */
+  private static Annotation jsonIncludeNonNull() {
+    TypeRef include =
+        new TypeRef.Named(
+            "com.fasterxml.jackson.annotation", List.of("JsonInclude"), "Include", List.of());
+    return Annotation.of(
+        TypeRef.of("com.fasterxml.jackson.annotation.JsonInclude"),
+        Arg.of(null, new ArgValue.Ref(include, ".NON_NULL")));
+  }
+
+  /**
+   * A oneof wrapper record's single {@code value} component. On a jackson file it carries the
+   * member's JSON name (so the unwrapped wrapper renders the member as a top-level property) and,
+   * when the member's type needs one, the same temporal / runtime-value (de)serializer pair a
+   * regular field of that type carries.
+   */
+  private static Component oneofValueComponent(Field member, TypeRef valType, boolean jackson) {
+    var comp = Component.type(valType, "value");
+    if (jackson) {
+      comp.annotation(jsonProperty(member.jsonName()));
+      temporalAnnotation(comp, member, true);
+      runtimeValueAnnotation(comp, member, true);
+    }
+    return comp.build();
+  }
+
+  /** {@code @JsonProperty("<name>")}. */
+  private static Annotation jsonProperty(String name) {
+    return Annotation.of(
+        TypeRef.of("com.fasterxml.jackson.annotation.JsonProperty"), Arg.of(null, name));
+  }
+
+  /** A oneof member's wrapper record, nested in the oneof's sealed interface. */
+  private static TypeRef.Named oneofValueRef(TypeRef.Named recordRef, Oneof oneof, Field member) {
+    return new TypeRef.Named(
+        recordRef.pkg(),
+        List.of(recordRef.shortName(), oneof.ifaceName()),
+        JavaNames.cap(member.name()) + "Value",
+        List.of());
+  }
+
+  /** The oneof's discriminator: its JSON property name and the record method that renders it. */
+  private static String discriminatorProperty(Oneof oneof) {
+    String override = oneof.jsonOneof();
+    return override != null ? override : oneof.componentName() + "Type";
+  }
+
+  /**
+   * The record-level half of a jackson file's flat oneof rendering (U7), emitted when the message
+   * has at least one oneof:
+   *
+   * <ul>
+   *   <li>per oneof, a discriminator method ({@code choiceType()}) rendered as the JSON property
+   *       {@code "choiceType"} (or the {@code recordbuf.json_oneof} override): the set member's
+   *       JSON name, omitted when the oneof is unset;
+   *   <li>a {@code @JsonCreator} factory taking every field, every oneof member, every
+   *       discriminator, and the retained unknown properties; it selects each oneof's member with
+   *       {@code JsonOneof.select} (malformed combinations fail) and delegates to the canonical
+   *       constructor. Regular fields keep their component annotations (Jackson merges a property's
+   *       annotations across the component and the factory parameter); member parameters repeat
+   *       their wrapper's (de)serializer pair, since no component carries it.
+   * </ul>
+   *
+   * <p>A discriminator whose method or JSON name would collide with a field or a member fails
+   * generation.
+   */
+  private static List<Method> oneofJsonSurface(Message m) {
+    TypeRef.Named recordRef = m.type();
+    Set<String> javaNames = new HashSet<>();
+    Set<String> jsonNames = new HashSet<>();
+    for (Field f : m.fields()) {
+      javaNames.add(f.javaName());
+      jsonNames.add(f.jsonName());
+    }
+    for (Oneof oneof : m.oneofs()) {
+      for (Field member : oneof.members()) {
+        javaNames.add(member.javaName());
+        jsonNames.add(member.jsonName());
+      }
+    }
+
+    List<Method> methods = new ArrayList<>();
+    Method.Builder factory =
+        Method.named("fromJson")
+            .static_()
+            .javadoc(
+                Javadoc.builder()
+                    .text(
+                        GeneratedDocs.MARKER
+                            + " The JSON creator: binds each oneof from its flat member property"
+                            + " and discriminator, then delegates to the canonical constructor.\n")
+                    .build())
+            .annotation(Annotation.of(TypeRef.of("com.fasterxml.jackson.annotation.JsonCreator")))
+            .returnType(recordRef);
+    List<String> ctorArgs = new ArrayList<>();
+    for (Field f : m.fields()) {
+      Param p =
+          isComponentNullable(f)
+              ? Param.of(f.type(), f.javaName(), jsonProperty(f.jsonName()), Annotation.NULLABLE)
+              : Param.of(f.type(), f.javaName(), jsonProperty(f.jsonName()));
+      factory.param(p);
+      ctorArgs.add(f.javaName());
+    }
+
+    List<Element> body = new ArrayList<>();
+    for (Oneof oneof : m.oneofs()) {
+      String property = discriminatorProperty(oneof);
+      // Only the JSON property name is part of the JSON contract, so only a collision there fails
+      // (and recordbuf.json_oneof renames it). The Java method is an implementation detail: when
+      // <oneof>Type is taken (e.g. by a field's accessor) it steps aside to <oneof>JsonType, then
+      // <oneof>JsonType2, ...
+      if (jsonNames.contains(property)) {
+        throw new IllegalStateException(
+            "oneof \""
+                + oneof.name()
+                + "\" in "
+                + m.name()
+                + ": its JSON discriminator property \""
+                + property
+                + "\" collides with a field's JSON name; rename the field, or set"
+                + " recordbuf.json_oneof on the oneof");
+      }
+      String method = oneof.componentName() + "Type";
+      for (int attempt = 1; javaNames.contains(method); attempt++) {
+        method = oneof.componentName() + "JsonType" + (attempt == 1 ? "" : attempt);
+      }
+      javaNames.add(method);
+      jsonNames.add(property);
+
+      // The discriminator method: the set member's JSON name, or null (omitted) when unset.
+      Method.Builder disc =
+          Method.named(method)
+              .public_()
+              .javadoc(
+                  Javadoc.builder()
+                      .text(
+                          GeneratedDocs.MARKER
+                              + " The JSON discriminator of the "
+                              + oneof.name()
+                              + " oneof: the set member's JSON name, or null when unset.\n")
+                      .build())
+              .annotation(jsonProperty(property))
+              .annotation(Annotation.NULLABLE)
+              .returnType(TypeRef.STRING);
+      for (Field member : oneof.members()) {
+        disc.body(
+            If.condition(
+                    "@0 instanceof @1",
+                    oneof.componentName(),
+                    oneofValueRef(recordRef, oneof, member))
+                .body(Element.ret("\"" + member.jsonName() + "\""))
+                .build());
+      }
+      methods.add(disc.body(Element.ret("null")).build());
+
+      // The factory's member + discriminator parameters, and the oneof's selection.
+      List<String> names = new ArrayList<>();
+      List<String> values = new ArrayList<>();
+      StringBuilder select = new StringBuilder();
+      // Template args: @0 the oneof's interface, @1 JsonOneof, @2 List, @3 Objects, then one
+      // wrapper record per member from @4 on.
+      List<Object> args =
+          new ArrayList<>(
+              List.of(oneof.iface(), TypeRefs.JSON_ONEOF, TypeRefs.LIST, TypeRefs.OBJECTS));
+      for (Field member : oneof.members()) {
+        List<Annotation> anns = new ArrayList<>();
+        anns.add(jsonProperty(member.jsonName()));
+        anns.addAll(temporalAnnotations(member, true));
+        anns.addAll(runtimeValueAnnotations(member, true));
+        anns.add(Annotation.NULLABLE);
+        factory.param(
+            Param.of(
+                TypeRefs.boxed(member.type()), member.javaName(), anns.toArray(new Annotation[0])));
+        names.add("\"" + member.jsonName() + "\"");
+        values.add(member.javaName());
+      }
+      factory.param(Param.of(TypeRef.STRING, method, jsonProperty(property), Annotation.NULLABLE));
+
+      select
+          .append("@0 ")
+          .append(oneof.componentName())
+          .append(" = switch (@1.select(\"")
+          .append(oneof.name())
+          .append("\", ")
+          .append(method)
+          .append(", @2.of(")
+          .append(String.join(", ", names))
+          .append("), ")
+          .append(String.join(", ", values))
+          .append(")) {");
+      int i = 0;
+      for (Field member : oneof.members()) {
+        args.add(oneofValueRef(recordRef, oneof, member));
+        int valueArg = args.size() - 1;
+        select
+            .append(" case ")
+            .append(i++)
+            .append(" -> new @")
+            .append(valueArg)
+            .append("(@3.requireNonNull(")
+            .append(member.javaName())
+            .append("));");
+      }
+      select.append(" default -> null; }");
+      body.add(Element.expr(RawExpr.of(select.toString(), args.toArray())));
+      ctorArgs.add(oneof.componentName());
+    }
+    factory.param(
+        Param.of(
+            TypeRefs.JSON_NODE_MAP,
+            "jsonExtras",
+            Annotation.of(TypeRef.of("com.fasterxml.jackson.annotation.JsonAnySetter")),
+            Annotation.NULLABLE));
+    ctorArgs.add("jsonExtras");
+    ctorArgs.add("@0.empty()");
+    body.add(
+        Element.ret(
+            RawExpr.of(
+                "new @1(" + String.join(", ", ctorArgs) + ")",
+                TypeRefs.UNKNOWN_FIELDS,
+                recordRef)));
+    methods.add(factory.body(body).build());
+    return methods;
+  }
 
   /**
    * The boxed Java type for a proto scalar type URL (for use inside {@code Map<>, List<>}, or as a
