@@ -46,7 +46,7 @@ jackson           = "3.1.8"
 # coordinate has no patch suffix; the handoff's "2.21.0" 404s on Central) to match jackson-bom
 # 3.1.8, which manages the same artifact at 2.21, so the two never diverge.
 jackson-annotations = "2.21"
-slf4j             = "2.0.20"   # org.slf4j -- latest GA (2.1.x is still alpha); generator-side logging only
+slf4j             = "2.0.20"   # org.slf4j -- latest GA (2.1.x is still alpha); generator and fixtures-test logging only
 
 [libraries]
 # io.soabase.record-builder does not publish a Gradle plugin as of v53; wire
@@ -86,12 +86,13 @@ jackson-annotations = { group = "com.fasterxml.jackson.core", name = "jackson-an
 # so first-party `src/` and the generated output share one formatting standard. generator-only:
 # it is a Generation/build-time concern (R22 keeps the generated .rec surface dependency-free).
 google-java-format  = { group = "com.google.googlejavaformat", name = "google-java-format", version.ref = "google-java-format" }
-# SLF4J (org.slf4j) -- generator-side logging: the plugin's internal diagnostics (Main's request
-# handling, CodeGenerator's per-file generation) log through slf4j-api, and slf4j-simple is the
-# binding. slf4j-simple's ONLY output channel is stderr, so it can never touch the protoc
-# plugin's stdout CodeGeneratorResponse protocol; its default level INFO keeps the launched
-# plugin quiet (development debug is -Dorg.slf4j.simpleLogger.defaultLogLevel=debug).
-# Generator module only -- the generated .rec surface stays dependency-free (R22).
+# SLF4J (org.slf4j) -- logging: the plugin's internal diagnostics (Main's request handling,
+# CodeGenerator's per-file generation) log through slf4j-api, and slf4j-simple is the binding.
+# slf4j-simple's ONLY output channel is stderr, so it can never touch the protoc plugin's stdout
+# CodeGeneratorResponse protocol; its default level INFO keeps the launched plugin quiet
+# (development debug is -Dorg.slf4j.simpleLogger.defaultLogLevel=debug). :recordbuf-fixtures
+# carries the same pair in test scope only, for the golden seeder's report. Never on the
+# generated .rec surface's classpath (R22).
 slf4j-api         = { group = "org.slf4j", name = "slf4j-api", version.ref = "slf4j" }
 slf4j-simple      = { group = "org.slf4j", name = "slf4j-simple", version.ref = "slf4j" }
 junit-jupiter       = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit-jupiter" }

@@ -50,10 +50,11 @@ extend google.protobuf.FileOptions {
 // (recordbuf.jackson_format) -- per-field rendering for a temporal WKT field
 // (google.protobuf.Timestamp / Duration) on a jackson-enabled file: "json" (ISO-8601 text,
 // the default) or "canonical" (proto3 JSON-mapping rendering). An unrecognized value fails
-// generation at load. (recordbuf.json_name) and (recordbuf.json_ignored) are RESERVED for v2
-// (field rename / exclusion): declared here to hold the tags and round-trip through protoc,
-// but the current generator does not read them. All ride the descriptor's unknown-fields
-// (strings) or uninterpreted options, read without linking this .proto.
+// generation at load. (recordbuf.json_name) renames a field's JSON property and
+// (recordbuf.json_ignored) keeps a field off the JSON surface, both on a jackson-enabled file;
+// the generator reads them (ModelLoader). json_ignored is not enforced on read: see
+// docs/known-findings.md. All ride the descriptor's unknown-fields (strings) or uninterpreted
+// options, read without linking this .proto.
 extend google.protobuf.FieldOptions {
     optional string jackson_format = 50005;
     optional string json_name = 50006;

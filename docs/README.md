@@ -9,6 +9,7 @@ docs/
   README.md              This file.
   protobuf.dev-index.md  Why recordbuf's java_interface / java_enum_interface options
                         live outside protobuf's public namespace.
+  known-findings.md      Generator findings that are not proto constructs, so not in the gap ledger.
   solutions/             Compound-engineering knowledge store (created by `ce-compound`).
   plans/                 Execution plans (created by `ce-plan`).
   CONCEPTS.md            Shared domain vocabulary — created on demand if/when needed.
