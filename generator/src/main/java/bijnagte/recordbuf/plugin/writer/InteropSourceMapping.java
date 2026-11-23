@@ -136,6 +136,10 @@ public final class InteropSourceMapping {
     if (wkt != null) {
       return nativeWktFrom(f, wkt);
     }
+    DynamicWktMethods dynamic = dynamicWkt(f);
+    if (dynamic != null) {
+      return dynamicWktFrom(f, dynamic);
+    }
     if (f.isMap()) {
       boolean hasBytes = "bytes".equals(f.mapKey()) || "bytes".equals(f.mapValue());
       if (!hasBytes) {
@@ -256,6 +260,35 @@ public final class InteropSourceMapping {
   }
 
   /**
+   * A dynamic well-known type field (Struct, Value, ListValue, Any), read from protobuf-java as its
+   * Jackson node through {@link bijnagte.recordbuf.json.DynamicWkt}. A singular field is {@code
+   * null} when absent; a repeated field converts every element.
+   */
+  private static List<Element> dynamicWktFrom(Field f, DynamicWktMethods dynamic) {
+    String cap = JavaNames.protobufJavaAccessor(f.name());
+    if (f.isRepeated()) {
+      return List.of(
+          LocalVar.builder(f.type(), "_" + f.javaName())
+              .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)),
+          For.enhanced("var _e", "x.get@0List()", cap)
+              .body(
+                  Element.expr(
+                      "_@0.add(@1.@2(_e))",
+                      f.javaName(),
+                      TypeRefs.DYNAMIC_WKT,
+                      dynamic.fromProtobuf()))
+              .build());
+    }
+    return List.of(
+        Element.expr(
+            "var _@0 = x.has@1() ? @2.@3(x.get@1()) : null",
+            f.javaName(),
+            cap,
+            TypeRefs.DYNAMIC_WKT,
+            dynamic.fromProtobuf()));
+  }
+
+  /**
    * A singular enum's record value. proto3 has no enum presence, so the default 0 reads as absent
    * (null); an explicit {@code optional} enum has presence, so its set 0 is the zero constant.
    */
@@ -304,6 +337,10 @@ public final class InteropSourceMapping {
     NativeWkt wkt = nativeWkt(f);
     if (wkt != null) {
       return nativeWktTo(f, wkt);
+    }
+    DynamicWktMethods dynamic = dynamicWkt(f);
+    if (dynamic != null) {
+      return dynamicWktTo(f, dynamic);
     }
 
     if (f.isMap()) {
@@ -395,6 +432,44 @@ public final class InteropSourceMapping {
         .build();
   }
 
+  /**
+   * A dynamic well-known type field, written to protobuf-java through {@link
+   * bijnagte.recordbuf.json.DynamicWkt}. A singular field is set when non-null, the same presence
+   * the record's binary encoder uses; a repeated field converts every element.
+   */
+  private static Element dynamicWktTo(Field f, DynamicWktMethods dynamic) {
+    String cap = JavaNames.protobufJavaAccessor(f.name());
+    String src = "r." + f.javaName() + "()";
+    if (f.isRepeated()) {
+      return For.enhanced("var _e", src)
+          .body(Element.expr("_b.add@0(@1)", cap, dynamicToProtobuf(dynamic, "_e")))
+          .build();
+    }
+    // Use a local variable so NullAway can track the non-null guard
+    String local = "n" + cap;
+    return If.condition("@0 != null", src)
+        .body(
+            Element.expr("var @0 = @1", local, src),
+            Element.expr("_b.set@0(@1)", cap, dynamicToProtobuf(dynamic, local)))
+        .build();
+  }
+
+  /**
+   * The protobuf-java message of one dynamic WKT node, as an expression. An {@code Any} node is
+   * {@code {typeUrl, value}}, so its typeUrl comes from the node ({@code contentType}) and its
+   * payload from the node's {@code value} member.
+   */
+  private static Formattable dynamicToProtobuf(DynamicWktMethods dynamic, String node) {
+    if (dynamic.fqn().equals(ANY_FQN)) {
+      return RawExpr.of(
+          "@0.anyFrom(@0.contentType(\"@1\", @2), @2.get(\"value\"))",
+          TypeRefs.DYNAMIC_WKT,
+          ANY_FQN,
+          node);
+    }
+    return RawExpr.of("@0.@1(@2)", TypeRefs.DYNAMIC_WKT, dynamic.toProtobuf(), node);
+  }
+
   private static Element toSetStatement(Field f, String src) {
     String cap = JavaNames.protobufJavaAccessor(f.name());
     if (f.kind() == FieldKind.ENUM) {
@@ -453,9 +528,36 @@ public final class InteropSourceMapping {
   /**
    * A natively mapped well-known type: its registry entry and the {@code ProtobufJavaWkt} methods
    * that convert it from protobuf-java ({@code fromProtobuf}) and to it ({@code toProtobuf}). Null
-   * for every other field, including the dynamic WKTs, which keep their own arm until U7.
+   * for every other field, including the dynamic WKTs (see {@link DynamicWktMethods}).
    */
   private record NativeWkt(WellKnownTypes.Entry entry, String fromProtobuf, String toProtobuf) {}
+
+  /**
+   * A dynamic well-known type: its FQN and the {@code DynamicWkt} methods that convert it from
+   * protobuf-java ({@code fromProtobuf}, the node read from the message) and to it ({@code
+   * toProtobuf}, the message built from the node; unused for {@code Any}, see {@link
+   * #dynamicToProtobuf}).
+   */
+  private record DynamicWktMethods(String fqn, String fromProtobuf, String toProtobuf) {}
+
+  private static final String ANY_FQN = "google.protobuf.Any";
+
+  private static @Nullable DynamicWktMethods dynamicWkt(Field f) {
+    if (f.kind() != FieldKind.MESSAGE) {
+      return null;
+    }
+    WellKnownTypes.Entry entry = WellKnownTypes.resolve(f.typeUrl());
+    if (entry == null || !entry.isDynamic()) {
+      return null;
+    }
+    return switch (entry.fqn()) {
+      case "google.protobuf.Struct" -> new DynamicWktMethods(entry.fqn(), "struct", "structFrom");
+      case "google.protobuf.Value" -> new DynamicWktMethods(entry.fqn(), "value", "valueFrom");
+      case "google.protobuf.ListValue" -> new DynamicWktMethods(entry.fqn(), "list", "listFrom");
+      case "google.protobuf.Any" -> new DynamicWktMethods(entry.fqn(), "any", "anyFrom");
+      default -> throw new IllegalStateException("no DynamicWkt conversion for " + entry.fqn());
+    };
+  }
 
   private static @Nullable NativeWkt nativeWkt(Field f) {
     if (f.kind() != FieldKind.MESSAGE) {

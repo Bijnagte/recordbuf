@@ -1,0 +1,34 @@
+{
+  "optionalStruct" : {
+    "name" : "recordbuf",
+    "nested" : {
+      "flag" : true
+    },
+    "items" : [ -0.25, "a" ],
+    "count" : 2.5,
+    "missing" : null
+  },
+  "optionalAny" : {
+    "typeUrl" : "type.googleapis.com/bijnagte.recordbuf.fixture.interopdynamic.Payload",
+    "value" : "CgVoZWxsbxAH"
+  },
+  "optionalValue" : -0.5,
+  "repeatedStruct" : [ {
+    "k" : "v"
+  }, {
+    "n" : 1.5
+  } ],
+  "repeatedAny" : [ {
+    "typeUrl" : "type.googleapis.com/bijnagte.recordbuf.fixture.interopdynamic.Payload",
+    "value" : "CgFhEAE="
+  }, {
+    "typeUrl" : "type.googleapis.com/bijnagte.recordbuf.fixture.interopdynamic.Payload",
+    "value" : "CgFiEP7//////////wE="
+  } ],
+  "repeatedValue" : [ null, 2.5, "s", false, {
+    "k" : true
+  }, [ 1.25 ] ],
+  "repeatedListValue" : [ [ "x", 3.5, null ], [ true, {
+    "a" : null
+  } ] ]
+}

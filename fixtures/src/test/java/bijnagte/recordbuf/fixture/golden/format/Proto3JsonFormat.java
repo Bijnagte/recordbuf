@@ -1,6 +1,7 @@
 package bijnagte.recordbuf.fixture.golden.format;
 
 import bijnagte.recordbuf.fixture.golden.GoldenFormat;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 import com.google.protobuf.MessageLite;
 import com.google.protobuf.util.JsonFormat;
@@ -65,6 +66,15 @@ public final class Proto3JsonFormat implements GoldenFormat.Json {
     Class<?> recordType = record.getClass();
     Method to = requireInterop(recordType).getMethod("to", recordType);
     Message reference = (Message) invoke(to, record);
+    return printReference(reference);
+  }
+
+  /**
+   * Prints a protobuf-java reference message as this format's golden text: the printer with this
+   * format's type registry and sorted map keys. The golden seeder prints through it too, so an
+   * {@code Any} resolves the same way in a seeded golden and in the suite.
+   */
+  public String printReference(Message reference) throws InvalidProtocolBufferException {
     return JsonFormat.printer().usingTypeRegistry(typeRegistry).sortingMapKeys().print(reference);
   }
 

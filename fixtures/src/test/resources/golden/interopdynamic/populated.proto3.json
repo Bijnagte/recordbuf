@@ -1,0 +1,37 @@
+{
+  "optionalStruct": {
+    "count": 2.5,
+    "items": [-0.25, "a"],
+    "missing": null,
+    "name": "recordbuf",
+    "nested": {
+      "flag": true
+    }
+  },
+  "optionalAny": {
+    "@type": "type.googleapis.com/bijnagte.recordbuf.fixture.interopdynamic.Payload",
+    "note": "hello",
+    "n": 7
+  },
+  "optionalValue": -0.5,
+  "repeatedStruct": [{
+    "k": "v"
+  }, {
+    "n": 1.5
+  }],
+  "repeatedAny": [{
+    "@type": "type.googleapis.com/bijnagte.recordbuf.fixture.interopdynamic.Payload",
+    "note": "a",
+    "n": 1
+  }, {
+    "@type": "type.googleapis.com/bijnagte.recordbuf.fixture.interopdynamic.Payload",
+    "note": "b",
+    "n": -2
+  }],
+  "repeatedValue": [null, 2.5, "s", false, {
+    "k": true
+  }, [1.25]],
+  "repeatedListValue": [["x", 3.5, null], [true, {
+    "a": null
+  }]]
+}

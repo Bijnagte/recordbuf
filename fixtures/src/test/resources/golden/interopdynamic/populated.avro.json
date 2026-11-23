@@ -1,0 +1,100 @@
+{
+  "optional_struct" : {
+    "bijnagte.recordbuf.fixture.interopdynamic.RecordbufDynamicWkt" : {
+      "format" : "json",
+      "contentType" : "google.protobuf.Struct",
+      "payload" : "{\"name\":\"recordbuf\",\"nested\":{\"flag\":true},\"items\":[-0.25,\"a\"],\"count\":2.5,\"missing\":null}"
+    }
+  },
+  "optional_any" : {
+    "bijnagte.recordbuf.fixture.interopdynamic.RecordbufDynamicWkt" : {
+      "format" : "json",
+      "contentType" : "type.googleapis.com/bijnagte.recordbuf.fixture.interopdynamic.Payload",
+      "payload" : "{\"typeUrl\":\"type.googleapis.com/bijnagte.recordbuf.fixture.interopdynamic.Payload\",\"value\":\"CgVoZWxsbxAH\"}"
+    }
+  },
+  "optional_value" : {
+    "bijnagte.recordbuf.fixture.interopdynamic.RecordbufDynamicWkt" : {
+      "format" : "json",
+      "contentType" : "google.protobuf.Value",
+      "payload" : "-0.5"
+    }
+  },
+  "repeated_struct" : [ {
+    "bijnagte.recordbuf.fixture.interopdynamic.RecordbufDynamicWkt" : {
+      "format" : "json",
+      "contentType" : "google.protobuf.Struct",
+      "payload" : "{\"k\":\"v\"}"
+    }
+  }, {
+    "bijnagte.recordbuf.fixture.interopdynamic.RecordbufDynamicWkt" : {
+      "format" : "json",
+      "contentType" : "google.protobuf.Struct",
+      "payload" : "{\"n\":1.5}"
+    }
+  } ],
+  "repeated_any" : [ {
+    "bijnagte.recordbuf.fixture.interopdynamic.RecordbufDynamicWkt" : {
+      "format" : "json",
+      "contentType" : "type.googleapis.com/bijnagte.recordbuf.fixture.interopdynamic.Payload",
+      "payload" : "{\"typeUrl\":\"type.googleapis.com/bijnagte.recordbuf.fixture.interopdynamic.Payload\",\"value\":\"CgFhEAE=\"}"
+    }
+  }, {
+    "bijnagte.recordbuf.fixture.interopdynamic.RecordbufDynamicWkt" : {
+      "format" : "json",
+      "contentType" : "type.googleapis.com/bijnagte.recordbuf.fixture.interopdynamic.Payload",
+      "payload" : "{\"typeUrl\":\"type.googleapis.com/bijnagte.recordbuf.fixture.interopdynamic.Payload\",\"value\":\"CgFiEP7//////////wE=\"}"
+    }
+  } ],
+  "repeated_value" : [ {
+    "bijnagte.recordbuf.fixture.interopdynamic.RecordbufDynamicWkt" : {
+      "format" : "json",
+      "contentType" : "google.protobuf.Value",
+      "payload" : "null"
+    }
+  }, {
+    "bijnagte.recordbuf.fixture.interopdynamic.RecordbufDynamicWkt" : {
+      "format" : "json",
+      "contentType" : "google.protobuf.Value",
+      "payload" : "2.5"
+    }
+  }, {
+    "bijnagte.recordbuf.fixture.interopdynamic.RecordbufDynamicWkt" : {
+      "format" : "json",
+      "contentType" : "google.protobuf.Value",
+      "payload" : "\"s\""
+    }
+  }, {
+    "bijnagte.recordbuf.fixture.interopdynamic.RecordbufDynamicWkt" : {
+      "format" : "json",
+      "contentType" : "google.protobuf.Value",
+      "payload" : "false"
+    }
+  }, {
+    "bijnagte.recordbuf.fixture.interopdynamic.RecordbufDynamicWkt" : {
+      "format" : "json",
+      "contentType" : "google.protobuf.Value",
+      "payload" : "{\"k\":true}"
+    }
+  }, {
+    "bijnagte.recordbuf.fixture.interopdynamic.RecordbufDynamicWkt" : {
+      "format" : "json",
+      "contentType" : "google.protobuf.Value",
+      "payload" : "[1.25]"
+    }
+  } ],
+  "repeated_list_value" : [ {
+    "bijnagte.recordbuf.fixture.interopdynamic.RecordbufDynamicWkt" : {
+      "format" : "json",
+      "contentType" : "google.protobuf.ListValue",
+      "payload" : "[\"x\",3.5,null]"
+    }
+  }, {
+    "bijnagte.recordbuf.fixture.interopdynamic.RecordbufDynamicWkt" : {
+      "format" : "json",
+      "contentType" : "google.protobuf.ListValue",
+      "payload" : "[true,{\"a\":null}]"
+    }
+  } ],
+  "unknownFields" : [ ]
+}

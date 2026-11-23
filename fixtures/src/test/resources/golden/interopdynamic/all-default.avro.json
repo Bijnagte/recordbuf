@@ -1,0 +1,10 @@
+{
+  "optional_struct" : null,
+  "optional_any" : null,
+  "optional_value" : null,
+  "repeated_struct" : [ ],
+  "repeated_any" : [ ],
+  "repeated_value" : [ ],
+  "repeated_list_value" : [ ],
+  "unknownFields" : [ ]
+}

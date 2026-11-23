@@ -11,7 +11,6 @@ import bijnagte.recordbuf.fixture.golden.format.ReferenceTypes;
 import bijnagte.recordbuf.runtime.ProtobufMessage;
 import com.google.protobuf.Message;
 import com.google.protobuf.MessageLite;
-import com.google.protobuf.util.JsonFormat;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileAlreadyExistsException;
@@ -169,9 +168,8 @@ public final class GoldenSeeder {
       return GoldenAssertions.encodeHex(referenceMessage(record).toByteArray())
           .getBytes(StandardCharsets.UTF_8);
     }
-    if (format instanceof Proto3JsonFormat) {
-      String printed =
-          JsonFormat.printer().sortingMapKeys().print((Message) referenceMessage(record));
+    if (format instanceof Proto3JsonFormat proto3Json) {
+      String printed = proto3Json.printReference((Message) referenceMessage(record));
       return (printed + "\n").getBytes(StandardCharsets.UTF_8);
     }
     if (format instanceof AvroBinaryFormat avroBinary) {
