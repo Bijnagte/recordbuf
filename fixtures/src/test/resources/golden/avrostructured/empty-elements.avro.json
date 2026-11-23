@@ -1,0 +1,13 @@
+{
+  "durations" : [ ],
+  "timestamps" : [ ],
+  "masks" : [ ],
+  "empties" : [ {
+    "bijnagte.recordbuf.avro.wkt.Empty" : { }
+  }, {
+    "bijnagte.recordbuf.avro.wkt.Empty" : { }
+  } ],
+  "structs" : [ ],
+  "anys" : [ ],
+  "unknownFields" : [ ]
+}

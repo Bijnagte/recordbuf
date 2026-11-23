@@ -1,0 +1,51 @@
+{
+  "durations" : [ {
+    "bijnagte.recordbuf.avro.wkt.Duration" : {
+      "seconds" : 1,
+      "nanos" : 500000000
+    }
+  }, {
+    "bijnagte.recordbuf.avro.wkt.Duration" : {
+      "seconds" : -2,
+      "nanos" : 500000000
+    }
+  } ],
+  "timestamps" : [ {
+    "long" : 1700000000123456
+  }, {
+    "long" : 1000000
+  } ],
+  "masks" : [ {
+    "string" : "a,b.c"
+  }, {
+    "string" : "x"
+  } ],
+  "empties" : [ ],
+  "structs" : [ {
+    "bijnagte.recordbuf.fixture.avrostructured.RecordbufDynamicWkt" : {
+      "format" : "json",
+      "contentType" : "google.protobuf.Struct",
+      "payload" : "{\"k\":\"v\"}"
+    }
+  }, {
+    "bijnagte.recordbuf.fixture.avrostructured.RecordbufDynamicWkt" : {
+      "format" : "json",
+      "contentType" : "google.protobuf.Struct",
+      "payload" : "{\"n\":1.5}"
+    }
+  } ],
+  "anys" : [ {
+    "bijnagte.recordbuf.fixture.avrostructured.RecordbufDynamicWkt" : {
+      "format" : "json",
+      "contentType" : "type.googleapis.com/google.protobuf.StringValue",
+      "payload" : "{\"typeUrl\":\"type.googleapis.com/google.protobuf.StringValue\",\"value\":\"CgFh\"}"
+    }
+  }, {
+    "bijnagte.recordbuf.fixture.avrostructured.RecordbufDynamicWkt" : {
+      "format" : "json",
+      "contentType" : "type.googleapis.com/google.protobuf.StringValue",
+      "payload" : "{\"typeUrl\":\"type.googleapis.com/google.protobuf.StringValue\",\"value\":\"CgFi\"}"
+    }
+  } ],
+  "unknownFields" : [ ]
+}

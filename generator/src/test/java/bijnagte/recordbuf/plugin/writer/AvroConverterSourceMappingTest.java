@@ -404,4 +404,53 @@ class AvroConverterSourceMappingTest {
     assertTrue(out.contains("WktAvroBridge.bytes(v)"), out);
     assertFalse(out.contains(".array()"), out);
   }
+
+  @Test
+  void repeatedStructuredWktsMapEachElementThroughTheSingularConversion() {
+    // A repeated Duration takes the floor pair both ways (non-negative nanos), a repeated FieldMask
+    // and Empty map per element through the bridge and the empty record, and a repeated Timestamp
+    // passes its list through (its Avro element is already an Instant).
+    Message m =
+        new Message(
+            "Sample",
+            TypeRef.named("bijnagte.recordbuf.fixture", "Sample"),
+            List.of(
+                repeatedWktField("durations", "google.protobuf.Duration"),
+                repeatedWktField("timestamps", "google.protobuf.Timestamp"),
+                repeatedWktField("masks", "google.protobuf.FieldMask"),
+                repeatedWktField("empties", "google.protobuf.Empty")),
+            List.of(),
+            List.of(),
+            List.of(),
+            false,
+            null,
+            List.of(),
+            null);
+
+    String out =
+        AvroConverterSourceMapping.generate(
+            "Sample",
+            "sample.proto",
+            m,
+            "SampleAvro",
+            "bijnagte.recordbuf.fixture.rec",
+            "bijnagte.recordbuf.fixture",
+            registryFor(m),
+            Formatter.IDENTITY);
+
+    assertTrue(
+        out.contains(
+            "s.getDurations().stream().map(v -> v == null ? null : java.time.Duration.ofSeconds("
+                + "v.getSeconds(), v.getNanos() % 1_000_000_000L)).toList()"),
+        out);
+    assertTrue(
+        out.contains("v == null ? null : new ") && out.contains("(v.toSeconds(), v.toNanosPart())"),
+        out);
+    assertTrue(out.contains("FieldMask.of(WktAvroBridge.fieldMaskFromAvro(v.toString()))"), out);
+    assertTrue(out.contains("WktAvroBridge.fieldMaskToAvro(v.paths())"), out);
+    assertTrue(out.contains("b.timestamps(s.getTimestamps())"), out);
+    assertTrue(out.contains("s.setTimestamps(r.timestamps())"), out);
+    assertTrue(out.contains("b.empties(s.getEmpties().stream().map(v -> v == null ? null : "), out);
+    assertFalse(out.contains("s.getDurations().getSeconds()"), out);
+  }
 }
