@@ -169,8 +169,18 @@ public final class InteropSourceMapping {
                   f.type())));
       return out;
     }
+    if (f.kind() == FieldKind.ENUM && f.isRepeated()) {
+      out.add(
+          LocalVar.builder(f.type(), "_" + f.javaName())
+              .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)));
+      out.add(
+          For.enhanced("var _e", "x.get@0ValueList()", cap)
+              .body(Element.expr("_@0.add(@1.forNumber(_e))", f.javaName(), enumElementType(f)))
+              .build());
+      return out;
+    }
     if (f.kind() == FieldKind.ENUM) {
-      out.add(Element.expr("var _@0 = @1", f.javaName(), fromExpr(f)));
+      out.add(Element.expr("var _@0 = @1", f.javaName(), singularEnumFrom(f)));
       return out;
     }
     if (f.isRepeated()) {
@@ -202,10 +212,22 @@ public final class InteropSourceMapping {
     return out;
   }
 
+  /**
+   * A singular enum's record value. proto3 has no enum presence, so the default 0 reads as absent
+   * (null); an explicit {@code optional} enum has presence, so its set 0 is the zero constant.
+   */
+  private static Formattable singularEnumFrom(Field f) {
+    String cap = JavaNames.protobufJavaAccessor(f.name());
+    if (f.isNullable()) {
+      return RawExpr.of("x.has@0() ? @1.forNumber(x.get@0Value()) : null", cap, f.type());
+    }
+    return RawExpr.of("x.get@0Value() == 0 ? null : @1.forNumber(x.get@0Value())", cap, f.type());
+  }
+
   private static Formattable fromExpr(Field f) {
     String cap = JavaNames.protobufJavaAccessor(f.name());
     if (f.kind() == FieldKind.ENUM) {
-      return RawExpr.of("@0.forNumber(x.get@1().getNumber())", recordSiblingFqn(f), cap);
+      return RawExpr.of("@0.forNumber(x.get@1Value())", f.type(), cap);
     }
     if ("bytes".equals(f.typeUrl())) {
       return RawExpr.of("x.get@0().toByteArray()", cap);
@@ -224,15 +246,15 @@ public final class InteropSourceMapping {
             .param(rec, "r")
             .body(Element.expr("var _b = @0.newBuilder()", ref));
     for (Field f : m.fields()) {
-      method.body(toStmt(f, ref.pkg()));
+      method.body(toStmt(f));
     }
     for (Oneof o : m.oneofs()) {
-      method.body(emitOneofTo(o, ref.pkg()));
+      method.body(emitOneofTo(o));
     }
     return method.body(Element.ret("_b.build()")).build();
   }
 
-  private static Element toStmt(Field f, String refPkg) {
+  private static Element toStmt(Field f) {
     String cap = JavaNames.protobufJavaAccessor(f.name());
     final Element out;
     String src = "r." + f.javaName() + "()";
@@ -259,6 +281,20 @@ public final class InteropSourceMapping {
                   Element.expr("var @0 = @1", local, src),
                   Element.expr("_b.set@0(@1.Interop.to(@2))", cap, recSib, local))
               .build();
+    } else if (f.kind() == FieldKind.ENUM && f.isRepeated()) {
+      out =
+          For.enhanced("var _e", src)
+              .body(Element.expr("_b.add@0Value(_e.getNumber())", cap))
+              .build();
+    } else if (f.kind() == FieldKind.ENUM) {
+      // Use a local variable so NullAway can track the non-null guard
+      String local = "n" + cap;
+      out =
+          If.condition("@0 != null", src)
+              .body(
+                  Element.expr("var @0 = @1", local, src),
+                  Element.expr("_b.set@0Value(@1.getNumber())", cap, local))
+              .build();
     } else if (f.isRepeated()) {
       if ("bytes".equals(f.typeUrl())) {
         out =
@@ -272,19 +308,15 @@ public final class InteropSourceMapping {
       }
 
     } else {
-      out = toSetStatement(f, src, refPkg);
+      out = toSetStatement(f, src);
     }
     return out;
   }
 
-  private static Element toSetStatement(Field f, String src, String refPkg) {
+  private static Element toSetStatement(Field f, String src) {
     String cap = JavaNames.protobufJavaAccessor(f.name());
     if (f.kind() == FieldKind.ENUM) {
-      String refEnum =
-          refPkg.isEmpty()
-              ? JavaNames.cap(lastSegment(f.typeUrl()))
-              : refPkg + "." + JavaNames.cap(lastSegment(f.typeUrl()));
-      return Element.expr("_b.set@0(@1.forNumber(@2.getNumber()))", cap, refEnum, src);
+      return Element.expr("_b.set@0Value(@1.getNumber())", cap, src);
     }
     if ("bytes".equals(f.typeUrl())) {
       return Element.expr(
@@ -314,7 +346,7 @@ public final class InteropSourceMapping {
         .assigned(sw.build());
   }
 
-  private static List<Element> emitOneofTo(Oneof o, String refPkg) {
+  private static List<Element> emitOneofTo(Oneof o) {
     String iface = o.ifaceName();
     Switch.Builder sw = Switch.on("r.@0()", o.componentName());
     // The null arm: an empty body auto-braces to `case null -> {}`.
@@ -328,7 +360,7 @@ public final class InteropSourceMapping {
         String recSib = recordSiblingFqn(f);
         sw.caseArm(pattern, Element.expr("_b.set@0(@1.Interop.to(v.value()))", cap, recSib));
       } else {
-        sw.caseArm(pattern, toSetStatement(f, "v.value()", refPkg));
+        sw.caseArm(pattern, toSetStatement(f, "v.value()"));
       }
     }
     return List.of(sw.build());
@@ -339,6 +371,14 @@ public final class InteropSourceMapping {
   /** The record sibling short name from the field's typeUrl last segment. */
   private static String recordSiblingFqn(Field f) {
     return JavaNames.cap(lastSegment(f.typeUrl()));
+  }
+
+  /**
+   * The record-side enum type of an enum field: the field's own type, or the element type of a
+   * repeated field's {@code List}. Taken from the model, so a nested enum resolves to its owner.
+   */
+  private static TypeRef enumElementType(Field f) {
+    return f.isRepeated() ? ((TypeRef.Named) f.type()).generics().get(0) : f.type();
   }
 
   private static String lastSegment(String fqn) {

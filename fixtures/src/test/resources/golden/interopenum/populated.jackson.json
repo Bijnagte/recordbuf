@@ -1,0 +1,9 @@
+{
+  "singularColor" : "GREEN",
+  "singularKind" : "BETA",
+  "repeatedKinds" : [ ],
+  "repeatedColors" : [ ],
+  "unpackedKinds" : [ "ALPHA", "NEG", "KIND_ZERO" ],
+  "choiceType" : "picked",
+  "picked" : "NEG"
+}

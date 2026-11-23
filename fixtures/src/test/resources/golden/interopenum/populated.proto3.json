@@ -1,0 +1,6 @@
+{
+  "singularColor": "GREEN",
+  "singularKind": "BETA",
+  "unpackedKinds": ["ALPHA", "NEG", "KIND_ZERO"],
+  "picked": "NEG"
+}
