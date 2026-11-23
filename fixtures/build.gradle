@@ -257,10 +257,9 @@ test {
     jvmArgs '-Dorg.apache.avro.SERIALIZABLE_PACKAGES=bijnagte.recordbuf.fixture'
 }
 
-// U1 (2026-11-23-001, KTD10): coverage over the fixtures test run, report-only (the verification
-// rule is a later unit). Scope = the hand-written runtime / json / avro module classes plus the
-// recordbuf-generated `.rec` output of THIS module. Everything else that lands in fixtures'
-// main classes is out: the protobuf-java reference, the Avro SpecificCompiler records
+// U1 (2026-11-23-001, KTD10): coverage over the fixtures test run. Scope = the hand-written
+// runtime / json / avro module classes plus the recordbuf-generated `.rec` output of THIS module.
+// Everything else that lands in fixtures' main classes is out: the protobuf-java reference, the Avro SpecificCompiler records
 // (*Avro, RecordbufUnknownField, RecordbufOneofValue, RecordbufDynamicWkt, avro/wkt) and
 // recordbuf.RecordbufOptions all compile into the un-suffixed natural packages, while every
 // recordbuf `.rec` class lives under a `rec` package -- so including only `**/rec/**` from the
@@ -272,15 +271,19 @@ jacoco {
 
 def coveredModules = [':recordbuf-runtime', ':recordbuf-json', ':recordbuf-avro']
 
+// U2 (2026-11-23-001, KTD10): this one scope is a single FileCollection shared by jacocoTestReport and
+// jacocoTestCoverageVerification, so the gate measures exactly what the report shows.
+def coveredClassDirectories = files(
+    files(coveredModules.collect { path ->
+        { -> project(path).sourceSets.main.output.classesDirs }
+    }),
+    files(sourceSets.main.output.classesDirs).asFileTree.matching { include '**/rec/**' }
+)
+
 tasks.named('jacocoTestReport', JacocoReport).configure {
     // Run after `test` on every build; the report reads the exec data the test task wrote.
     dependsOn tasks.named('test')
-    classDirectories.setFrom(
-        files(coveredModules.collect { path ->
-            { -> project(path).sourceSets.main.output.classesDirs }
-        }),
-        files(sourceSets.main.output.classesDirs).asFileTree.matching { include '**/rec/**' }
-    )
+    classDirectories.setFrom(coveredClassDirectories)
     sourceDirectories.setFrom(
         files(coveredModules.collect { path ->
             { -> project(path).sourceSets.main.java.srcDirs }
@@ -291,6 +294,34 @@ tasks.named('jacocoTestReport', JacocoReport).configure {
         xml.required = true
         html.required = true
     }
+}
+
+// U2 (2026-11-23-001, KTD10): the gate minimums are the PRE-RESTRUCTURE baseline, recorded on
+// 2026-11-23 from the unchanged suite by U1 (jacocoTestReport counters: LINE 2281 covered / 1385
+// missed = 0.6222; BRANCH 833 covered / 669 missed = 0.5545), each floored to 4 decimal places.
+// Lowering either minimum is a plan stop condition: escalate rather than relax the gate.
+tasks.named('jacocoTestCoverageVerification', JacocoCoverageVerification).configure {
+    dependsOn tasks.named('test')
+    classDirectories.setFrom(coveredClassDirectories)
+    violationRules {
+        rule {
+            element = 'BUNDLE'
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 0.6222
+            }
+            limit {
+                counter = 'BRANCH'
+                value = 'COVEREDRATIO'
+                minimum = 0.5545
+            }
+        }
+    }
+}
+
+tasks.named('check').configure {
+    dependsOn tasks.named('jacocoTestCoverageVerification')
 }
 
 tasks.named('test').configure {
