@@ -107,4 +107,13 @@ class JacksonResolutionTest {
           sample, roundTrip(sample, bijnagte.recordbuf.fixture.wellknown.rec.Sample.class));
     }
   }
+
+  /** A missing or null scalar is its proto3 default, as on the wire. */
+  @Test
+  void missingAndNullPrimitivesReadAsTheirDefaults() {
+    Sample defaults = Sample.builder().build();
+
+    assertEquals(defaults, M.readValue("{}", Sample.class));
+    assertEquals(defaults, M.readValue("{\"c\":null,\"i\":null,\"j\":null}", Sample.class));
+  }
 }

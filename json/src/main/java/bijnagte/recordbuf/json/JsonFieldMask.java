@@ -12,18 +12,18 @@ import tools.jackson.databind.ValueDeserializer;
 import tools.jackson.databind.ValueSerializer;
 
 /**
- * The proto3 JSON mapping for {@code google.protobuf.FieldMask}: one string of comma-joined paths,
- * each path's segments in lowerCamelCase ({@code "foo_bar.baz"} &rarr; {@code "fooBar.baz"}).
- * Reading converts each segment back to snake_case before {@link FieldMask#of} normalizes the set.
- * As with protobuf-java's own mapping, a snake_case segment that does not survive the camel round
- * trip (e.g. an underscore before a digit) is not representable. Registered per field by generated
- * records and in {@link RecordbufJsonModule}.
+ * The JSON mapping for {@code google.protobuf.FieldMask}: an array of paths, each path's segments
+ * in lowerCamelCase -- the generated records' JSON property names ({@code "user.display_name"}
+ * &rarr; {@code "user.displayName"}). Reading converts each segment back to snake_case before
+ * {@link FieldMask#of} normalizes the set. A snake_case segment that does not survive the camel
+ * round trip (an underscore before a digit or another underscore) is not representable. Registered
+ * per field by generated records and in {@link RecordbufJsonModule}.
  */
 public final class JsonFieldMask {
 
   private JsonFieldMask() {}
 
-  /** Serializes a {@link FieldMask} as its proto3 JSON string. */
+  /** Serializes a {@link FieldMask} as an array of lowerCamel paths. */
   public static final class Serializer extends ValueSerializer<FieldMask> {
     /** Creates the serializer. */
     public Serializer() {}
@@ -35,11 +35,15 @@ public final class JsonFieldMask {
 
     @Override
     public void serialize(FieldMask value, JsonGenerator gen, SerializationContext serializers) {
-      gen.writeString(toJson(value));
+      gen.writeStartArray();
+      for (String path : jsonPaths(value)) {
+        gen.writeString(path);
+      }
+      gen.writeEndArray();
     }
   }
 
-  /** Reads a {@link FieldMask} from its proto3 JSON string. */
+  /** Reads a {@link FieldMask} from an array of lowerCamel (or snake_case) path strings. */
   public static final class Deserializer extends ValueDeserializer<FieldMask> {
     /** Creates the deserializer. */
     public Deserializer() {}
@@ -51,26 +55,44 @@ public final class JsonFieldMask {
 
     @Override
     public FieldMask deserialize(JsonParser p, DeserializationContext ctxt) {
-      if (!p.hasToken(JsonToken.VALUE_STRING)) {
+      if (!p.hasToken(JsonToken.START_ARRAY)) {
         return (FieldMask) ctxt.handleUnexpectedToken(FieldMask.class, p);
       }
-      return fromJson(p.getString());
+      List<String> paths = new ArrayList<>();
+      while (p.nextToken() != JsonToken.END_ARRAY) {
+        if (!p.hasToken(JsonToken.VALUE_STRING)) {
+          return (FieldMask) ctxt.handleUnexpectedToken(FieldMask.class, p);
+        }
+        paths.add(p.getString());
+      }
+      return fromJsonPaths(paths);
     }
   }
 
-  /** The proto3 JSON string for a mask: comma-joined, lowerCamelCase paths. */
-  static String toJson(FieldMask mask) {
+  /**
+   * The mask's paths as JSON paths: each segment in lowerCamelCase, in the mask's canonical order.
+   *
+   * @param mask the mask
+   * @return the JSON paths
+   */
+  public static List<String> jsonPaths(FieldMask mask) {
     List<String> camel = new ArrayList<>();
     for (String path : mask.paths()) {
       camel.add(snakeToCamel(path));
     }
-    return String.join(",", camel);
+    return camel;
   }
 
-  /** The mask a proto3 JSON string names; an empty string is the empty mask. */
-  static FieldMask fromJson(String json) {
+  /**
+   * The mask the JSON paths name (the inverse of {@link #jsonPaths}): each segment back to
+   * snake_case, then normalized by {@link FieldMask#of}.
+   *
+   * @param jsonPaths lowerCamel (or already snake_case) paths
+   * @return the mask
+   */
+  public static FieldMask fromJsonPaths(List<String> jsonPaths) {
     List<String> paths = new ArrayList<>();
-    for (String path : json.split(",", -1)) {
+    for (String path : jsonPaths) {
       paths.add(camelToSnake(path.strip()));
     }
     return FieldMask.of(paths);

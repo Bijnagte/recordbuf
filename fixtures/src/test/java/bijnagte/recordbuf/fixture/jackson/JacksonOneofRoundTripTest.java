@@ -13,12 +13,15 @@ import bijnagte.recordbuf.fixture.jackson.oneof.rec.EventAvroConverter;
 import bijnagte.recordbuf.fixture.oneof.rec.Color;
 import bijnagte.recordbuf.fixture.oneof.rec.Compat;
 import bijnagte.recordbuf.fixture.oneof.rec.Sub;
+import bijnagte.recordbuf.json.JsonFieldMaskFilter;
 import bijnagte.recordbuf.runtime.Bytes;
+import bijnagte.recordbuf.runtime.FieldMask;
 import java.time.Instant;
 import java.util.List;
 import org.apache.avro.util.ClassSecurityValidator;
 import org.junit.jupiter.api.Test;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -128,5 +131,16 @@ class JacksonOneofRoundTripTest {
 
       assertEquals(event, EventAvroConverter.toRecord(EventAvro.fromByteBuffer(binary)));
     }
+  }
+
+  /** Masking a oneof member keeps it without the discriminator, which is optional on read. */
+  @Test
+  void aMaskedOneofMemberReadsBackWithoutItsDiscriminator() {
+    Compat compat = compat(new Compat.Choice.NameValue("blue"));
+
+    JsonNode projected = JsonFieldMaskFilter.filter(M.valueToTree(compat), FieldMask.of("name"));
+
+    assertEquals(M.readTree("{\"name\":\"blue\"}"), projected);
+    assertEquals(compat, M.treeToValue(projected, Compat.class));
   }
 }

@@ -7,9 +7,8 @@ import tools.jackson.databind.module.SimpleModule;
 
 /**
  * The recordbuf Jackson module: registers the proto3 JSON mappings for the runtime value types —
- * {@link Bytes} as a base64 string ({@link JsonBytes}), {@link FieldMask} as its comma-joined
- * lowerCamel path string ({@link JsonFieldMask}), and {@link Empty} as {@code {}} ({@link
- * JsonEmpty}).
+ * {@link Bytes} as a base64 string ({@link JsonBytes}), {@link FieldMask} as an array of its
+ * lowerCamel paths ({@link JsonFieldMask}), and {@link Empty} as {@code {}} ({@link JsonEmpty}).
  *
  * <p>It is listed in {@code META-INF/services/tools.jackson.databind.JacksonModule}, so Jackson 3's
  * opt-in service discovery ({@code JsonMapper.builder().findAndAddModules()}) picks it up; it can

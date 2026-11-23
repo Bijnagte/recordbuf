@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import bijnagte.recordbuf.fixture.JsonGolden;
 import bijnagte.recordbuf.fixture.jackson.full.rec.Full;
 import bijnagte.recordbuf.fixture.jackson.full.rec.Inner;
+import bijnagte.recordbuf.json.JsonFieldMaskFilter;
 import bijnagte.recordbuf.runtime.Bytes;
 import bijnagte.recordbuf.runtime.Empty;
 import bijnagte.recordbuf.runtime.FieldMask;
@@ -119,7 +120,7 @@ class JacksonRoundTripTest {
 
     String json = M.writeValueAsString(sample);
 
-    // FieldMask: the camelCase path string; Empty: {}; BytesValue: base64.
+    // FieldMask: an array of camelCase paths; Empty: {}; BytesValue: base64.
     JsonGolden.assertMatches("jackson/wellknown-sample.json", json);
     assertEquals(sample, M.readValue(json, bijnagte.recordbuf.fixture.wellknown.rec.Sample.class));
   }
@@ -133,5 +134,19 @@ class JacksonRoundTripTest {
 
     JsonGolden.assertMatches("jackson/wellknown-sparse.json", json);
     assertEquals(sample, M.readValue(json, bijnagte.recordbuf.fixture.wellknown.rec.Sample.class));
+  }
+
+  /** A field mask projects a record's JSON; the projection reads back as a partial record. */
+  @Test
+  void aFieldMaskProjectsTheRecordJson() throws Exception {
+    JsonNode projected =
+        JsonFieldMaskFilter.filter(
+            M.valueToTree(full()), FieldMask.of("name", "inner.label", "canonical_span"));
+
+    JsonGolden.assertMatches("jackson/full-masked.json", M.writeValueAsString(projected));
+    Full partial = M.treeToValue(projected, Full.class);
+    assertEquals("in", partial.inner() == null ? null : partial.inner().label());
+    assertEquals(full().canonicalSpan(), partial.canonicalSpan());
+    assertEquals(0L, partial.count(), "an unmasked field reads back as its default");
   }
 }

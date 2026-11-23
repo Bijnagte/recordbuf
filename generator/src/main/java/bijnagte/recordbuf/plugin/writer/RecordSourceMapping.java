@@ -409,10 +409,10 @@ public final class RecordSourceMapping {
   /**
    * Attach the proto3 JSON (de)serializer pair for a runtime value type to a field on a jackson
    * file: {@code JsonBytes} (base64) for a {@code bytes}-family field (scalar {@code bytes} or
-   * {@code google.protobuf.BytesValue}), {@code JsonFieldMask} (comma-joined lowerCamel paths) for
-   * a {@code FieldMask}, {@code JsonEmpty} ({@code {}}) for an {@code Empty} — singular, repeated,
-   * or as a map value. A singular field sets {@code using} + {@code contentUsing}; a repeated or
-   * map field sets {@code contentUsing} only (its elements / values), as for temporals.
+   * {@code google.protobuf.BytesValue}), {@code JsonFieldMask} (an array of lowerCamel paths) for a
+   * {@code FieldMask}, {@code JsonEmpty} ({@code {}}) for an {@code Empty} — singular, repeated, or
+   * as a map value. A singular field sets {@code using} + {@code contentUsing}; a repeated or map
+   * field sets {@code contentUsing} only (its elements / values), as for temporals.
    */
   private static void runtimeValueAnnotation(Component.Builder comp, Field f, boolean jackson) {
     runtimeValueAnnotations(f, jackson).forEach(comp::annotation);
@@ -474,6 +474,17 @@ public final class RecordSourceMapping {
           Annotation.of(
               TypeRef.of("com.fasterxml.jackson.annotation.JsonProperty"),
               Arg.of(null, f.jsonName())));
+      if (f.type() instanceof TypeRef.Primitive) {
+        // A missing or null primitive is its proto3 default (0 / false): Jackson 3 otherwise fails
+        // it (FAIL_ON_NULL_FOR_PRIMITIVES is on by default), so partial JSON could not be read.
+        comp.annotation(
+            Annotation.of(
+                TypeRef.of("com.fasterxml.jackson.annotation.JsonSetter"),
+                Arg.of(
+                    "nulls",
+                    new ArgValue.Ref(
+                        TypeRef.named("com.fasterxml.jackson.annotation", "Nulls"), ".AS_EMPTY"))));
+      }
     }
   }
 
