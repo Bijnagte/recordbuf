@@ -15,12 +15,12 @@ import java.util.List;
  * which renders as an empty object. Every format that applies to {@code Sample} is a golden here.
  *
  * <p>The proto3 JSON format is not applicable: it crosses to protobuf-java through the generated
- * {@code Interop} converter, and {@code Sample} cannot carry {@code (recordbuf.protobuf_java)}
- * because the converter does not compile for its singular enum field {@code kind} (it dereferences
- * the {@code @Nullable} enum, which NullAway rejects, and would map an absent enum to the zero
- * value). So the protobuf canonical JSON goldens, {@code probe.proto3.json} and {@code
- * probe-empty.proto3.json}, are checked structurally by {@code ProtoCanonicalJsonTest}, through the
- * record's wire codec instead.
+ * {@code Interop} converter, and {@code Sample} does not carry {@code (recordbuf.protobuf_java)}.
+ * It was kept off because the converter used to fail on its singular enum field {@code kind}; the
+ * converter now handles singular enums, and putting {@code Sample} on Interop is follow-up work
+ * (plan 2026-11-23-002). So the protobuf canonical JSON goldens, {@code probe.proto3.json} and
+ * {@code probe-empty.proto3.json}, are checked structurally by {@code ProtoCanonicalJsonTest},
+ * through the record's wire codec instead.
  */
 public final class CanonicalFormatCases extends JacksonGoldenCases {
 
