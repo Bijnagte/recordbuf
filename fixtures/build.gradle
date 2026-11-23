@@ -256,6 +256,8 @@ tasks.named("compileTestJava", JavaCompile).configure {
 test {
     useJUnitPlatform()
     outputs.upToDateWhen { false }
+    // U11 (2026-11-23-001, KTD7): GapLedgerTest scans the vendored protos for GAP(<id>) markers.
+    systemProperty 'recordbuf.fixtures.protoDir', file('src/main/proto').absolutePath
     // Avro 1.11+ ClassSecurityValidator: generated specific record classes must be
     // explicitly trusted for binary write/read via SpecificDatumWriter/Reader.
     // The fixture package is safe to trust in a test environment.
