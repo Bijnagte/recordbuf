@@ -3,29 +3,27 @@ package bijnagte.recordbuf.fixture.jackson;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import bijnagte.recordbuf.fixture.JsonGolden;
+import bijnagte.recordbuf.fixture.golden.GoldenMatrix;
+import bijnagte.recordbuf.fixture.golden.GoldenStore;
 import bijnagte.recordbuf.fixture.jackson.avro.DynAvro;
 import bijnagte.recordbuf.fixture.jackson.avro.rec.Dyn;
 import bijnagte.recordbuf.fixture.jackson.avro.rec.DynAvroConverter;
 import bijnagte.recordbuf.fixture.jackson.full.rec.Full;
-import bijnagte.recordbuf.json.DynamicWkt;
-import com.google.protobuf.Any;
-import com.google.protobuf.ByteString;
-import com.google.protobuf.Struct;
-import com.google.protobuf.Value;
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.stream.Stream;
 import org.apache.avro.io.EncoderFactory;
 import org.apache.avro.io.JsonEncoder;
 import org.apache.avro.specific.SpecificDatumWriter;
 import org.apache.avro.util.ClassSecurityValidator;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DynamicNode;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestFactory;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
-import tools.jackson.databind.node.ArrayNode;
-import tools.jackson.databind.node.ObjectNode;
 
 /**
  * AE4a-c (2026-11-21-004 U10): node-typed dynamic WKT fields round-trip as nodes through the mapper
@@ -37,6 +35,8 @@ import tools.jackson.databind.node.ObjectNode;
 class JacksonDynamicWktTest {
 
   private static final JsonMapper M = new JsonMapper();
+
+  private static final JacksonDynamicWktCases SOURCE = new JacksonDynamicWktCases();
 
   private static final String STRUCT_URL = "type.googleapis.com/google.protobuf.Struct";
 
@@ -50,47 +50,27 @@ class JacksonDynamicWktTest {
     ClassSecurityValidator.setGlobal(b.build());
   }
 
-  /** An Any packing a Struct: rendered with its value as the Struct's node. */
   private static JsonNode structAny() {
-    Struct struct =
-        Struct.newBuilder().putFields("k", Value.newBuilder().setStringValue("v").build()).build();
-    return DynamicWkt.any(Any.pack(struct));
+    return JacksonDynamicWktCases.structAny();
   }
 
-  /** An Any packing an unknown type: rendered with its value as the payload's base64. */
   private static JsonNode opaqueAny() {
-    return DynamicWkt.any(
-        Any.newBuilder()
-            .setTypeUrl("type.googleapis.com/com.example.Opaque")
-            .setValue(ByteString.copyFrom(new byte[] {8, (byte) 150, 1}))
-            .build());
+    return JacksonDynamicWktCases.opaqueAny();
   }
 
   private static Dyn dyn(JsonNode payload) {
-    return Dyn.builder()
-        .name("d")
-        .value(M.readTree("{\"k\":[1.5,\"x\",null]}"))
-        .doc((ObjectNode) M.readTree("{\"a\":{\"b\":true}}"))
-        .items((ArrayNode) M.readTree("[2.25]"))
-        .payload(payload)
-        .values(List.of(M.readTree("\"s\""), M.readTree("[]")))
-        .build();
-  }
-
-  @Test
-  void dynRendersItsNodesAndAnyAsJson() throws Exception {
-    JsonGolden.assertMatches("jackson/dyn-struct-any.json", M.writeValueAsString(dyn(structAny())));
-    JsonGolden.assertMatches("jackson/dyn-opaque-any.json", M.writeValueAsString(dyn(opaqueAny())));
+    return JacksonDynamicWktCases.dyn(payload);
   }
 
   /**
-   * The same test data, through the Avro bridge: record -> {@link DynAvro} specific record (the
-   * generated converter) -> canonical Avro JSON, avro's official {@link JsonEncoder} output --
-   * members in schema order. The U9 envelope appears as its {format, contentType, payload} triple:
-   * the node content is a JSON-escaped string member. The committed goldens are jq-formatted for
-   * readability, so the comparison is a JSON tree (values and array order; whitespace is not part
-   * of what is asserted). The Full family has no Avro bridge, so only the dyn data gets this view.
+   * The nodes and the {@code Any} render as JSON (the {@code jackson-dyn} family's Jackson
+   * goldens), and the same records have Avro binary and canonical Avro JSON goldens there too.
    */
+  @TestFactory
+  Stream<DynamicNode> dynCases_matchTheirGoldensForwardAndReverse() {
+    return GoldenMatrix.of(GoldenStore.classpath(), SOURCE.formats()).tests(SOURCE.cases());
+  }
+
   @Test
   void dynSerializesToCanonicalAvroJsonThroughTheConverter() throws Exception {
     JsonGolden.assertMatches(

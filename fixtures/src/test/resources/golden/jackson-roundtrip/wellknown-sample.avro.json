@@ -1,0 +1,44 @@
+{
+  "at" : {
+    "long" : 1763614896789000
+  },
+  "span" : {
+    "bijnagte.recordbuf.avro.wkt.Duration" : {
+      "seconds" : -2,
+      "nanos" : 500000000
+    }
+  },
+  "mask" : {
+    "string" : "id,user.display_name"
+  },
+  "i32" : {
+    "int" : 7
+  },
+  "i64" : {
+    "long" : -8
+  },
+  "dbl" : {
+    "double" : 1.5
+  },
+  "flt" : {
+    "float" : 2.5
+  },
+  "flag" : {
+    "boolean" : false
+  },
+  "text" : {
+    "string" : "t"
+  },
+  "blob" : {
+    "bytes" : "\t"
+  },
+  "empty" : {
+    "bijnagte.recordbuf.avro.wkt.Empty" : { }
+  },
+  "whens" : [ {
+    "long" : 0
+  }, {
+    "long" : 1763614896789000
+  } ],
+  "unknownFields" : [ ]
+}

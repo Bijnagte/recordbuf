@@ -6,20 +6,22 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import bijnagte.recordbuf.fixture.JsonGolden;
+import bijnagte.recordbuf.fixture.golden.GoldenMatrix;
+import bijnagte.recordbuf.fixture.golden.GoldenStore;
 import bijnagte.recordbuf.fixture.jackson.oneof.EventAvro;
 import bijnagte.recordbuf.fixture.jackson.oneof.rec.Event;
 import bijnagte.recordbuf.fixture.jackson.oneof.rec.EventAvroConverter;
-import bijnagte.recordbuf.fixture.oneof.rec.Color;
 import bijnagte.recordbuf.fixture.oneof.rec.Compat;
-import bijnagte.recordbuf.fixture.oneof.rec.Sub;
 import bijnagte.recordbuf.json.JsonFieldMaskFilter;
 import bijnagte.recordbuf.runtime.Bytes;
 import bijnagte.recordbuf.runtime.FieldMask;
 import java.time.Instant;
 import java.util.List;
+import java.util.stream.Stream;
 import org.apache.avro.util.ClassSecurityValidator;
+import org.junit.jupiter.api.DynamicNode;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestFactory;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -34,46 +36,43 @@ class JacksonOneofRoundTripTest {
 
   private static final JsonMapper M = new JsonMapper();
 
+  private static final JacksonOneofCases SOURCE = new JacksonOneofCases();
+
   private static Compat compat(Compat.Choice choice) {
     return Compat.builder().choice(choice).build();
   }
 
-  private static void assertRoundTrip(String golden, Object record) throws Exception {
-    String json = M.writeValueAsString(record);
-    JsonGolden.assertMatches(golden, json);
-    assertEquals(record, M.readValue(json, record.getClass()));
+  private static void assertRoundTrip(Object record) throws Exception {
+    assertEquals(record, M.readValue(M.writeValueAsString(record), record.getClass()));
+  }
+
+  /**
+   * Every member renders flat with its discriminator, an unset oneof renders neither, and the
+   * overridden discriminator ({@code json_oneof = "kind"}) and the paired Timestamp and bytes
+   * members render as their Jackson goldens in the {@code jackson-oneof} family.
+   */
+  @TestFactory
+  Stream<DynamicNode> oneofCases_matchTheirGoldensForwardAndReverse() {
+    return GoldenMatrix.of(GoldenStore.classpath(), SOURCE.formats()).tests(SOURCE.cases());
   }
 
   @Test
-  void eachMemberRendersFlatWithItsDiscriminator() throws Exception {
-    assertRoundTrip("oneof/compat-name.json", compat(new Compat.Choice.NameValue("blue")));
-    assertRoundTrip("oneof/compat-count.json", compat(new Compat.Choice.CountValue(3)));
-    assertRoundTrip(
-        "oneof/compat-item.json",
-        compat(new Compat.Choice.ItemValue(Sub.builder().text("t").build())));
-    assertRoundTrip("oneof/compat-color.json", compat(new Compat.Choice.ColorValue(Color.RED)));
+  void eachMemberRoundTripsThroughThePlainMapper() throws Exception {
+    assertRoundTrip(JacksonOneofCases.compatName());
+    assertRoundTrip(JacksonOneofCases.compatCount());
+    assertRoundTrip(JacksonOneofCases.compatItem());
+    assertRoundTrip(JacksonOneofCases.compatColor());
   }
 
   @Test
-  void unsetOneofRendersNeitherProperty() throws Exception {
-    assertRoundTrip("oneof/compat-unset.json", Compat.builder().build());
+  void unsetOneofRoundTripsThroughThePlainMapper() throws Exception {
+    assertRoundTrip(JacksonOneofCases.compatUnset());
   }
 
   @Test
-  void overriddenDiscriminatorAndPairedMembers() throws Exception {
-    // json_oneof = "kind"; a Timestamp member renders ISO, a bytes member base64.
-    assertRoundTrip(
-        "oneof/event-at.json",
-        Event.builder()
-            .id(7)
-            .when(new Event.When.AtValue(Instant.ofEpochSecond(1_763_614_896L, 789_000_000)))
-            .build());
-    assertRoundTrip(
-        "oneof/event-blob.json",
-        Event.builder()
-            .id(7)
-            .when(new Event.When.BlobValue(Bytes.of(new byte[] {1, 2, 3})))
-            .build());
+  void overriddenDiscriminatorAndPairedMembersRoundTripThroughThePlainMapper() throws Exception {
+    assertRoundTrip(JacksonOneofCases.eventAt());
+    assertRoundTrip(JacksonOneofCases.eventBlob());
   }
 
   @Test

@@ -1,0 +1,11 @@
+{
+  "choice" : {
+    "bijnagte.recordbuf.fixture.oneof.RecordbufOneofValue" : {
+      "tag" : 4,
+      "value" : {
+        "int" : 1
+      }
+    }
+  },
+  "unknownFields" : [ ]
+}

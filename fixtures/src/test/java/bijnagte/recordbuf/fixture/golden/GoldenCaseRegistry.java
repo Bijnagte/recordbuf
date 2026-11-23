@@ -1,6 +1,11 @@
 package bijnagte.recordbuf.fixture.golden;
 
 import bijnagte.recordbuf.fixture.corpus.TestAllTypesCorpusCases;
+import bijnagte.recordbuf.fixture.jackson.JacksonDynamicWktCases;
+import bijnagte.recordbuf.fixture.jackson.JacksonKnobsCases;
+import bijnagte.recordbuf.fixture.jackson.JacksonOneofCases;
+import bijnagte.recordbuf.fixture.jackson.JacksonRoundTripCases;
+import bijnagte.recordbuf.fixture.jacksonformat.JacksonFormatCases;
 import java.util.List;
 
 /**
@@ -13,6 +18,13 @@ public final class GoldenCaseRegistry {
 
   /** Returns every registered case source, in the order the seeder walks them. */
   public static List<GoldenCaseSource> sources() {
-    return List.of(new AdapterGoldenCases(), new TestAllTypesCorpusCases());
+    return List.of(
+        new AdapterGoldenCases(),
+        new TestAllTypesCorpusCases(),
+        new JacksonRoundTripCases(),
+        new JacksonDynamicWktCases(),
+        new JacksonOneofCases(),
+        new JacksonFormatCases(),
+        new JacksonKnobsCases());
   }
 }

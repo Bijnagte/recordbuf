@@ -1,6 +1,6 @@
 {
+  "choiceType" : "item",
   "item" : {
     "text" : "t"
-  },
-  "choiceType" : "item"
+  }
 }

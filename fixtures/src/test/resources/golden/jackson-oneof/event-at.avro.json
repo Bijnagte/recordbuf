@@ -1,0 +1,12 @@
+{
+  "id" : 7,
+  "when" : {
+    "bijnagte.recordbuf.fixture.jackson.oneof.RecordbufOneofValue" : {
+      "tag" : 2,
+      "value" : {
+        "long" : 1763614896789000
+      }
+    }
+  },
+  "unknownFields" : [ ]
+}

@@ -117,6 +117,22 @@ public final class GoldenCase {
     }
 
     /**
+     * Declares every format of {@code formats} that has no outcome yet: lossless where the format
+     * applies to the record, not applicable, with the format's own reason, where it does not. A
+     * format declared before this call keeps its outcome.
+     */
+    public Builder otherwiseLosslessWhereApplicable(Collection<? extends GoldenFormat> formats) {
+      for (GoldenFormat format : formats) {
+        if (outcomes.containsKey(format)) {
+          continue;
+        }
+        Optional<String> reason = format.notApplicableReason(record);
+        declare(format, reason.isPresent() ? new NotApplicable(reason.get()) : new Lossless());
+      }
+      return this;
+    }
+
+    /**
      * Builds the case against the formats of the suite.
      *
      * @throws IllegalStateException if a format has no outcome, an outcome names a format outside

@@ -210,6 +210,24 @@ class GoldenMatrixTest {
   }
 
   @Test
+  void otherwiseLosslessWhereApplicable_declaresTheRestFromTheFormatsOwnRules() {
+    GoldenCase applicable =
+        GoldenCase.builder("pts", "a", new Point(1, 2))
+            .expectedAfterTrip(binary, new Point(1, 0))
+            .otherwiseLosslessWhereApplicable(formats)
+            .build(formats);
+    GoldenCase origin =
+        GoldenCase.builder("pts", "origin", new Point(0, 0))
+            .otherwiseLosslessWhereApplicable(formats)
+            .build(formats);
+
+    assertEquals(new GoldenCase.Lossless(), applicable.outcomeFor(json));
+    assertEquals(new GoldenCase.ExpectedAfterTrip(new Point(1, 0)), applicable.outcomeFor(binary));
+    assertEquals(new GoldenCase.NotApplicable("origin has no JSON"), origin.outcomeFor(json));
+    assertEquals(new GoldenCase.Lossless(), origin.outcomeFor(binary));
+  }
+
+  @Test
   void matrix_caseBuiltAgainstOtherFormats_failsAtTestsCall() {
     GoldenCase goldenCase =
         GoldenCase.builder("pts", "a", new Point(1, 2)).lossless(json).build(List.of(json));
