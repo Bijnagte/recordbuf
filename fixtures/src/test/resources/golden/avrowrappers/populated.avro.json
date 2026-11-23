@@ -1,0 +1,48 @@
+{
+  "bools" : [ {
+    "boolean" : true
+  }, {
+    "boolean" : false
+  } ],
+  "int32s" : [ {
+    "int" : 42
+  }, {
+    "int" : -7
+  } ],
+  "uint32s" : [ {
+    "int" : 1
+  }, {
+    "int" : 2147483647
+  } ],
+  "int64s" : [ {
+    "long" : 7
+  }, {
+    "long" : -9
+  } ],
+  "uint64s" : [ {
+    "long" : 1
+  }, {
+    "long" : 9223372036854775807
+  } ],
+  "floats" : [ {
+    "float" : 1.5
+  }, {
+    "float" : -2.25
+  } ],
+  "doubles" : [ {
+    "double" : 3.5
+  }, {
+    "double" : -0.5
+  } ],
+  "strings" : [ {
+    "string" : "héllo 世界"
+  }, {
+    "string" : "x"
+  } ],
+  "blobs" : [ {
+    "bytes" : "Ã©ÿ"
+  }, {
+    "bytes" : ""
+  } ],
+  "unknownFields" : [ ]
+}

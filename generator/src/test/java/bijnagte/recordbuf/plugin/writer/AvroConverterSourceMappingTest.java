@@ -72,6 +72,26 @@ class AvroConverterSourceMappingTest {
         /* jsonIgnored= */ false);
   }
 
+  private static Field repeatedWktField(String name, String typeUrl) {
+    return new Field(
+        name,
+        name,
+        3,
+        FieldLabel.REPEATED,
+        FieldKind.MESSAGE,
+        typeUrl,
+        TypeRefs.LIST.withGenerics(TypeRef.OBJECT),
+        null,
+        null,
+        true,
+        null,
+        null,
+        false,
+        /* jacksonFormat= */ null,
+        "jsonName",
+        /* jsonIgnored= */ false);
+  }
+
   private static AvroRegistry registryFor(Message m) {
     ProtoFile file =
         new ProtoFile(
@@ -342,5 +362,46 @@ class AvroConverterSourceMappingTest {
     assertTrue(out.contains("c.name().contentEquals(v)"), out);
     assertTrue(out.contains("r.kind() == null ? Arrays.stream(Sample.Kind.values())"), out);
     assertFalse(out.contains(".rec.Kind"), out);
+  }
+
+  @Test
+  void repeatedWrapperWktsMapEachElementThroughTheSingularConversion() {
+    // A repeated wrapper is an Avro array of a nullable element, so each element converts with the
+    // wrapper's singular conversion: a CharSequence to a String, a ByteBuffer by its position.
+    Message m =
+        new Message(
+            "Sample",
+            TypeRef.named("bijnagte.recordbuf.fixture", "Sample"),
+            List.of(
+                repeatedWktField("strings", "google.protobuf.StringValue"),
+                repeatedWktField("blobs", "google.protobuf.BytesValue")),
+            List.of(),
+            List.of(),
+            List.of(),
+            false,
+            null,
+            List.of(),
+            null);
+
+    String out =
+        AvroConverterSourceMapping.generate(
+            "Sample",
+            "sample.proto",
+            m,
+            "SampleAvro",
+            "bijnagte.recordbuf.fixture.rec",
+            "bijnagte.recordbuf.fixture",
+            registryFor(m),
+            Formatter.IDENTITY);
+
+    assertTrue(
+        out.contains(
+            "b.strings(s.getStrings().stream().map(v -> v == null ? null : v.toString()).toList())"),
+        out);
+    assertTrue(
+        out.contains("s.setStrings(r.strings().stream().<CharSequence>map(v -> v).toList())"), out);
+    assertTrue(out.contains("s.getBlobs().stream().map(v -> v == null ? null : Bytes.of("), out);
+    assertTrue(out.contains("WktAvroBridge.bytes(v)"), out);
+    assertFalse(out.contains(".array()"), out);
   }
 }
