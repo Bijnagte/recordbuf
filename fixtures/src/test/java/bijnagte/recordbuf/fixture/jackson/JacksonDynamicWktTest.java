@@ -86,15 +86,16 @@ class JacksonDynamicWktTest {
   /**
    * The same test data, through the Avro bridge: record -> {@link DynAvro} specific record (the
    * generated converter) -> canonical Avro JSON, avro's official {@link JsonEncoder} output --
-   * deterministic single-line text with members in schema order, compared exactly. The U9 envelope
-   * appears as its {format, contentType, payload} triple: the node content is a JSON-escaped string
-   * member. (The Full family has no Avro bridge, so only the dyn data gets this view.)
+   * members in schema order. The U9 envelope appears as its {format, contentType, payload} triple:
+   * the node content is a JSON-escaped string member. The committed goldens are jq-formatted for
+   * readability, so the comparison is a JSON tree (values and array order; whitespace is not part
+   * of what is asserted). The Full family has no Avro bridge, so only the dyn data gets this view.
    */
   @Test
   void dynSerializesToCanonicalAvroJsonThroughTheConverter() throws Exception {
-    JsonGolden.assertCanonicalMatches(
+    JsonGolden.assertMatches(
         "jackson/avro/dyn-struct-any.json", canonicalAvroJson(dyn(structAny())));
-    JsonGolden.assertCanonicalMatches(
+    JsonGolden.assertMatches(
         "jackson/avro/dyn-opaque-any.json", canonicalAvroJson(dyn(opaqueAny())));
   }
 

@@ -35,7 +35,9 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <ul>
  *   <li>the generated .avsc schema, in Parsing Canonical Form (fully-qualified names, declaration
- *       order, deduplication by name, no defaults/props), equals a committed golden file exactly;
+ *       order, deduplication by name, no defaults/props), equals a committed golden file as a JSON
+ *       tree -- the file is jq-formatted for readability, so byte-exactness of the canonical form
+ *       itself is pinned by the fingerprint test;
  *   <li>the canonical fingerprint ({@code SHA-256} parsing form) equals a committed golden;
  *   <li>the deterministic binary encoding of one representative record with WKT fields equals a
  *       committed golden file -- the "committed golden" parity AvroInteropTest left as a follow-on
@@ -85,7 +87,7 @@ class AvroCanonicalFormTest {
   @Test
   void canonicalSchemaMatchesCommittedGolden() throws Exception {
     String actual = SchemaFormatter.getInstance("canonical").format(DynAvro.SCHEMA$);
-    JsonGolden.assertCanonicalMatches("avro/dyn-canonical-schema.json", actual);
+    JsonGolden.assertMatches("avro/dyn-canonical-schema.json", actual);
   }
 
   @Test

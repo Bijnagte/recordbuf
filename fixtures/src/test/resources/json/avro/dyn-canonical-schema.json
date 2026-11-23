@@ -1,1 +1,93 @@
-{"name":"bijnagte.recordbuf.fixture.jackson.avro.DynAvro","type":"record","fields":[{"name":"name","type":"string"},{"name":"value","type":["null",{"name":"bijnagte.recordbuf.fixture.jackson.avro.RecordbufDynamicWkt","type":"record","fields":[{"name":"format","type":"string"},{"name":"contentType","type":"string"},{"name":"payload","type":"string"}]}]},{"name":"doc","type":["null","bijnagte.recordbuf.fixture.jackson.avro.RecordbufDynamicWkt"]},{"name":"items","type":["null","bijnagte.recordbuf.fixture.jackson.avro.RecordbufDynamicWkt"]},{"name":"payload","type":["null","bijnagte.recordbuf.fixture.jackson.avro.RecordbufDynamicWkt"]},{"name":"values","type":{"type":"array","items":["null","bijnagte.recordbuf.fixture.jackson.avro.RecordbufDynamicWkt"]}},{"name":"unknownFields","type":{"type":"array","items":{"name":"bijnagte.recordbuf.fixture.jackson.avro.RecordbufUnknownField","type":"record","fields":[{"name":"number","type":"int"},{"name":"wireType","type":"string"},{"name":"value","type":["null","long","bytes"]}]}}}]}
+{
+  "name": "bijnagte.recordbuf.fixture.jackson.avro.DynAvro",
+  "type": "record",
+  "fields": [
+    {
+      "name": "name",
+      "type": "string"
+    },
+    {
+      "name": "value",
+      "type": [
+        "null",
+        {
+          "name": "bijnagte.recordbuf.fixture.jackson.avro.RecordbufDynamicWkt",
+          "type": "record",
+          "fields": [
+            {
+              "name": "format",
+              "type": "string"
+            },
+            {
+              "name": "contentType",
+              "type": "string"
+            },
+            {
+              "name": "payload",
+              "type": "string"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "doc",
+      "type": [
+        "null",
+        "bijnagte.recordbuf.fixture.jackson.avro.RecordbufDynamicWkt"
+      ]
+    },
+    {
+      "name": "items",
+      "type": [
+        "null",
+        "bijnagte.recordbuf.fixture.jackson.avro.RecordbufDynamicWkt"
+      ]
+    },
+    {
+      "name": "payload",
+      "type": [
+        "null",
+        "bijnagte.recordbuf.fixture.jackson.avro.RecordbufDynamicWkt"
+      ]
+    },
+    {
+      "name": "values",
+      "type": {
+        "type": "array",
+        "items": [
+          "null",
+          "bijnagte.recordbuf.fixture.jackson.avro.RecordbufDynamicWkt"
+        ]
+      }
+    },
+    {
+      "name": "unknownFields",
+      "type": {
+        "type": "array",
+        "items": {
+          "name": "bijnagte.recordbuf.fixture.jackson.avro.RecordbufUnknownField",
+          "type": "record",
+          "fields": [
+            {
+              "name": "number",
+              "type": "int"
+            },
+            {
+              "name": "wireType",
+              "type": "string"
+            },
+            {
+              "name": "value",
+              "type": [
+                "null",
+                "long",
+                "bytes"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

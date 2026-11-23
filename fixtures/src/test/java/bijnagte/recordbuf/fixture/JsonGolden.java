@@ -14,13 +14,12 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * <ul>
  *   <li>{@link #assertMatches} -- as a Jackson tree: every value, every property, array order
- *       included; object member order is not significant. For formats whose meaning is the value
- *       content only (the Jackson-surface tests).
+ *       included; object member order is not significant (array element order IS). For formats
+ *       whose meaning is the value content only -- including goldens reformatted for readability.
  *   <li>{@link #assertCanonicalMatches} -- exact text, character for character (a single trailing
  *       newline on the resource is ignored). For CANONICAL formats -- protobuf canonical JSON, Avro
- *       Parsing Canonical Form, or avro's official JSON encoding of a record -- where member order
- *       and number rendering ARE part of the meaning, so a tree comparison would pass for
- *       non-canonical output.
+ *       Parsing Canonical Form -- where member order and number rendering ARE part of the meaning,
+ *       so a tree comparison would pass for non-canonical output.
  * </ul>
  *
  * A mismatch reports both documents (pretty-printed in {@link #assertMatches}, raw text in {@link
