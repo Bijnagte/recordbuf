@@ -18,8 +18,9 @@ import tools.jackson.databind.json.JsonMapper;
  *       content only (the Jackson-surface tests).
  *   <li>{@link #assertCanonicalMatches} -- exact text, character for character (a single trailing
  *       newline on the resource is ignored). For CANONICAL formats -- protobuf canonical JSON, Avro
- *       Parsing Canonical Form -- where member order and number rendering ARE part of the meaning,
- *       so a tree comparison would pass for non-canonical output.
+ *       Parsing Canonical Form, or avro's official JSON encoding of a record -- where member order
+ *       and number rendering ARE part of the meaning, so a tree comparison would pass for
+ *       non-canonical output.
  * </ul>
  *
  * A mismatch reports both documents (pretty-printed in {@link #assertMatches}, raw text in {@link

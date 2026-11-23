@@ -12,8 +12,13 @@ import com.google.protobuf.Any;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Struct;
 import com.google.protobuf.Value;
+import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import org.apache.avro.io.EncoderFactory;
+import org.apache.avro.io.JsonEncoder;
+import org.apache.avro.specific.SpecificDatumWriter;
 import org.apache.avro.util.ClassSecurityValidator;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -26,7 +31,8 @@ import tools.jackson.databind.node.ObjectNode;
  * AE4a-c (2026-11-21-004 U10): node-typed dynamic WKT fields round-trip as nodes through the mapper
  * and the codec; an {@code Any} keeps its payload (structural or opaque base64); and on a Jackson x
  * Avro file the U9 envelope carries the content type and survives record -> Avro binary -> record
- * with every node intact.
+ * with every node intact. The same test data also serializes through the Avro bridge to canonical
+ * Avro JSON (avro's official {@link JsonEncoder}); see the {@code /json/jackson/avro} goldens.
  */
 class JacksonDynamicWktTest {
 
@@ -75,6 +81,31 @@ class JacksonDynamicWktTest {
   void dynRendersItsNodesAndAnyAsJson() throws Exception {
     JsonGolden.assertMatches("jackson/dyn-struct-any.json", M.writeValueAsString(dyn(structAny())));
     JsonGolden.assertMatches("jackson/dyn-opaque-any.json", M.writeValueAsString(dyn(opaqueAny())));
+  }
+
+  /**
+   * The same test data, through the Avro bridge: record -> {@link DynAvro} specific record (the
+   * generated converter) -> canonical Avro JSON, avro's official {@link JsonEncoder} output --
+   * deterministic single-line text with members in schema order, compared exactly. The U9 envelope
+   * appears as its {format, contentType, payload} triple: the node content is a JSON-escaped string
+   * member. (The Full family has no Avro bridge, so only the dyn data gets this view.)
+   */
+  @Test
+  void dynSerializesToCanonicalAvroJsonThroughTheConverter() throws Exception {
+    JsonGolden.assertCanonicalMatches(
+        "jackson/avro/dyn-struct-any.json", canonicalAvroJson(dyn(structAny())));
+    JsonGolden.assertCanonicalMatches(
+        "jackson/avro/dyn-opaque-any.json", canonicalAvroJson(dyn(opaqueAny())));
+  }
+
+  /** Avro's official JSON encoding of one specific record: compact, members in schema order. */
+  private static String canonicalAvroJson(Dyn record) throws Exception {
+    DynAvro avro = DynAvroConverter.fromRecord(record);
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    JsonEncoder encoder = EncoderFactory.get().jsonEncoder(DynAvro.SCHEMA$, out, false);
+    new SpecificDatumWriter<>(DynAvro.SCHEMA$).write(avro, encoder);
+    encoder.flush();
+    return new String(out.toByteArray(), StandardCharsets.UTF_8);
   }
 
   @Test
