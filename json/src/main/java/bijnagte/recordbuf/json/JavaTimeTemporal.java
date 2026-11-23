@@ -142,13 +142,20 @@ public final class JavaTimeTemporal {
 
     @Override
     public void serialize(Duration value, JsonGenerator gen, SerializationContext serializers) {
-      // The {seconds, nanos} pair is the FLOOR pair: whole seconds rounded toward negative
-      // infinity plus a non-negative nano fraction (a negative duration of -1.5s is {-2,
-      // 500000000}). toSeconds() / toNanosPart() give exactly that without overflow, unlike
-      // toNanos() which fails beyond ~292 years.
+      // The proto Duration shape: seconds and nanos share a sign (-1.5s is {-1, -500000000}),
+      // matching the binary encoding and protobuf's own Duration. java.time holds the floor pair
+      // ({-2, 500000000}); a negative duration with a fraction is shifted one second toward zero.
+      // getSeconds()/getNano() are used (not toNanos(), which overflows beyond ~292 years); the
+      // reader accepts either pair.
+      long seconds = value.getSeconds();
+      int nanos = value.getNano();
+      if (seconds < 0 && nanos > 0) {
+        seconds += 1;
+        nanos -= 1_000_000_000;
+      }
       gen.writeStartObject();
-      gen.writeName("seconds").writeString(Long.toString(value.toSeconds()));
-      gen.writeName("nanos").writeNumber(value.toNanosPart());
+      gen.writeName("seconds").writeString(Long.toString(seconds));
+      gen.writeName("nanos").writeNumber(nanos);
       gen.writeEndObject();
     }
   }
@@ -208,20 +215,8 @@ public final class JavaTimeTemporal {
    */
   static Instant readInstant(JsonParser p) {
     if (p.currentToken() == JsonToken.START_OBJECT) {
-      long seconds = 0;
-      int nanos = 0;
-      while (p.nextToken() != JsonToken.END_OBJECT) {
-        if (p.currentName().equals("seconds")) {
-          p.nextToken();
-          seconds = Long.parseLong(p.getValueAsString());
-        } else if (p.currentName().equals("nanos")) {
-          p.nextToken();
-          nanos = (int) p.getLongValue();
-        } else {
-          p.skipChildren();
-        }
-      }
-      return Instant.ofEpochSecond(seconds, nanos);
+      SecondsNanos pair = SecondsNanos.read(p);
+      return Instant.ofEpochSecond(pair.seconds(), pair.nanos());
     }
     if (p.currentToken() == JsonToken.VALUE_NUMBER_INT) {
       return Instant.ofEpochSecond(p.getLongValue());
@@ -264,20 +259,8 @@ public final class JavaTimeTemporal {
    */
   static Duration readDuration(JsonParser p) {
     if (p.currentToken() == JsonToken.START_OBJECT) {
-      long seconds = 0;
-      int nanos = 0;
-      while (p.nextToken() != JsonToken.END_OBJECT) {
-        if (p.currentName().equals("seconds")) {
-          p.nextToken();
-          seconds = Long.parseLong(p.getValueAsString());
-        } else if (p.currentName().equals("nanos")) {
-          p.nextToken();
-          nanos = (int) p.getLongValue();
-        } else {
-          p.skipChildren();
-        }
-      }
-      return Duration.ofSeconds(seconds, nanos);
+      SecondsNanos pair = SecondsNanos.read(p);
+      return Duration.ofSeconds(pair.seconds(), pair.nanos());
     }
     if (p.currentToken() == JsonToken.VALUE_NUMBER_INT) {
       return Duration.ofSeconds(p.getLongValue());

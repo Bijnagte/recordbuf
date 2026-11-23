@@ -131,4 +131,20 @@ class JacksonResolutionTest {
       assertEquals(p, roundTrip(p, Probe.class), span.toString());
     }
   }
+
+  /** The canonical Duration object is the proto same-sign pair, as on the wire. */
+  @Test
+  void canonicalDurationIsTheSameSignPair() {
+    Probe p =
+        new Probe(Instant.EPOCH, Duration.ofMillis(-1500), List.of(), null, UnknownFields.empty());
+
+    var span = M.readTree(M.writeValueAsString(p)).get("span");
+
+    assertEquals("-1", span.get("seconds").asString());
+    assertEquals(-500_000_000, span.get("nanos").asInt());
+    // ... and the floor pair a previous version wrote still reads back to the same value.
+    assertEquals(
+        Duration.ofMillis(-1500),
+        M.readValue("{\"span\":{\"seconds\":\"-2\",\"nanos\":500000000}}", Probe.class).span());
+  }
 }
