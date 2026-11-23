@@ -186,10 +186,14 @@ public final class InteropSourceMapping {
     if (f.isRepeated()) {
       if ("bytes".equals(f.typeUrl())) {
         out.add(
-            Element.expr(RawExpr.of("var _@0 = new @1<>()", f.javaName(), TypeRefs.ARRAY_LIST)));
+            LocalVar.builder(f.type(), "_" + f.javaName())
+                .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)));
         out.add(
             For.enhanced("var _e", "x.get@0List()", cap)
-                .body(Element.expr("_@0.add(_e.toByteArray())", f.javaName()))
+                .body(
+                    Element.expr(
+                        RawExpr.of(
+                            "_@0.add(@1.of(_e.toByteArray()))", f.javaName(), TypeRefs.BYTES)))
                 .build());
       } else {
         // For non-bytes repeated fields, use the protobuf-java list directly;
@@ -298,10 +302,11 @@ public final class InteropSourceMapping {
     } else if (f.isRepeated()) {
       if ("bytes".equals(f.typeUrl())) {
         out =
-            For.enhanced("byte[] _e", src)
+            For.enhanced("var _e", src)
                 .body(
                     Element.expr(
-                        RawExpr.of("_b.add@1(@0.copyFrom(_e))", TypeRefs.BYTE_STRING, cap)))
+                        RawExpr.of(
+                            "_b.add@1(@0.copyFrom(_e.toByteArray()))", TypeRefs.BYTE_STRING, cap)))
                 .build();
       } else {
         out = Element.expr("_b.addAll@0(@1)", cap, src);

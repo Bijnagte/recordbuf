@@ -1,0 +1,24 @@
+// Interop probe for bytes field conversion, singular and repeated.
+// The recordbuf record is generated from this file (--recordbuf_out); the protobuf-java
+// reference is generated from this same file (--java_out). The Interop converter must convert
+// each repeated bytes element through Bytes and ByteString, in both directions.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.interopbytes;
+option java_package = "bijnagte.recordbuf.fixture.interopbytes";
+option java_multiple_files = true;
+
+import "recordbuf_options.proto";
+
+// Avro is on for this file: the Avro converter carries bytes and repeated bytes.
+
+// The target message comes first in the file (KTD2): one singular and one repeated bytes field.
+message InteropBytes {
+  // Singular bytes.
+  bytes single = 1;
+
+  // Repeated bytes: each element is a Bytes in the record and a ByteString in protobuf-java.
+  repeated bytes chunks = 2;
+
+  option (.recordbuf.protobuf_java) = "bijnagte.recordbuf.fixture.interopbytes";
+}
