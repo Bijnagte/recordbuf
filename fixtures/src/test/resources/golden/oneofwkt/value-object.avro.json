@@ -1,0 +1,15 @@
+{
+  "v" : {
+    "bijnagte.recordbuf.fixture.oneofwkt.RecordbufOneofValue" : {
+      "tag" : 4,
+      "value" : {
+        "bijnagte.recordbuf.fixture.oneofwkt.RecordbufDynamicWkt" : {
+          "format" : "json",
+          "contentType" : "google.protobuf.Value",
+          "payload" : "{\"k\":\"v\"}"
+        }
+      }
+    }
+  },
+  "unknownFields" : [ ]
+}

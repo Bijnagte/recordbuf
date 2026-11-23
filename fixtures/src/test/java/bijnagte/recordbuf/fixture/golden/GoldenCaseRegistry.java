@@ -1,7 +1,9 @@
 package bijnagte.recordbuf.fixture.golden;
 
+import bijnagte.recordbuf.fixture.annotations.AnnotationsCases;
 import bijnagte.recordbuf.fixture.bytes.BytesCases;
 import bijnagte.recordbuf.fixture.canonicalformat.CanonicalFormatCases;
+import bijnagte.recordbuf.fixture.combined.CompatCases;
 import bijnagte.recordbuf.fixture.corpus.TestAllTypesCorpusCases;
 import bijnagte.recordbuf.fixture.fixed.FixedCases;
 import bijnagte.recordbuf.fixture.i32.IntCases;
@@ -12,6 +14,9 @@ import bijnagte.recordbuf.fixture.jackson.JacksonRoundTripCases;
 import bijnagte.recordbuf.fixture.jacksonformat.JacksonFormatCases;
 import bijnagte.recordbuf.fixture.map.MapCases;
 import bijnagte.recordbuf.fixture.message.MessageCases;
+import bijnagte.recordbuf.fixture.oneof.OneofCases;
+import bijnagte.recordbuf.fixture.oneoforder.OneofOrderCases;
+import bijnagte.recordbuf.fixture.oneofwkt.OneofWktCases;
 import bijnagte.recordbuf.fixture.optional.OptionalCases;
 import bijnagte.recordbuf.fixture.order.OrderCases;
 import bijnagte.recordbuf.fixture.packed.PackedCases;
@@ -49,6 +54,11 @@ public final class GoldenCaseRegistry {
         new OrderCases(),
         new MessageCases(),
         new MapCases(),
-        new WktCases());
+        new WktCases(),
+        new OneofCases(),
+        new OneofOrderCases(),
+        new OneofWktCases(),
+        new CompatCases(),
+        new AnnotationsCases());
   }
 }

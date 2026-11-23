@@ -1,0 +1,22 @@
+{
+  "first" : 1,
+  "mid" : 5,
+  "tail" : [ "t" ],
+  "o" : {
+    "bijnagte.recordbuf.fixture.oneoforder.RecordbufOneofValue" : {
+      "tag" : 2,
+      "value" : {
+        "string" : "x"
+      }
+    }
+  },
+  "p" : {
+    "bijnagte.recordbuf.fixture.oneoforder.RecordbufOneofValue" : {
+      "tag" : 3,
+      "value" : {
+        "bytes" : "\u0007"
+      }
+    }
+  },
+  "unknownFields" : [ ]
+}

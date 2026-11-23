@@ -1,0 +1,11 @@
+{
+  "id" : 7,
+  "note" : "hello <tag> & friends",
+  "payload" : {
+    "body" : "body"
+  },
+  "tags" : {
+    "j" : -2,
+    "k" : 1
+  }
+}
