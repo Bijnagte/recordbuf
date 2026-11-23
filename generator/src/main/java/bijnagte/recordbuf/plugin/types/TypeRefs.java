@@ -68,12 +68,6 @@ public final class TypeRefs {
   /** The Jackson×Avro envelope's {@code payload} host (:recordbuf-json). */
   public static final TypeRef JSON_PAYLOAD = TypeRef.of("bijnagte.recordbuf.json.JsonPayload");
 
-  /**
-   * The retained unknown JSON properties fold helper (:recordbuf-json): the codec folds the
-   * record's {@code jsonExtras} map into the unknown-field carrier on encode.
-   */
-  public static final TypeRef JSON_EXTRAS = TypeRef.of("bijnagte.recordbuf.json.JsonExtras");
-
   // --- Avro interop bridge (bijnagte.recordbuf.avro.*) ---
   public static final TypeRef WKT_AVRO_BRIDGE =
       TypeRef.of("bijnagte.recordbuf.avro.wkt.WktAvroBridge");

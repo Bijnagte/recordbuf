@@ -53,11 +53,11 @@ public final class CodecSourceMapping {
   }
 
   /**
-   * The nested codec for a {@code recordbuf.jackson} record (J6): the record's retained unknown
-   * JSON properties ({@code jsonExtras} component) are folded into the unknown-field carrier on
-   * encode; on decode the record's canonical constructor is passed a {@code null} extras argument
-   * (normalized to a fresh empty map) — a decoded record has an empty map, and the retained bytes
-   * still round-trip through the carrier.
+   * The nested codec for a {@code recordbuf.jackson} record (J6): on decode the record's canonical
+   * constructor is passed a {@code null} extras argument (normalized to a fresh empty map) — a
+   * decoded record has an empty extras map. The {@code jsonExtras} component is JSON-only: the
+   * encode never writes it to the wire, so a property name can never occupy (or collide with) a
+   * field number; the binary unknown-field carrier round-trips exactly as before.
    */
   public static ClassSpec toCodec(Message m, boolean jackson) {
     return doToCodec(m, jackson);
@@ -76,13 +76,13 @@ public final class CodecSourceMapping {
         .final_()
         .javadoc(GeneratedDocs.type(null, "Wire codec for the " + recName + " record."))
         .constructor(Constructor.builder().private_().build())
-        .method(encode(m, jackson))
+        .method(encode(m))
         .method(decode(m, jackson))
         .build();
   }
 
   /** The {@code byte[] encode(Message v) throws IOException} method body. */
-  private static Method encode(Message m, boolean jackson) {
+  private static Method encode(Message m) {
     var method =
         Method.named("encode")
             .public_()
@@ -109,24 +109,12 @@ public final class CodecSourceMapping {
     }
 
     // M4-C2b-2b-5: re-emit the unknown-fields carrier, if any, preserving wire-order round-trip.
-    // On a recordbuf.jackson file the record's retained unknown JSON properties are folded into
-    // the same carrier first: one synthetic length-delimited unknown field per retained property
-    // (the property name's UTF-8 bytes under its synthetic base-31 field number), so a record
-    // round-tripped through JSON survives the wire exactly as a binary-captured unknown field
-    // does.
+    // The retained unknown JSON properties of a jackson record (jsonExtras) are JSON-only: they are
+    // deliberately NOT written to the wire, so no property name can ever occupy a field number.
     Element unknownArm =
-        jackson
-            ? If.condition(
-                    "!v.unknownFields().isEmpty() || (v.jsonExtras != null && !v.jsonExtras.isEmpty())")
-                .body(
-                    Element.expr(
-                        "@0.writeUnknown(out, @1.fold(v.unknownFields(), v.jsonExtras))",
-                        TypeRefs.WIRE,
-                        TypeRefs.JSON_EXTRAS))
-                .build()
-            : If.condition("!v.unknownFields().isEmpty()")
-                .body(Element.expr("@0.writeUnknown(out, v.unknownFields())", TypeRefs.WIRE))
-                .build();
+        If.condition("!v.unknownFields().isEmpty()")
+            .body(Element.expr("@0.writeUnknown(out, v.unknownFields())", TypeRefs.WIRE))
+            .build();
     return method.body(unknownArm, Element.ret("enc.finish()")).build();
   }
 

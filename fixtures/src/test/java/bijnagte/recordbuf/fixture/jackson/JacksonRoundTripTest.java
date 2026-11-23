@@ -2,7 +2,7 @@ package bijnagte.recordbuf.fixture.jackson;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import bijnagte.recordbuf.fixture.JsonGolden;
 import bijnagte.recordbuf.fixture.jackson.full.rec.Full;
@@ -69,7 +69,7 @@ class JacksonRoundTripTest {
   }
 
   @Test
-  void unknownPropertiesSurviveJsonAndTheWire() throws Exception {
+  void unknownPropertiesSurviveJsonButAreNeverWrittenToTheWire() throws Exception {
     ObjectNode json = (ObjectNode) M.readTree(M.writeValueAsString(full()));
     JsonNode future = M.readTree("{\"x\":[1,\"two\"]}");
     json.set("futureField", future);
@@ -78,12 +78,13 @@ class JacksonRoundTripTest {
     assertEquals(future, back.jsonExtras().get("futureField"), "retained on read");
     JsonGolden.assertMatches("jackson/full-with-extras.json", M.writeValueAsString(back));
 
-    // On the wire the property folds into the binary unknown-field carrier (keyed by a hash of its
-    // name), so a decode keeps it as an unknown field and re-emits it byte-for-byte.
+    // The extras are JSON-only: the wire carries exactly what the record without them would, so a
+    // property name can never occupy (or collide with) a field number.
     byte[] wire = back.toByteArray();
+    assertArrayEquals(full().toByteArray(), wire, "no trace of the extras on the wire");
     Full decoded = Full.fromBytes(wire);
-    assertFalse(decoded.unknownFields().isEmpty(), "folded into the carrier");
-    assertArrayEquals(wire, decoded.toByteArray(), "re-emitted unchanged");
+    assertTrue(decoded.unknownFields().isEmpty());
+    assertTrue(decoded.jsonExtras().isEmpty());
   }
 
   @Test

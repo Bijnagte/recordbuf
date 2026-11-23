@@ -23,9 +23,9 @@ import org.junit.jupiter.api.Test;
  * <p>On a {@code recordbuf.jackson} file the record carries the {@code jsonExtras} component
  * ({@code @JsonIgnore @JsonAnyGetter @JsonAnySetter @Nullable} — no accessor methods; Jackson
  * honors the annotations on the record component/accessor), a compact constructor normalizing it
- * and the carrier, a builder wired to it, a decode that passes a {@code null} extras argument, and
- * an encode that folds it into the carrier via {@code JsonExtras}. On a file without the toggle the
- * rendered source (record + codec) carries none of it.
+ * and the carrier, a builder wired to it, and a decode that passes a {@code null} extras argument.
+ * The extras are JSON-only: the encode never writes them to the wire. On a file without the toggle
+ * the rendered source (record + codec) carries none of it.
  */
 final class JsonAnySurfaceTest {
 
@@ -157,14 +157,14 @@ final class JsonAnySurfaceTest {
   }
 
   @Test
-  void jacksonOnEncodeFoldsTheMapIntoTheCarrier() {
+  void jacksonOnEncodeNeverWritesTheExtrasToTheWire() {
     String source = render(true);
+    assertFalse(
+        source.contains("v.jsonExtras"),
+        "the codec must not read the extras: they are JSON-only: " + source);
     assertTrue(
-        source.contains("JsonExtras.fold(v.unknownFields(), v.jsonExtras)"),
-        "expected the encode to fold the extras into the carrier: " + source);
-    assertTrue(
-        source.contains("v.jsonExtras != null"),
-        "expected a null-safe encode condition for the nullable extras component: " + source);
+        source.contains("writeUnknown(out, v.unknownFields())"),
+        "the encode still re-emits the binary unknown-field carrier: " + source);
   }
 
   @Test
@@ -176,9 +176,6 @@ final class JsonAnySurfaceTest {
     assertFalse(
         source.contains("JsonNode"),
         "jackson-off output must not import or reference Jackson node types: " + source);
-    assertFalse(
-        source.contains("JsonExtras"),
-        "jackson-off output must not reference the fold helper: " + source);
     assertFalse(
         source.contains("JsonAnyGetter"),
         "jackson-off output must not carry any-surface annotations: " + source);

@@ -128,9 +128,8 @@ public final class RecordSourceMapping {
    * Map a message to its source-AST form (record shell + nested {@code Codec}), with the Jackson
    * surface switch: see {@link #toSource(Message, String, boolean)} for the annotation surface.
    * When {@code jackson} the record additionally carries the {@code jsonExtras} component (the
-   * any-getter/any-setter retention pair) and a compact constructor normalizing it and the carrier,
-   * and the codec folds the map into the carrier on encode (a decode reads the folded entries back
-   * as ordinary unknown fields — the property names are not on the wire).
+   * any-getter/any-setter retention pair) and a compact constructor normalizing it and the carrier.
+   * The extras are JSON-only: the codec neither writes them to the wire nor reads them from it.
    */
   public static RecordSpec toSourceWithCodec(Message m, boolean jackson) {
     TypeRef.Named recordRef = m.type();
@@ -146,7 +145,8 @@ public final class RecordSourceMapping {
                             ? "\n@"
                                 + "param jsonExtras retained unknown JSON properties, keyed by"
                                 + " property name; projected flat onto the JSON object and"
-                                + " re-folded into this map on deserialization"
+                                + " absorbed from it on deserialization (JSON only: never written"
+                                + " to the wire)"
                             : ".")))
             .deprecated(m.deprecated())
             .implementsFqns(m.interfaces().stream().map(TypeRef::fqn).toList())

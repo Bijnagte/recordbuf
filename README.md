@@ -153,7 +153,7 @@ explains why these options live outside protobuf's namespace.
   The unknown-field carrier has an (empty) slot in the Avro record but its entries are not copied
   across yet, so unknown fields do not survive an Avro round trip.
 - **JSON (Jackson 3).** Default on. Adds `@JsonProperty` wire names, keeps unknown JSON properties
-  in a `jsonExtras` map, flattens oneofs with a `<oneofName>Type` discriminator, and
+  in a `jsonExtras` map (JSON only: never written to the wire), flattens oneofs with a `<oneofName>Type` discriminator, and
   (de)serializes temporal fields per `jackson_format`. Generated records need no module
   registration (each field carries its own (de)serializer annotations): use a plain `JsonMapper`.
   Your own classes holding `Bytes`, `FieldMask` or `Empty` need
@@ -220,7 +220,7 @@ repo root. The root `build.gradle.kts` is an aggregator that also applies the sh
 | `generator/` | `:recordbuf-generator` | The plugin (`bijnagte.recordbuf.plugin.Main`). `model/` (proto model records), `types/` (type and WKT mapping), `writer/` (source mappings), `bridge/` (Avro bridge). `com/google/protobuf/compiler/` holds the protoc plugin-protocol shim, which is protocol glue and should not be refactored. |
 | `codegen/` | `:recordbuf-codegen` | Generator-only, dependency-free Java source AST + `SourceRenderer` (import collection, Javadoc, formatting SPI). |
 | `runtime/` | `:recordbuf-runtime` | What generated code calls: `Encoder`/`Decoder`/`Wire` framing, `UnknownFields`, `ProtobufMessage`, `ProtobufMarshaller`, `Bytes`, `FieldMask`, `Empty`, `wkt.Wkt`. |
-| `json/` | `:recordbuf-json` | Jackson support: temporal (de)serializers, `JsonExtras`, dynamic WKT bridging, the JSON envelope. |
+| `json/` | `:recordbuf-json` | Jackson support: temporal / bytes / `FieldMask` / `Empty` (de)serializers, oneof reading, dynamic WKT bridging, the JSON envelope. |
 | `recordbuf-avro/` | `:recordbuf-avro` | Avro runtime support: WKT ↔ Avro conversions (`WktAvroBridge`). |
 | `options/` | `:recordbuf-options` | `recordbuf_options.proto`, consumed as a protoc `-I` include, not as a Gradle dependency. |
 | `fixtures/` | `:recordbuf-fixtures` | Per-feature `.proto` fixtures generated through the real launcher, plus byte-compatibility, interop, Avro, JSON, and unknown-field round-trip tests against protobuf-java 4.36.2. Its Gradle script is Groovy because of the protobuf-gradle-plugin's DSL. |
