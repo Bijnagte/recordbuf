@@ -169,7 +169,7 @@ public final class AvroConverterSourceMapping {
       return messageToRecord(f, var, getter, registry);
     }
     if (f.kind() == FieldKind.ENUM) {
-      return Element.expr("@0(@1().value())", var, getter);
+      return enumToRecord(f, var, getter);
     }
     // Repeated length-delimited scalars convert per element: Avro's array of string is a
     // List<CharSequence>, its array of bytes a List<ByteBuffer>.
@@ -201,6 +201,19 @@ public final class AvroConverterSourceMapping {
     }
     throw new AvroUnsupportedException(
         f.name(), "cannot map Avro field to a record component ('" + f.typeUrl() + "')");
+  }
+
+  /**
+   * An enum component read back from its Avro name (a string, never null): the record constant with
+   * that name, per element for a repeated field.
+   */
+  private static Element enumToRecord(Field f, String var, String getter) {
+    TypeRef enumType = enumType(f);
+    if (f.isRepeated()) {
+      return Element.expr(
+          "@0(@1().stream().map(v -> @2).toList())", var, getter, enumFromName(enumType, "v"));
+    }
+    return Element.expr("@0(@1)", var, enumFromName(enumType, getter + "()"));
   }
 
   private static Element wktToRecord(String wkt, String var, String getter) {
@@ -610,7 +623,7 @@ public final class AvroConverterSourceMapping {
           "@0(@2 == null ? null : @1.fromRecord(@2))", setter, refConverter, accessor);
     }
     if (f.kind() == FieldKind.ENUM) {
-      return Element.expr("@0(@1.name())", setter, accessor); // enum -> string
+      return enumFromRecord(f, setter, accessor);
     }
     // Repeated length-delimited scalars convert per element (see the toRecord arms).
     if (f.kind() == FieldKind.SCALAR && f.isRepeated() && "string".equals(f.typeUrl())) {
@@ -744,6 +757,27 @@ public final class AvroConverterSourceMapping {
     };
   }
 
+  /**
+   * An enum component written as its constant's name. A singular enum component is
+   * {@code @Nullable} (absent on the wire, which a proto3 enum cannot tell from the default), and
+   * the Avro string is never null, so a null component writes the proto3 default, the first
+   * constant's name. Avro therefore reads it back as that constant, not as null: the same value on
+   * the wire, but not the same record.
+   */
+  private static Element enumFromRecord(Field f, String setter, String accessor) {
+    if (f.isRepeated()) {
+      // The Avro array is a List<CharSequence>: the type witness keeps map's String elements typed.
+      return Element.expr(
+          "@0(@1.stream().<@2>map(v -> v.name()).toList())",
+          setter,
+          accessor,
+          TypeRef.named("java.lang", "CharSequence"));
+    }
+    TypeRef enumType = enumType(f);
+    return Element.expr(
+        "@0(@1 == null ? @2.name() : @1.name())", setter, accessor, firstConstant(enumType));
+  }
+
   private static Element oneofFromRecord(
       Oneof oneof, String param, String record, AvroRegistry registry, String specificRecordPkg) {
     String setter = param + ".set" + cap(oneof.name());
@@ -789,18 +823,39 @@ public final class AvroConverterSourceMapping {
     return TypeRef.named(specificRecordPkg, AvroRegistry.ONEOF_VALUE_ENTRY);
   }
 
+  /**
+   * The record-side enum type of an enum field, the element type of a repeated one. It is read from
+   * the field's model type, which names the enum through its enclosing record for a nested enum.
+   */
   private static TypeRef enumType(Field f) {
-    // The record's enum lives in the .rec subpackage (with its owner record), not the base package;
-    // insert .rec before the enum's simple name to reference the record-side copy. Split the .rec
-    // FQN into package + short name so the collector resolves to the short name (same package as
-    // the converter, so no import; an inline FQN literal would trip UnnecessarilyFullyQualified).
-    String fqn = f.typeUrl();
-    int dot = fqn.lastIndexOf('.');
-    String recFqn = dot < 0 ? fqn : fqn.substring(0, dot) + ".rec" + fqn.substring(dot);
-    int recDot = recFqn.lastIndexOf('.');
-    return recDot < 0
-        ? TypeRef.named("", recFqn)
-        : TypeRef.named(recFqn.substring(0, recDot), recFqn.substring(recDot + 1));
+    if (f.isRepeated() && f.type() instanceof TypeRef.Named list) {
+      return list.generics().get(0);
+    }
+    return f.type();
+  }
+
+  /**
+   * The record constant whose name is the Avro string {@code name}, or the first constant when none
+   * has that name: the fallback the record's {@code forNumber} gives an undefined number, so an
+   * unknown Avro name converts instead of failing.
+   */
+  private static RawExpr enumFromName(TypeRef enumType, String name) {
+    return RawExpr.of(
+        "@0.stream(@1.values()).filter(c -> c.name().contentEquals("
+            + name
+            + ")).findFirst().orElse(@2)",
+        TypeRefs.ARRAYS,
+        enumType,
+        firstConstant(enumType));
+  }
+
+  /**
+   * The enum's first constant: the proto3 default (protoc requires the first value to be zero) and
+   * the record's {@code forNumber} fallback.
+   */
+  private static RawExpr firstConstant(TypeRef enumType) {
+    return RawExpr.of(
+        "@0.stream(@1.values()).findFirst().orElseThrow()", TypeRefs.ARRAYS, enumType);
   }
 
   /**

@@ -1,5 +1,6 @@
 package bijnagte.recordbuf.plugin.writer;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import bijnagte.recordbuf.codegen.source.Formatter;
@@ -281,5 +282,65 @@ class AvroConverterSourceMappingTest {
     // Repeated fields map the same arm per element.
     assertTrue(out.contains("s.getValues().stream().map(v -> v == null ? null :"), out);
     assertTrue(out.contains("r.values().stream().map(v -> v == null ? null :"), out);
+  }
+
+  private static Field enumField(
+      String name, int number, FieldLabel label, TypeRef.Named enumType) {
+    return new Field(
+        name,
+        name,
+        number,
+        label,
+        FieldKind.ENUM,
+        "bijnagte.recordbuf.fixture.Sample.Kind",
+        label == FieldLabel.REPEATED ? TypeRefs.LIST.withGenerics(enumType) : enumType,
+        null,
+        null,
+        false,
+        null,
+        null,
+        false,
+        /* jacksonFormat= */ null,
+        "jsonName",
+        /* jsonIgnored= */ false);
+  }
+
+  @Test
+  void nestedEnumConverterReferencesTheRecordEnumThroughItsEnclosingRecord() {
+    // The record-side enum of a nested enum is Sample.Kind in the record package, not a Sample.rec
+    // path: its converter refers to it through the enclosing record.
+    TypeRef.Named record = TypeRef.named("bijnagte.recordbuf.fixture.rec", "Sample");
+    TypeRef.Named kind = record.sub("Kind");
+    Message m =
+        new Message(
+            "Sample",
+            record,
+            List.of(
+                enumField("kind", 1, FieldLabel.OPTIONAL, kind),
+                enumField("kinds", 2, FieldLabel.REPEATED, kind)),
+            List.of(),
+            List.of(),
+            List.of(),
+            false,
+            null,
+            List.of(),
+            null);
+
+    String out =
+        AvroConverterSourceMapping.generate(
+            "Sample",
+            "sample.proto",
+            m,
+            "SampleAvro",
+            "bijnagte.recordbuf.fixture",
+            "bijnagte.recordbuf.fixture.rec",
+            registryFor(m),
+            Formatter.IDENTITY);
+
+    assertTrue(out.contains("Arrays.stream(Sample.Kind.values())"), out);
+    assertTrue(out.contains("c.name().contentEquals(s.getKind())"), out);
+    assertTrue(out.contains("c.name().contentEquals(v)"), out);
+    assertTrue(out.contains("r.kind() == null ? Arrays.stream(Sample.Kind.values())"), out);
+    assertFalse(out.contains(".rec.Kind"), out);
   }
 }
