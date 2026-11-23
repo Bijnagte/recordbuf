@@ -127,7 +127,7 @@ public final class InteropSourceMapping {
   }
 
   private static List<Element> fromLocal(Field f) {
-    String cap = JavaNames.cap(f.javaName());
+    String cap = JavaNames.protobufJavaAccessor(f.name());
     List<Element> out = new ArrayList<>();
     if (f.isMap()) {
       boolean hasBytes = "bytes".equals(f.mapKey()) || "bytes".equals(f.mapValue());
@@ -165,7 +165,7 @@ public final class InteropSourceMapping {
               RawExpr.of(
                   "var _@0 = x.has@1() ? @2.Interop.from(x.get@1()) : null",
                   f.javaName(),
-                  JavaNames.cap(f.javaName()),
+                  JavaNames.protobufJavaAccessor(f.name()),
                   f.type())));
       return out;
     }
@@ -203,7 +203,7 @@ public final class InteropSourceMapping {
   }
 
   private static Formattable fromExpr(Field f) {
-    String cap = JavaNames.cap(f.javaName());
+    String cap = JavaNames.protobufJavaAccessor(f.name());
     if (f.kind() == FieldKind.ENUM) {
       return RawExpr.of("@0.forNumber(x.get@1().getNumber())", recordSiblingFqn(f), cap);
     }
@@ -233,7 +233,7 @@ public final class InteropSourceMapping {
   }
 
   private static Element toStmt(Field f, String refPkg) {
-    String cap = JavaNames.cap(f.javaName());
+    String cap = JavaNames.protobufJavaAccessor(f.name());
     final Element out;
     String src = "r." + f.javaName() + "()";
 
@@ -278,7 +278,7 @@ public final class InteropSourceMapping {
   }
 
   private static Element toSetStatement(Field f, String src, String refPkg) {
-    String cap = JavaNames.cap(f.javaName());
+    String cap = JavaNames.protobufJavaAccessor(f.name());
     if (f.kind() == FieldKind.ENUM) {
       String refEnum =
           refPkg.isEmpty()
@@ -299,7 +299,7 @@ public final class InteropSourceMapping {
   private static Element emitOneofFrom(Oneof o) {
     var sw = SwitchExpr.on("x.get@0Case()", o.ifaceName());
     for (Field f : o.members()) {
-      String cap = JavaNames.cap(f.name());
+      String cap = JavaNames.protobufJavaAccessor(f.name());
       Formattable inner =
           f.isMessage()
               ? RawExpr.of("@0.Interop.from(x.get@1())", recordSiblingFqn(f), cap)
@@ -320,7 +320,7 @@ public final class InteropSourceMapping {
     // The null arm: an empty body auto-braces to `case null -> {}`.
     sw.caseArm("null");
     for (Field f : o.members()) {
-      String cap = JavaNames.cap(f.name());
+      String cap = JavaNames.protobufJavaAccessor(f.name());
       String pattern = RawExpr.of("@0.@1Value v", iface, cap).render(null);
       if (f.isMessage()) {
         String recSib = recordSiblingFqn(f);

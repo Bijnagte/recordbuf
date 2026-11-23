@@ -1,0 +1,18 @@
+{
+  "fieldname1" : 11,
+  "field_name2" : 22,
+  "field__name4_" : -33,
+  "field0name5" : 44,
+  "field_0_name6" : -55,
+  "fieldName7" : 66,
+  "field_Name9" : -77,
+  "field__name15" : 88,
+  "field__Name16" : -99,
+  "field_name17__" : 101,
+  "list2_values" : [ 1, 2, 3 ],
+  "map3_entries" : {
+    "a" : 10,
+    "b" : 20
+  },
+  "unknownFields" : [ ]
+}

@@ -1,0 +1,17 @@
+{
+  "fieldname1": 11,
+  "fieldName2": 22,
+  "fieldName4": -33,
+  "field0name5": 44,
+  "field0Name6": -55,
+  "fieldName7": 66,
+  "fieldName9": -77,
+  "fieldName15": 88,
+  "fieldName16": -99,
+  "fieldName17": 101,
+  "list2Values": [1, 2, 3],
+  "map3Entries": {
+    "a": 10,
+    "b": 20
+  }
+}

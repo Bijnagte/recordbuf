@@ -1,0 +1,28 @@
+// Interop probe for protobuf-java accessor names, testing protoc's Java camel-case rule.
+// The recordbuf record is generated from this file (--recordbuf_out); the protobuf-java
+// reference is generated from this same file (--java_out). The Interop converter must call
+// protobuf-java accessor names using the same rule protoc applies.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.interopnames;
+option java_package = "bijnagte.recordbuf.fixture.interopnames";
+option java_multiple_files = true;
+
+import "recordbuf_options.proto";
+
+// Edge-case field names for testing protobuf-java accessor naming.
+message InteropNames {
+  int32 fieldname1 = 1;
+  int32 field_name2 = 2;
+  int32 field__name4_ = 3;
+  int32 field0name5 = 4;
+  int32 field_0_name6 = 5;
+  int32 fieldName7 = 6;
+  int32 field_Name9 = 7;
+  int32 field__name15 = 8;
+  int32 field__Name16 = 9;
+  int32 field_name17__ = 10;
+  repeated int32 list2_values = 11;
+  map<string, int32> map3_entries = 12;
+  option (.recordbuf.protobuf_java) = "bijnagte.recordbuf.fixture.interopnames";
+}
