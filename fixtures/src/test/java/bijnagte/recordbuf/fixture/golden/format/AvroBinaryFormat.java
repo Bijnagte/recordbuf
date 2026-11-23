@@ -19,6 +19,11 @@ import java.util.Optional;
  * is reused unchanged. The fingerprint prefix makes a golden depend on the schema as well as the
  * data, which is wanted here: a schema change must show up as a golden change.
  *
+ * <p>Avro writes a map in the iteration order of the specific record's {@code Map}, and the
+ * record's own maps have no defined order. So {@link #serialize} first puts every map of the
+ * specific record into key order ({@link AvroTypes#withOrderedMaps}), which makes the bytes
+ * identical from run to run for the same record value.
+ *
  * <p>Avro refuses to read or write a specific class it does not trust, so both directions first
  * make sure the specific record and the classes its schema reaches are trusted ({@link
  * AvroTypes.Binding#ensureTrusted}); cases carry no trust setup of their own.
@@ -41,7 +46,7 @@ public final class AvroBinaryFormat implements GoldenFormat.Binary {
   public byte[] serialize(Object record) throws Exception {
     AvroTypes.Binding binding = AvroTypes.requireBinding(record.getClass());
     binding.ensureTrusted();
-    Object specific = binding.fromRecord(record);
+    Object specific = binding.fromRecordWithOrderedMaps(record);
     ByteBuffer encoded;
     try {
       encoded = (ByteBuffer) binding.specificType().getMethod("toByteBuffer").invoke(specific);

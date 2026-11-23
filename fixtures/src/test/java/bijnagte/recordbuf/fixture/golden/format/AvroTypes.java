@@ -3,10 +3,15 @@ package bijnagte.recordbuf.fixture.golden.format;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.apache.avro.Schema;
+import org.apache.avro.generic.IndexedRecord;
+import org.apache.avro.specific.SpecificData;
 import org.apache.avro.util.ClassSecurityValidator;
 
 /**
@@ -26,10 +31,16 @@ import org.apache.avro.util.ClassSecurityValidator;
  * {@link Binding#ensureTrusted} replaces that per-class setup: it adds every class a specific
  * record's schema reaches to the global validator, but only the ones the current validator does not
  * already trust, so it neither undoes nor is undone by a validator another test installed.
+ *
+ * <p>The converter builds Avro maps from the record's {@code Map}, which has no defined order (a
+ * {@code HashMap}, or a {@code Map.of} whose order changes from run to run). Avro's encoders write
+ * a map in that iteration order, so {@link Binding#fromRecordWithOrderedMaps} puts every map into
+ * key order first; see {@link #withOrderedMaps}.
  */
 final class AvroTypes {
 
   private static final String CONVERTER_SUFFIX = "AvroConverter";
+  private static final String MAP_ENTRY_SUFFIX = "EntryAvro";
 
   private AvroTypes() {}
 
@@ -54,6 +65,16 @@ final class AvroTypes {
     /** Converts a recordbuf record to its Avro specific record, via the generated converter. */
     Object fromRecord(Object record) throws Exception {
       return invoke(fromRecord, record);
+    }
+
+    /**
+     * Converts a recordbuf record to its Avro specific record like {@link #fromRecord}, then puts
+     * every map in it into key order (see {@link #withOrderedMaps}). The specific record the
+     * generated converter returns is not touched. This is what the golden formats encode.
+     */
+    Object fromRecordWithOrderedMaps(Object record) throws Exception {
+      Schema schema = (Schema) specificType.getMethod("getClassSchema").invoke(null);
+      return withOrderedMaps(schema, fromRecord(record));
     }
 
     /** Converts an Avro specific record to its recordbuf record, via the generated converter. */
@@ -132,6 +153,94 @@ final class AvroTypes {
     return bindingFor(recordType)
         .orElseThrow(() ->
             new IllegalArgumentException(missingReason(recordType).orElse(recordType.getName())));
+  }
+
+  /**
+   * Returns a copy of {@code datum} (a value of {@code schema}) in which every map is replaced by a
+   * {@link LinkedHashMap} in key order, at any depth: under records, array elements, union branches
+   * and other maps. Keys are Avro strings (Utf8 or String) and sort by their string value. The
+   * argument is not modified.
+   *
+   * <p>A proto map whose key is not a string has no Avro map. The generator writes it as an array
+   * of {@code <Field>EntryAvro} records ({@code key}, {@code value}); such an array, recognized by
+   * that name and shape on the field that holds it, is sorted by key too (numbers numerically,
+   * booleans false before true).
+   */
+  static Object withOrderedMaps(Schema schema, Object datum) {
+    return orderMaps(schema, SpecificData.get().deepCopy(schema, datum), null);
+  }
+
+  /**
+   * Orders the maps of {@code value} in place where it is a record, otherwise returns a new one.
+   */
+  private static Object orderMaps(Schema schema, Object value, String holdingFieldName) {
+    if (value == null) {
+      return null;
+    }
+    return switch (schema.getType()) {
+      case RECORD -> {
+        IndexedRecord record = (IndexedRecord) value;
+        for (Schema.Field field : schema.getFields()) {
+          record.put(field.pos(), orderMaps(field.schema(), record.get(field.pos()), field.name()));
+        }
+        yield record;
+      }
+      case ARRAY -> {
+        List<Object> ordered = new ArrayList<>();
+        for (Object element : (List<?>) value) {
+          ordered.add(orderMaps(schema.getElementType(), element, null));
+        }
+        if (isMapEntryArray(schema, holdingFieldName)) {
+          ordered.sort(
+              Comparator.comparing(
+                  entry -> ((IndexedRecord) entry).get(0), AvroTypes::compareKeys));
+        }
+        yield ordered;
+      }
+      case MAP -> {
+        Map<?, ?> map = (Map<?, ?>) value;
+        List<Map.Entry<?, ?>> entries = new ArrayList<>(map.entrySet());
+        entries.sort(Comparator.comparing(entry -> entry.getKey().toString()));
+        Map<CharSequence, Object> ordered = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : entries) {
+          ordered.put(
+              (CharSequence) entry.getKey(),
+              orderMaps(schema.getValueType(), entry.getValue(), null));
+        }
+        yield ordered;
+      }
+      case UNION ->
+          orderMaps(
+              schema.getTypes().get(SpecificData.get().resolveUnion(schema, value)),
+              value,
+              holdingFieldName);
+      default -> value;
+    };
+  }
+
+  private static boolean isMapEntryArray(Schema arraySchema, String holdingFieldName) {
+    Schema element = arraySchema.getElementType();
+    if (holdingFieldName == null
+        || element.getType() != Schema.Type.RECORD
+        || element.getFields().size() != 2) {
+      return false;
+    }
+    String entryName =
+        Character.toUpperCase(holdingFieldName.charAt(0))
+            + holdingFieldName.substring(1)
+            + MAP_ENTRY_SUFFIX;
+    return element.getName().equals(entryName)
+        && element.getFields().get(0).name().equals("key")
+        && element.getFields().get(1).name().equals("value");
+  }
+
+  private static int compareKeys(Object left, Object right) {
+    return switch (left) {
+      case Integer l -> Integer.compare(l, (Integer) right);
+      case Long l -> Long.compare(l, (Long) right);
+      case Boolean l -> Boolean.compare(l, (Boolean) right);
+      default -> left.toString().compareTo(right.toString());
+    };
   }
 
   private static void collectNamedClasses(
