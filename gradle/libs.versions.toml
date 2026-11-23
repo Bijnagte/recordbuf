@@ -14,6 +14,10 @@ spotless          = "8.11.0"   # diffplug Spotless Gradle plugin (latest, 2026-1
 # project's Temurin 25 toolchain satisfies. Checkstyle is the non-formatting gate; Spotless
 # (google-java-format) owns formatting, so the two stay complementary, not competing.
 checkstyle        = "14.4.0"
+# JaCoCo TOOL version (agent + report), applied to :recordbuf-fixtures only. 0.8.14 is the first
+# line that reads Java 25 (class file major 69) -- verified against this project's Temurin 25
+# toolchain by the generated fixtures report.
+jacoco            = "0.8.14"
 google-java-format = "2.0.0"   # latest (pulled from the catalog by build.gradle.kts)
                                 # enum; its default cleanups (redundant semicolons,
                                 # empty annotation parens, single-lambda parens) are ON

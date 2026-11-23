@@ -45,6 +45,7 @@ plugins {
 
 apply plugin: 'java-library'
 apply plugin: 'com.google.protobuf'
+apply plugin: 'jacoco'
 // protobuf-gradle-plugin 0.10.0 called the deprecated Configuration.setVisible(false) on
 // its internal configs, emitting a configuration-time deprecation warning on every build
 // (Gradle 9.x deprecates `visible`; the property is removed in Gradle 11). That upstream
@@ -254,4 +255,44 @@ test {
     // explicitly trusted for binary write/read via SpecificDatumWriter/Reader.
     // The fixture package is safe to trust in a test environment.
     jvmArgs '-Dorg.apache.avro.SERIALIZABLE_PACKAGES=bijnagte.recordbuf.fixture'
+}
+
+// U1 (2026-11-23-001, KTD10): coverage over the fixtures test run, report-only (the verification
+// rule is a later unit). Scope = the hand-written runtime / json / avro module classes plus the
+// recordbuf-generated `.rec` output of THIS module. Everything else that lands in fixtures'
+// main classes is out: the protobuf-java reference, the Avro SpecificCompiler records
+// (*Avro, RecordbufUnknownField, RecordbufOneofValue, RecordbufDynamicWkt, avro/wkt) and
+// recordbuf.RecordbufOptions all compile into the un-suffixed natural packages, while every
+// recordbuf `.rec` class lives under a `rec` package -- so including only `**/rec/**` from the
+// fixtures classes excludes all of them at once. The com.google.protobuf.compiler shim is part
+// of :recordbuf-generator, which is not on the fixtures classpath, so it is never in scope.
+jacoco {
+    toolVersion = libs.versions.jacoco.get()
+}
+
+def coveredModules = [':recordbuf-runtime', ':recordbuf-json', ':recordbuf-avro']
+
+tasks.named('jacocoTestReport', JacocoReport).configure {
+    // Run after `test` on every build; the report reads the exec data the test task wrote.
+    dependsOn tasks.named('test')
+    classDirectories.setFrom(
+        files(coveredModules.collect { path ->
+            { -> project(path).sourceSets.main.output.classesDirs }
+        }),
+        files(sourceSets.main.output.classesDirs).asFileTree.matching { include '**/rec/**' }
+    )
+    sourceDirectories.setFrom(
+        files(coveredModules.collect { path ->
+            { -> project(path).sourceSets.main.java.srcDirs }
+        }),
+        layout.buildDirectory.dir('generated/sources/proto/main/recordbuf')
+    )
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+tasks.named('test').configure {
+    finalizedBy tasks.named('jacocoTestReport')
 }
