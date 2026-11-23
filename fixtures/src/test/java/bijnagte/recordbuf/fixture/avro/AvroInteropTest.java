@@ -35,7 +35,9 @@ import org.junit.jupiter.api.Test;
  *
  * <p>These are the "orange" tests of U6: a green round-trip + a green avro-free source check proves
  * the bridge works and the record's boundary is not violated. The committed-bytes parity (KTD11's
- * "committed golden") is a follow-on when a representative value with a WKT field is available.
+ * "committed golden") landed as the {@code jackson-dyn} golden family's Avro binary goldens, run by
+ * the golden matrix, with the jackson_avro representative value (a WKT-carrying {@code Dyn}) as its
+ * committed datum; the schema canonical form is checked by {@link AvroCanonicalFormTest}.
  */
 class AvroInteropTest {
 

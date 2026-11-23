@@ -1,0 +1,17 @@
+{
+  "at" : {
+    "long" : 1763614896789012
+  },
+  "span" : {
+    "bijnagte.recordbuf.avro.wkt.Duration" : {
+      "seconds" : 3661,
+      "nanos" : 500000000
+    }
+  },
+  "whens" : [ {
+    "long" : 0
+  }, {
+    "long" : 1250000
+  } ],
+  "unknownFields" : [ ]
+}

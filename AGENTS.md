@@ -20,7 +20,8 @@ that turns `.proto` files into Java records + protobuf codecs.
   - `:recordbuf-json` → `json/` — Jackson support generated records use (temporal /
     bytes / `FieldMask` / `Empty` (de)serializers, `RecordbufJsonModule`, `JsonOneof`,
     `DynamicWkt`, `JsonFieldMaskFilter`). Same Error Prone + NullAway wiring as the runtime.
-  - `:recordbuf-fixtures` → `fixtures/` — interop/interface test fixtures.
+  - `:recordbuf-fixtures` → `fixtures/` — the compatibility suite (golden matrix and conformance
+    mirror, see *Fixtures: golden matrix* below) plus the `.proto` fixtures it generates from.
   There is **no top-level `src/`**; each module has its own `src/`.
 - Main class: `bijnagte.recordbuf.plugin.Main` (in `:recordbuf-generator`);
   application name `protoc-gen-recordbuf`.
@@ -205,29 +206,71 @@ consult it when orienting to the codebase or discussing domain concepts.
   `fixtures/src/test/java/bijnagte/recordbuf/fixture/avro/AvroInteropTest`
   (`wellKnownDurationRoundTripsThroughAvro`, `wellKnownSubSecondDurationRoundTripsThroughAvro`).
 
-- **Logging: WIRED (`:recordbuf-generator` only) — SLF4J via `slf4j-simple.** The generator
-  carries `org.slf4j:slf4j-api` (`implementation`) + `org.slf4j:slf4j-simple` (`runtimeOnly`;
-  `slf4j = "2.0.20"` in the catalog — latest GA, 2.1.x still alpha). The plugin's internal
-  diagnostics log through it: `Main`'s fatal malformed-request path at `ERROR`, `Main`'s
-  reported generation failure and `CodeGenerator`'s per-file progress at `DEBUG`. Why
-  slf4j-simple specifically: its ONLY output channel is stderr, so it can never touch the
-  protoc plugin's stdout `CodeGeneratorResponse` protocol; its default level INFO keeps the
-  launched plugin quiet (development debug:
+- **Logging: WIRED (`:recordbuf-generator` main scope; `:recordbuf-fixtures` test scope only) —
+  SLF4J via `slf4j-simple.** The generator carries `org.slf4j:slf4j-api` (`implementation`) +
+  `org.slf4j:slf4j-simple` (`runtimeOnly`; `slf4j = "2.0.20"` in the catalog — latest GA, 2.1.x
+  still alpha). The plugin's internal diagnostics log through it: `Main`'s fatal malformed-request
+  path at `ERROR`, `Main`'s reported generation failure and `CodeGenerator`'s per-file progress at
+  `DEBUG`. `:recordbuf-fixtures` carries the same pair as `testImplementation` /
+  `testRuntimeOnly`: `GoldenSeeder` logs its report at `INFO` through them, so `seedGoldens`
+  shows it on stderr. Why slf4j-simple specifically: its ONLY output channel is stderr, so it can
+  never touch the protoc plugin's stdout `CodeGeneratorResponse` protocol; its default level INFO
+  keeps the launched plugin quiet (development debug:
   `-Dorg.slf4j.simpleLogger.defaultLogLevel=debug`). That replaces the old pattern of
   temporary `System.err` debug dumps left in formatter/writer code and stripped by hand. No
-  other module gets a logging framework; generated code stays dependency-free (R22).
+  other module gets a logging framework, and no generated code (`.rec` surface) depends on one (R22).
   `Main.java`'s `System.in`/`System.out` remain the sanctioned protoc-plugin stdio protocol
   I/O, not application logging.
+- **Coverage: JaCoCo, gated in `check` (`:recordbuf-fixtures` only).** `fixtures/build.gradle`
+  applies `jacoco` (`jacoco = "0.8.14"` in the catalog) and wires `jacocoTestReport` and
+  `jacocoTestCoverageVerification`, which `check` depends on. The scope is the runtime, json and
+  avro module classes plus the module's `.rec` output; the vendored `com.google.protobuf_test_messages`
+  package is excluded as new scope. The minimums are the pre-restructure baseline: LINE 0.6222,
+  BRANCH 0.5545. Do not lower them (see the matrix rules below).
 - **Protobuf runtime:** generated codecs use
   `com.google.protobuf.{CodedInputStream,CodedOutputStream}` — keep
   `com.google.protobuf:protobuf-java` (`4.36.2`, pinned in the catalog) on
   the consumer classpath.
 
+## Fixtures: golden matrix
+
+`:recordbuf-fixtures` is a case × format matrix. A `GoldenCase` (`fixtures/src/test/java/.../fixture/golden/`)
+is one built record with one outcome per format: lossless, expected-after-trip, or not applicable. The
+five `GoldenFormat` adapters live in `golden/format/`: protobuf binary (`.pb.hex`), proto3 JSON through
+the generated `Interop` (`.proto3.json`), Jackson (`.jackson.json`), Avro binary (`.avro.hex`) and
+canonical Avro JSON (`.avro.json`). `GoldenMatrix` turns each applicable pair into a forward and a
+reverse test, and `GoldenStore` resolves goldens at `golden/<family>/<case>.<ext>`. The case sources
+the seeder walks are listed in `GoldenCaseRegistry`. The README's *Compatibility suite* section has the
+details. Rules:
+
+- **Goldens are frozen.** A golden changes only by reviewed hand edit. Adding or renaming a golden
+  file is fine. Changing the content of an existing golden is a **stop condition**: stop and surface
+  it, do not edit it.
+- **The seeder writes missing goldens only** (`./gradlew :recordbuf-fixtures:seedGoldens`). It skips
+  existing goldens and never overwrites one. Jackson goldens it writes are recordbuf's own output and
+  need human review before commit. `seedGoldens` is not part of `check`.
+- **JSON goldens are order-sensitive.** Both sides are normalized to a pretty-printed tree; member
+  order and value types count, whitespace does not.
+- **The coverage gate must not be lowered.** The JaCoCo minimums in `fixtures/build.gradle` are the
+  pre-restructure baseline; lowering them is a stop condition.
+- **Gaps are ledgered and close one per change.** Every `GAP(<id>)` marker in a vendored proto has a
+  row in `fixtures/src/test/resources/golden/gap-ledger.md`, and every construct row has a marker
+  (`GapLedgerTest`). Closing one is a single change: uncomment or fix the construct, fix the generator,
+  seed its goldens in every applicable format, remove the row and marker. Conformance-only rows must
+  be named by a gap row in `conformance-manifest.md`.
+- **The vendored corpus is minimal-edit.** `fixtures/src/main/proto/test_messages_proto3.proto` changes
+  only to switch recordbuf's surfaces on and to comment out gaps (KTD11); its header lists the edits.
+- **Structural checks stay structural.** Reflection, annotation and builder assertions are not goldens.
+- Generator findings that are not proto constructs go in `docs/known-findings.md`, not the ledger.
+
 ## How to run / verify
 
-- Full check (compile + test + assemble): `./gradlew build`
+- Full check (compile + test + assemble + coverage gate): `./gradlew build`
 - Tests (JUnit Platform — no AssertJ/Mockito are in this project's classpath
   yet): `./gradlew test`
+- Missing golden seeding (writes missing only, never overwrites):
+  `./gradlew :recordbuf-fixtures:seedGoldens`
+- Coverage report: `./gradlew :recordbuf-fixtures:jacocoTestReport`
 - Regenerate the plugin launcher for use by `protoc`:
   `./gradlew :recordbuf-generator:installDist`
   → the launched launcher is `generator/build/install/protoc-gen-recordbuf/bin/protoc-gen-recordbuf`
@@ -277,10 +320,10 @@ same defaults; this session additionally wired a **first-party Checkstyle qualit
 **project-wide `-Werror` gate** (`options.compilerArgs.add("-Werror")` in the root `build.gradle.kts`,
 enforcing no `@Deprecated` API usage unless explicitly suppressed — see the **-Werror** bullet above),
 and flipped the `SourceRenderer` to emit Javadoc *before* annotations at every site (Oracle spec).
-So all the cross-project defaults are now wired, logging included: the one module with a
-logging framework is `:recordbuf-generator` (SLF4J + slf4j-simple to stderr — see the
-**Logging** bullet above), and `Main.java`'s `System.in`/`System.out` remain the sanctioned
-protoc-plugin stdio protocol exception.
+So all the cross-project defaults are now wired, logging included: the modules with a logging
+framework are `:recordbuf-generator` (SLF4J + slf4j-simple to stderr) and, in test scope only,
+`:recordbuf-fixtures` (the golden seeder's report); see the **Logging** bullet above. `Main.java`'s
+`System.in`/`System.out` remain the sanctioned protoc-plugin stdio protocol exception.
 
 <!-- BEGIN COMPOUND PI TOOL MAP -->
 ## Compound Engineering (Pi compatibility)

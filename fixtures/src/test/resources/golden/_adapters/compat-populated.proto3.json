@@ -1,0 +1,23 @@
+{
+  "i": 42,
+  "fx": "1000000",
+  "s": "héllo-世-🎉",
+  "b": "f4D/",
+  "packed": [1, -2, 0, 100],
+  "nested": {
+    "id": 7,
+    "label": "seven"
+  },
+  "subs": [{
+    "id": 1,
+    "label": "one"
+  }, {
+    "id": 2,
+    "label": "two"
+  }],
+  "m": {
+    "x": 1,
+    "z": -2
+  },
+  "presence": 7
+}

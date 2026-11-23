@@ -2,13 +2,15 @@ package bijnagte.recordbuf.fixture.jacksonformat;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import bijnagte.recordbuf.fixture.JsonGolden;
+import bijnagte.recordbuf.fixture.golden.GoldenMatrix;
+import bijnagte.recordbuf.fixture.golden.GoldenStore;
 import bijnagte.recordbuf.fixture.jacksonformat.rec.Probe;
-import bijnagte.recordbuf.runtime.UnknownFields;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.DynamicNode;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestFactory;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -21,24 +23,17 @@ class JacksonFormatTest {
 
   private static final ObjectMapper M = new ObjectMapper();
 
-  private static Probe probe() {
-    return new Probe(
-        Instant.ofEpochSecond(1_763_614_896L, 789_012_345),
-        Duration.ofSeconds(3661, 500_000_000),
-        List.of(Instant.EPOCH, Instant.ofEpochSecond(1, 250_000_000)),
-        null,
-        UnknownFields.empty());
-  }
+  private static final JacksonFormatCases SOURCE = new JacksonFormatCases();
 
   /** at: the default ISO string; span: the canonical object; whens: an array of ISO strings. */
-  @Test
-  void rendersEachFieldPerItsFormat() throws Exception {
-    JsonGolden.assertMatches("jacksonformat/probe.json", M.writeValueAsString(probe()));
+  @TestFactory
+  Stream<DynamicNode> probeCase_matchesItsGoldenForwardAndReverse() {
+    return GoldenMatrix.of(GoldenStore.classpath(), SOURCE.formats()).tests(SOURCE.cases());
   }
 
   @Test
   void roundTripsThroughJackson() throws Exception {
-    Probe probe = probe();
+    Probe probe = JacksonFormatCases.probe();
     assertEquals(probe, M.readValue(M.writeValueAsString(probe), Probe.class));
   }
 

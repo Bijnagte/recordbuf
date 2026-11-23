@@ -43,3 +43,12 @@ message Full {
 message Inner {
   string label = 1;
 }
+
+// The per-field JSON-surface knobs, on a jackson-enabled file: json_name renames a field's JSON
+// property (replacing the proto3 camelCase name), json_ignored keeps a field off the JSON surface
+// altogether. Both are JSON-only: the field stays on the wire.
+message Knobs {
+  string label = 1;
+  string display_text = 2 [(.recordbuf.json_name) = "shown_as"];
+  string secret = 3 [(.recordbuf.json_ignored) = true];
+}

@@ -1,0 +1,9 @@
+{
+  "choice" : {
+    "bijnagte.recordbuf.fixture.oneof.SubAvro" : {
+      "text" : "seven",
+      "unknownFields" : [ ]
+    }
+  },
+  "unknownFields" : [ ]
+}

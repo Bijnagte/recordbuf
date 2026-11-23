@@ -1,0 +1,27 @@
+// Per-family interop fixture for the map field family, part two: every proto3 map key type that
+// map.proto's Sample does not cover (string and int32). A single .proto drives both halves at
+// generation time via the recordbuf plugin and the protobuf-gradle plugin: the record is emitted to
+// the `.rec` sibling package (package_suffix=.rec) and the protobuf-java reference to this proto's
+// natural java_package via --java_out. It is its own file, in its own package, because the Avro
+// surface is generated for the first top-level message of a file only, and a second proto in map's
+// package would emit the shared RecordbufUnknownField a second time.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.mapkeys;
+option java_package = "bijnagte.recordbuf.fixture.mapkeys";
+option java_multiple_files = true;
+
+// One map per remaining key type, each with a string value: every integral key type (varint,
+// zigzag and fixed-width) and bool are legal; float, double, bytes and enums are not.
+message Keys {
+    map<int64, string>    i64  = 1;
+    map<uint32, string>   u32  = 2;
+    map<uint64, string>   u64  = 3;
+    map<sint32, string>   s32  = 4;
+    map<sint64, string>   s64  = 5;
+    map<fixed32, string>  f32  = 6;
+    map<fixed64, string>  f64  = 7;
+    map<sfixed32, string> sf32 = 8;
+    map<sfixed64, string> sf64 = 9;
+    map<bool, string>     flag = 10;
+}

@@ -1,114 +1,67 @@
 package bijnagte.recordbuf.fixture.packed;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import bijnagte.recordbuf.fixture.packed.rec.Sample.SampleCodec;
+import bijnagte.recordbuf.fixture.golden.GoldenMatrix;
+import bijnagte.recordbuf.fixture.golden.GoldenStore;
+import bijnagte.recordbuf.fixture.packed.rec.Sample;
+import com.google.protobuf.CodedOutputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.List;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DynamicNode;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestFactory;
 
 /**
- * Byte-and-semantic interop of the generated record codec against the protobuf-java reference for
- * the {@code packed-repeated-numeric} field family.
+ * The {@code packed} golden family (see {@link PackedCases}): every case is checked forward and
+ * reverse in each format it applies to, and reported as skipped, with the reason, in each it does
+ * not. The protobuf binary format carries the byte comparison against protobuf-java and the decode
+ * of protobuf-java's bytes that this class used to assert by hand.
  *
- * <p>The record under test lives in this same package (so {@code Sample} is unqualified). The
- * protobuf-java reference lives in a sibling {@code .ref} package and is referred to by
- * fully-qualified name to avoid a same-simple-name import collision.
- *
- * <p>Every field is a {@code repeated} numeric scalar, which proto3 encodes with the packed
- * (length-delimited) wire form: one {@code tag + varint length} group followed by a tight sequence
- * of the values, rather than one tag per element. The populated case carries a non-empty list for
- * each family with distinct values — signed families (int32/int64/sint32/sint64) are negative so
- * their varint/zigzag packing is exercised, and fixed/float/double carry the fixed-width and IEEE
- * forms. The default case carries an empty list for every field, proving each packed group is
- * omitted from the wire when empty.
+ * <p>One structural test stays outside the matrix: a protobuf parser must accept a packed field
+ * written unpacked (one tag per element), and that wire form is decode input only. It cannot be a
+ * golden, because the protobuf binary golden is protobuf-java's own canonical (packed) encoding,
+ * and the protobuf binary adapter's oracle check would reject it. That test is disabled while gap
+ * {@code packed-decode-unpacked-input} is open: the generated decoder reads the packed form only.
  */
 class PackedTest {
 
-  // bijnagte.recordbuf.fixture.packed.rec.Sample field order: a int32, b int64, c fixed32, d
-  // fixed64, e float,
-  // f double, g sint32, h sint64, i uint32, j uint64. Each list is
-  // distinct-value so packed-width + zigzag framing is exercised.
-  private static final List<Integer> A = List.of(1, -2, Integer.MAX_VALUE, 0);
-  private static final List<Long> B = List.of(1L, -2L, 1_000_000L);
-  private static final List<Integer> C = List.of(7, -7, 0);
-  private static final List<Long> D = List.of(7L, -7L, 1_000_000L);
-  private static final List<Float> E = List.of(1.5f, -2.5f, 0f);
-  private static final List<Double> F = List.of(1.25, -3.75, 0.0);
-  private static final List<Integer> G = List.of(1, -5, 100);
-  private static final List<Long> H = List.of(1L, -7L, 1_000L);
-  private static final List<Integer> I = List.of(1, 42, 1_000);
-  private static final List<Long> J = List.of(1L, 12_345L, 9_000_000_000L);
+  private static final PackedCases SOURCE = new PackedCases();
 
-  /** A fully-populated sample: a non-empty packed list for every field. */
-  private static bijnagte.recordbuf.fixture.packed.rec.Sample sample() {
-    return bijnagte.recordbuf.fixture.packed.rec.Sample.builder()
-        .a(A)
-        .b(B)
-        .c(C)
-        .d(D)
-        .e(E)
-        .f(F)
-        .g(G)
-        .h(H)
-        .i(I)
-        .j(J)
-        .build();
-  }
-
-  /** The proto3 default sample: an empty list for every field, all omitted. */
-  private static bijnagte.recordbuf.fixture.packed.rec.Sample empty() {
-    return bijnagte.recordbuf.fixture.packed.rec.Sample.builder().build();
+  @TestFactory
+  Stream<DynamicNode> packedCases_matchTheirGoldensForwardAndReverse() {
+    return GoldenMatrix.of(GoldenStore.classpath(), SOURCE.formats()).tests(SOURCE.cases());
   }
 
   /**
-   * Our byte output must match protobuf-java's {@code toByteArray()} for the packed
-   * (length-delimited) wire form. The populated case exercises every packed numeric family; the
-   * default case proves an empty packed group is omitted, so all-empty encodes to zero bytes.
+   * An {@code int32} list written unpacked, one varint tag per element, decodes to the same record
+   * as protobuf-java's parse of the same bytes.
    */
+  @Disabled("gap packed-decode-unpacked-input: the generated decoder reads the packed form only")
   @Test
-  void byteEqual() throws Exception {
-    byte[] theirs = newBuilder().build().toByteArray();
-    byte[] ours = SampleCodec.encode(sample());
-    assertArrayEquals(theirs, ours, "record encode must equal protobuf-java toByteArray");
+  void unpackedInput_decodesIntoThePackedField() throws Exception {
+    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    CodedOutputStream out = CodedOutputStream.newInstance(bytes);
+    writeUnpackedInt32(out, List.of(1, 2));
+    out.flush();
+    byte[] unpacked = bytes.toByteArray();
 
-    byte[] theirsDefault = Sample.newBuilder().build().toByteArray();
-    byte[] oursDefault = SampleCodec.encode(empty());
-    assertArrayEquals(theirsDefault, oursDefault, "default sample must be empty on the wire");
-    assertArrayEquals(new byte[0], oursDefault, "all-empty packed lists must encode to zero bytes");
+    Sample decoded = Sample.fromBytes(unpacked);
+
+    assertEquals(
+        List.of(1, 2),
+        bijnagte.recordbuf.fixture.packed.Sample.parseFrom(unpacked).getAList(),
+        "the reference parser reads the unpacked form");
+    assertEquals(Sample.builder().a(List.of(1, 2)).build(), decoded);
   }
 
-  /** The non-empty packed lists are present on the wire; decode from protobuf-java bytes. */
-  @Test
-  void interopDecodesProtobuf() throws Exception {
-    byte[] theirs = newBuilder().build().toByteArray();
-    bijnagte.recordbuf.fixture.packed.rec.Sample parsed = SampleCodec.decode(theirs);
-    assertEquals(sample(), parsed);
-  }
-
-  /** Decoding an all-empty encode yields empty lists for every field. */
-  @Test
-  void roundTrip() throws Exception {
-    bijnagte.recordbuf.fixture.packed.rec.Sample v = sample();
-    assertEquals(v, SampleCodec.decode(SampleCodec.encode(v)));
-
-    bijnagte.recordbuf.fixture.packed.rec.Sample d =
-        SampleCodec.decode(SampleCodec.encode(empty()));
-    assertEquals(List.of(), d.a());
-    assertEquals(List.of(), d.j());
-  }
-
-  private static Sample.Builder newBuilder() {
-    return Sample.newBuilder()
-        .addAllA(A)
-        .addAllB(B)
-        .addAllC(C)
-        .addAllD(D)
-        .addAllE(E)
-        .addAllF(F)
-        .addAllG(G)
-        .addAllH(H)
-        .addAllI(I)
-        .addAllJ(J);
+  private static void writeUnpackedInt32(CodedOutputStream out, List<Integer> values)
+      throws IOException {
+    for (int value : values) {
+      out.writeInt32(1, value);
+    }
   }
 }

@@ -1,0 +1,10 @@
+{
+  "a" : 42,
+  "b" : "hello",
+  "c" : true,
+  "d" : {
+    "value" : 1,
+    "unknownFields" : [ ]
+  },
+  "unknownFields" : [ ]
+}

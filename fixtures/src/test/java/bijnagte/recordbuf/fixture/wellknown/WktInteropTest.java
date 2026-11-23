@@ -2,11 +2,10 @@ package bijnagte.recordbuf.fixture.wellknown;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 
-import bijnagte.recordbuf.fixture.wellknown.rec.Sample.SampleCodec;
+import bijnagte.recordbuf.fixture.golden.GoldenMatrix;
+import bijnagte.recordbuf.fixture.golden.GoldenStore;
 import bijnagte.recordbuf.runtime.Bytes;
-import bijnagte.recordbuf.runtime.Empty;
 import bijnagte.recordbuf.runtime.FieldMask;
 import bijnagte.recordbuf.runtime.wkt.Wkt;
 import com.google.protobuf.BoolValue;
@@ -20,115 +19,30 @@ import com.google.protobuf.StringValue;
 import com.google.protobuf.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.DynamicNode;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestFactory;
 
 /**
- * Cross-framework interop for the supported well-known types (KTD3). Proves the runtime {@link Wkt}
- * wire helpers and the generated {@code Sample} record's codec are byte-identical to the
- * protobuf-java 4.36.2 reference -- the strongest guarantee a WKT frame is a nested message whose
- * {@code field 1} is the WKT's canonical inner, not a hand-rolled shape.
+ * The {@code wellknown} golden family (see {@link WktCases}): every case is checked forward and
+ * reverse in each format it applies to, and reported as skipped, with the reason, in each it does
+ * not. The protobuf binary format carries the byte comparison against protobuf-java and the decode
+ * of protobuf-java's bytes that this class used to assert by hand.
  *
- * <p>The record {@code Sample} lives in the {@code .rec} sibling package (fully-qualified to dodge
- * the same-simple-name collision with the protobuf-java reference {@code Sample}); the reference is
- * referred to by its natural-package simple name. Protobuf-java's {@code Duration} / {@code
- * FieldMask} are referred to by fully-qualified name, and {@code java.time.Duration} by alias, to
- * dodge the simple-name collision with the runtime / java.time types.
+ * <p>The per-type checks below stay structural: they drive the runtime {@link Wkt} wire helpers
+ * directly and compare each helper's bytes with protobuf-java's for the bare well-known message,
+ * which is no record and so has no golden shape. {@link java.time.Duration} is referred to by
+ * qualified name, and protobuf-java's {@code Duration} and {@code FieldMask} by qualified name, to
+ * dodge the simple-name collision with the runtime and java.time types.
  */
 class WktInteropTest {
 
-  private final java.time.Duration hour = java.time.Duration.ofHours(1);
-  private final Instant t1 = Instant.ofEpochSecond(1_700_000_000L);
+  private static final WktCases SOURCE = new WktCases();
 
-  private bijnagte.recordbuf.fixture.wellknown.rec.Sample.Builder sample() {
-    return bijnagte.recordbuf.fixture.wellknown.rec.Sample.builder()
-        .at(t1)
-        .span(hour)
-        .mask(FieldMask.of(List.of("a.b", "c")))
-        .i32(42)
-        .i64(7L)
-        .dbl(3.14d)
-        .flt(2.5f)
-        .flag(true)
-        .text("hi")
-        .blob(Bytes.of(new byte[] {1, 2, 3}))
-        .whens(List.of(Instant.ofEpochSecond(1), Instant.ofEpochSecond(2)));
-  }
-
-  private byte[] refBytes() {
-    return Sample.newBuilder()
-        .setAt(
-            Timestamp.newBuilder().setSeconds(t1.getEpochSecond()).setNanos(t1.getNano()).build())
-        .setSpan(
-            com.google.protobuf.Duration.newBuilder()
-                .setSeconds(hour.getSeconds())
-                .setNanos(hour.getNano())
-                .build())
-        .setMask(com.google.protobuf.FieldMask.newBuilder().addPaths("a.b").addPaths("c").build())
-        .setI32(Int32Value.of(42))
-        .setI64(Int64Value.of(7L))
-        .setDbl(DoubleValue.of(3.14d))
-        .setFlt(FloatValue.of(2.5f))
-        .setFlag(BoolValue.of(true))
-        .setText(StringValue.of("hi"))
-        .setBlob(BytesValue.of(ByteString.copyFrom(new byte[] {1, 2, 3})))
-        .addWhens(Timestamp.newBuilder().setSeconds(1).build())
-        .addWhens(Timestamp.newBuilder().setSeconds(2).build())
-        .build()
-        .toByteArray();
-  }
-
-  /**
-   * Byte-for-byte: record encode == protobuf-java toByteArray for a fully-populated WKT message.
-   */
-  @Test
-  void byteEqual() throws Exception {
-    assertArrayEquals(
-        refBytes(),
-        SampleCodec.encode(sample().build()),
-        "every WKT frame must be byte-identical to the protobuf-java reference");
-  }
-
-  /**
-   * Protobuf-java bytes decode into the record, with each WKT component recovered as its native
-   * type.
-   */
-  @Test
-  void interopDecodesProtobuf() throws Exception {
-    bijnagte.recordbuf.fixture.wellknown.rec.Sample r = SampleCodec.decode(refBytes());
-    assertEquals(t1, r.at());
-    assertEquals(hour, r.span());
-    assertEquals(List.of("a.b", "c"), r.mask().paths());
-    assertEquals(42, r.i32());
-    assertEquals(7L, r.i64());
-    assertEquals(3.14d, r.dbl());
-    assertEquals(2.5f, r.flt());
-    assertEquals(true, r.flag());
-    assertEquals("hi", r.text());
-    assertArrayEquals(new byte[] {1, 2, 3}, r.blob().toByteArray());
-    assertEquals(List.of(Instant.ofEpochSecond(1), Instant.ofEpochSecond(2)), r.whens());
-    assertEquals(Empty.INSTANCE, r.empty());
-  }
-
-  /** Invariant: decode(encode(x)) == x (presence preserved, empty defaults recovered). */
-  @Test
-  void roundTrip() throws Exception {
-    bijnagte.recordbuf.fixture.wellknown.rec.Sample x = sample().build();
-    assertEquals(x, SampleCodec.decode(SampleCodec.encode(x)));
-  }
-
-  /**
-   * A wrapper that is absent on the record decodes to null; structured WKTs keep their zero
-   * default.
-   */
-  @Test
-  void absentWrapperIsNull() throws Exception {
-    bijnagte.recordbuf.fixture.wellknown.rec.Sample r = SampleCodec.decode(new byte[0]);
-    assertNull(r.i32());
-    assertNull(r.blob());
-    assertEquals(Instant.EPOCH, r.at());
-    assertEquals(java.time.Duration.ZERO, r.span());
-    assertEquals(FieldMask.empty(), r.mask());
-    assertEquals(Empty.INSTANCE, r.empty());
+  @TestFactory
+  Stream<DynamicNode> wellknownCases_matchTheirGoldensForwardAndReverse() {
+    return GoldenMatrix.of(GoldenStore.classpath(), SOURCE.formats()).tests(SOURCE.cases());
   }
 
   // Direct per-WKT wire checks against the protobuf-java reference.

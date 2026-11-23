@@ -66,3 +66,17 @@ message data produced by the recordbuf plugin without a protobuf dependency.
 
 ### Opaque envelope
 The Avro-twin representation for a field the structural twin cannot map — an opaque wrapper instead of a structural type. Shelved when the structural twin landed (no shape then needed it), it returned with the 2026-11-20 Jackson JSON plan (U9) as the shared `RecordbufDynamicWkt` record `{format, contentType, payload}`: a dynamic WKT field on a file with both the Jackson surface and the Avro bridge on rides it (`format` = `"json"`, `contentType` = the WKT name or an `Any`'s `typeUrl`, `payload` = the node's JSON text), so the twin degrades those fields rather than dropping them or failing the file.
+
+## Compatibility testing
+
+### Golden
+A committed copy of one case's record in one format, stored at `fixtures/src/test/resources/golden/<family>/<case>.<ext>`. The five formats are protobuf binary (`pb.hex`), proto3 JSON through the generated `Interop` (`proto3.json`), Jackson JSON (`jackson.json`), Avro binary (`avro.hex`) and canonical Avro JSON (`avro.json`). A golden is seeded once from the library that produced it, then frozen: the seeder writes only missing goldens and the suite never rewrites one, so it changes only by a reviewed hand edit. Jackson goldens have no independent source and need review when seeded. JSON goldens compare after both sides are normalized to pretty-printed tree text, so member order counts and whitespace does not. Binary goldens compare byte-for-byte. *Avoid:* "snapshot" (implies the test may regenerate it).
+
+### Expected-after-trip record
+The record that a golden must deserialize to when its format loses information by design. Examples as built: a `json_ignored` field, or a retained unknown JSON property, under Jackson; the unknown-field carrier under proto3 JSON; a timestamp cut to Avro's microseconds. A case declares one per lossy format, which keeps the reverse equality assertion strict. Where a case declares none, the reverse check compares with the built record.
+
+### Gap ledger
+The tracked list of constructs and conformance scenarios that recordbuf does not satisfy yet, with the reason for each, in `fixtures/src/test/resources/golden/gap-ledger.md`. A construct row has a `GAP(<id>)` marker in a vendored proto: the construct is commented out there when it breaks generation, or left active with the marker above it when it generates but is wrong in one format (a marker-only gap). A conformance-only row has no marker and is named by a gap row of the [conformance manifest](fixtures/src/test/resources/golden/conformance-manifest.md). Gaps close one at a time: uncomment or fix, seed the goldens, and remove the row and its marker in the same change. A commented-out field still round-trips on the wire through the unknown-field carrier, so the ledger is what keeps such a gap visible.
+
+### Conformance mirror
+The official protobuf conformance suite's proto3 scenarios at tag `v36.2`, reproduced as Java tests rather than run by Google's C++ runner. Each scenario group is listed in the conformance manifest as covered, a gap, or not applicable. A binary scenario decodes with recordbuf and compares with protobuf-java. A JSON scenario runs `JsonFormat` into the protobuf-java message, then through the generated `Interop` converter and back. A group that tests only `JsonFormat`'s own parse rejection is not applicable, because that behaviour belongs to Google.

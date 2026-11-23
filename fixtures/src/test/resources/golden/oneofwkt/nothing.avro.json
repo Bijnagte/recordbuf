@@ -1,0 +1,11 @@
+{
+  "v" : {
+    "bijnagte.recordbuf.fixture.oneofwkt.RecordbufOneofValue" : {
+      "tag" : 6,
+      "value" : {
+        "bijnagte.recordbuf.avro.wkt.Empty" : { }
+      }
+    }
+  },
+  "unknownFields" : [ ]
+}

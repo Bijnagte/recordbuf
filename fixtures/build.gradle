@@ -45,6 +45,7 @@ plugins {
 
 apply plugin: 'java-library'
 apply plugin: 'com.google.protobuf'
+apply plugin: 'jacoco'
 // protobuf-gradle-plugin 0.10.0 called the deprecated Configuration.setVisible(false) on
 // its internal configs, emitting a configuration-time deprecation warning on every build
 // (Gradle 9.x deprecates `visible`; the property is removed in Gradle 11). That upstream
@@ -108,6 +109,15 @@ dependencies {
     // of the WKT .protos (descriptor.proto) needed to compile recordbuf_options.
     implementation protobufJava
     testImplementation libs.junit.jupiter
+    // SLF4J for the golden seeder's report (GoldenSeeder.main logs through it). slf4j-simple is the
+    // binding; it writes to stderr, so a seedGoldens run shows the report there. Mirrors
+    // :recordbuf-generator.
+    testImplementation libs.slf4j.api
+    testRuntimeOnly libs.slf4j.simple
+    // The proto3-JSON oracle for the canonical-format tests: JsonFormat prints a .rec record's
+    // wire bytes (parsed through the protobuf-java reference) as canonical JSON. TEST-ONLY --
+    // generated .rec code never imports it (R22), so it stays off the main compile classpath.
+    testImplementation libs.protobuf.java.util
     testRuntimeOnly libs.junit.platform.launcher
 
     // U2: Error Prone + NullAway prove the generated codec is nullness-safe by construction
@@ -246,8 +256,101 @@ tasks.named("compileTestJava", JavaCompile).configure {
 test {
     useJUnitPlatform()
     outputs.upToDateWhen { false }
+    // U11 (2026-11-23-001, KTD7): GapLedgerTest scans the vendored protos for GAP(<id>) markers.
+    systemProperty 'recordbuf.fixtures.protoDir', file('src/main/proto').absolutePath
     // Avro 1.11+ ClassSecurityValidator: generated specific record classes must be
     // explicitly trusted for binary write/read via SpecificDatumWriter/Reader.
     // The fixture package is safe to trust in a test environment.
+    jvmArgs '-Dorg.apache.avro.SERIALIZABLE_PACKAGES=bijnagte.recordbuf.fixture'
+}
+
+// U1 (2026-11-23-001, KTD10): coverage over the fixtures test run. Scope = the hand-written
+// runtime / json / avro module classes plus the recordbuf-generated `.rec` output of THIS module.
+// Everything else that lands in fixtures' main classes is out: the protobuf-java reference, the Avro SpecificCompiler records
+// (*Avro, RecordbufUnknownField, RecordbufOneofValue, RecordbufDynamicWkt, avro/wkt) and
+// recordbuf.RecordbufOptions all compile into the un-suffixed natural packages, while every
+// recordbuf `.rec` class lives under a `rec` package -- so including only `**/rec/**` from the
+// fixtures classes excludes all of them at once. The com.google.protobuf.compiler shim is part
+// of :recordbuf-generator, which is not on the fixtures classpath, so it is never in scope.
+jacoco {
+    toolVersion = libs.versions.jacoco.get()
+}
+
+def coveredModules = [':recordbuf-runtime', ':recordbuf-json', ':recordbuf-avro']
+
+// U2 (2026-11-23-001, KTD10): this one scope is a single FileCollection shared by jacocoTestReport and
+// jacocoTestCoverageVerification, so the gate measures exactly what the report shows.
+// U12: the vendored test_messages_proto3 output (package com.google.protobuf_test_messages) is NEW
+// scope, not part of the pre-restructure baseline R12 protects, so it is excluded: counting ~2k
+// fresh generated lines against the old baseline would force lowering the gate (a stop condition).
+// The golden corpus (U13) is what proves that code; this gate guards the restructure.
+def coveredClassDirectories = files(
+    files(coveredModules.collect { path ->
+        { -> project(path).sourceSets.main.output.classesDirs }
+    }),
+    files(sourceSets.main.output.classesDirs).asFileTree.matching {
+        include '**/rec/**'
+        exclude '**/protobuf_test_messages/**'
+    }
+)
+
+tasks.named('jacocoTestReport', JacocoReport).configure {
+    // Run after `test` on every build; the report reads the exec data the test task wrote.
+    dependsOn tasks.named('test')
+    classDirectories.setFrom(coveredClassDirectories)
+    sourceDirectories.setFrom(
+        files(coveredModules.collect { path ->
+            { -> project(path).sourceSets.main.java.srcDirs }
+        }),
+        layout.buildDirectory.dir('generated/sources/proto/main/recordbuf')
+    )
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+// U2 (2026-11-23-001, KTD10): the gate minimums are the PRE-RESTRUCTURE baseline, recorded on
+// 2026-11-23 from the unchanged suite by U1 (jacocoTestReport counters: LINE 2281 covered / 1385
+// missed = 0.6222; BRANCH 833 covered / 669 missed = 0.5545), each floored to 4 decimal places.
+// Lowering either minimum is a plan stop condition: escalate rather than relax the gate.
+tasks.named('jacocoTestCoverageVerification', JacocoCoverageVerification).configure {
+    dependsOn tasks.named('test')
+    classDirectories.setFrom(coveredClassDirectories)
+    violationRules {
+        rule {
+            element = 'BUNDLE'
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 0.6222
+            }
+            limit {
+                counter = 'BRANCH'
+                value = 'COVEREDRATIO'
+                minimum = 0.5545
+            }
+        }
+    }
+}
+
+tasks.named('check').configure {
+    dependsOn tasks.named('jacocoTestCoverageVerification')
+}
+
+tasks.named('test').configure {
+    finalizedBy tasks.named('jacocoTestReport')
+}
+
+// U10 (2026-11-23-001, KTD6): seed golden files that do not exist yet, from each format's
+// independent source, into the SOURCE tree (not build/). Write-missing-only: it never overwrites a
+// golden and fails if asked to. Deliberately not wired into check/build. Review the printed report,
+// above all the Jackson goldens it flags, before committing what it wrote.
+tasks.register('seedGoldens', JavaExec) {
+    group = 'verification'
+    description = 'Writes missing golden files for the registered cases; never overwrites.'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'bijnagte.recordbuf.fixture.golden.GoldenSeeder'
+    args layout.projectDirectory.dir('src/test/resources/golden').asFile.absolutePath
     jvmArgs '-Dorg.apache.avro.SERIALIZABLE_PACKAGES=bijnagte.recordbuf.fixture'
 }

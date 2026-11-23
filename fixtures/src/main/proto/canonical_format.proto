@@ -1,0 +1,65 @@
+// Canonical-format fixture for the protobuf canonical-JSON area. A single .proto drives both
+// halves at generation time: the recordbuf record is emitted to the `.rec` sibling package and
+// the protobuf-java reference (the java builtin) stays at this family's natural java_package.
+// The record crosses to the reference through its generated wire codec (`toByteArray` ->
+// `parseFrom`); from there the test prints canonical JSON through protobuf-java's JsonFormat.
+//
+// Every field pins one aspect of the canonical rendering (see ProtoCanonicalJsonTest for which
+// "canonical" is asserted): scalar families in their proto3-JSON shapes (64-bit ints as
+// strings, shortest round-trip decimals), enum by NAME, base64 bytes, a nested message
+// (recursion in field-number order), an array whose element ORDER is preserved, and a map
+// whose KEYS are sorted.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.canonicalformat;
+option java_package = "bijnagte.recordbuf.fixture.canonicalformat";
+option java_multiple_files = true;
+
+// The enum family: canonical JSON renders an enum as its NAME, never its number.
+enum Kind {
+  KIND_UNSPECIFIED = 0;
+
+  ALPHA = 1;
+
+  BETA = 2;
+}
+
+// A nested message: the canonical form recurses, with this record's members in field-number
+// order inside the parent.
+message Item {
+  int32 id = 1;
+
+  string label = 2;
+}
+
+// One field per canonical rendering aspect. Field numbers are deliberately the declaration
+// order, so "fields in field-number order" is checkable against the golden text.
+message Sample {
+  int32 i32 = 1; // integral -> JSON number
+
+  int64 i64 = 2; // 64-bit -> JSON STRING (proto3 mapping: >2^53 needs no float)
+
+  uint64 u64 = 3; // unsigned 64-bit -> JSON string
+
+  sint32 s32 = 4; // zigzag wire, plain JSON number
+
+  fixed64 f64 = 5; // fixed-width wire, but a 64-bit int -> JSON string
+
+  float flt = 6; // fractional -> shortest round-trip decimal
+
+  double dbl = 7; // deterministic number rendering (0.1)
+
+  bool flag = 8; // true/false literal
+
+  string text = 9; // JSON escaping (quotes, backslash) + raw UTF-8
+
+  bytes blob = 10; // standard base64
+
+  Kind kind = 11; // enum NAME, not number
+
+  Item item = 12; // nested message (field-number order inside)
+
+  repeated string tags = 13; // array: element ORDER is preserved, never sorted
+
+  map<string, int32> attrs = 14; // canonical: KEYS are sorted
+}

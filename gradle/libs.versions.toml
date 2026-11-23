@@ -14,6 +14,10 @@ spotless          = "8.11.0"   # diffplug Spotless Gradle plugin (latest, 2026-1
 # project's Temurin 25 toolchain satisfies. Checkstyle is the non-formatting gate; Spotless
 # (google-java-format) owns formatting, so the two stay complementary, not competing.
 checkstyle        = "14.4.0"
+# JaCoCo TOOL version (agent + report), applied to :recordbuf-fixtures only. 0.8.14 is the first
+# line that reads Java 25 (class file major 69) -- verified against this project's Temurin 25
+# toolchain by the generated fixtures report.
+jacoco            = "0.8.14"
 google-java-format = "2.0.0"   # latest (pulled from the catalog by build.gradle.kts)
                                 # enum; its default cleanups (redundant semicolons,
                                 # empty annotation parens, single-lambda parens) are ON
@@ -42,7 +46,7 @@ jackson           = "3.1.8"
 # coordinate has no patch suffix; the handoff's "2.21.0" 404s on Central) to match jackson-bom
 # 3.1.8, which manages the same artifact at 2.21, so the two never diverge.
 jackson-annotations = "2.21"
-slf4j             = "2.0.20"   # org.slf4j -- latest GA (2.1.x is still alpha); generator-side logging only
+slf4j             = "2.0.20"   # org.slf4j -- latest GA (2.1.x is still alpha); generator and fixtures-test logging only
 
 [libraries]
 # io.soabase.record-builder does not publish a Gradle plugin as of v53; wire
@@ -60,6 +64,9 @@ nullaway            = { group = "com.uber.nullaway", name = "nullaway", version.
 # consumed by GENERATED code (CodedInputStream/CodedOutputStream at user
 # classpath). Pulled here so we can bump in one place.
 protobuf          = { group = "com.google.protobuf", name = "protobuf-java", version.ref = "protobuf" }
+# protobuf-java-util -- JsonFormat, the proto3-JSON oracle the fixtures' canonical-JSON tests
+# print .rec records through (record -> wire bytes -> reference message -> canonical text).
+protobuf-java-util = { group = "com.google.protobuf", name = "protobuf-java-util", version.ref = "protobuf" }
 # Avro (org.apache.avro) -- the alternative-wire-format bridge's runtime dependency.
 # Pulled here so the Avro version is bumped in one place, next to the protobuf pin.
 avro                = { group = "org.apache.avro", name = "avro", version.ref = "avro" }
@@ -79,12 +86,13 @@ jackson-annotations = { group = "com.fasterxml.jackson.core", name = "jackson-an
 # so first-party `src/` and the generated output share one formatting standard. generator-only:
 # it is a Generation/build-time concern (R22 keeps the generated .rec surface dependency-free).
 google-java-format  = { group = "com.google.googlejavaformat", name = "google-java-format", version.ref = "google-java-format" }
-# SLF4J (org.slf4j) -- generator-side logging: the plugin's internal diagnostics (Main's request
-# handling, CodeGenerator's per-file generation) log through slf4j-api, and slf4j-simple is the
-# binding. slf4j-simple's ONLY output channel is stderr, so it can never touch the protoc
-# plugin's stdout CodeGeneratorResponse protocol; its default level INFO keeps the launched
-# plugin quiet (development debug is -Dorg.slf4j.simpleLogger.defaultLogLevel=debug).
-# Generator module only -- the generated .rec surface stays dependency-free (R22).
+# SLF4J (org.slf4j) -- logging: the plugin's internal diagnostics (Main's request handling,
+# CodeGenerator's per-file generation) log through slf4j-api, and slf4j-simple is the binding.
+# slf4j-simple's ONLY output channel is stderr, so it can never touch the protoc plugin's stdout
+# CodeGeneratorResponse protocol; its default level INFO keeps the launched plugin quiet
+# (development debug is -Dorg.slf4j.simpleLogger.defaultLogLevel=debug). :recordbuf-fixtures
+# carries the same pair in test scope only, for the golden seeder's report. Never on the
+# generated .rec surface's classpath (R22).
 slf4j-api         = { group = "org.slf4j", name = "slf4j-api", version.ref = "slf4j" }
 slf4j-simple      = { group = "org.slf4j", name = "slf4j-simple", version.ref = "slf4j" }
 junit-jupiter       = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit-jupiter" }

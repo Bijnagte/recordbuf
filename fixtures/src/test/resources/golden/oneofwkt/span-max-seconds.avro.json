@@ -1,0 +1,14 @@
+{
+  "v" : {
+    "bijnagte.recordbuf.fixture.oneofwkt.RecordbufOneofValue" : {
+      "tag" : 5,
+      "value" : {
+        "bijnagte.recordbuf.avro.wkt.Duration" : {
+          "seconds" : 9223372036854775807,
+          "nanos" : 999999999
+        }
+      }
+    }
+  },
+  "unknownFields" : [ ]
+}

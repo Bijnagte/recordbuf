@@ -118,8 +118,10 @@ Inside a `recordbuf.*` package, reference them with a leading dot, e.g. `(.recor
 | `jackson = false` | file | Opts out of the Jackson JSON surface (default **on**) |
 | `jackson_format = "json"\|"canonical"` | field | Renders a `Timestamp` / `Duration` as ISO-8601 (default) or in the proto3 JSON mapping |
 | `json_oneof = "<name>"` | oneof | Renames the oneof discriminator property (default `<oneofName>Type`) |
+| `json_name = "<name>"` | field | Renames the field's JSON property on a jackson-enabled file, replacing the proto3 camelCase name |
+| `json_ignored = true` | field | Keeps the field out of the JSON output on a jackson-enabled file; it stays on the wire. Not enforced on read: see [known findings](docs/known-findings.md) |
 
-`json_name`, `json_ignored`, and `json_oneof_values` are reserved: they are declared but not yet read.
+`json_oneof_values` is reserved: it is declared but not yet read.
 
 #### Implementing your interfaces
 
@@ -210,6 +212,142 @@ flowchart TB
   class M,L,T,W,B,C,F,R internal
 ```
 
+## Compatibility suite
+
+`:recordbuf-fixtures` checks that generated records stay compatible with frozen copies of their data
+in five formats, and it measures protobuf compatibility against the official conformance suite. Each
+case is one built record. Each format the case applies to has a golden: a committed file, seeded once
+from the library that produced it, and never rewritten by the suite.
+
+### Formats
+
+| Golden | Format | Seeded from | Applies when |
+|---|---|---|---|
+| `.pb.hex` | protobuf binary | protobuf-java: the record's bytes, parsed and re-serialized | the record has a protobuf-java reference class |
+| `.proto3.json` | proto3 JSON, through the generated `Interop` converter | protobuf-java `JsonFormat` | the message carries `(recordbuf.protobuf_java)` |
+| `.jackson.json` | Jackson JSON | recordbuf's own mapper; **review by hand**, there is no independent source | the Jackson surface is on |
+| `.avro.hex` | Avro binary, single-object encoding | Avro's encoder | the record has a generated Avro converter |
+| `.avro.json` | canonical Avro JSON | Avro's JSON encoder | the record has a generated Avro converter |
+
+An `.avro.hex` golden starts with the single-object marker `C3 01`, then the 8-byte CRC-64-AVRO
+fingerprint of the writer schema, then the datum. A schema change rewrites that header in every Avro
+binary golden. `.avro.json` has no fingerprint, so it changes only when the record's data or shape
+changes.
+
+Goldens live at `fixtures/src/test/resources/golden/<family>/<case>.<ext>`. Binary goldens are
+lowercase hex, 32 bytes per line.
+
+### How a case is checked
+
+A case declares one outcome per format: lossless, expected-after-trip, or not applicable. Each
+applicable pair gets two tests.
+
+- **forward**: serialize the built record and compare with the golden. JSON is compared after both
+  sides are parsed to a tree and pretty-printed, so member order and value types count and whitespace
+  does not. Binary is compared byte for byte.
+- **reverse**: deserialize the golden and compare with the built record. A format that drops
+  information by design compares with the case's *expected-after-trip* record instead, for example a
+  `json_ignored` field, or the unknown-field carrier under proto3 JSON.
+
+The protobuf binary reverse check also parses the golden with protobuf-java and requires it to
+re-serialize to the same bytes. A pair the format does not apply to shows as **not applicable**, with
+its reason. It is skipped, never passed.
+
+```mermaid
+flowchart TB
+  R["Built record<br/>(GoldenCase)"]
+  PB[".pb.hex golden"]
+  PJ[".proto3.json golden"]
+  JJ[".jackson.json golden"]
+  AH[".avro.hex golden"]
+  AJ[".avro.json golden"]
+  RR["Record read back"]
+  PO["protobuf-java parse + re-serialize"]
+  OK["Pass: forward equal, reverse equal"]
+
+  R -->|"codec encode"| PB
+  PB -->|"codec decode"| RR
+  PB -->|"protobuf-java oracle"| PO
+  R -->|"Interop.to + JsonFormat print"| PJ
+  PJ -->|"JsonFormat parse + Interop.from"| RR
+  R -->|"Jackson mapper"| JJ
+  JJ -->|"Jackson mapper"| RR
+  R -->|"Avro converter + binary encoder"| AH
+  AH -->|"Avro decoder + converter"| RR
+  R -->|"Avro converter + JSON encoder"| AJ
+  AJ -->|"Avro JSON decoder + converter"| RR
+  RR --> OK
+  PO --> OK
+
+  classDef golden fill:#ffffff,stroke:#333333,color:#000000
+  classDef step fill:#eeeeff,stroke:#6666aa,color:#000000
+  class PB,PJ,JJ,AH,AJ golden
+  class R,RR,PO,OK step
+```
+
+The forward check compares each golden with the output of the arrow leaving the built record.
+
+### Adding a case
+
+1. Add the case to its family's `*Cases` source, a `GoldenCaseSource` (usually extending
+   `JacksonGoldenCases`, which fixes the five formats). Declare an outcome for each format, then build
+   the case against `formats()`.
+2. Register a new source in `GoldenCaseRegistry.sources()`. The seeder walks only registered sources.
+3. Make sure a `@TestFactory` runs it: `GoldenMatrix.of(GoldenStore.classpath(), source.formats()).tests(source.cases())`.
+4. Seed the missing goldens (below), review them, and commit them with the case.
+
+### Seeding goldens
+
+```bash
+./gradlew :recordbuf-fixtures:seedGoldens
+```
+
+The task writes each missing golden and lists the existing ones as skipped. It never overwrites, and
+`check` does not run it. Review the report before committing: each Jackson golden it creates is
+flagged `REVIEW`.
+
+A `.pb.hex` golden is protobuf-java's encoding of the record's own bytes. An encoder that drops a field
+therefore seeds the same dropped bytes. Only the reverse check catches that, when the golden no longer
+decodes to the built record.
+
+### Gaps
+
+Constructs and conformance scenarios that recordbuf does not satisfy yet are tracked in the
+[gap ledger](fixtures/src/test/resources/golden/gap-ledger.md). A construct gap has a `GAP(<id>)`
+marker in a vendored proto under `fixtures/src/main/proto`. The construct is commented out there when
+it does not generate, or left active with the marker above it when it generates but is wrong in one
+format. `GapLedgerTest` fails when a marker has no row, a construct row has no marker, or an id
+repeats.
+
+Each gap closes in its own change: uncomment or fix the construct, fix the generator, seed its goldens
+in every applicable format, and remove the row and its marker. A conformance entry that is listed as a
+known gap fails once its case starts passing, so its entry goes in the same change.
+
+Generator findings that are not proto constructs are in [docs/known-findings.md](docs/known-findings.md).
+
+### Conformance mirror
+
+[`conformance-manifest.md`](fixtures/src/test/resources/golden/conformance-manifest.md) inventories the
+proto3 scenario groups of the official protobuf conformance suite at tag `v36.2`. Each group is
+covered, a gap, or not applicable, and `GapLedgerTest` cross-checks the manifest against the ledger.
+The scenarios are mirrored as Java tests in `fixtures/src/test/java/bijnagte/recordbuf/fixture/conformance/`.
+Google's C++ runner is not used.
+
+- **Binary** scenarios decode with recordbuf and compare with protobuf-java. Inputs the suite rejects
+  must throw in recordbuf. Where protobuf-java accepts an input the suite rejects (the `BadTag` cases),
+  the mirror asserts the reference's acceptance and records recordbuf's acceptance as a gap.
+- **JSON** scenarios run `JsonFormat` → protobuf-java message → `Interop.from` → record → `Interop.to` →
+  `JsonFormat`. Their protobuf-java half runs now. The recordbuf half aborts with its gap id until
+  `interop-all-types` closes. That half has never run, so expect adjustments when it does.
+- Groups that only exercise `JsonFormat`'s own parse rejection are not applicable: they belong to Google.
+
+### Coverage gate
+
+`fixtures/build.gradle` measures the fixtures test run with JaCoCo over the runtime, json and avro
+classes and the module's `.rec` output. The vendored corpus package is excluded as new scope. `check`
+runs `jacocoTestCoverageVerification`, whose minimums are the pre-restructure baseline: line 0.6222 and
+branch 0.5545. Those minimums do not go down. Report: `./gradlew :recordbuf-fixtures:jacocoTestReport`.
+
 ## Project layout
 
 Seven co-versioned subprojects (`bijnagte.recordbuf:0.0.1`) live in role-named directories under the
@@ -223,7 +361,7 @@ repo root. The root `build.gradle.kts` is an aggregator that also applies the sh
 | `json/` | `:recordbuf-json` | Jackson support: temporal / bytes / `FieldMask` / `Empty` (de)serializers, oneof reading, dynamic WKT bridging, the JSON envelope. |
 | `avro/` | `:recordbuf-avro` | Avro runtime support: WKT ↔ Avro conversions (`WktAvroBridge`). |
 | `options/` | `:recordbuf-options` | `recordbuf_options.proto`, consumed as a protoc `-I` include, not as a Gradle dependency. |
-| `fixtures/` | `:recordbuf-fixtures` | Per-feature `.proto` fixtures generated through the real launcher, plus byte-compatibility, interop, Avro, JSON, and unknown-field round-trip tests against protobuf-java 4.36.2. Its Gradle script is Groovy because of the protobuf-gradle-plugin's DSL. |
+| `fixtures/` | `:recordbuf-fixtures` | Per-feature `.proto` fixtures generated through the real launcher, and the [compatibility suite](#compatibility-suite): a golden matrix over five formats, checked against protobuf-java 4.36.2 and Avro, plus a protobuf conformance mirror. Its Gradle script is Groovy because of the protobuf-gradle-plugin's DSL. |
 
 Other files: `gradle/libs.versions.toml` (the version catalog, where versions are bumped),
 `config/checkstyle/checkstyle.xml` (shared Checkstyle config), `docs/plans/` (implementation plans),
@@ -238,6 +376,7 @@ the generated fixture output:
 - **Checkstyle.** A curated, non-formatting rule set.
 - **Error Prone + NullAway.** NullAway runs at error severity on `@NullMarked` packages.
 - **`-Werror`.** Every javac warning, including deprecation, fails the build.
+- **JaCoCo (fixtures only).** The coverage minimums in `fixtures/build.gradle` are part of `check`. See [Compatibility suite](#compatibility-suite).
 
 Generation is cached. Changing the generator re-runs fixture generation automatically, because
 `installDist` is a tracked input. Use `--rerun-tasks` only to bypass the cache. To see the
