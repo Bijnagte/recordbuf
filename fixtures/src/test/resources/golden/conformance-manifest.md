@@ -6,7 +6,7 @@ Each row is one scenario group, not one upstream case. `status` is one of:
 
 - `covered`: a Java test mirrors the group. `reference` lists `fully.qualified.TestClass#method` entries, comma separated. `GapLedgerTest` checks that each class and method exists.
 - `gap`: recordbuf does not satisfy the group yet, or the mirror is not written yet. `reference` lists the id of the [gap ledger](gap-ledger.md) row that carries the reason, comma separated. A ledger row of kind `conformance-only` must be named by at least one `gap` row here, so a row left in the ledger after its groups are mirrored fails the test.
-- `not-applicable`: the group does not apply to recordbuf. `reference` is the reason: proto2, editions, MessageSet, delimited-field and text-format groups, performance runs, and JSON parse-rejection groups that only exercise Google's `JsonFormat` (R15: the JSON path under test is `JsonFormat` to the protobuf-java message, then the generated `Interop` converter, so Google-owned rejection is not a recordbuf gap).
+- `not-applicable`: the group does not apply to recordbuf. `reference` is the reason: proto2, editions, MessageSet, delimited-field and text-format groups, performance runs, and JSON parse-rejection and serialize-rejection groups that only exercise Google's `JsonFormat` (R15: the JSON path under test is `JsonFormat` to the protobuf-java message, then the generated `Interop` converter, so Google-owned rejection is not a recordbuf gap).
 
 `category` is `binary`, `json` or `text-format`. Groups are named after the upstream function that runs them (`TestValidDataForType`) or, for scenarios inside a function, the upstream test-name prefix. A cell must not contain `|`.
 
@@ -14,7 +14,7 @@ A `covered` group is mirrored, not necessarily passing: a case recordbuf cannot 
 
 U21 to U25 flip `gap` rows to `covered` as they mirror groups, and delete the `conformance-only` ledger rows that no longer apply.
 
-A `gap` row can name only ledger ids, not a test, so a JSON group that is mirrored but gated is listed here as `gap` and its mirror is named in this paragraph. Every JSON scenario targets `TestAllTypesProto3`, which has no generated `Interop` converter while `interop-all-types` is open, so the recordbuf half of a mirrored scenario (`JsonFormat` to the protobuf-java message, `Interop.from`, the record, `Interop.to`, `JsonFormat` back) cannot run yet. [`JsonCoreConformanceTest`](../../java/bijnagte/recordbuf/fixture/conformance/JsonCoreConformanceTest.java) mirrors the `RunJsonTests` top level (`HelloWorld`, `IgnoreUnknownJson*`), `RunJsonTestsForFieldNameConvention`, `RunJsonTestsForNonRepeatedTypes`, `RunJsonTestsForRepeatedTypes` and the `IgnoreUnknownEnumStringValue*` scenarios of `RunJsonTestsForUnknownEnumStringValues`: each scenario has a `portCheck` test that runs now against protobuf-java alone (proving the port is faithful) and a `recordbuf` test that aborts with `interop-all-types` (or with the id of the commented-out construct the scenario names) and runs for real once the gap closes. The group's `gap` row flips to `covered` in the change that closes `interop-all-types`, when that test class becomes its reference.
+A `gap` row can name only ledger ids, not a test, so a JSON group that is mirrored but gated is listed here as `gap` and its mirror is named in this paragraph. Every JSON scenario targets `TestAllTypesProto3`, which has no generated `Interop` converter while `interop-all-types` is open, so the recordbuf half of a mirrored scenario (`JsonFormat` to the protobuf-java message, `Interop.from`, the record, `Interop.to`, `JsonFormat` back) cannot run yet. [`JsonCoreConformanceTest`](../../java/bijnagte/recordbuf/fixture/conformance/JsonCoreConformanceTest.java) mirrors the `RunJsonTests` top level (`HelloWorld`, `IgnoreUnknownJson*`), `RunJsonTestsForFieldNameConvention`, `RunJsonTestsForNonRepeatedTypes`, `RunJsonTestsForRepeatedTypes` and the `IgnoreUnknownEnumStringValue*` scenarios of `RunJsonTestsForUnknownEnumStringValues`. [`JsonWktConformanceTest`](../../java/bijnagte/recordbuf/fixture/conformance/JsonWktConformanceTest.java) mirrors `RunJsonTestsForNullTypes`, `RunJsonTestsForWrapperTypes` (wrappers, `Duration` and `Timestamp`), `RunJsonTestsForFieldMask`, `RunJsonTestsForStruct`, `RunJsonTestsForValue` and `RunJsonTestsForAny`; its `Any` scenarios resolve their types through a type registry. The two classes share their scenario model and halves in `JsonConformance`. In each class, each scenario has a `portCheck` test that runs now against protobuf-java alone (proving the port is faithful) and a `recordbuf` test that aborts with `interop-all-types` (or with the id of the commented-out construct the scenario names) and runs for real once the gap closes. A group's `gap` row flips to `covered` in the change that closes `interop-all-types`, when its test class becomes its reference.
 
 | group | category | status | reference |
 | --- | --- | --- | --- |
@@ -43,14 +43,16 @@ A `gap` row can name only ledger ids, not a test, so a JSON group that is mirror
 | RunJsonTestsForNonRepeatedTypes (out-of-range and non-integer numbers, bad literals) | json | not-applicable | Google-owned (R15) |
 | RunJsonTestsForRepeatedTypes | json | gap | interop-all-types |
 | RunJsonTestsForRepeatedTypes (single value for repeated field) | json | not-applicable | Google-owned (R15) |
-| RunJsonTestsForNullTypes | json | gap | null-value-field, interop-all-types |
+| RunJsonTestsForNullTypes | json | gap | map-message-value, interop-all-types |
 | RunJsonTestsForNullTypes (null as repeated element or map key or value) | json | not-applicable | Google-owned (R15) |
 | RunJsonTestsForWrapperTypes | json | gap | interop-all-types |
-| RunJsonTestsForWrapperTypes (Duration and Timestamp parse rejection) | json | not-applicable | Google-owned (R15) |
+| RunJsonTestsForWrapperTypes (Duration and Timestamp parse rejection, and serialize rejection of out-of-range or non-canonical messages) | json | not-applicable | Google-owned (R15) |
 | RunJsonTestsForFieldMask | json | gap | interop-all-types |
-| RunJsonTestsForFieldMask (invalid characters) | json | not-applicable | Google-owned (R15) |
+| RunJsonTestsForFieldMask (invalid characters, and serialize rejection of paths that do not round trip) | json | not-applicable | Google-owned (R15) |
 | RunJsonTestsForStruct | json | gap | interop-all-types |
-| RunJsonTestsForValue | json | gap | interop-all-types |
+| RunJsonTestsForStruct (StructDeepNesting200 parse rejection) | json | not-applicable | Google-owned (R15) |
+| RunJsonTestsForValue | json | gap | null-value-field, oneof-snake-case-member, interop-all-types |
+| RunJsonTestsForValue (ListValueDeepNesting200 and ValueDeepNesting200 parse rejection, NaN and Infinity number value serialize rejection) | json | not-applicable | Google-owned (R15) |
 | RunJsonTestsForAny | json | gap | interop-all-types |
 | RunJsonTestsForAny (bad type URL, empty type and value) | json | not-applicable | Google-owned (R15) |
 | RunJsonTestsForUnknownEnumStringValues (IgnoreUnknownEnumStringValue*) | json | gap | interop-all-types, map-enum-value |

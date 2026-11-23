@@ -28,6 +28,21 @@ public final class Proto3JsonFormat implements GoldenFormat.Json {
 
   private static final String INTEROP_SIMPLE_NAME = "Interop";
 
+  private final JsonFormat.TypeRegistry typeRegistry;
+
+  /** A format whose printer and parser resolve no {@code Any} type, as the golden corpus needs. */
+  public Proto3JsonFormat() {
+    this(JsonFormat.TypeRegistry.getEmptyTypeRegistry());
+  }
+
+  /**
+   * A format whose printer and parser resolve the {@code Any} types in {@code typeRegistry}, as the
+   * conformance mirror needs for {@code Any} scenarios.
+   */
+  public Proto3JsonFormat(JsonFormat.TypeRegistry typeRegistry) {
+    this.typeRegistry = typeRegistry;
+  }
+
   @Override
   public String extension() {
     return "proto3.json";
@@ -50,7 +65,7 @@ public final class Proto3JsonFormat implements GoldenFormat.Json {
     Class<?> recordType = record.getClass();
     Method to = requireInterop(recordType).getMethod("to", recordType);
     Message reference = (Message) invoke(to, record);
-    return JsonFormat.printer().sortingMapKeys().print(reference);
+    return JsonFormat.printer().usingTypeRegistry(typeRegistry).sortingMapKeys().print(reference);
   }
 
   @Override
@@ -62,7 +77,7 @@ public final class Proto3JsonFormat implements GoldenFormat.Json {
                     ReferenceTypes.missingReason(recordType).orElse(recordType.getName())));
     Method from = requireInterop(recordType).getMethod("from", referenceType);
     Message.Builder builder = (Message.Builder) referenceType.getMethod("newBuilder").invoke(null);
-    JsonFormat.parser().merge(goldenText, builder);
+    JsonFormat.parser().usingTypeRegistry(typeRegistry).merge(goldenText, builder);
     return invoke(from, builder.build());
   }
 
