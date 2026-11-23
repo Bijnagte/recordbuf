@@ -1,10 +1,10 @@
 package bijnagte.recordbuf.fixture.golden.format;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import bijnagte.recordbuf.fixture.golden.GoldenAssertions;
 import bijnagte.recordbuf.fixture.golden.GoldenCase;
 import bijnagte.recordbuf.fixture.golden.GoldenFormat;
 import bijnagte.recordbuf.fixture.golden.GoldenMatrix;
@@ -17,8 +17,6 @@ import com.google.protobuf.Any;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Struct;
 import com.google.protobuf.Value;
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -35,9 +33,9 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Tests of {@link AvroJsonFormat} through the golden matrix: both {@code Dyn} payload variants pass
- * forward and reverse against goldens that are byte copies of the existing {@code
- * json/jackson/avro} goldens, trust for Avro's class validator comes from the adapter, and a record
- * without a generated converter is not applicable.
+ * forward and reverse against goldens that are byte copies of the former {@code json/jackson/avro}
+ * goldens, trust for Avro's class validator comes from the adapter, and a record without a
+ * generated converter is not applicable.
  */
 class AvroJsonFormatTest {
 
@@ -75,12 +73,6 @@ class AvroJsonFormatTest {
         .build();
   }
 
-  private static byte[] resource(String path) throws IOException {
-    try (InputStream in = AvroJsonFormatTest.class.getResourceAsStream(path)) {
-      return in.readAllBytes();
-    }
-  }
-
   /** Both {@code Dyn} payload variants, forward and reverse against the committed goldens. */
   @TestFactory
   Stream<DynamicNode> dynPayloadVariants_passForwardAndReverse() {
@@ -96,13 +88,18 @@ class AvroJsonFormatTest {
         .tests(List.of(structAnyCase, opaqueAnyCase));
   }
 
-  /** The goldens hold exactly the bytes of the existing {@code json/jackson/avro} goldens. */
+  /**
+   * The adapter goldens hold the same document as the {@code jackson-dyn} family's Avro JSON
+   * goldens (the ones that replaced the old {@code json/jackson/avro} files): same tree, same
+   * member order, formatted differently.
+   */
   @Test
-  void dynGoldens_areByteCopiesOfTheExistingJacksonAvroGoldens() throws IOException {
+  void dynGoldens_areTheSameDocumentAsTheJacksonDynGoldens() {
+    GoldenStore store = GoldenStore.classpath();
     for (String name : List.of("dyn-struct-any", "dyn-opaque-any")) {
-      assertArrayEquals(
-          resource("/json/jackson/avro/" + name + ".json"),
-          resource("/golden/" + FAMILY + "/" + name + "." + format.extension()),
+      GoldenAssertions.assertJsonMatches(
+          store.loadText("jackson-dyn", name, format.extension()),
+          store.loadText(FAMILY, name, format.extension()),
           name);
     }
   }

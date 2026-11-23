@@ -15,9 +15,10 @@ import java.util.Optional;
  *
  * <p>The encoding is Avro's <em>single-object</em> encoding: the two marker bytes {@code C3 01},
  * the 8-byte CRC-64-AVRO fingerprint of the writer schema, then the raw binary datum. It is the
- * encoding the existing {@code avro/dyn-representative.avro} golden was written in, so that golden
- * is reused unchanged. The fingerprint prefix makes a golden depend on the schema as well as the
- * data, which is wanted here: a schema change must show up as a golden change.
+ * encoding the former {@code avro/dyn-representative.avro} golden was written in, so that golden's
+ * bytes were reused unchanged (now {@code _adapters/dyn-representative.avro.hex}). The fingerprint
+ * prefix makes a golden depend on the schema as well as the data, which is wanted here: a schema
+ * change must show up as a golden change.
  *
  * <p>Avro writes a map in the iteration order of the specific record's {@code Map}, and the
  * record's own maps have no defined order. So {@link #serialize} first puts every map of the

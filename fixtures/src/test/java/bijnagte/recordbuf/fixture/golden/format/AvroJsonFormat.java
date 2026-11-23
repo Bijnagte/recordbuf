@@ -18,9 +18,9 @@ import org.apache.avro.specific.SpecificDatumWriter;
  * {@code <Record>AvroConverter} (see {@link AvroTypes}), orders its maps, and writes it with Avro's
  * official {@link JsonEncoder} (non-pretty): members in schema order, a union value wrapped in a
  * one-member object named by its branch. {@link #deserialize} reads golden text with Avro's {@code
- * JsonDecoder} and converts back through the same converter. This is the encoding the {@code
- * canonicalAvroJson} helper of {@code JacksonDynamicWktTest} produces, so the existing {@code
- * json/jackson/avro} goldens are reused unchanged.
+ * JsonDecoder} and converts back through the same converter. This is the encoding the former {@code
+ * canonicalAvroJson} helper of {@code JacksonDynamicWktTest} produced, so the former {@code
+ * json/jackson/avro} goldens were reused unchanged.
  *
  * <p>The goldens are pretty-printed for review while the encoder is compact; Avro's {@code
  * JsonDecoder} is a streaming Jackson parser and skips whitespace, so the golden text is decoded as

@@ -17,8 +17,6 @@ import bijnagte.recordbuf.json.DynamicWkt;
 import com.google.protobuf.Any;
 import com.google.protobuf.Struct;
 import com.google.protobuf.Value;
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -34,7 +32,7 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Tests of {@link AvroBinaryFormat} through the golden matrix: the {@code Dyn} representative
- * record passes forward and reverse against a hex golden converted from the existing {@code
+ * record passes forward and reverse against a hex golden converted from the former {@code
  * avro/dyn-representative.avro}, trust for Avro's class validator comes from the adapter, and a
  * record without a generated converter is not applicable.
  */
@@ -47,7 +45,7 @@ class AvroBinaryFormatTest {
   private final AvroBinaryFormat format = new AvroBinaryFormat();
 
   /**
-   * The same value as {@code AvroCanonicalFormTest.representative()}: a Value, a Struct doc, a
+   * The same value as {@code JacksonDynamicWktCases.dyn(structAny())}: a Value, a Struct doc, a
    * ListValue, an Any packing a Struct, and two scalar Value entries.
    */
   private static Dyn representative() {
@@ -63,11 +61,12 @@ class AvroBinaryFormatTest {
         .build();
   }
 
-  private static byte[] existingAvroGolden() throws IOException {
-    try (InputStream in =
-        AvroBinaryFormatTest.class.getResourceAsStream("/avro/dyn-representative.avro")) {
-      return in.readAllBytes();
-    }
+  /**
+   * The bytes of the {@code jackson-dyn/dyn-struct-any} Avro binary golden: the same record as the
+   * representative, and the same bytes the retired {@code avro/dyn-representative.avro} held.
+   */
+  private static byte[] jacksonDynGolden() {
+    return GoldenStore.classpath().loadBinary("jackson-dyn", "dyn-struct-any", "avro.hex");
   }
 
   /** The {@code Dyn} representative, forward and reverse against the committed hex golden. */
@@ -80,31 +79,33 @@ class AvroBinaryFormatTest {
     return GoldenMatrix.of(GoldenStore.classpath(), List.of(format)).tests(List.of(dyn));
   }
 
-  /** The hex golden holds exactly the bytes of the existing binary golden. */
+  /**
+   * The hex golden holds exactly the bytes of the {@code jackson-dyn} golden of the same record.
+   */
   @Test
-  void dynRepresentativeGolden_isTheExistingAvroGoldenInHex() throws IOException {
+  void dynRepresentativeGolden_hasTheBytesOfTheJacksonDynGolden() {
     byte[] hexGolden =
         GoldenStore.classpath().loadBinary(FAMILY, "dyn-representative", format.extension());
 
-    assertArrayEquals(existingAvroGolden(), hexGolden);
+    assertArrayEquals(jacksonDynGolden(), hexGolden);
   }
 
-  /** The hex text is in the KTD4 form, so re-encoding the existing bytes reproduces it. */
+  /** The hex text is in the KTD4 form, so re-encoding its own bytes reproduces it. */
   @Test
-  void dynRepresentativeGolden_isCanonicalHex() throws IOException {
+  void dynRepresentativeGolden_isCanonicalHex() {
     String hexText =
         GoldenStore.classpath().loadText(FAMILY, "dyn-representative", format.extension());
 
-    assertEquals(GoldenAssertions.encodeHex(existingAvroGolden()), hexText);
+    assertEquals(GoldenAssertions.encodeHex(jacksonDynGolden()), hexText);
   }
 
-  /** The adapter's bytes are the existing golden's bytes, and its reverse gives the record back. */
+  /** The adapter's bytes are the golden's bytes, and its reverse gives the record back. */
   @Test
-  void dynRepresentative_matchesTheExistingGoldenBytesAndRoundTrips() throws Exception {
+  void dynRepresentative_matchesTheGoldenBytesAndRoundTrips() throws Exception {
     Dyn dyn = representative();
 
-    assertArrayEquals(existingAvroGolden(), format.serialize(dyn));
-    assertEquals(dyn, format.deserialize(existingAvroGolden(), Dyn.class));
+    assertArrayEquals(jacksonDynGolden(), format.serialize(dyn));
+    assertEquals(dyn, format.deserialize(jacksonDynGolden(), Dyn.class));
   }
 
   /**

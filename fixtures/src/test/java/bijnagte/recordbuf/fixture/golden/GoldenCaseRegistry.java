@@ -1,5 +1,6 @@
 package bijnagte.recordbuf.fixture.golden;
 
+import bijnagte.recordbuf.fixture.canonicalformat.CanonicalFormatCases;
 import bijnagte.recordbuf.fixture.corpus.TestAllTypesCorpusCases;
 import bijnagte.recordbuf.fixture.jackson.JacksonDynamicWktCases;
 import bijnagte.recordbuf.fixture.jackson.JacksonKnobsCases;
@@ -25,6 +26,7 @@ public final class GoldenCaseRegistry {
         new JacksonDynamicWktCases(),
         new JacksonOneofCases(),
         new JacksonFormatCases(),
-        new JacksonKnobsCases());
+        new JacksonKnobsCases(),
+        new CanonicalFormatCases());
   }
 }
