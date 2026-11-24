@@ -70,14 +70,16 @@ public final class CodecSourceMapping {
     // it; no explicit collect/render is needed here.
     String recName = m.type().shortName();
     String codecName = recName + "Codec";
-    return ClassSpec.named(m.type().sub(codecName))
+    TypeRef.Named codecType = m.type().sub(codecName);
+    return ClassSpec.named(codecType)
         .public_()
         .static_()
         .final_()
         .javadoc(GeneratedDocs.type(null, "Wire codec for the " + recName + " record."))
         .constructor(Constructor.builder().private_().build())
         .method(encode(m))
-        .method(decode(m, jackson))
+        .method(scopedDecode(m.type(), codecType))
+        .method(decodeBody(m, jackson))
         .build();
   }
 
@@ -118,11 +120,27 @@ public final class CodecSourceMapping {
     return method.body(unknownArm, Element.ret("enc.finish()")).build();
   }
 
-  /** The {@code Message decode(byte[] inBytes) throws IOException} method body. */
-  private static Method decode(Message m, boolean jackson) {
+  /**
+   * The public {@code Message decode(byte[] inBytes) throws IOException} method. It hands the
+   * {@code decodeBody} tag loop to {@code DecodeScope}, which bounds nesting depth and nested
+   * bytes.
+   */
+  private static Method scopedDecode(TypeRef returnType, TypeRef.Named codecType) {
+    return Method.named("decode")
+        .public_()
+        .static_()
+        .returnType(returnType)
+        .param(TypeRef.BYTES, "inBytes")
+        .thrown(TypeRef.IO_EXCEPTION)
+        .body(Element.ret("@0.decode(inBytes, @1::decodeBody)", TypeRefs.DECODE_SCOPE, codecType))
+        .build();
+  }
+
+  /** The private {@code decodeBody} the scoped {@code decode} runs: one level's tag loop. */
+  private static Method decodeBody(Message m, boolean jackson) {
     var method =
-        Method.named("decode")
-            .public_()
+        Method.named("decodeBody")
+            .private_()
             .static_()
             .returnType(m.type())
             .param(TypeRef.BYTES, "inBytes")
@@ -627,6 +645,8 @@ public final class CodecSourceMapping {
                     entryValueEncode(f, valueKind),
                     Element.ret("enc.finish()"))
                 .build())
+        // A map entry is not a nesting level (protobuf-java counts only the value message), so its
+        // decode is the plain body, not a DecodeScope delegate.
         .method(
             Method.named("decode")
                 .public_()

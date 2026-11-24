@@ -41,6 +41,9 @@ reachable graph is a `null`-first union, so an unset cycle-closing field can be
 written; other singular message fields stay non-nullable. A file containing any of
 these shapes no longer loses its whole Avro output. *Avoid:* opaque envelope wrapper for *structural* shapes — the twin maps everything it represents structurally; the envelope is not how the twin expresses its own shapes (see Opaque envelope for the one field-level return).
 
+### Decode scope
+The bound on one binary decode of a generated codec: a `ScopedValue` holds the current nesting depth and a byte budget that every level of the top-level decode shares. A nested decode checks the depth and charges its input's bytes before it runs, so a hostile payload is rejected with an `InvalidProtocolBufferException` instead of overflowing the stack or allocating without bound. Callers change the bounds by binding `DecodeLimits.CURRENT`. *Avoid:* recursion limit (protobuf-java's `CodedInputStream` limit, which a stream opened per nested level never reaches).
+
 ## Well-known types
 
 ### Native WKT mapping

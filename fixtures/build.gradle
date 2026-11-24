@@ -310,7 +310,8 @@ tasks.named('jacocoTestReport', JacocoReport).configure {
     }
 }
 
-// U2 (2026-11-23-001, KTD10): the gate minimums are the PRE-RESTRUCTURE baseline, recorded on
+// The gate minimums were raised to LINE 0.8 / BRANCH 0.7 on 2026-11-24 (measured: LINE 0.8204,
+// BRANCH 0.7229). They began as the PRE-RESTRUCTURE baseline (U2, 2026-11-23-001, KTD10), recorded on
 // 2026-11-23 from the unchanged suite by U1 (jacocoTestReport counters: LINE 2281 covered / 1385
 // missed = 0.6222; BRANCH 833 covered / 669 missed = 0.5545), each floored to 4 decimal places.
 // Lowering either minimum is a plan stop condition: escalate rather than relax the gate.
@@ -323,12 +324,12 @@ tasks.named('jacocoTestCoverageVerification', JacocoCoverageVerification).config
             limit {
                 counter = 'LINE'
                 value = 'COVEREDRATIO'
-                minimum = 0.6222
+                minimum = 0.8
             }
             limit {
                 counter = 'BRANCH'
                 value = 'COVEREDRATIO'
-                minimum = 0.5545
+                minimum = 0.7
             }
         }
     }

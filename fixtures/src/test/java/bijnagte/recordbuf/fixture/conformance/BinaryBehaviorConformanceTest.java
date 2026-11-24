@@ -576,9 +576,6 @@ class BinaryBehaviorConformanceTest {
             "MergeSingularMessage")) {
       gaps.put(name, "message-field-not-merged");
     }
-    // Every nested decode opens a fresh CodedInputStream, so no depth is ever counted.
-    gaps.put("EnforceDepthLimit.RecursiveMessage.OneBeyondLimit", "decode-recursion-unlimited");
-    gaps.put("EnforceDepthLimit.RecursiveMessage", "decode-recursion-unlimited");
     return Map.copyOf(gaps);
   }
 

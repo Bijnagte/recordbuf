@@ -164,6 +164,18 @@ explains why these options live outside protobuf's namespace.
   RecordbufJsonModule())`. A `FieldMask` is a JSON array of lowerCamel paths, and
   `JsonFieldMaskFilter` projects a JSON tree onto a mask.
 
+### Decode limits
+
+A binary decode is bounded. A generated `decode(byte[])` and `fromBytes` reject a payload that nests more than 100 message levels below the top-level message (protobuf-java's default depth) or hands more than 64 MiB of cumulative nested-message bytes to nested decodes; the top-level input is not charged. A rejection throws `InvalidProtocolBufferException`, an `IOException`, and never `StackOverflowError` at the default depth or at any depth the thread stack can hold. To change the limits for one decode, bind `DecodeLimits.CURRENT`:
+
+```java
+// depth 200 and 16 MiB of nested bytes; in a method that throws IOException (Sub is a generated record)
+Sub back = ScopedValue.where(DecodeLimits.CURRENT, new DecodeLimits(200, 16L * 1024 * 1024))
+    .call(() -> Sub.fromBytes(wire));
+```
+
+`ScopedValue.Carrier.call` rethrows the body's checked exception: `fromBytes` throws `IOException`, so the enclosing method must declare or handle it. With no binding, `DecodeLimits.defaults()` applies.
+
 ### Consumer dependencies
 
 Generated code never depends on the generator. What it needs on the classpath depends on
@@ -347,8 +359,8 @@ Google's C++ runner is not used.
 
 `fixtures/build.gradle` measures the fixtures test run with JaCoCo over the runtime, json and avro
 classes and the module's `.rec` output. The vendored corpus package is excluded as new scope. `check`
-runs `jacocoTestCoverageVerification`, whose minimums are the pre-restructure baseline: line 0.6222 and
-branch 0.5545. Those minimums do not go down. Report: `./gradlew :recordbuf-fixtures:jacocoTestReport`.
+runs `jacocoTestCoverageVerification`, whose minimums are line 0.8 and
+branch 0.7 (raised from the pre-restructure baseline). Those minimums do not go down. Report: `./gradlew :recordbuf-fixtures:jacocoTestReport`.
 
 ## Project layout
 

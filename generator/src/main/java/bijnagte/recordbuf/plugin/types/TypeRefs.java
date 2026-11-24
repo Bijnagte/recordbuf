@@ -22,6 +22,7 @@ public final class TypeRefs {
   // --- recordbuf runtime helpers (bijnagte.recordbuf.runtime.*) ---
   public static final TypeRef ENCODER = TypeRef.of("bijnagte.recordbuf.runtime.Encoder");
   public static final TypeRef DECODER = TypeRef.of("bijnagte.recordbuf.runtime.Decoder");
+  public static final TypeRef DECODE_SCOPE = TypeRef.of("bijnagte.recordbuf.runtime.DecodeScope");
   public static final TypeRef UNKNOWN_FIELDS =
       TypeRef.of("bijnagte.recordbuf.runtime.UnknownFields");
   public static final TypeRef CODEC_DEFAULTS =

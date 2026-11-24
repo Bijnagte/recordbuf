@@ -225,8 +225,8 @@ consult it when orienting to the codebase or discussing domain concepts.
   applies `jacoco` (`jacoco = "0.8.14"` in the catalog) and wires `jacocoTestReport` and
   `jacocoTestCoverageVerification`, which `check` depends on. The scope is the runtime, json and
   avro module classes plus the module's `.rec` output; the vendored `com.google.protobuf_test_messages`
-  package is excluded as new scope. The minimums are the pre-restructure baseline: LINE 0.6222,
-  BRANCH 0.5545. Do not lower them (see the matrix rules below).
+  package is excluded as new scope. The minimums are LINE 0.8, BRANCH 0.7 (raised from the
+  pre-restructure baseline 0.6222 / 0.5545). Do not lower them (see the matrix rules below).
 - **Protobuf runtime:** generated codecs use
   `com.google.protobuf.{CodedInputStream,CodedOutputStream}` — keep
   `com.google.protobuf:protobuf-java` (`4.36.2`, pinned in the catalog) on
