@@ -4,9 +4,9 @@ import bijnagte.recordbuf.codegen.SourceRenderer;
 import java.util.List;
 
 /**
- * A single element inside a method, constructor, or {@code static {}} body. A body is a {@link
- * java.util.List List<Element>}; the {@link SourceRenderer} owns brace, paren, and join layout for
- * the list, not the emitter.
+ * A single element inside a method, constructor, or {@code static {}} body. A body is a {@code
+ * List<Element>}; the {@link SourceRenderer} owns brace, paren, and join layout for the list, not
+ * the emitter.
  *
  * <p>This is the closed idiom set the body-lift is building toward (DEC-3): recurring element
  * shapes ({@code Return/Throw/ExprStatement/LocalVar}, a line {@code Comment}, an {@link If}

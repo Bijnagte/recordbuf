@@ -36,8 +36,8 @@ public record Annotation(TypeRef type, List<Arg> args) {
   }
 
   /**
-   * {@code @SuppressWarnings("all")} -- the common suppress-all form. This is the canonical {@link
-   * Arg}/{@link Args} form the {@code @SuppressWarnings} escape hatch now delegates to: a single
+   * {@code @SuppressWarnings("all")} -- the common suppress-all form. This is the canonical {@code
+   * Arg}/{@code Args} form the {@code @SuppressWarnings} escape hatch now delegates to: a single
    * blank-named (positional) arg whose values carry the array literal.
    */
   public static final Annotation SUPPRESS_ALL =

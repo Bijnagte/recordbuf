@@ -50,7 +50,7 @@ import org.jspecify.annotations.Nullable;
  * dispatches through {@link CodecSourceMapping} (encode/decode for all field families: scalars,
  * repeated, map, optional, nested-message, singular/repeated-enum, oneof, and WKT via {@link
  * WktSourceMapping}). Messages with a {@code recordbuf.protobuf_java} option are handled by the
- * legacy {@link bijnagte.recordbuf.plugin.writer.InteropGenerator} JavaWriter fallback.
+ * legacy {@code bijnagte.recordbuf.plugin.writer.InteropGenerator} JavaWriter fallback.
  */
 public final class RecordSourceMapping {
 

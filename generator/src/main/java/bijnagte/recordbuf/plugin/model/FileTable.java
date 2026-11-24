@@ -9,7 +9,7 @@ import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Builds an internal {@link FileMap} from a list of {@link FileDescriptorProto}s (the entire
+ * Builds an internal {@code FileMap} from a list of {@link FileDescriptorProto}s (the entire
  * request, including dependencies).
  *
  * <p>The map makes it trivial to look up "what Java type do I generate for proto type {@code
