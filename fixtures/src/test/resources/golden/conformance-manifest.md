@@ -28,9 +28,9 @@ A `gap` row can name only ledger ids, not a test, so a group that is not mirrore
 | TestValidDataForRepeatedScalarMessage | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryValidDataConformanceTest#validDataForRepeatedScalarMessage |
 | TestValidDataForMapType | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryValidDataConformanceTest#validDataForMapType |
 | TestOverwriteMessageValueMap | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryValidDataConformanceTest#overwriteMessageValueMap |
-| TestValidDataForOneofType | binary | gap | oneof-snake-case-member |
+| TestValidDataForOneofType | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryValidDataConformanceTest#validDataForOneofType |
 | TestMergeOneofMessage | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryBehaviorConformanceTest#mergeOneofMessage |
-| TestOneofMessage | binary | gap | oneof-snake-case-member |
+| TestOneofMessage | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryBehaviorConformanceTest#oneofMessage |
 | TestUnknownMessage | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryBehaviorConformanceTest#unknownMessage |
 | TestUnknownOrdering | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryBehaviorConformanceTest#unknownOrdering |
 | RunRecursionLimitTests | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryBehaviorConformanceTest#recursionLimit |

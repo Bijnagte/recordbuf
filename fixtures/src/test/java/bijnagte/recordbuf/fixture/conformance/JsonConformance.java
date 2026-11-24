@@ -145,9 +145,39 @@ final class JsonConformance {
       };
     }
 
+    /**
+     * Fails the port check of a scenario once the generated reference has this construct: the
+     * scenario no longer needs the commented-out field, so its recordbuf half must run for real.
+     */
+    void failIfPresentInReference(String scenario) {
+      if (presentInReference()) {
+        fail(
+            scenario
+                + " no longer needs the commented-out construct of gap "
+                + ledgerId
+                + ": the reference has it now, run its recordbuf half and remove the blocker");
+      }
+    }
+
+    /** The abort of the recordbuf half of a scenario that names this commented-out construct. */
+    TestAbortedException abortedRecordbufHalf() {
+      return new TestAbortedException(
+          "gap "
+              + ledgerId
+              + ": the vendored proto has the construct this scenario names commented out");
+    }
+
     private static boolean hasField(String protoName) {
       return REFERENCE.findFieldByName(protoName) != null;
     }
+  }
+
+  /**
+   * The reference message type with the commented-out constructs added back, for a scenario that
+   * names one outside the JSON mirror (the binary oneof scenarios).
+   */
+  static Descriptor upstreamMessageType() {
+    return UPSTREAM;
   }
 
   /** What a scenario feeds the path. */

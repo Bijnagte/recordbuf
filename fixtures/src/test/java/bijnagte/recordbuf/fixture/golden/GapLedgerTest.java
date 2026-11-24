@@ -35,16 +35,16 @@ class GapLedgerTest {
     assertEquals(List.of(), ledger.problems(markers));
   }
 
-  /** The committed manifest agrees with the committed ledger, and has rows in every status. */
+  /**
+   * The committed manifest agrees with the committed ledger, and has not-applicable rows. It may
+   * have no gap rows: every group can be mirrored.
+   */
   @Test
   void realManifest_agreesWithRealLedger() throws IOException {
     GapLedger ledger = GapLedger.parse(readResource(LEDGER_RESOURCE));
     List<GapLedger.ManifestRow> rows = GapLedger.parseManifest(readResource(MANIFEST_RESOURCE));
 
     assertEquals(List.of(), ledger.manifestProblems(rows));
-    assertTrue(
-        rows.stream().anyMatch(row -> row.status() == GapLedger.Status.GAP),
-        "the manifest has no gap rows");
     assertTrue(
         rows.stream().anyMatch(row -> row.status() == GapLedger.Status.NOT_APPLICABLE),
         "the manifest has no not-applicable rows");

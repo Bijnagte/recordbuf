@@ -18,8 +18,13 @@ import static bijnagte.recordbuf.fixture.conformance.WireBytes.zz32;
 import static bijnagte.recordbuf.fixture.conformance.WireBytes.zz64;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import bijnagte.recordbuf.fixture.conformance.JsonConformance.Blocker;
+import com.google.protobuf.Descriptors.Descriptor;
+import com.google.protobuf.Descriptors.FieldDescriptor;
+import com.google.protobuf.DynamicMessage;
 import com.google.protobuf_test_messages.proto3.rec.TestAllTypesProto3;
 import java.io.IOException;
 import java.lang.reflect.RecordComponent;
@@ -41,10 +46,10 @@ import org.opentest4j.TestAbortedException;
 /**
  * Mirrors the valid-data scenarios of the official protobuf conformance suite at {@code v36.2}
  * (KTD8): {@code TestValidDataForType}, {@code TestValidDataForRepeatedScalarMessage}, {@code
- * TestValidDataForMapType} and {@code TestOverwriteMessageValueMap}, against the vendored proto3
- * {@code TestAllTypesProto3}. The value tables, the field selection and the expected payloads are
- * ported from {@code binary_json_conformance_suite.cc}; the oneof groups wait on gap {@code
- * oneof-snake-case-member}, whose oneof is commented out of the vendored proto.
+ * TestValidDataForMapType}, {@code TestOverwriteMessageValueMap} and {@code
+ * TestValidDataForOneofType}, against the vendored proto3 {@code TestAllTypesProto3}. The value
+ * tables, the field selection and the expected payloads are ported from {@code
+ * binary_json_conformance_suite.cc}.
  *
  * <p>Each scenario decodes its input bytes with the recordbuf record, re-encodes the record, and
  * compares the output with the upstream expected payload through the protobuf-java reference: both
@@ -59,6 +64,17 @@ import org.opentest4j.TestAbortedException;
  * passes, the test fails, so closing a gap forces removing the entry. A map scenario whose field is
  * commented out of the vendored proto cannot run at all: {@link #BLOCKED} reports it as aborted,
  * and fails once the record has the field.
+ *
+ * <p>{@code TestValidDataForOneofType} targets the oneof of {@code TestAllTypesProto3}, which is
+ * commented out of the vendored proto (gap {@code oneof-snake-case-member}), so the generated
+ * reference lacks it too. Each oneof scenario is a dynamic container of two tests, as in {@link
+ * JsonConformance}: {@code portCheck} runs now against protobuf-java alone, on a {@link
+ * DynamicMessage} of the upstream descriptor with the oneof added back, and proves the port is
+ * faithful; {@code recordbuf} aborts with the gap's id, and the {@code portCheck} fails once the
+ * reference has the oneof, which forces the recordbuf half to be written. Upstream also runs each
+ * non-{@code Binary} case with JSON output; as in the other binary mirrors, only the protobuf-in,
+ * protobuf-out settings are ported. {@code oneof_null_value} (field 120) is not selected by any of
+ * these scenarios, so the {@code null-value-field} gap does not apply.
  */
 class BinaryValidDataConformanceTest {
 
@@ -75,6 +91,27 @@ class BinaryValidDataConformanceTest {
   /** One mirrored scenario: its upstream case name, input payload and expected payload. */
   @SuppressWarnings("ArrayRecordComponent") // payload bytes, never compared or hashed
   private record Case(String name, byte[] input, byte[] expected, Comparison comparison) {}
+
+  /**
+   * One mirrored oneof scenario: its upstream case name, the oneof member the expected payload
+   * leaves set, its input payload and its expected payload.
+   */
+  @SuppressWarnings("ArrayRecordComponent") // payload bytes, never compared or hashed
+  private record OneofCase(
+      String name, String member, byte[] input, byte[] expected, Comparison comparison) {}
+
+  /**
+   * A member type of the oneof of {@code TestAllTypesProto3}: its upper-cased upstream type name,
+   * proto field name, number, wire type and the upstream default and non-default encodings.
+   */
+  @SuppressWarnings("ArrayRecordComponent") // payload bytes, never compared or hashed
+  private record OneofType(
+      String name,
+      String member,
+      int number,
+      int wireType,
+      byte[] defaultValue,
+      byte[] nonDefaultValue) {}
 
   /** A map scenario that cannot run because the vendored proto has no such field. */
   private record BlockedCase(String name, String ledgerId, String recordComponent) {}
@@ -399,6 +436,33 @@ class BinaryValidDataConformanceTest {
           new MapField(BOOL_MAP_TYPE, BOOL_MAP_TYPE, 68),
           new MapField(STRING_MAP_TYPE, STRING_MAP_TYPE, 69));
 
+  /**
+   * The oneof member types, in the order {@code TestValidDataForOneofType} runs them. Upstream
+   * picks the member of a type with {@code GetFieldForOneofType}: the first oneof field of that
+   * type.
+   */
+  private static final List<OneofType> ONEOF_TYPES =
+      List.of(
+          varintOneofType("UINT32", "oneof_uint32", 111),
+          varintOneofType("BOOL", "oneof_bool", 115),
+          varintOneofType("UINT64", "oneof_uint64", 116),
+          new OneofType("FLOAT", "oneof_float", 117, WIRETYPE_FIXED32, flt(0), flt(1)),
+          new OneofType("DOUBLE", "oneof_double", 118, WIRETYPE_FIXED64, dbl(0), dbl(1)),
+          new OneofType(
+              "STRING", "oneof_string", 113, WIRETYPE_LENGTH_DELIMITED, delim(""), delim("a")),
+          new OneofType(
+              "BYTES", "oneof_bytes", 114, WIRETYPE_LENGTH_DELIMITED, delim(""), delim("a")),
+          varintOneofType("ENUM", "oneof_enum", 119),
+          new OneofType(
+              "MESSAGE",
+              "oneof_nested_message",
+              112,
+              WIRETYPE_LENGTH_DELIMITED,
+              delim(""),
+              NESTED_MESSAGE_A_1234));
+
+  private static final String ONEOF_NAME = "oneof_field";
+
   /** The scenario suffixes {@code TestValidDataForMapType} runs per map field, in order. */
   private static final List<String> MAP_SCENARIOS =
       List.of(
@@ -460,6 +524,19 @@ class BinaryValidDataConformanceTest {
   }
 
   /**
+   * {@code TestValidDataForOneofType}: a oneof member written with its default value, a non-default
+   * value, twice, and after a member of another type, for each member type.
+   */
+  @TestFactory
+  Stream<DynamicNode> validDataForOneofType() {
+    return ONEOF_TYPES.stream()
+        .map(type ->
+            DynamicContainer.dynamicContainer(
+                "ValidDataOneof." + type.name(),
+                validDataForOneofTypeCases(type).stream().map(this::oneofContainer)));
+  }
+
+  /**
    * {@code TestOverwriteMessageValueMap}: the second entry for a key replaces the first, and a
    * message value is replaced rather than merged.
    */
@@ -484,6 +561,18 @@ class BinaryValidDataConformanceTest {
     return DynamicTest.dynamicTest(scenario.name(), () -> run(scenario));
   }
 
+  private DynamicNode oneofContainer(OneofCase scenario) {
+    return DynamicContainer.dynamicContainer(
+        scenario.name(),
+        Stream.of(
+            DynamicTest.dynamicTest("portCheck", () -> oneofPortCheck(scenario)),
+            DynamicTest.dynamicTest(
+                "recordbuf",
+                () -> {
+                  throw Blocker.ONEOF.abortedRecordbufHalf();
+                })));
+  }
+
   private DynamicTest blockedTest(BlockedCase blocked) {
     return DynamicTest.dynamicTest(
         blocked.name(),
@@ -505,6 +594,34 @@ class BinaryValidDataConformanceTest {
           throw new TestAbortedException(
               "gap " + blocked.ledgerId() + ": no " + blocked.recordComponent() + " field");
         });
+  }
+
+  /**
+   * The protobuf-java half of a oneof scenario, on the upstream descriptor with the oneof added
+   * back: the reference must parse the input to the expected message with the scenario's member set
+   * and nothing unknown, and for a {@code Binary} scenario write that message back as exactly the
+   * expected payload.
+   */
+  private static void oneofPortCheck(OneofCase scenario) throws IOException {
+    Blocker.ONEOF.failIfPresentInReference(scenario.name());
+    Descriptor type = JsonConformance.upstreamMessageType();
+
+    DynamicMessage expected = DynamicMessage.parseFrom(type, scenario.expected());
+    DynamicMessage actual = DynamicMessage.parseFrom(type, scenario.input());
+
+    assertEquals(expected, actual, "protobuf-java does not read the input as the expected message");
+    FieldDescriptor set =
+        actual.getOneofFieldDescriptor(
+            type.getOneofs().stream()
+                .filter(o -> o.getName().equals(ONEOF_NAME))
+                .findFirst()
+                .orElseThrow());
+    assertEquals(scenario.member(), set == null ? null : set.getName(), "the member left set");
+    assertTrue(actual.getUnknownFields().asMap().isEmpty(), "the input has an unknown field");
+    if (scenario.comparison() == Comparison.WIRE_BYTES) {
+      assertArrayEquals(
+          scenario.expected(), actual.toByteArray(), "protobuf-java writes another payload");
+    }
   }
 
   private static boolean isOverwrite(BlockedCase blocked) {
@@ -764,6 +881,68 @@ class BinaryValidDataConformanceTest {
             duplicateValueIn,
             duplicateValueIn,
             Comparison.MESSAGE));
+  }
+
+  /**
+   * The cases {@code TestValidDataForOneofType} runs for one member type. Every scenario upstream
+   * runs as protobuf-to-protobuf both without ({@code ValidDataOneof}) and with ({@code
+   * ValidDataOneofBinary}) the same-wire-format requirement. A oneof member has presence, so the
+   * default value is written back too.
+   */
+  private static List<OneofCase> validDataForOneofTypeCases(OneofType type) {
+    String suffix = "." + type.name();
+    byte[] memberTag = tag(type.number(), type.wireType());
+    byte[] defaultValue = cat(memberTag, type.defaultValue());
+    byte[] nonDefaultValue = cat(memberTag, type.nonDefaultValue());
+    // Upstream's exclusive lookup: the first oneof field whose type is not this one, written with
+    // its default value before the non-default value of this type.
+    OneofType other = oneofType(type.name().equals("UINT32") ? "MESSAGE" : "UINT32");
+    byte[] otherValue = cat(tag(other.number(), other.wireType()), other.defaultValue());
+
+    List<OneofCase> cases = new ArrayList<>();
+    cases.addAll(oneofCases(suffix, ".DefaultValue", type.member(), defaultValue, defaultValue));
+    cases.addAll(
+        oneofCases(suffix, ".NonDefaultValue", type.member(), nonDefaultValue, nonDefaultValue));
+    cases.addAll(
+        oneofCases(
+            suffix,
+            ".MultipleValuesForSameField",
+            type.member(),
+            cat(defaultValue, nonDefaultValue),
+            nonDefaultValue));
+    cases.addAll(
+        oneofCases(
+            suffix,
+            ".MultipleValuesForDifferentField",
+            type.member(),
+            cat(otherValue, nonDefaultValue),
+            nonDefaultValue));
+    return List.copyOf(cases);
+  }
+
+  private static List<OneofCase> oneofCases(
+      String typeSuffix, String scenarioSuffix, String member, byte[] input, byte[] expected) {
+    return List.of(
+        new OneofCase(
+            "ValidDataOneof" + typeSuffix + scenarioSuffix,
+            member,
+            input,
+            expected,
+            Comparison.MESSAGE),
+        new OneofCase(
+            "ValidDataOneofBinary" + typeSuffix + scenarioSuffix,
+            member,
+            input,
+            expected,
+            Comparison.WIRE_BYTES));
+  }
+
+  private static OneofType oneofType(String name) {
+    return ONEOF_TYPES.stream().filter(t -> t.name().equals(name)).findFirst().orElseThrow();
+  }
+
+  private static OneofType varintOneofType(String name, String member, int number) {
+    return new OneofType(name, member, number, WIRETYPE_VARINT, varint(0), varint(1));
   }
 
   private static List<BlockedCase> blockedMapCases() {
