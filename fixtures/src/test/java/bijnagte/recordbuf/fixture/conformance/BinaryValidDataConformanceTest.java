@@ -414,6 +414,8 @@ class BinaryValidDataConformanceTest {
       new MapType("STRING", WIRETYPE_LENGTH_DELIMITED, delim(""), delim("a"));
   private static final MapType BYTES_MAP_TYPE =
       new MapType("BYTES", WIRETYPE_LENGTH_DELIMITED, delim(""), delim("a"));
+  private static final MapType MESSAGE_MAP_TYPE =
+      new MapType("MESSAGE", WIRETYPE_LENGTH_DELIMITED, delim(""), NESTED_MESSAGE_A_1234);
 
   /** The map fields {@code TestAllTypesProto3} has, in the upstream order. */
   private static final List<MapField> MAP_FIELDS =
@@ -432,7 +434,8 @@ class BinaryValidDataConformanceTest {
           new MapField(INT32_MAP_TYPE, DOUBLE_MAP_TYPE, 67),
           new MapField(BOOL_MAP_TYPE, BOOL_MAP_TYPE, 68),
           new MapField(STRING_MAP_TYPE, STRING_MAP_TYPE, 69),
-          new MapField(STRING_MAP_TYPE, BYTES_MAP_TYPE, 70));
+          new MapField(STRING_MAP_TYPE, BYTES_MAP_TYPE, 70),
+          new MapField(STRING_MAP_TYPE, MESSAGE_MAP_TYPE, 71));
 
   /**
    * The oneof member types, in the order {@code TestValidDataForOneofType} runs them. Upstream
@@ -474,8 +477,7 @@ class BinaryValidDataConformanceTest {
 
   /**
    * Upstream map scenarios whose map field is commented out of the vendored proto: {@code
-   * map<string, NestedMessage>} (gap {@code map-message-value}) and {@code map<string, NestedEnum>}
-   * ({@code map-enum-value}).
+   * map<string, NestedEnum>} (gap {@code map-enum-value}).
    */
   private static final List<BlockedCase> BLOCKED = blockedMapCases();
 
@@ -516,8 +518,7 @@ class BinaryValidDataConformanceTest {
                 DynamicContainer.dynamicContainer(
                     "ValidDataMap." + field.key().name() + "." + field.value().name(),
                     validDataForMapTypeCases(field).stream().map(this::dynamicTest)));
-    Stream<DynamicNode> blocked =
-        BLOCKED.stream().filter(b -> !isOverwrite(b)).map(this::blockedTest);
+    Stream<DynamicNode> blocked = BLOCKED.stream().map(this::blockedTest);
     return Stream.concat(mirrored, blocked);
   }
 
@@ -540,9 +541,7 @@ class BinaryValidDataConformanceTest {
    */
   @TestFactory
   Stream<DynamicNode> overwriteMessageValueMap() {
-    return BLOCKED.stream()
-        .filter(BinaryValidDataConformanceTest::isOverwrite)
-        .map(this::blockedTest);
+    return Stream.of(overwriteMessageValueMapCase()).map(this::dynamicTest);
   }
 
   /** Every known-gap entry names a scenario this test mirrors, so none can go stale unnoticed. */
@@ -621,10 +620,6 @@ class BinaryValidDataConformanceTest {
     return new Case(scenario.name(), scenario.input(), scenario.expected(), scenario.comparison());
   }
 
-  private static boolean isOverwrite(BlockedCase blocked) {
-    return blocked.name().equals("ValidDataMap.STRING.MESSAGE.MergeValue");
-  }
-
   private static void run(Case scenario) throws IOException {
     String gapId = KNOWN_GAPS.get(scenario.name());
     if (gapId == null) {
@@ -666,6 +661,7 @@ class BinaryValidDataConformanceTest {
       cases.addAll(validDataForTypeCases(type));
     }
     cases.add(repeatedScalarMessageMerge());
+    cases.add(overwriteMessageValueMapCase());
     for (MapField field : MAP_FIELDS) {
       cases.addAll(validDataForMapTypeCases(field));
     }
@@ -846,6 +842,33 @@ class BinaryValidDataConformanceTest {
         Comparison.MESSAGE);
   }
 
+  /**
+   * The case {@code TestOverwriteMessageValueMap} runs: two entries for the same key, whose message
+   * values set different fields. The second entry replaces the first, so the expected payload is
+   * the second entry alone.
+   */
+  private static Case overwriteMessageValueMapCase() {
+    byte[] key = cat(tag(1, WIRETYPE_LENGTH_DELIMITED), delim(""));
+    byte[] field1 = cat(tag(1, WIRETYPE_VARINT), varint(1));
+    byte[] field2 = cat(tag(2, WIRETYPE_VARINT), varint(1));
+    byte[] field31 = cat(tag(31, WIRETYPE_VARINT), varint(1));
+    byte[] submessage1 = delim(cat(field1, field31));
+    byte[] submessage2 = delim(cat(field2, field31));
+    byte[] value1 =
+        cat(
+            tag(2, WIRETYPE_LENGTH_DELIMITED),
+            delim(cat(tag(2, WIRETYPE_LENGTH_DELIMITED), submessage1)));
+    byte[] value2 =
+        cat(
+            tag(2, WIRETYPE_LENGTH_DELIMITED),
+            delim(cat(tag(2, WIRETYPE_LENGTH_DELIMITED), submessage2)));
+    byte[] entryTag = tag(71, WIRETYPE_LENGTH_DELIMITED);
+    byte[] entry1 = cat(entryTag, delim(cat(key, value1)));
+    byte[] entry2 = cat(entryTag, delim(cat(key, value2)));
+    return new Case(
+        "ValidDataMap.STRING.MESSAGE.MergeValue", cat(entry1, entry2), entry2, Comparison.MESSAGE);
+  }
+
   private static List<Case> validDataForMapTypeCases(MapField field) {
     String prefix = "ValidDataMap." + field.key().name() + "." + field.value().name();
     byte[] key1 = cat(tag(1, field.key().wireType()), field.key().defaultValue());
@@ -947,21 +970,13 @@ class BinaryValidDataConformanceTest {
 
   private static List<BlockedCase> blockedMapCases() {
     List<BlockedCase> blocked = new ArrayList<>();
-    String[][] fields = {
-      {"ENUM", "map-enum-value", "mapStringNestedEnum"},
-      {"MESSAGE", "map-message-value", "mapStringNestedMessage"}
-    };
+    String[][] fields = {{"ENUM", "map-enum-value", "mapStringNestedEnum"}};
     for (String[] field : fields) {
       for (String suffix : MAP_SCENARIOS) {
         blocked.add(
             new BlockedCase("ValidDataMap.STRING." + field[0] + "." + suffix, field[1], field[2]));
       }
     }
-    blocked.add(
-        new BlockedCase(
-            "ValidDataMap.STRING.MESSAGE.MergeValue",
-            "map-message-value",
-            "mapStringNestedMessage"));
     return List.copyOf(blocked);
   }
 
@@ -1010,6 +1025,10 @@ class BinaryValidDataConformanceTest {
     gaps.put("ValidDataScalarBinary.ENUM[0]", "enum-default-value-written");
     // The second occurrence of NestedMessage.corecursive replaces the first, so the merge fails.
     gaps.put("RepeatedScalarMessageMerge", "message-field-not-merged");
+    // The message values of the two entries carry an unpacked repeated int32 (field 31) inside
+    // NestedMessage.corecursive, which the packed-only decoder cannot read. The overwrite itself
+    // works: a later entry for a key replaces the earlier one.
+    gaps.put("ValidDataMap.STRING.MESSAGE.MergeValue", "packed-decode-unpacked-input");
     return Map.copyOf(gaps);
   }
 

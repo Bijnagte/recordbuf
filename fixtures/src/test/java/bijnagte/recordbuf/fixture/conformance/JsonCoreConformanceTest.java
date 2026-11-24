@@ -516,7 +516,6 @@ class JsonCoreConformanceTest {
             "map_bool_bool: {key: true value: true} map_bool_bool: {key: false value: false}"),
         valid(
             "MessageMapField",
-            Blocker.MAP_MESSAGE_VALUE,
             "{\"mapStringNestedMessage\": {\"hello\": {\"a\": 1234}, \"world\": {\"a\": 5678}}}",
             "map_string_nested_message: {key: \"hello\" value: {a: 1234}}"
                 + " map_string_nested_message: {key: \"world\" value: {a: 5678}}"),

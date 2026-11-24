@@ -82,6 +82,12 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
   /** The case name of the {@value #AVRO} record shape with {@code map_string_bytes} populated. */
   private static final String MAP_BYTES = "all-types-map-bytes";
 
+  /**
+   * The case name of the {@value #AVRO} record shape with {@code map_string_nested_message} and
+   * {@code map_string_foreign_message} populated.
+   */
+  private static final String MAP_MESSAGE = "all-types-map-message";
+
   private static final String WIRE_GAPS =
       "the record sets fields whose protobuf binary encoding differs from protobuf-java's, or that"
           + " recordbuf cannot read back from protobuf-java's bytes (gaps"
@@ -138,6 +144,7 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         oneofCase(ONEOF_MESSAGE, oneofMessageRecord()),
         oneofCase(ONEOF_BYTES, oneofBytesRecord()),
         mapBytesCase(),
+        mapMessageCase(),
         wireGapFields(),
         interopMessage("foreign-message", ForeignMessage.builder().c(Integer.MIN_VALUE).build()),
         interopMessage("nested-message", NestedMessage.builder().a(Integer.MAX_VALUE).build()));
@@ -230,6 +237,47 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
                 Bytes.empty(),
                 "x",
                 Bytes.of(new byte[] {(byte) 0xde, (byte) 0xad, (byte) 0xbe, (byte) 0xef})))
+        .build();
+  }
+
+  /**
+   * The case {@value #MAP_MESSAGE}: the {@value #AVRO} record shape with both message-valued maps
+   * populated, lossless in all five formats, see {@link #mapMessageRecord()}.
+   */
+  private GoldenCase mapMessageCase() {
+    return GoldenCase.builder(FAMILY, MAP_MESSAGE, mapMessageRecord())
+        .lossless(protobufBinary)
+        .lossless(proto3Json)
+        .lossless(jackson)
+        .lossless(avroJson)
+        .lossless(avroBinary)
+        .build(formats());
+  }
+
+  /**
+   * The record of case {@value #MAP_MESSAGE}: the {@link #avroRecord()} with {@code
+   * map_string_nested_message} and {@code map_string_foreign_message} each holding a non-default
+   * value and a default-instance value. {@code NestedMessage.corecursive} stays unset, which Avro
+   * represents because the field closes a cycle and is nullable there.
+   */
+  static TestAllTypesProto3 mapMessageRecord() {
+    return avroRecord().toBuilder()
+        .mapStringNestedMessage(
+            ordered(
+                "y",
+                NestedMessage.builder().a(Integer.MIN_VALUE).build(),
+                "empty",
+                NestedMessage.builder().build(),
+                "x",
+                NestedMessage.builder().a(1234).build()))
+        .mapStringForeignMessage(
+            ordered(
+                "y",
+                ForeignMessage.builder().c(Integer.MAX_VALUE).build(),
+                "empty",
+                ForeignMessage.builder().build(),
+                "x",
+                ForeignMessage.builder().c(-5678).build()))
         .build();
   }
 

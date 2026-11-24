@@ -117,7 +117,6 @@ final class JsonConformance {
 
   /** A construct of the upstream message that the vendored proto comments out. */
   enum Blocker {
-    MAP_MESSAGE_VALUE("map-message-value"),
     MAP_ENUM_VALUE("map-enum-value"),
     NULL_VALUE("null-value-field"),
     ONEOF_NULL_VALUE("null-value-field");
@@ -135,7 +134,6 @@ final class JsonConformance {
     /** Whether the generated reference has the construct, so the scenario no longer needs this. */
     boolean presentInReference() {
       return switch (this) {
-        case MAP_MESSAGE_VALUE -> hasField("map_string_nested_message");
         case MAP_ENUM_VALUE -> hasField("map_string_nested_enum");
         case NULL_VALUE -> hasField("optional_null_value");
         case ONEOF_NULL_VALUE -> hasField("oneof_null_value");
@@ -324,7 +322,6 @@ final class JsonConformance {
     DescriptorProto.Builder message = fileProto.getMessageTypeBuilder(REFERENCE.getIndex());
     String scope = "." + file.getPackage() + ".";
 
-    String nestedMessage = scope + REFERENCE_MESSAGE_NAME + ".NestedMessage";
     String nestedEnum = scope + REFERENCE_MESSAGE_NAME + ".NestedEnum";
     addOneofMember(
         message,
@@ -335,18 +332,6 @@ final class JsonConformance {
         scalarField("optional_null_value", 307, FieldDescriptorProto.Type.TYPE_ENUM)
             .setTypeName(NULL_VALUE_TYPE));
 
-    addMapField(
-        message,
-        "map_string_nested_message",
-        71,
-        "MapStringNestedMessageEntry",
-        valueField(FieldDescriptorProto.Type.TYPE_MESSAGE).setTypeName(nestedMessage));
-    addMapField(
-        message,
-        "map_string_foreign_message",
-        72,
-        "MapStringForeignMessageEntry",
-        valueField(FieldDescriptorProto.Type.TYPE_MESSAGE).setTypeName(scope + "ForeignMessage"));
     addMapField(
         message,
         "map_string_nested_enum",

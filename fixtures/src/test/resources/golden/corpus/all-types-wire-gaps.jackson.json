@@ -84,6 +84,8 @@
   "mapBoolBool" : { },
   "mapStringString" : { },
   "mapStringBytes" : { },
+  "mapStringNestedMessage" : { },
+  "mapStringForeignMessage" : { },
   "optionalUint32Wrapper" : -1,
   "repeatedBoolWrapper" : [ ],
   "repeatedInt32Wrapper" : [ ],

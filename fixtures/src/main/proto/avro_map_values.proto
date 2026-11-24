@@ -1,5 +1,5 @@
 // Avro probe for map values that are bytes, a message or an enum (the Avro arm of the closed
-// map-bytes-value gap and of the map-message-value and map-enum-value gaps). The recordbuf record
+// map-bytes-value and map-message-value gaps and of the map-enum-value gap). The recordbuf record
 // and its Avro twin are generated from this file. Avro and Jackson are on by default for this file; there is no
 // protobuf_java option, so the file has no Interop converter. Same map shapes as map_values.proto.
 syntax = "proto3";

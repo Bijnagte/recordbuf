@@ -213,10 +213,8 @@ message TestAllTypesProto3 {
   map<bool, bool> map_bool_bool = 68;
   map<string, string> map_string_string = 69;
   map<string, bytes> map_string_bytes = 70;
-  // GAP(map-message-value): map fields with a message value type are not generated (the map codec only supports scalar keys and values).
-  // map<string, NestedMessage> map_string_nested_message = 71;
-  // GAP(map-message-value): map fields with a message value type are not generated (the map codec only supports scalar keys and values).
-  // map<string, ForeignMessage> map_string_foreign_message = 72;
+  map<string, NestedMessage> map_string_nested_message = 71;
+  map<string, ForeignMessage> map_string_foreign_message = 72;
   // GAP(map-enum-value): map fields with an enum value type are not generated (the map codec only supports scalar keys and values).
   // map<string, NestedEnum> map_string_nested_enum = 73;
   // GAP(map-enum-value): map fields with an enum value type are not generated (the map codec only supports scalar keys and values).

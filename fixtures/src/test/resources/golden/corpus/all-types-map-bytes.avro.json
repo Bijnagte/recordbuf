@@ -260,6 +260,8 @@
         "κλειδί" : "héllo 世界 😀 \"quoted\" back\\slash\ttab\nnewline \u0000nul </script>"
       },
       "map_string_bytes" : { },
+      "map_string_nested_message" : { },
+      "map_string_foreign_message" : { },
       "optional_bool_wrapper" : {
         "boolean" : false
       },
@@ -697,6 +699,8 @@
     "x" : "Þ­¾ï",
     "y" : "\u0000\u0001ÿ"
   },
+  "map_string_nested_message" : { },
+  "map_string_foreign_message" : { },
   "optional_bool_wrapper" : {
     "boolean" : false
   },

@@ -109,7 +109,6 @@ class JsonWktConformanceTest {
         // "null" is accepted for all fields types.
         valid(
             "AllFieldAcceptNull",
-            Blocker.MAP_MESSAGE_VALUE,
             """
             {
               "optionalInt32": null,
