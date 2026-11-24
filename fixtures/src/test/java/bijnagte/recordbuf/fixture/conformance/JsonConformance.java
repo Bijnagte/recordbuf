@@ -10,7 +10,6 @@ import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
 import com.google.protobuf.DescriptorProtos.MessageOptions;
-import com.google.protobuf.DescriptorProtos.OneofDescriptorProto;
 import com.google.protobuf.Descriptors.Descriptor;
 import com.google.protobuf.Descriptors.DescriptorValidationException;
 import com.google.protobuf.Descriptors.FileDescriptor;
@@ -118,7 +117,6 @@ final class JsonConformance {
 
   /** A construct of the upstream message that the vendored proto comments out. */
   enum Blocker {
-    ONEOF("oneof-snake-case-member"),
     MAP_MESSAGE_VALUE("map-message-value"),
     MAP_ENUM_VALUE("map-enum-value"),
     NULL_VALUE("null-value-field"),
@@ -137,7 +135,6 @@ final class JsonConformance {
     /** Whether the generated reference has the construct, so the scenario no longer needs this. */
     boolean presentInReference() {
       return switch (this) {
-        case ONEOF -> hasField("oneof_uint32");
         case MAP_MESSAGE_VALUE -> hasField("map_string_nested_message");
         case MAP_ENUM_VALUE -> hasField("map_string_nested_enum");
         case NULL_VALUE -> hasField("optional_null_value");
@@ -145,39 +142,9 @@ final class JsonConformance {
       };
     }
 
-    /**
-     * Fails the port check of a scenario once the generated reference has this construct: the
-     * scenario no longer needs the commented-out field, so its recordbuf half must run for real.
-     */
-    void failIfPresentInReference(String scenario) {
-      if (presentInReference()) {
-        fail(
-            scenario
-                + " no longer needs the commented-out construct of gap "
-                + ledgerId
-                + ": the reference has it now, run its recordbuf half and remove the blocker");
-      }
-    }
-
-    /** The abort of the recordbuf half of a scenario that names this commented-out construct. */
-    TestAbortedException abortedRecordbufHalf() {
-      return new TestAbortedException(
-          "gap "
-              + ledgerId
-              + ": the vendored proto has the construct this scenario names commented out");
-    }
-
     private static boolean hasField(String protoName) {
       return REFERENCE.findFieldByName(protoName) != null;
     }
-  }
-
-  /**
-   * The reference message type with the commented-out constructs added back, for a scenario that
-   * names one outside the JSON mirror (the binary oneof scenarios).
-   */
-  static Descriptor upstreamMessageType() {
-    return UPSTREAM;
   }
 
   /** What a scenario feeds the path. */
@@ -357,35 +324,16 @@ final class JsonConformance {
     DescriptorProto.Builder message = fileProto.getMessageTypeBuilder(REFERENCE.getIndex());
     String scope = "." + file.getPackage() + ".";
 
-    int oneofIndex = message.getOneofDeclCount();
-    message.addOneofDecl(OneofDescriptorProto.newBuilder().setName("oneof_field"));
     String nestedMessage = scope + REFERENCE_MESSAGE_NAME + ".NestedMessage";
     String nestedEnum = scope + REFERENCE_MESSAGE_NAME + ".NestedEnum";
-    message
-        .addField(
-            oneofField("oneof_uint32", 111, FieldDescriptorProto.Type.TYPE_UINT32, oneofIndex))
-        .addField(
-            oneofField(
-                    "oneof_nested_message", 112, FieldDescriptorProto.Type.TYPE_MESSAGE, oneofIndex)
-                .setTypeName(nestedMessage))
-        .addField(
-            oneofField("oneof_string", 113, FieldDescriptorProto.Type.TYPE_STRING, oneofIndex))
-        .addField(oneofField("oneof_bytes", 114, FieldDescriptorProto.Type.TYPE_BYTES, oneofIndex))
-        .addField(oneofField("oneof_bool", 115, FieldDescriptorProto.Type.TYPE_BOOL, oneofIndex))
-        .addField(
-            oneofField("oneof_uint64", 116, FieldDescriptorProto.Type.TYPE_UINT64, oneofIndex))
-        .addField(oneofField("oneof_float", 117, FieldDescriptorProto.Type.TYPE_FLOAT, oneofIndex))
-        .addField(
-            oneofField("oneof_double", 118, FieldDescriptorProto.Type.TYPE_DOUBLE, oneofIndex))
-        .addField(
-            oneofField("oneof_enum", 119, FieldDescriptorProto.Type.TYPE_ENUM, oneofIndex)
-                .setTypeName(nestedEnum))
-        .addField(
-            oneofField("oneof_null_value", 120, FieldDescriptorProto.Type.TYPE_ENUM, oneofIndex)
-                .setTypeName(NULL_VALUE_TYPE))
-        .addField(
-            scalarField("optional_null_value", 307, FieldDescriptorProto.Type.TYPE_ENUM)
-                .setTypeName(NULL_VALUE_TYPE));
+    addOneofMember(
+        message,
+        "oneof_field",
+        scalarField("oneof_null_value", 120, FieldDescriptorProto.Type.TYPE_ENUM)
+            .setTypeName(NULL_VALUE_TYPE));
+    message.addField(
+        scalarField("optional_null_value", 307, FieldDescriptorProto.Type.TYPE_ENUM)
+            .setTypeName(NULL_VALUE_TYPE));
 
     addMapField(
         message,
@@ -437,9 +385,29 @@ final class JsonConformance {
         .setType(type);
   }
 
-  private static FieldDescriptorProto.Builder oneofField(
-      String name, int number, FieldDescriptorProto.Type type, int oneofIndex) {
-    return scalarField(name, number, type).setOneofIndex(oneofIndex);
+  /**
+   * Adds {@code member} to the existing oneof {@code oneofName}, right after that oneof's last
+   * field: a descriptor requires the fields of one oneof to be consecutive.
+   */
+  private static void addOneofMember(
+      DescriptorProto.Builder message, String oneofName, FieldDescriptorProto.Builder member) {
+    int oneofIndex = -1;
+    for (int i = 0; i < message.getOneofDeclCount(); i++) {
+      if (message.getOneofDecl(i).getName().equals(oneofName)) {
+        oneofIndex = i;
+      }
+    }
+    if (oneofIndex < 0) {
+      throw new IllegalStateException("the reference has no oneof " + oneofName);
+    }
+    int insertAt = 0;
+    for (int i = 0; i < message.getFieldCount(); i++) {
+      FieldDescriptorProto field = message.getField(i);
+      if (field.hasOneofIndex() && field.getOneofIndex() == oneofIndex) {
+        insertAt = i + 1;
+      }
+    }
+    message.addField(insertAt, member.setOneofIndex(oneofIndex));
   }
 
   private static FieldDescriptorProto.Builder valueField(FieldDescriptorProto.Type type) {

@@ -21,10 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import bijnagte.recordbuf.fixture.conformance.JsonConformance.Blocker;
-import com.google.protobuf.Descriptors.Descriptor;
 import com.google.protobuf.Descriptors.FieldDescriptor;
-import com.google.protobuf.DynamicMessage;
+import com.google.protobuf.Descriptors.OneofDescriptor;
 import com.google.protobuf_test_messages.proto3.rec.TestAllTypesProto3;
 import java.io.IOException;
 import java.lang.reflect.RecordComponent;
@@ -65,16 +63,13 @@ import org.opentest4j.TestAbortedException;
  * commented out of the vendored proto cannot run at all: {@link #BLOCKED} reports it as aborted,
  * and fails once the record has the field.
  *
- * <p>{@code TestValidDataForOneofType} targets the oneof of {@code TestAllTypesProto3}, which is
- * commented out of the vendored proto (gap {@code oneof-snake-case-member}), so the generated
- * reference lacks it too. Each oneof scenario is a dynamic container of two tests, as in {@link
- * JsonConformance}: {@code portCheck} runs now against protobuf-java alone, on a {@link
- * DynamicMessage} of the upstream descriptor with the oneof added back, and proves the port is
- * faithful; {@code recordbuf} aborts with the gap's id, and the {@code portCheck} fails once the
- * reference has the oneof, which forces the recordbuf half to be written. Upstream also runs each
- * non-{@code Binary} case with JSON output; as in the other binary mirrors, only the protobuf-in,
- * protobuf-out settings are ported. {@code oneof_null_value} (field 120) is not selected by any of
- * these scenarios, so the {@code null-value-field} gap does not apply.
+ * <p>{@code TestValidDataForOneofType} targets the oneof of {@code TestAllTypesProto3}. Each oneof
+ * scenario is a dynamic container of two tests, as in {@link JsonConformance}: {@code portCheck}
+ * runs against protobuf-java alone and proves the port is faithful; {@code recordbuf} runs the
+ * scenario through the record like the other cases. Upstream also runs each non-{@code Binary} case
+ * with JSON output; as in the other binary mirrors, only the protobuf-in, protobuf-out settings are
+ * ported. {@code oneof_null_value} (field 120) is not selected by any of these scenarios, so the
+ * {@code null-value-field} gap does not apply.
  */
 class BinaryValidDataConformanceTest {
 
@@ -566,11 +561,7 @@ class BinaryValidDataConformanceTest {
         scenario.name(),
         Stream.of(
             DynamicTest.dynamicTest("portCheck", () -> oneofPortCheck(scenario)),
-            DynamicTest.dynamicTest(
-                "recordbuf",
-                () -> {
-                  throw Blocker.ONEOF.abortedRecordbufHalf();
-                })));
+            DynamicTest.dynamicTest("recordbuf", () -> run(oneofRecordbufHalf(scenario)))));
   }
 
   private DynamicTest blockedTest(BlockedCase blocked) {
@@ -597,31 +588,34 @@ class BinaryValidDataConformanceTest {
   }
 
   /**
-   * The protobuf-java half of a oneof scenario, on the upstream descriptor with the oneof added
-   * back: the reference must parse the input to the expected message with the scenario's member set
-   * and nothing unknown, and for a {@code Binary} scenario write that message back as exactly the
-   * expected payload.
+   * The protobuf-java half of a oneof scenario: the reference must parse the input to the expected
+   * message with the scenario's member set and nothing unknown, and for a {@code Binary} scenario
+   * write that message back as exactly the expected payload.
    */
   private static void oneofPortCheck(OneofCase scenario) throws IOException {
-    Blocker.ONEOF.failIfPresentInReference(scenario.name());
-    Descriptor type = JsonConformance.upstreamMessageType();
-
-    DynamicMessage expected = DynamicMessage.parseFrom(type, scenario.expected());
-    DynamicMessage actual = DynamicMessage.parseFrom(type, scenario.input());
+    com.google.protobuf_test_messages.proto3.TestAllTypesProto3 expected =
+        com.google.protobuf_test_messages.proto3.TestAllTypesProto3.parseFrom(scenario.expected());
+    com.google.protobuf_test_messages.proto3.TestAllTypesProto3 actual =
+        com.google.protobuf_test_messages.proto3.TestAllTypesProto3.parseFrom(scenario.input());
 
     assertEquals(expected, actual, "protobuf-java does not read the input as the expected message");
-    FieldDescriptor set =
-        actual.getOneofFieldDescriptor(
-            type.getOneofs().stream()
-                .filter(o -> o.getName().equals(ONEOF_NAME))
-                .findFirst()
-                .orElseThrow());
+    OneofDescriptor oneof =
+        actual.getDescriptorForType().getOneofs().stream()
+            .filter(o -> o.getName().equals(ONEOF_NAME))
+            .findFirst()
+            .orElseThrow();
+    FieldDescriptor set = actual.getOneofFieldDescriptor(oneof);
     assertEquals(scenario.member(), set == null ? null : set.getName(), "the member left set");
     assertTrue(actual.getUnknownFields().asMap().isEmpty(), "the input has an unknown field");
     if (scenario.comparison() == Comparison.WIRE_BYTES) {
       assertArrayEquals(
           scenario.expected(), actual.toByteArray(), "protobuf-java writes another payload");
     }
+  }
+
+  /** The recordbuf half of a oneof scenario, run like every other case of this mirror. */
+  private static Case oneofRecordbufHalf(OneofCase scenario) {
+    return new Case(scenario.name(), scenario.input(), scenario.expected(), scenario.comparison());
   }
 
   private static boolean isOverwrite(BlockedCase blocked) {
@@ -671,6 +665,9 @@ class BinaryValidDataConformanceTest {
     cases.add(repeatedScalarMessageMerge());
     for (MapField field : MAP_FIELDS) {
       cases.addAll(validDataForMapTypeCases(field));
+    }
+    for (OneofType type : ONEOF_TYPES) {
+      validDataForOneofTypeCases(type).forEach(c -> cases.add(oneofRecordbufHalf(c)));
     }
     return List.copyOf(cases);
   }

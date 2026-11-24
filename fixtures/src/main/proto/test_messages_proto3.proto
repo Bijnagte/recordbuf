@@ -223,20 +223,19 @@ message TestAllTypesProto3 {
   // GAP(map-enum-value): map fields with an enum value type are not generated (the map codec only supports scalar keys and values).
   // map<string, ForeignEnum> map_string_foreign_enum = 74;
 
-  // GAP(oneof-snake-case-member): every member of this oneof has a snake_case name, so each generated member record (`Oneof_uint32Value` and so on) fails Checkstyle TypeName; a oneof cannot be emptied, so the whole oneof is commented out.
-  // oneof oneof_field {
-  //   uint32 oneof_uint32 = 111;
-  //   NestedMessage oneof_nested_message = 112;
-  //   string oneof_string = 113;
-  //   bytes oneof_bytes = 114;
-  //   bool oneof_bool = 115;
-  //   uint64 oneof_uint64 = 116;
-  //   float oneof_float = 117;
-  //   double oneof_double = 118;
-  //   NestedEnum oneof_enum = 119;
-  //   // GAP(null-value-field): google.protobuf.NullValue is not supported by the generator (DYNAMIC_UNSUPPORTED).
-  //   // google.protobuf.NullValue oneof_null_value = 120;
-  // }
+  oneof oneof_field {
+    uint32 oneof_uint32 = 111;
+    NestedMessage oneof_nested_message = 112;
+    string oneof_string = 113;
+    bytes oneof_bytes = 114;
+    bool oneof_bool = 115;
+    uint64 oneof_uint64 = 116;
+    float oneof_float = 117;
+    double oneof_double = 118;
+    NestedEnum oneof_enum = 119;
+    // GAP(null-value-field): google.protobuf.NullValue is not supported by the generator (DYNAMIC_UNSUPPORTED).
+    // google.protobuf.NullValue oneof_null_value = 120;
+  }
 
   // Well-known types
   google.protobuf.BoolValue optional_bool_wrapper = 201;

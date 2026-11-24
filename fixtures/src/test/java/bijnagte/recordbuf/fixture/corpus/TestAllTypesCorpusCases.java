@@ -23,6 +23,7 @@ import com.google.protobuf_test_messages.proto3.rec.TestAllTypesProto3;
 import com.google.protobuf_test_messages.proto3.rec.TestAllTypesProto3.AliasedEnum;
 import com.google.protobuf_test_messages.proto3.rec.TestAllTypesProto3.NestedEnum;
 import com.google.protobuf_test_messages.proto3.rec.TestAllTypesProto3.NestedMessage;
+import com.google.protobuf_test_messages.proto3.rec.TestAllTypesProto3.OneofField;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -71,6 +72,12 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
 
   /** The case name of the {@value #AVRO} record shape with every edge-named field set. */
   private static final String EDGE_NAMES = "all-types-edge-names";
+
+  /** The case name of the {@value #AVRO} record shape with {@code oneof_nested_message} set. */
+  private static final String ONEOF_MESSAGE = "all-types-oneof-message";
+
+  /** The case name of the {@value #AVRO} record shape with {@code oneof_bytes} set. */
+  private static final String ONEOF_BYTES = "all-types-oneof-bytes";
 
   private static final String WIRE_GAPS =
       "the record sets fields whose protobuf binary encoding differs from protobuf-java's, or that"
@@ -125,6 +132,8 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         allTypes("all-types-default", TestAllTypesProto3.builder().build()),
         avroCase(),
         edgeNamesCase(),
+        oneofCase(ONEOF_MESSAGE, oneofMessageRecord()),
+        oneofCase(ONEOF_BYTES, oneofBytesRecord()),
         wireGapFields(),
         interopMessage("foreign-message", ForeignMessage.builder().c(Integer.MIN_VALUE).build()),
         interopMessage("nested-message", NestedMessage.builder().a(Integer.MAX_VALUE).build()));
@@ -173,6 +182,40 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         .lossless(avroJson)
         .lossless(avroBinary)
         .build(formats());
+  }
+
+  /**
+   * A case of the {@value #AVRO} record shape with one oneof member set: lossless in all five
+   * formats, like {@value #AVRO}, so every format carries the member.
+   */
+  private GoldenCase oneofCase(String name, TestAllTypesProto3 record) {
+    return GoldenCase.builder(FAMILY, name, record)
+        .lossless(protobufBinary)
+        .lossless(proto3Json)
+        .lossless(jackson)
+        .lossless(avroJson)
+        .lossless(avroBinary)
+        .build(formats());
+  }
+
+  /**
+   * The record of case {@value #ONEOF_MESSAGE}: the {@link #avroRecord()} with {@code
+   * oneof_nested_message} set to a non-default message.
+   */
+  static TestAllTypesProto3 oneofMessageRecord() {
+    return avroRecord().toBuilder()
+        .oneofField(new OneofField.OneofNestedMessageValue(NestedMessage.builder().a(1234).build()))
+        .build();
+  }
+
+  /**
+   * The record of case {@value #ONEOF_BYTES}: the {@link #avroRecord()} with {@code oneof_bytes}
+   * set to the non-empty bytes.
+   */
+  static TestAllTypesProto3 oneofBytesRecord() {
+    return avroRecord().toBuilder()
+        .oneofField(new OneofField.OneofBytesValue(NON_EMPTY_BYTES))
+        .build();
   }
 
   /**

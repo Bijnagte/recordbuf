@@ -472,28 +472,24 @@ class JsonCoreConformanceTest {
   }
 
   private static List<Case> oneofCases() {
-    Blocker oneof = Blocker.ONEOF;
     return List.of(
         valid(
             "OneofFieldNullFirst",
-            oneof,
             "{\"oneofUint32\": null, \"oneofString\": \"test\"}",
             "oneof_string: \"test\""),
         valid(
             "OneofFieldNullSecond",
-            oneof,
             "{\"oneofString\": \"test\", \"oneofUint32\": null}",
             "oneof_string: \"test\""),
-        valid("OneofZeroUint32", oneof, "{\"oneofUint32\": 0}", "oneof_uint32: 0"),
-        valid(
-            "OneofZeroMessage", oneof, "{\"oneofNestedMessage\": {}}", "oneof_nested_message: {}"),
-        valid("OneofZeroString", oneof, "{\"oneofString\": \"\"}", "oneof_string: \"\""),
-        valid("OneofZeroBytes", oneof, "{\"oneofBytes\": \"\"}", "oneof_bytes: \"\""),
-        valid("OneofZeroBool", oneof, "{\"oneofBool\": false}", "oneof_bool: false"),
-        valid("OneofZeroUint64", oneof, "{\"oneofUint64\": 0}", "oneof_uint64: 0"),
-        valid("OneofZeroFloat", oneof, "{\"oneofFloat\": 0.0}", "oneof_float: 0"),
-        valid("OneofZeroDouble", oneof, "{\"oneofDouble\": 0.0}", "oneof_double: 0"),
-        valid("OneofZeroEnum", oneof, "{\"oneofEnum\":\"FOO\"}", "oneof_enum: FOO"));
+        valid("OneofZeroUint32", "{\"oneofUint32\": 0}", "oneof_uint32: 0"),
+        valid("OneofZeroMessage", "{\"oneofNestedMessage\": {}}", "oneof_nested_message: {}"),
+        valid("OneofZeroString", "{\"oneofString\": \"\"}", "oneof_string: \"\""),
+        valid("OneofZeroBytes", "{\"oneofBytes\": \"\"}", "oneof_bytes: \"\""),
+        valid("OneofZeroBool", "{\"oneofBool\": false}", "oneof_bool: false"),
+        valid("OneofZeroUint64", "{\"oneofUint64\": 0}", "oneof_uint64: 0"),
+        valid("OneofZeroFloat", "{\"oneofFloat\": 0.0}", "oneof_float: 0"),
+        valid("OneofZeroDouble", "{\"oneofDouble\": 0.0}", "oneof_double: 0"),
+        valid("OneofZeroEnum", "{\"oneofEnum\":\"FOO\"}", "oneof_enum: FOO"));
   }
 
   private static List<Case> mapCases() {

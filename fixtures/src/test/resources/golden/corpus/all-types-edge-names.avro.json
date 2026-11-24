@@ -492,6 +492,7 @@
       "field__Name16" : 16,
       "field_name17__" : 17,
       "Field_name18__" : 0,
+      "oneof_field" : null,
       "unknownFields" : [ ]
     }
   },
@@ -923,5 +924,6 @@
   "field__Name16" : 116,
   "field_name17__" : 117,
   "Field_name18__" : 118,
+  "oneof_field" : null,
   "unknownFields" : [ ]
 }

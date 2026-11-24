@@ -1,4 +1,4 @@
-// Probe for snake_case oneof member names (the oneof-snake-case-member gap). The recordbuf record
+// Probe for snake_case oneof member names (the closed oneof-snake-case-member gap). The recordbuf record
 // is generated from this file (--recordbuf_out); the protobuf-java reference is generated from this
 // same file (--java_out). Each member's value record takes the UpperCamelCase form of its camel
 // name, so oneof_uint32 is OneofUint32Value. The member kinds mirror TestAllTypesProto3.oneof_field
