@@ -1,0 +1,57 @@
+name: publish
+
+# Publishes the consumer modules to Maven Central (Central Portal) when a version tag is pushed:
+#
+#   git tag v0.0.2 && git push origin v0.0.2
+#
+# The tag is the version: `v0.0.2` publishes `0.0.2`. Each module is uploaded as its own Portal
+# deployment and stays in the Portal's validated state until someone clicks "Publish" there (no
+# automatic release), so a bad upload can be dropped before it reaches Central.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Derive the version from the tag and refuse anything that is not a plain version, so a
+      # mistyped tag can never publish a wrong coordinate. Central refuses to overwrite a version,
+      # so a bad tag must be fixed by publishing a new one.
+      - name: Read version from tag
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?)$ ]]; then
+            echo "Tag '$TAG' is not of the form v<major>.<minor>.<patch>[-qualifier]" >&2
+            exit 1
+          fi
+          echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      # Full gate first: a release must never be uploaded from a red build.
+      - run: ./gradlew -PreleaseVersion=${{ steps.version.outputs.version }} build
+
+      # Unqualified task name: Gradle runs it in every module that defines it, which is exactly the
+      # six published modules (fixtures is not published). Credentials are the Central Portal user
+      # token (not the account login) plus the GPG key that signs every artifact.
+      - run: ./gradlew -PreleaseVersion=${{ steps.version.outputs.version }} publishToMavenCentral
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_PRIVATE_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.GPG_KEY_ID }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_PASSPHRASE }}
