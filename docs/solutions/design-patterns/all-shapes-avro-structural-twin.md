@@ -72,7 +72,7 @@ message to its Avro name and namespace (`nameOf` / `namespaceOf`; e.g. `Sample` 
 | `map<string, V>` | an Avro `map` |
 | `map<K, V>` (non-string key) | an `array` of a `{key, value}` record |
 | oneof | a `null`-first union — `null` is the unset state, one member per case |
-| singular / repeated message | the nested record, defined in the tree |
+| singular / repeated message | the nested record, defined in the tree; a singular reference that closes a cycle is a `null`-first union (`null` is unset) |
 | `repeated X` | an `array` of X's mapping |
 | unknown-field carrier | an always-present `unknownFields` array of `{number, wireType, value}` entries, 1:1 with the carrier |
 

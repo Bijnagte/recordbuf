@@ -21,10 +21,9 @@
 //
 // Local edits (KTD11: only to switch on recordbuf's surfaces, and to comment out gaps):
 //   1. Added `import "recordbuf_options.proto";`.
-//   2. Added file option `(.recordbuf.avro) = RECORDBUF_AVRO_OFF;` in place of the intended
-//      RECORDBUF_AVRO_ON, which is kept as a commented-out line (gap `avro-surface`): the Avro
-//      option is file-level only and the Avro converter generated for TestAllTypesProto3 does not
-//      compile. The Jackson surface is on by default and needs no edit.
+//   2. Added file option `(.recordbuf.avro) = RECORDBUF_AVRO_ON;`. The Avro option is file-level
+//      only, so every message in the file gets the Avro surface. The Jackson surface is on by
+//      default and needs no edit.
 //   3. Added message option `(.recordbuf.protobuf_java)` to every message (TestAllTypesProto3,
 //      NestedMessage, ForeignMessage, NullHypothesisProto3, EnumOnlyProto3), so each gets the
 //      protobuf-java Interop converter; its value is this file's java_package.
@@ -65,9 +64,7 @@ import "recordbuf_options.proto";  // LOCAL EDIT 1
 
 option cc_enable_arenas = true;
 
-// GAP(avro-surface): the generated TestAllTypesProto3AvroConverter does not compile (see ledger); the Avro option is file-level only.
-// option (.recordbuf.avro) = RECORDBUF_AVRO_ON;
-option (.recordbuf.avro) = RECORDBUF_AVRO_OFF;  // LOCAL EDIT 2
+option (.recordbuf.avro) = RECORDBUF_AVRO_ON;  // LOCAL EDIT 2
 
 // This proto includes every type of field in both singular and repeated
 // forms.

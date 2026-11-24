@@ -43,9 +43,11 @@ import tools.jackson.databind.node.ObjectNode;
  * repeated_any} holds an {@code Any} of a type with no descriptor, which {@code JsonFormat} cannot
  * print (the case with that element replaced is {@code all-types-proto3-json}), and {@code
  * all-types-wire-gaps}, whose default-valued repeated WKT elements its golden cannot hold (gap
- * {@code repeated-wkt-default-element}). The whole file has Avro switched off (gap {@code
- * avro-surface}), so no message in it has an Avro golden. {@code ForeignMessage} and {@code
- * NestedMessage} run in proto3 JSON too.
+ * {@code repeated-wkt-default-element}). Of the {@code TestAllTypesProto3} cases, only {@code
+ * all-types-avro} runs in Avro: it sets every non-cycle singular message field at both levels, and
+ * each other case leaves one unset, which Avro cannot write (gap {@code
+ * avro-absent-singular-message}). {@code ForeignMessage} and {@code NestedMessage} run in proto3
+ * JSON and Avro too.
  *
  * <p>Maps are built as {@link LinkedHashMap}s with several entries. The record's codec writes a map
  * in the iteration order of the {@code Map} the record holds, so the insertion order of these maps
@@ -64,6 +66,9 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
   /** The case name of the populated record whose {@code repeated_any} holds only a Struct. */
   private static final String PROTO3_JSON_POPULATED = "all-types-proto3-json";
 
+  /** The case name of the record that sets every non-cycle singular message field. */
+  private static final String AVRO = "all-types-avro";
+
   private static final String WIRE_GAPS =
       "the record sets fields whose protobuf binary encoding differs from protobuf-java's, or that"
           + " recordbuf cannot read back from protobuf-java's bytes (gaps"
@@ -81,9 +86,10 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
           + " (repeated_any holds type.googleapis.com/com.example.Opaque), a Google-owned JSON limit"
           + " (R15), not a recordbuf gap; case all-types-proto3-json is the same record without it";
 
-  private static final String NO_AVRO =
-      "the file test_messages_proto3.proto has Avro switched off (gap avro-surface), so no message"
-          + " in it has an Avro converter or schema";
+  private static final String AVRO_ABSENT_SINGULAR_MESSAGE =
+      "the record leaves a non-cycle singular message field unset, which the Avro schema declares"
+          + " non-nullable, so Avro cannot write it (gap avro-absent-singular-message); case"
+          + " all-types-avro sets every such field";
 
   private static final JsonMapper NODES = new JsonMapper();
 
@@ -114,6 +120,7 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         populatedCase(),
         allTypes(PROTO3_JSON_POPULATED, populatedWithStructAny()),
         allTypes("all-types-default", TestAllTypesProto3.builder().build()),
+        avroCase(),
         wireGapFields(),
         interopMessage("foreign-message", ForeignMessage.builder().c(Integer.MIN_VALUE).build()),
         interopMessage("nested-message", NestedMessage.builder().a(Integer.MAX_VALUE).build()));
@@ -124,8 +131,8 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         .lossless(protobufBinary)
         .notApplicable(proto3Json, OPAQUE_ANY)
         .lossless(jackson)
-        .notApplicable(avroJson, NO_AVRO)
-        .notApplicable(avroBinary, NO_AVRO)
+        .notApplicable(avroJson, AVRO_ABSENT_SINGULAR_MESSAGE)
+        .notApplicable(avroBinary, AVRO_ABSENT_SINGULAR_MESSAGE)
         .build(formats());
   }
 
@@ -134,8 +141,19 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         .lossless(protobufBinary)
         .lossless(proto3Json)
         .lossless(jackson)
-        .notApplicable(avroJson, NO_AVRO)
-        .notApplicable(avroBinary, NO_AVRO)
+        .notApplicable(avroJson, AVRO_ABSENT_SINGULAR_MESSAGE)
+        .notApplicable(avroBinary, AVRO_ABSENT_SINGULAR_MESSAGE)
+        .build(formats());
+  }
+
+  /** The case {@value #AVRO}: lossless in all five formats, see {@link #avroRecord()}. */
+  private GoldenCase avroCase() {
+    return GoldenCase.builder(FAMILY, AVRO, avroRecord())
+        .lossless(protobufBinary)
+        .lossless(proto3Json)
+        .lossless(jackson)
+        .lossless(avroJson)
+        .lossless(avroBinary)
         .build(formats());
   }
 
@@ -145,6 +163,30 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
    */
   private static TestAllTypesProto3 populatedWithStructAny() {
     return populated().toBuilder().repeatedAny(List.of(structAny())).build();
+  }
+
+  /**
+   * The record of case {@value #AVRO}: the Struct-{@code Any} populated record with {@code
+   * recursive_message} replaced by one level of the same shape, whose own {@code recursive_message}
+   * is absent. Each level sets {@code optional_empty} to the default Empty, which Avro needs for
+   * its non-nullable message field, and whole-microsecond timestamps, the precision Avro keeps.
+   */
+  private static TestAllTypesProto3 avroRecord() {
+    TestAllTypesProto3 inner =
+        avroLevel(populatedWithStructAny().toBuilder().recursiveMessage(null).build());
+    return avroLevel(populatedWithStructAny().toBuilder().recursiveMessage(inner).build());
+  }
+
+  private static TestAllTypesProto3 avroLevel(TestAllTypesProto3 level) {
+    return level.toBuilder()
+        .optionalEmpty(Empty.INSTANCE)
+        .optionalTimestamp(Instant.parse("2023-11-14T22:13:20.123456Z"))
+        .repeatedTimestamp(
+            List.of(
+                Instant.parse("0001-01-01T00:00:00Z"),
+                Instant.parse("9999-12-31T23:59:59.999999Z"),
+                Instant.ofEpochSecond(-1, 1_000)))
+        .build();
   }
 
   /**
@@ -158,8 +200,8 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         .notApplicable(protobufBinary, WIRE_GAPS)
         .notApplicable(proto3Json, PROTO3_JSON_WIRE_GAPS)
         .lossless(jackson)
-        .notApplicable(avroJson, NO_AVRO)
-        .notApplicable(avroBinary, NO_AVRO)
+        .notApplicable(avroJson, AVRO_ABSENT_SINGULAR_MESSAGE)
+        .notApplicable(avroBinary, AVRO_ABSENT_SINGULAR_MESSAGE)
         .build(formats());
   }
 
@@ -168,8 +210,8 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         .lossless(protobufBinary)
         .lossless(proto3Json)
         .lossless(jackson)
-        .notApplicable(avroJson, NO_AVRO)
-        .notApplicable(avroBinary, NO_AVRO)
+        .lossless(avroJson)
+        .lossless(avroBinary)
         .build(formats());
   }
 

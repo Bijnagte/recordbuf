@@ -36,8 +36,10 @@ representation (maps to Avro maps or key/value pair records, oneofs to unions,
 nested messages to nested records, repeated to arrays, enums to strings,
 `uint64` to a bit-exact `long`), and the record's unknown-field carrier has an
 always-present array slot (the converter does not transit its entries yet — it
-sets the array empty). A file containing any of these shapes no longer
-loses its whole Avro output. *Avoid:* opaque envelope wrapper for *structural* shapes — the twin maps everything it represents structurally; the envelope is not how the twin expresses its own shapes (see Opaque envelope for the one field-level return).
+sets the array empty). A singular message reference that closes a cycle in the
+reachable graph is a `null`-first union, so an unset cycle-closing field can be
+written; other singular message fields stay non-nullable. A file containing any of
+these shapes no longer loses its whole Avro output. *Avoid:* opaque envelope wrapper for *structural* shapes — the twin maps everything it represents structurally; the envelope is not how the twin expresses its own shapes (see Opaque envelope for the one field-level return).
 
 ## Well-known types
 
