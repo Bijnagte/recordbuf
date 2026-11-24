@@ -410,7 +410,6 @@ class JsonCoreConformanceTest {
             "optional_aliased_enum: ALIAS_BAZ"),
         valid(
             "EnumFieldWithAliasLowerCase",
-            Blocker.ALIAS_NAME,
             "{\"optionalAliasedEnum\": \"moo\"}",
             "optional_aliased_enum: ALIAS_BAZ"),
         valid(

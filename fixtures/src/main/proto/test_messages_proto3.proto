@@ -95,8 +95,7 @@ message TestAllTypesProto3 {
     ALIAS_BAR = 1;
     ALIAS_BAZ = 2;
     MOO = 2;
-    // GAP(enum-alias-name-collision): enum constant names are upper-cased, so `moo` and `MOO` both become `MOO` and the generated enum has a duplicate constant.
-    // moo = 2;
+    moo = 2;
     bAz = 2;
   }
 

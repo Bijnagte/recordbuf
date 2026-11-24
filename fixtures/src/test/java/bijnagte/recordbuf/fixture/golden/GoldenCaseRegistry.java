@@ -11,6 +11,7 @@ import bijnagte.recordbuf.fixture.canonicalformat.CanonicalFormatCases;
 import bijnagte.recordbuf.fixture.combined.CompatCases;
 import bijnagte.recordbuf.fixture.corpus.TestAllTypesCorpusCases;
 import bijnagte.recordbuf.fixture.edgenames.EdgeNamesCases;
+import bijnagte.recordbuf.fixture.enumalias.EnumAliasCases;
 import bijnagte.recordbuf.fixture.fixed.FixedCases;
 import bijnagte.recordbuf.fixture.i32.IntCases;
 import bijnagte.recordbuf.fixture.interopbytes.InteropBytesCases;
@@ -73,6 +74,7 @@ public final class GoldenCaseRegistry {
         new CompatCases(),
         new InteropNamesCases(),
         new EdgeNamesCases(),
+        new EnumAliasCases(),
         new InteropEnumCases(),
         new InteropOptionalEnumCases(),
         new InteropBytesCases(),

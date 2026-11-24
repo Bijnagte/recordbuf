@@ -433,16 +433,37 @@ public final class ModelLoader {
 
   // --- enums ---
 
+  /**
+   * Builds an enum's constants. Values that upper-case to the same constant name share a number
+   * (protoc enforces this, and only under {@code allow_alias}), so they become one constant at the
+   * first value's position. The other spellings are recorded as its aliases, which Jackson reads.
+   */
   private Enum loadEnum(EnumDescriptorProto e, List<Integer> basePath) {
-    List<Enum.EnumConstant> cs = new ArrayList<>();
+    Map<String, List<Integer>> valueIndexesByConstant = new LinkedHashMap<>();
     for (int i = 0; i < e.getValueCount(); i++) {
-      EnumValueDescriptorProto v = e.getValue(i);
+      valueIndexesByConstant
+          .computeIfAbsent(JavaNames.snakeUpper(e.getValue(i).getName()), k -> new ArrayList<>())
+          .add(i);
+    }
+    List<Enum.EnumConstant> cs = new ArrayList<>();
+    for (Map.Entry<String, List<Integer>> group : valueIndexesByConstant.entrySet()) {
+      String constantName = group.getKey();
+      List<Integer> indexes = group.getValue();
+      EnumValueDescriptorProto first = e.getValue(indexes.get(0));
+      List<String> aliases =
+          indexes.size() == 1
+              ? List.of()
+              : indexes.stream()
+                  .map(i -> e.getValue(i).getName())
+                  .filter(spelling -> !spelling.equals(constantName))
+                  .toList();
       cs.add(
           new Enum.EnumConstant(
-              JavaNames.snakeUpper(v.getName()),
-              v.getNumber(),
-              v.getOptions().getDeprecated(),
-              commentAtPath(child(basePath, 2, i))));
+              constantName,
+              first.getNumber(),
+              first.getOptions().getDeprecated(),
+              commentAtPath(child(basePath, 2, indexes.get(0))),
+              aliases));
     }
     return EnumBuilder.builder()
         .name(e.getName())

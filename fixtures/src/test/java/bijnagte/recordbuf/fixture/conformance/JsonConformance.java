@@ -7,8 +7,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 import bijnagte.recordbuf.fixture.golden.format.Proto3JsonFormat;
 import bijnagte.recordbuf.fixture.golden.format.ProtobufBinaryFormat;
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
-import com.google.protobuf.DescriptorProtos.EnumDescriptorProto;
-import com.google.protobuf.DescriptorProtos.EnumValueDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
 import com.google.protobuf.DescriptorProtos.MessageOptions;
@@ -123,7 +121,6 @@ final class JsonConformance {
     ONEOF("oneof-snake-case-member"),
     MAP_MESSAGE_VALUE("map-message-value"),
     MAP_ENUM_VALUE("map-enum-value"),
-    ALIAS_NAME("enum-alias-name-collision"),
     NULL_VALUE("null-value-field"),
     ONEOF_NULL_VALUE("null-value-field");
 
@@ -143,8 +140,6 @@ final class JsonConformance {
         case ONEOF -> hasField("oneof_uint32");
         case MAP_MESSAGE_VALUE -> hasField("map_string_nested_message");
         case MAP_ENUM_VALUE -> hasField("map_string_nested_enum");
-        case ALIAS_NAME ->
-            REFERENCE.findEnumTypeByName("AliasedEnum").findValueByName("moo") != null;
         case NULL_VALUE -> hasField("optional_null_value");
         case ONEOF_NULL_VALUE -> hasField("oneof_null_value");
       };
@@ -393,11 +388,6 @@ final class JsonConformance {
         "MapStringForeignEnumEntry",
         valueField(FieldDescriptorProto.Type.TYPE_ENUM).setTypeName(scope + "ForeignEnum"));
 
-    for (EnumDescriptorProto.Builder enumType : message.getEnumTypeBuilderList()) {
-      if (enumType.getName().equals("AliasedEnum")) {
-        enumType.addValue(EnumValueDescriptorProto.newBuilder().setName("moo").setNumber(2));
-      }
-    }
     try {
       FileDescriptor extended =
           FileDescriptor.buildFrom(

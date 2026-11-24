@@ -101,7 +101,7 @@ public final class RecordSourceMapping {
     // its
     // full core + its BY_NUMBER reverse-lookup cluster (with shared java.util.* imports).
     for (Enum e : m.nestedEnums()) {
-      result.nested(EnumSourceMapping.toSource(e, pkg));
+      result.nested(EnumSourceMapping.toSource(e, pkg, jackson));
     }
     // M4-C2b-2b-12: oneof groups. Each contributes one @Nullable record component and
     // one nested sealed interface (the per-member value records live inside it).
@@ -166,7 +166,7 @@ public final class RecordSourceMapping {
       result.component(c);
     }
     for (Enum e : m.nestedEnums()) {
-      result.nested(EnumSourceMapping.toSource(e, recordRef.pkg()));
+      result.nested(EnumSourceMapping.toSource(e, recordRef.pkg(), jackson));
     }
     // M4-C2d-9: nested messages — emit each as an inner record via recursion.
     for (Message nested : m.nestedMessages()) {

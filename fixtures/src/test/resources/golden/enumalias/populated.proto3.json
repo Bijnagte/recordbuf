@@ -1,0 +1,4 @@
+{
+  "singularFlavor": "FOO",
+  "repeatedFlavors": ["Bar", "FOO"]
+}
