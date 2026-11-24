@@ -359,8 +359,8 @@ Google's C++ runner is not used.
 
 `fixtures/build.gradle` measures the fixtures test run with JaCoCo over the runtime, json and avro
 classes and the module's `.rec` output. The vendored corpus package is excluded as new scope. `check`
-runs `jacocoTestCoverageVerification`, whose minimums are the pre-restructure baseline: line 0.6222 and
-branch 0.5545. Those minimums do not go down. Report: `./gradlew :recordbuf-fixtures:jacocoTestReport`.
+runs `jacocoTestCoverageVerification`, whose minimums are line 0.8 and
+branch 0.7 (raised from the pre-restructure baseline). Those minimums do not go down. Report: `./gradlew :recordbuf-fixtures:jacocoTestReport`.
 
 ## Project layout
 
