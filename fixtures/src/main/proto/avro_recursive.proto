@@ -1,0 +1,35 @@
+// Avro probe for recursive messages: a self-recursive Node, and an A and B that reference each
+// other. A message reference that closes a cycle is nullable in the Avro twin (a singular one), so
+// a finite recursive value round-trips. The recordbuf record and its Avro twin are generated from
+// this file. Avro and Jackson are on by default for this file.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.avrorecursive;
+option java_package = "bijnagte.recordbuf.fixture.avrorecursive";
+option java_multiple_files = true;
+
+// The target message comes first in the file (KTD2): a self-reference (child, kids), a singular
+// reference into the A/B cycle (a), and a repeated self-reference.
+message Node {
+  string label = 1;
+
+  // Singular self-reference: closes a cycle, so nullable in Avro.
+  Node child = 2;
+
+  // Singular reference into the A/B cycle: not on a cycle through Node itself, so non-nullable.
+  A a = 3;
+
+  // Repeated self-reference: an empty array is finite, so it stays an array.
+  repeated Node kids = 4;
+}
+
+// A mutual cycle with B: both singular references close it, so both are nullable in Avro.
+message A {
+  int32 n = 1;
+  B b = 2;
+}
+
+message B {
+  string s = 1;
+  A a = 2;
+}

@@ -25,7 +25,7 @@ public abstract class JacksonGoldenCases implements GoldenCaseSource {
   protected final ProtobufBinaryFormat protobufBinary = new ProtobufBinaryFormat();
 
   /** The proto3 JSON format. */
-  protected final Proto3JsonFormat proto3Json = new Proto3JsonFormat();
+  protected final Proto3JsonFormat proto3Json;
 
   /** The Jackson JSON format. */
   protected final JacksonFormat jackson = new JacksonFormat();
@@ -35,6 +35,19 @@ public abstract class JacksonGoldenCases implements GoldenCaseSource {
 
   /** The Avro binary format. */
   protected final AvroBinaryFormat avroBinary = new AvroBinaryFormat();
+
+  /** A source whose proto3 JSON format resolves no {@code Any} type. */
+  protected JacksonGoldenCases() {
+    this(new Proto3JsonFormat());
+  }
+
+  /**
+   * A source whose proto3 JSON format resolves the {@code Any} types of its registry, for a family
+   * that packs its own messages into an {@code Any}.
+   */
+  protected JacksonGoldenCases(Proto3JsonFormat proto3Json) {
+    this.proto3Json = proto3Json;
+  }
 
   @Override
   public final List<GoldenFormat> formats() {

@@ -1,0 +1,32 @@
+// Interop probe for proto3 `optional` enum fields. The `has<X>()`-guarded branch of the Interop
+// converter and the matching Avro enum arm are the only ones that read presence from protobuf-java,
+// so this file carries an optional and a plain enum of the same type. The recordbuf record is
+// generated from this file (--recordbuf_out); the protobuf-java reference is generated from this
+// same file (--java_out).
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.interopoptionalenum;
+option java_package = "bijnagte.recordbuf.fixture.interopoptionalenum";
+option java_multiple_files = true;
+
+import "recordbuf_options.proto";
+
+// The target message comes first in the file (KTD2): an optional enum beside a plain enum.
+message InteropOptionalEnum {
+  // Nested enum whose zero constant is a real value for `optional` presence.
+  enum Kind {
+    KIND_ZERO = 0;
+    ALPHA = 1;
+    BETA = 2;
+  }
+
+  // Optional enum: presence is tracked, so an explicit zero is a value.
+  optional Kind opt_kind = 1;
+
+  // Plain singular enum: proto3 has no presence, so zero reads as absent.
+  Kind plain_kind = 2;
+
+  int32 n = 3;
+
+  option (.recordbuf.protobuf_java) = "bijnagte.recordbuf.fixture.interopoptionalenum";
+}

@@ -1,0 +1,6 @@
+{
+  "kind" : "BETA",
+  "color" : "GREEN",
+  "kinds" : [ "ALPHA", "NEG" ],
+  "colors" : [ "RED" ]
+}

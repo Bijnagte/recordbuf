@@ -1,0 +1,43 @@
+// Avro probe for repeated scalar wrapper and BytesValue fields. The recordbuf record and its Avro
+// twin are generated from this file. Each repeated wrapper is an Avro array of a nullable element
+// (["null", T]), so the converter maps each element with the wrapper's singular conversion. Avro is
+// on by default for this file. The uint32 wrapper holds values up to Integer.MAX_VALUE, so the
+// pb.hex golden is not hit by gap uint32-negative-carrier-wire.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.avrowrappers;
+option java_package = "bijnagte.recordbuf.fixture.avrowrappers";
+option java_multiple_files = true;
+
+import "google/protobuf/wrappers.proto";
+
+// The target message comes first in the file (KTD2): one repeated wrapper of each scalar kind and
+// one of BytesValue.
+message Sample {
+  // Repeated BoolValue.
+  repeated google.protobuf.BoolValue bools = 1;
+
+  // Repeated Int32Value.
+  repeated google.protobuf.Int32Value int32s = 2;
+
+  // Repeated UInt32Value.
+  repeated google.protobuf.UInt32Value uint32s = 3;
+
+  // Repeated Int64Value.
+  repeated google.protobuf.Int64Value int64s = 4;
+
+  // Repeated UInt64Value.
+  repeated google.protobuf.UInt64Value uint64s = 5;
+
+  // Repeated FloatValue.
+  repeated google.protobuf.FloatValue floats = 6;
+
+  // Repeated DoubleValue.
+  repeated google.protobuf.DoubleValue doubles = 7;
+
+  // Repeated StringValue.
+  repeated google.protobuf.StringValue strings = 8;
+
+  // Repeated BytesValue.
+  repeated google.protobuf.BytesValue blobs = 9;
+}

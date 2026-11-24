@@ -14,7 +14,7 @@ A `covered` group is mirrored, not necessarily passing: a case recordbuf cannot 
 
 U21 to U25 flip `gap` rows to `covered` as they mirror groups, and delete the `conformance-only` ledger rows that no longer apply.
 
-A `gap` row can name only ledger ids, not a test, so a JSON group that is mirrored but gated is listed here as `gap` and its mirror is named in this paragraph. Every JSON scenario targets `TestAllTypesProto3`, which has no generated `Interop` converter while `interop-all-types` is open, so the recordbuf half of a mirrored scenario (`JsonFormat` to the protobuf-java message, `Interop.from`, the record, `Interop.to`, `JsonFormat` back) cannot run yet. [`JsonCoreConformanceTest`](../../java/bijnagte/recordbuf/fixture/conformance/JsonCoreConformanceTest.java) mirrors the `RunJsonTests` top level (`HelloWorld`, `IgnoreUnknownJson*`), `RunJsonTestsForFieldNameConvention`, `RunJsonTestsForNonRepeatedTypes`, `RunJsonTestsForRepeatedTypes` and the `IgnoreUnknownEnumStringValue*` scenarios of `RunJsonTestsForUnknownEnumStringValues`. [`JsonWktConformanceTest`](../../java/bijnagte/recordbuf/fixture/conformance/JsonWktConformanceTest.java) mirrors `RunJsonTestsForNullTypes`, `RunJsonTestsForWrapperTypes` (wrappers, `Duration` and `Timestamp`), `RunJsonTestsForFieldMask`, `RunJsonTestsForStruct`, `RunJsonTestsForValue` and `RunJsonTestsForAny`; its `Any` scenarios resolve their types through a type registry. The two classes share their scenario model and halves in `JsonConformance`. In each class, each scenario has a `portCheck` test that runs now against protobuf-java alone (proving the port is faithful) and a `recordbuf` test that aborts with `interop-all-types` (or with the id of the commented-out construct the scenario names) and runs for real once the gap closes. A group's `gap` row flips to `covered` in the change that closes `interop-all-types`, when its test class becomes its reference.
+A `gap` row can name only ledger ids, not a test, so a group that is not mirrored yet is listed here as `gap`. The JSON mirror is covered: every JSON scenario targets `TestAllTypesProto3`, which has a generated `Interop` converter, so the recordbuf half of a mirrored scenario (`JsonFormat` to the protobuf-java message, `Interop.from`, the record, `Interop.to`, `JsonFormat` back) runs for real. [`JsonCoreConformanceTest`](../../java/bijnagte/recordbuf/fixture/conformance/JsonCoreConformanceTest.java) mirrors the `RunJsonTests` top level (`HelloWorld`, `IgnoreUnknownJson*`), `RunJsonTestsForFieldNameConvention`, `RunJsonTestsForNonRepeatedTypes`, `RunJsonTestsForRepeatedTypes` and the `IgnoreUnknownEnumStringValue*` scenarios of `RunJsonTestsForUnknownEnumStringValues`. [`JsonWktConformanceTest`](../../java/bijnagte/recordbuf/fixture/conformance/JsonWktConformanceTest.java) mirrors `RunJsonTestsForNullTypes`, `RunJsonTestsForWrapperTypes` (wrappers, `Duration` and `Timestamp`), `RunJsonTestsForFieldMask`, `RunJsonTestsForStruct`, `RunJsonTestsForValue` and `RunJsonTestsForAny`; its `Any` scenarios resolve their types through a type registry. The two classes share their scenario model and halves in `JsonConformance`. In each class, each scenario has a `portCheck` test that runs now against protobuf-java alone (proving the port is faithful) and a `recordbuf` test. The `recordbuf` test of a scenario that names a commented-out construct aborts with that construct's ledger id, and runs for real once the construct is uncommented. A scenario whose record path still gets a construct wrong is listed in `JsonConformance`'s `KNOWN_GAPS`: it runs and aborts with its ledger id, and fails once it passes.
 
 | group | category | status | reference |
 | --- | --- | --- | --- |
@@ -35,27 +35,27 @@ A `gap` row can name only ledger ids, not a test, so a JSON group that is mirror
 | TestUnknownOrdering | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryBehaviorConformanceTest#unknownOrdering |
 | RunRecursionLimitTests | binary | covered | bijnagte.recordbuf.fixture.conformance.BinaryBehaviorConformanceTest#recursionLimit |
 | RunBinaryPerformanceTests | binary | not-applicable | Opt-in performance run (`performance_` flag), not part of the correctness suite |
-| RunJsonTests top level (HelloWorld, IgnoreUnknownJson*) | json | gap | interop-all-types |
+| RunJsonTests top level (HelloWorld, IgnoreUnknownJson*) | json | covered | bijnagte.recordbuf.fixture.conformance.JsonCoreConformanceTest#topLevel |
 | RunJsonTests top level (RejectTopLevelNull) | json | not-applicable | Google-owned (R15): `JsonFormat` rejects the input before `Interop` runs |
-| RunJsonTestsForFieldNameConvention | json | gap | interop-all-types, field-name-uppercase-start |
+| RunJsonTestsForFieldNameConvention | json | covered | bijnagte.recordbuf.fixture.conformance.JsonCoreConformanceTest#fieldNameConvention |
 | RunJsonTestsForFieldNameConvention (malformed syntax: unquoted names, trailing commas, comments, missing commas, duplicate names) | json | not-applicable | Google-owned (R15) |
-| RunJsonTestsForNonRepeatedTypes | json | gap | interop-all-types, oneof-snake-case-member, map-message-value, enum-alias-name-collision |
+| RunJsonTestsForNonRepeatedTypes | json | covered | bijnagte.recordbuf.fixture.conformance.JsonCoreConformanceTest#nonRepeatedTypes |
 | RunJsonTestsForNonRepeatedTypes (out-of-range and non-integer numbers, bad literals) | json | not-applicable | Google-owned (R15) |
-| RunJsonTestsForRepeatedTypes | json | gap | interop-all-types |
+| RunJsonTestsForRepeatedTypes | json | covered | bijnagte.recordbuf.fixture.conformance.JsonCoreConformanceTest#repeatedTypes |
 | RunJsonTestsForRepeatedTypes (single value for repeated field) | json | not-applicable | Google-owned (R15) |
-| RunJsonTestsForNullTypes | json | gap | map-message-value, interop-all-types |
+| RunJsonTestsForNullTypes | json | covered | bijnagte.recordbuf.fixture.conformance.JsonWktConformanceTest#nullTypes |
 | RunJsonTestsForNullTypes (null as repeated element or map key or value) | json | not-applicable | Google-owned (R15) |
-| RunJsonTestsForWrapperTypes | json | gap | interop-all-types |
+| RunJsonTestsForWrapperTypes | json | covered | bijnagte.recordbuf.fixture.conformance.JsonWktConformanceTest#wrapperTypes |
 | RunJsonTestsForWrapperTypes (Duration and Timestamp parse rejection, and serialize rejection of out-of-range or non-canonical messages) | json | not-applicable | Google-owned (R15) |
-| RunJsonTestsForFieldMask | json | gap | interop-all-types |
+| RunJsonTestsForFieldMask | json | covered | bijnagte.recordbuf.fixture.conformance.JsonWktConformanceTest#fieldMask |
 | RunJsonTestsForFieldMask (invalid characters, and serialize rejection of paths that do not round trip) | json | not-applicable | Google-owned (R15) |
-| RunJsonTestsForStruct | json | gap | interop-all-types |
+| RunJsonTestsForStruct | json | covered | bijnagte.recordbuf.fixture.conformance.JsonWktConformanceTest#struct |
 | RunJsonTestsForStruct (StructDeepNesting200 parse rejection) | json | not-applicable | Google-owned (R15) |
-| RunJsonTestsForValue | json | gap | null-value-field, oneof-snake-case-member, interop-all-types |
+| RunJsonTestsForValue | json | covered | bijnagte.recordbuf.fixture.conformance.JsonWktConformanceTest#value |
 | RunJsonTestsForValue (ListValueDeepNesting200 and ValueDeepNesting200 parse rejection, NaN and Infinity number value serialize rejection) | json | not-applicable | Google-owned (R15) |
-| RunJsonTestsForAny | json | gap | interop-all-types |
+| RunJsonTestsForAny | json | covered | bijnagte.recordbuf.fixture.conformance.JsonWktConformanceTest#any |
 | RunJsonTestsForAny (bad type URL, empty type and value) | json | not-applicable | Google-owned (R15) |
-| RunJsonTestsForUnknownEnumStringValues (IgnoreUnknownEnumStringValue*) | json | gap | interop-all-types, map-enum-value |
+| RunJsonTestsForUnknownEnumStringValues (IgnoreUnknownEnumStringValue*) | json | covered | bijnagte.recordbuf.fixture.conformance.JsonCoreConformanceTest#unknownEnumStringValues |
 | RunJsonTestsForUnknownEnumStringValues (RejectUnknownEnumStringValue*) | json | not-applicable | Google-owned (R15) |
 | RunJsonTestsForStoresDefaultPrimitive | json | not-applicable | Proto2 only: `RunJsonTests` calls it for proto2 message types, not for proto3 |
 | RunJsonTestsForReservedFields | json | not-applicable | Defined in the suite but not called by `RunJsonTests` at v36.2 |

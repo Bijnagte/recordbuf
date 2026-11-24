@@ -21,14 +21,12 @@
 //
 // Local edits (KTD11: only to switch on recordbuf's surfaces, and to comment out gaps):
 //   1. Added `import "recordbuf_options.proto";`.
-//   2. Added file option `(.recordbuf.avro) = RECORDBUF_AVRO_OFF;` in place of the intended
-//      RECORDBUF_AVRO_ON, which is kept as a commented-out line (gap `avro-surface`): the Avro
-//      option is file-level only and the Avro converter generated for TestAllTypesProto3 does not
-//      compile. The Jackson surface is on by default and needs no edit.
-//   3. Added message option `(.recordbuf.protobuf_java)` to every message except
-//      TestAllTypesProto3 (NestedMessage, ForeignMessage, NullHypothesisProto3, EnumOnlyProto3),
-//      so each gets the protobuf-java Interop converter; its value is this file's java_package.
-//      TestAllTypesProto3's option is commented out (gap `interop-all-types`).
+//   2. Added file option `(.recordbuf.avro) = RECORDBUF_AVRO_ON;`. The Avro option is file-level
+//      only, so every message in the file gets the Avro surface. The Jackson surface is on by
+//      default and needs no edit.
+//   3. Added message option `(.recordbuf.protobuf_java)` to every message (TestAllTypesProto3,
+//      NestedMessage, ForeignMessage, NullHypothesisProto3, EnumOnlyProto3), so each gets the
+//      protobuf-java Interop converter; its value is this file's java_package.
 //   4. Added `option java_multiple_files = true;`. Upstream does not set it. The golden harness
 //      (ReferenceTypes) maps `<pkg>.rec.X` to the protobuf-java reference `<pkg>.X`, which only
 //      holds when the reference is not nested in an outer class.
@@ -66,9 +64,7 @@ import "recordbuf_options.proto";  // LOCAL EDIT 1
 
 option cc_enable_arenas = true;
 
-// GAP(avro-surface): the generated TestAllTypesProto3AvroConverter does not compile (see ledger); the Avro option is file-level only.
-// option (.recordbuf.avro) = RECORDBUF_AVRO_ON;
-option (.recordbuf.avro) = RECORDBUF_AVRO_OFF;  // LOCAL EDIT 2
+option (.recordbuf.avro) = RECORDBUF_AVRO_ON;  // LOCAL EDIT 2
 
 // This proto includes every type of field in both singular and repeated
 // forms.
@@ -80,8 +76,7 @@ option (.recordbuf.avro) = RECORDBUF_AVRO_OFF;  // LOCAL EDIT 2
 message TestAllTypesProto3 {
   message NestedMessage {
     int32 a = 1;
-    // GAP(nested-message-corecursive): NestedMessage.corecursive: its Interop needs TestAllTypesProto3.Interop (see interop-all-types).
-    // TestAllTypesProto3 corecursive = 2;
+    TestAllTypesProto3 corecursive = 2;
 
     option (.recordbuf.protobuf_java) = "com.google.protobuf_test_messages.proto3";  // LOCAL EDIT 3
   }
@@ -132,6 +127,7 @@ message TestAllTypesProto3 {
   ForeignMessage optional_foreign_message = 19;
 
   // GAP(enum-default-value-written): a singular enum field that holds its default (value 0) is written, one tag and one zero byte; protobuf-java writes nothing. The field generates fine and stays active.
+  // GAP(enum-unknown-number-default): a number no constant has decodes to the first constant (FOO), so the value is lost; the field generates fine and stays active.
   NestedEnum optional_nested_enum = 21;
   ForeignEnum optional_foreign_enum = 22;
   AliasedEnum optional_aliased_enum = 23;
@@ -266,6 +262,7 @@ message TestAllTypesProto3 {
 
   google.protobuf.Duration optional_duration = 301;
   google.protobuf.Timestamp optional_timestamp = 302;
+  // GAP(field-mask-path-order): the runtime FieldMask keeps its paths sorted and de-duplicated, so the input order of the paths is lost; the field generates fine and stays active.
   google.protobuf.FieldMask optional_field_mask = 303;
   google.protobuf.Struct optional_struct = 304;
   google.protobuf.Any optional_any = 305;
@@ -319,8 +316,7 @@ message TestAllTypesProto3 {
   reserved "reserved_field";
   reserved 999999;
 
-  // GAP(interop-all-types): the protobuf-java Interop converter for this message does not compile (see ledger).
-  // option (.recordbuf.protobuf_java) = "com.google.protobuf_test_messages.proto3";
+  option (.recordbuf.protobuf_java) = "com.google.protobuf_test_messages.proto3";  // LOCAL EDIT 3
 }
 
 message ForeignMessage {

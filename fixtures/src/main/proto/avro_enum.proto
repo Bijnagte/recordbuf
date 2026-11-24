@@ -1,0 +1,41 @@
+// Avro probe for enum field conversion, singular and repeated, top-level and nested.
+// The recordbuf record and its Avro twin are generated from this file; the Avro twin holds each
+// enum as a string (the constant's name), and the converter maps it back by name. Avro is on by
+// default for this file. The repeated enums are unpacked so the pb.hex golden is not hit by gap
+// repeated-enum-unpacked-only.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.avroenum;
+option java_package = "bijnagte.recordbuf.fixture.avroenum";
+option java_multiple_files = true;
+
+// The target message comes first in the file (KTD2): one singular and one repeated enum of each
+// kind, a nested enum and a top-level enum.
+message Sample {
+  // Nested enum, with a negative constant.
+  enum Kind {
+    KIND_ZERO = 0;
+    ALPHA = 1;
+    BETA = 2;
+    NEG = -1;
+  }
+
+  // Nested singular enum.
+  Kind kind = 1;
+
+  // Top-level singular enum.
+  Color color = 2;
+
+  // Repeated nested enum, unpacked.
+  repeated Kind kinds = 3 [packed = false];
+
+  // Repeated top-level enum, unpacked.
+  repeated Color colors = 4 [packed = false];
+}
+
+// Top-level enum.
+enum Color {
+  COLOR_UNSPECIFIED = 0;
+  RED = 1;
+  GREEN = 2;
+}

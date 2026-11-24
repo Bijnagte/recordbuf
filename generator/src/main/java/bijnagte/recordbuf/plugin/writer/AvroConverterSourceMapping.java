@@ -49,6 +49,21 @@ import java.util.Set;
  */
 public final class AvroConverterSourceMapping {
 
+  /**
+   * The WKTs whose Avro value is the record's value as it is (a number, a Timestamp's Instant, a
+   * boolean), so a repeated field of them needs no per-element conversion.
+   */
+  private static final Set<String> SAME_VALUE_WKTS =
+      Set.of(
+          "google.protobuf.Timestamp",
+          "google.protobuf.Int32Value",
+          "google.protobuf.UInt32Value",
+          "google.protobuf.Int64Value",
+          "google.protobuf.UInt64Value",
+          "google.protobuf.FloatValue",
+          "google.protobuf.DoubleValue",
+          "google.protobuf.BoolValue");
+
   private AvroConverterSourceMapping() {}
 
   /**
@@ -157,7 +172,7 @@ public final class AvroConverterSourceMapping {
 
     String wkt = AvroSchemaGenerator.typeUrlIfWkt(f);
     if (wkt != null) {
-      return wktToRecord(wkt, var, getter);
+      return wktToRecord(wkt, var, getter, f.isRepeated());
     }
     if (f.isMap()) {
       return mapToRecord(f, var, getter, specificRecordPkg);
@@ -169,7 +184,7 @@ public final class AvroConverterSourceMapping {
       return messageToRecord(f, var, getter, registry);
     }
     if (f.kind() == FieldKind.ENUM) {
-      return Element.expr("@0(@1().value())", var, getter);
+      return enumToRecord(f, var, getter);
     }
     // Repeated length-delimited scalars convert per element: Avro's array of string is a
     // List<CharSequence>, its array of bytes a List<ByteBuffer>.
@@ -196,6 +211,11 @@ public final class AvroConverterSourceMapping {
     if (f.kind() == FieldKind.SCALAR && "string".equals(f.typeUrl())) {
       return Element.expr("@0(@1().toString())", var, getter);
     }
+    // A repeated scalar's Avro elements are never null, so a plain List.copyOf holds them: the
+    // record gets a plain list, not Avro's GenericData.Array.
+    if (f.kind() == FieldKind.SCALAR && f.isRepeated()) {
+      return Element.expr("@0(@1.copyOf(@2()))", var, TypeRefs.LIST, getter);
+    }
     if (f.kind() == FieldKind.SCALAR) {
       return Element.expr("@0(@1())", var, getter);
     }
@@ -203,43 +223,87 @@ public final class AvroConverterSourceMapping {
         f.name(), "cannot map Avro field to a record component ('" + f.typeUrl() + "')");
   }
 
-  private static Element wktToRecord(String wkt, String var, String getter) {
+  /**
+   * An enum component read back from its Avro name (a string, never null): the record constant with
+   * that name, per element for a repeated field.
+   */
+  private static Element enumToRecord(Field f, String var, String getter) {
+    TypeRef enumType = enumType(f);
+    if (f.isRepeated()) {
+      return Element.expr(
+          "@0(@1().stream().map(v -> @2).toList())", var, getter, enumFromName(enumType, "v"));
+    }
+    return Element.expr("@0(@1)", var, enumFromName(enumType, getter + "()"));
+  }
+
+  /**
+   * A WKT field's record component. Avro holds a repeated field's elements as nullable unions, so a
+   * repeated field converts each element with the conversion a singular field applies to its value.
+   */
+  private static Element wktToRecord(String wkt, String var, String getter, boolean repeated) {
+    if (!repeated) {
+      return Element.expr("@0(@1)", var, wktToRecordValue(wkt, getter + "()"));
+    }
+    if (SAME_VALUE_WKTS.contains(wkt)) {
+      // The list is copied into a plain List: Avro's array is a GenericData.Array, whose equals
+      // rejects the record's Instant elements. Stream.toList() keeps a null wrapper element.
+      return Element.expr("@0(@1().stream().toList())", var, getter);
+    }
+    return Element.expr(
+        "@0(@1().stream().map(v -> @2).toList())", var, getter, repeatedElementToRecord(wkt));
+  }
+
+  /**
+   * The record value of one repeated WKT element {@code v}. A null FieldMask element reads back as
+   * the empty mask: a list element gets no constructor normalization, so the singular arm's
+   * null-to-empty step never reaches it, and a null record element would later fail in the
+   * encoders.
+   */
+  private static RawExpr repeatedElementToRecord(String wkt) {
+    if (wkt.equals("google.protobuf.FieldMask")) {
+      return RawExpr.of(
+          "v == null ? @0.empty() : @0.of(@1.fieldMaskFromAvro(v.toString()))",
+          TypeRefs.FIELD_MASK,
+          TypeRefs.WKT_AVRO_BRIDGE);
+    }
+    return wktToRecordValue(wkt, "v");
+  }
+
+  /**
+   * The record value of one Avro WKT value {@code value} (a null Avro value stays null). A {@code
+   * SAME_VALUE_WKTS} value passes through unchanged.
+   */
+  private static RawExpr wktToRecordValue(String wkt, String value) {
+    if (SAME_VALUE_WKTS.contains(wkt)) {
+      return RawExpr.of(value);
+    }
     return switch (wkt) {
-      // No-op: the Avro resolved type equals the record type (both nullable).
-      case "google.protobuf.Timestamp",
-          "google.protobuf.Int32Value",
-          "google.protobuf.UInt32Value",
-          "google.protobuf.Int64Value",
-          "google.protobuf.UInt64Value",
-          "google.protobuf.FloatValue",
-          "google.protobuf.DoubleValue",
-          "google.protobuf.BoolValue" ->
-          Element.expr("@0(@1())", var, getter);
-      // Duration: java.time.Duration <-> avro.wkt.Duration {seconds: long, nanos: int}.
+      // StringValue: a CharSequence to a String.
+      case "google.protobuf.StringValue" -> RawExpr.of("@0 == null ? null : @0.toString()", value);
+      // Duration: avro.wkt.Duration {seconds: long, nanos: int} to java.time.Duration.
       case "google.protobuf.Duration" ->
-          Element.expr(
-              "@0(@1() == null ? null : @2.ofSeconds(@1().getSeconds(), @1().getNanos() % 1_000_000_000L))",
-              var, getter, TypeRefs.DURATION);
-      // FieldMask: FieldMask <-> [null, string] (a comma-joined string, via the bridge).
+          RawExpr.of(
+              "@0 == null ? null : @1.ofSeconds(@0.getSeconds(), @0.getNanos() % 1_000_000_000L)",
+              value, TypeRefs.DURATION);
+      // FieldMask: [null, string] (a comma-joined string, via the bridge) to FieldMask.
       case "google.protobuf.FieldMask" ->
-          Element.expr(
-              "@0(@1() == null ? null : @2.of(@3.fieldMaskFromAvro(@1().toString())))",
-              var,
-              getter,
+          RawExpr.of(
+              "@0 == null ? null : @1.of(@2.fieldMaskFromAvro(@0.toString()))",
+              value,
               TypeRefs.FIELD_MASK,
               TypeRefs.WKT_AVRO_BRIDGE);
-      // StringValue: String <-> [null, string] (a CharSequence; toString to a String).
-      case "google.protobuf.StringValue" ->
-          Element.expr("@0(@1() == null ? null : @1().toString())", var, getter);
-      // BytesValue: Bytes <-> [null, bytes] (a ByteBuffer).
+      // BytesValue: [null, bytes] (a ByteBuffer) to Bytes, read by position and remaining.
       case "google.protobuf.BytesValue" ->
-          Element.expr(
-              "@0(@1() == null ? null : @2.of(@1().array()))", var, getter, TypeRefs.BYTES);
-      // Empty: the runtime Empty singleton <-> the empty avro record (no data).
+          RawExpr.of(
+              "@0 == null ? null : @1.of(@2.bytes(@0))",
+              value,
+              TypeRefs.BYTES,
+              TypeRefs.WKT_AVRO_BRIDGE);
+      // Empty: the empty avro record (no data) to the runtime Empty singleton.
       case "google.protobuf.Empty" ->
-          Element.expr("@0(@1() == null ? null : @2.instance())", var, getter, TypeRefs.EMPTY);
+          RawExpr.of("@0 == null ? null : @1.instance()", value, TypeRefs.EMPTY);
       // Any other (NullValue): the resolved value is used as-is.
-      default -> Element.expr("@0(@1())", var, getter);
+      default -> RawExpr.of(value);
     };
   }
 
@@ -255,6 +319,11 @@ public final class AvroConverterSourceMapping {
     }
     TypeRef refConverter =
         TypeRef.named(refRecPkg, AvroSchemaGenerator.specificRecordName(ref.name()) + "Converter");
+    if (registry.isCycleClosing(f)) {
+      // A cycle-closing reference is a null-first union in Avro: an absent value is the null
+      // branch.
+      return Element.expr("@0(@1() == null ? null : @2.toRecord(@1()))", var, getter, refConverter);
+    }
     return Element.expr("@0(@1.toRecord(@2()))", var, refConverter, getter);
   }
 
@@ -583,7 +652,7 @@ public final class AvroConverterSourceMapping {
 
     String wkt = AvroSchemaGenerator.typeUrlIfWkt(f);
     if (wkt != null) {
-      return wktFromRecord(wkt, setter, accessor);
+      return wktFromRecord(wkt, setter, accessor, f.isRepeated());
     }
     if (f.isMap()) {
       return mapFromRecord(f, setter, accessor, specificRecordPkg);
@@ -610,7 +679,7 @@ public final class AvroConverterSourceMapping {
           "@0(@2 == null ? null : @1.fromRecord(@2))", setter, refConverter, accessor);
     }
     if (f.kind() == FieldKind.ENUM) {
-      return Element.expr("@0(@1.name())", setter, accessor); // enum -> string
+      return enumFromRecord(f, setter, accessor);
     }
     // Repeated length-delimited scalars convert per element (see the toRecord arms).
     if (f.kind() == FieldKind.SCALAR && f.isRepeated() && "string".equals(f.typeUrl())) {
@@ -698,50 +767,95 @@ public final class AvroConverterSourceMapping {
         : Element.expr(template, target, source, envelope, TypeRefs.DYNAMIC_WKT);
   }
 
-  private static Element wktFromRecord(String wkt, String setter, String accessor) {
+  /**
+   * A WKT field's Avro field. A repeated field maps each element with the conversion a singular
+   * field applies to its value; the Avro array's elements are a {@code List} of the element type,
+   * named by a type witness where the mapped value is a {@code String}.
+   */
+  private static Element wktFromRecord(
+      String wkt, String setter, String accessor, boolean repeated) {
+    if (!repeated) {
+      return Element.expr("@0(@1)", setter, wktFromRecordValue(wkt, accessor));
+    }
+    if (SAME_VALUE_WKTS.contains(wkt)) {
+      return Element.expr("@0(@1)", setter, accessor);
+    }
+    return Element.expr(
+        "@0(@1.stream().<@2>map(v -> @3).toList())",
+        setter,
+        accessor,
+        avroWktElement(wkt),
+        wktFromRecordValue(wkt, "v"));
+  }
+
+  /**
+   * The Avro value of one record WKT value {@code value} (a null record value stays null). A {@code
+   * SAME_VALUE_WKTS} value passes through unchanged.
+   */
+  private static RawExpr wktFromRecordValue(String wkt, String value) {
+    if (SAME_VALUE_WKTS.contains(wkt)) {
+      return RawExpr.of(value);
+    }
     return switch (wkt) {
-      // No-op: the record type equals the Avro type (both nullable; String is a CharSequence).
-      case "google.protobuf.Timestamp",
-          "google.protobuf.Int32Value",
-          "google.protobuf.UInt32Value",
-          "google.protobuf.Int64Value",
-          "google.protobuf.UInt64Value",
-          "google.protobuf.FloatValue",
-          "google.protobuf.DoubleValue",
-          "google.protobuf.BoolValue",
-          "google.protobuf.StringValue" ->
-          Element.expr("@0(@1)", setter, accessor);
-      // Duration: java.time.Duration <-> avro.wkt.Duration {seconds: long, nanos: int}.
+      // StringValue: the String is a CharSequence in Avro, so it passes through.
+      case "google.protobuf.StringValue" -> RawExpr.of(value);
+      // Duration: java.time.Duration to the floor pair (non-negative nanos).
       case "google.protobuf.Duration" ->
-          Element.expr(
-              "@0(@1 == null ? null : new @2(@1.toSeconds(), @1.toNanosPart()))",
-              setter,
-              accessor,
-              TypeRef.named(AvroSchemaGenerator.WKT_NAMED_NAMESPACE, "Duration"));
-      // FieldMask: FieldMask <-> [null, string] (a comma-joined string, via the bridge).
+          RawExpr.of(
+              "@0 == null ? null : new @1(@0.toSeconds(), @0.toNanosPart())",
+              value,
+              avroWktRecord("Duration"));
+      // FieldMask: the paths as a comma-joined string, via the bridge.
       case "google.protobuf.FieldMask" ->
-          Element.expr(
-              "@0(@1 == null ? null : @2.fieldMaskToAvro(@1.paths()))",
-              setter,
-              accessor,
+          RawExpr.of(
+              "@0 == null ? null : @1.fieldMaskToAvro(@0.paths())",
+              value,
               TypeRefs.WKT_AVRO_BRIDGE);
-      // BytesValue: Bytes <-> [null, bytes] (a ByteBuffer).
+      // BytesValue: Bytes to a ByteBuffer.
       case "google.protobuf.BytesValue" ->
-          Element.expr(
-              "@0(@1 == null ? null : @2.wrap(@1.toByteArray()))",
-              setter,
-              accessor,
-              TypeRefs.BYTE_BUFFER);
-      // Empty: the runtime Empty singleton <-> the empty avro record (no data).
+          RawExpr.of("@0 == null ? null : @1.wrap(@0.toByteArray())", value, TypeRefs.BYTE_BUFFER);
+      // Empty: the runtime Empty singleton to the empty avro record (no data).
       case "google.protobuf.Empty" ->
-          Element.expr(
-              "@0(@1 == null ? null : new @2())",
-              setter,
-              accessor,
-              TypeRef.named(AvroSchemaGenerator.WKT_NAMED_NAMESPACE, "Empty"));
+          RawExpr.of("@0 == null ? null : new @1()", value, avroWktRecord("Empty"));
       // Any other (NullValue): the resolved value is used as-is.
-      default -> Element.expr("@0(@1)", setter, accessor);
+      default -> RawExpr.of(value);
     };
+  }
+
+  /**
+   * The Avro Java type of one element of a repeated WKT field whose elements are mapped: the type
+   * witness that keeps the mapped stream typed as the Avro array's element.
+   */
+  private static TypeRef avroWktElement(String wkt) {
+    return switch (wkt) {
+      case "google.protobuf.StringValue", "google.protobuf.FieldMask" ->
+          TypeRef.named("java.lang", "CharSequence");
+      case "google.protobuf.BytesValue" -> TypeRefs.BYTE_BUFFER;
+      case "google.protobuf.Duration" -> avroWktRecord("Duration");
+      case "google.protobuf.Empty" -> avroWktRecord("Empty");
+      default -> throw new AvroUnsupportedException(wkt, "no Avro element type for a repeated WKT");
+    };
+  }
+
+  /**
+   * An enum component written as its constant's name. A singular enum component is
+   * {@code @Nullable} (absent on the wire, which a proto3 enum cannot tell from the default), and
+   * the Avro string is never null, so a null component writes the proto3 default, the first
+   * constant's name. Avro therefore reads it back as that constant, not as null: the same value on
+   * the wire, but not the same record.
+   */
+  private static Element enumFromRecord(Field f, String setter, String accessor) {
+    if (f.isRepeated()) {
+      // The Avro array is a List<CharSequence>: the type witness keeps map's String elements typed.
+      return Element.expr(
+          "@0(@1.stream().<@2>map(v -> v.name()).toList())",
+          setter,
+          accessor,
+          TypeRef.named("java.lang", "CharSequence"));
+    }
+    TypeRef enumType = enumType(f);
+    return Element.expr(
+        "@0(@1 == null ? @2.name() : @1.name())", setter, accessor, firstConstant(enumType));
   }
 
   private static Element oneofFromRecord(
@@ -789,18 +903,39 @@ public final class AvroConverterSourceMapping {
     return TypeRef.named(specificRecordPkg, AvroRegistry.ONEOF_VALUE_ENTRY);
   }
 
+  /**
+   * The record-side enum type of an enum field, the element type of a repeated one. It is read from
+   * the field's model type, which names the enum through its enclosing record for a nested enum.
+   */
   private static TypeRef enumType(Field f) {
-    // The record's enum lives in the .rec subpackage (with its owner record), not the base package;
-    // insert .rec before the enum's simple name to reference the record-side copy. Split the .rec
-    // FQN into package + short name so the collector resolves to the short name (same package as
-    // the converter, so no import; an inline FQN literal would trip UnnecessarilyFullyQualified).
-    String fqn = f.typeUrl();
-    int dot = fqn.lastIndexOf('.');
-    String recFqn = dot < 0 ? fqn : fqn.substring(0, dot) + ".rec" + fqn.substring(dot);
-    int recDot = recFqn.lastIndexOf('.');
-    return recDot < 0
-        ? TypeRef.named("", recFqn)
-        : TypeRef.named(recFqn.substring(0, recDot), recFqn.substring(recDot + 1));
+    if (f.isRepeated() && f.type() instanceof TypeRef.Named list) {
+      return list.generics().get(0);
+    }
+    return f.type();
+  }
+
+  /**
+   * The record constant whose name is the Avro string {@code name}, or the first constant when none
+   * has that name: the fallback the record's {@code forNumber} gives an undefined number, so an
+   * unknown Avro name converts instead of failing.
+   */
+  private static RawExpr enumFromName(TypeRef enumType, String name) {
+    return RawExpr.of(
+        "@0.stream(@1.values()).filter(c -> c.name().contentEquals("
+            + name
+            + ")).findFirst().orElse(@2)",
+        TypeRefs.ARRAYS,
+        enumType,
+        firstConstant(enumType));
+  }
+
+  /**
+   * The enum's first constant: the proto3 default (protoc requires the first value to be zero) and
+   * the record's {@code forNumber} fallback.
+   */
+  private static RawExpr firstConstant(TypeRef enumType) {
+    return RawExpr.of(
+        "@0.stream(@1.values()).findFirst().orElseThrow()", TypeRefs.ARRAYS, enumType);
   }
 
   /**

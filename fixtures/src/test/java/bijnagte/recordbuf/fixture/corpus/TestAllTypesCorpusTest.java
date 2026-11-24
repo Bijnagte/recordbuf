@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import bijnagte.recordbuf.fixture.golden.GoldenMatrix;
 import bijnagte.recordbuf.fixture.golden.GoldenStore;
+import bijnagte.recordbuf.fixture.golden.format.AvroBinaryFormat;
 import com.google.protobuf_test_messages.proto3.rec.TestAllTypesProto3;
 import java.io.IOException;
 import java.util.stream.Stream;
@@ -57,6 +58,24 @@ class TestAllTypesCorpusTest {
         reference.getRecursiveMessage().getOptionalString());
     assertEquals(record.repeatedDuration().size(), reference.getRepeatedDurationCount());
     assertEquals(record.repeatedAny().size(), reference.getRepeatedAnyCount());
+  }
+
+  /**
+   * After an Avro binary round trip the repeated fields hold Avro's list type, a {@code
+   * GenericData.Array}. Its equality rejects the record's {@code Instant} elements, so the record
+   * must hold plain lists: both directions of equality are checked, since the golden matrix only
+   * checks the record's side.
+   */
+  @Test
+  void avroBinaryRoundTrip_recordEqualsDeserializedInBothDirections() throws Exception {
+    TestAllTypesProto3 original = TestAllTypesCorpusCases.avroRecord();
+    AvroBinaryFormat avroBinary = new AvroBinaryFormat();
+    TestAllTypesProto3 deserialized =
+        (TestAllTypesProto3)
+            avroBinary.deserialize(avroBinary.serialize(original), TestAllTypesProto3.class);
+
+    assertEquals(original, deserialized);
+    assertEquals(deserialized, original);
   }
 
   /** The default record has nothing to write: protobuf-java and the record agree on no bytes. */

@@ -337,8 +337,9 @@ Google's C++ runner is not used.
   must throw in recordbuf. Where protobuf-java accepts an input the suite rejects (the `BadTag` cases),
   the mirror asserts the reference's acceptance and records recordbuf's acceptance as a gap.
 - **JSON** scenarios run `JsonFormat` → protobuf-java message → `Interop.from` → record → `Interop.to` →
-  `JsonFormat`. Their protobuf-java half runs now. The recordbuf half aborts with its gap id until
-  `interop-all-types` closes. That half has never run, so expect adjustments when it does.
+  `JsonFormat`, for both halves. A scenario that names a commented-out construct aborts its recordbuf
+  half with that construct's gap id. A scenario the record path still gets wrong runs and aborts with
+  its gap id, listed in `KNOWN_GAPS` in `JsonConformance`.
 - Groups that only exercise `JsonFormat`'s own parse rejection are not applicable: they belong to Google.
 
 ### Coverage gate

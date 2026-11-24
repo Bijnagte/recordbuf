@@ -208,3 +208,8 @@ mapped to an opaque record.
 - Commit `86c6bce` (`feat: native well-known-type generation + enable
   UnnecessarilyFullyQualified`): the landing commit; `WktTest` (9/9) and
   `WktInteropTest` (9/9) are the interop invariants that lock the design.
+- `bijnagte.recordbuf.runtime.wkt.ProtobufJavaWkt` — the Interop-side counterpart of `Wkt`. `Wkt`
+  frames a native WKT on the wire for the generated codec; `ProtobufJavaWkt` converts the same
+  native types to and from the protobuf-java messages, so a generated `Interop` calls one method
+  per WKT value. It follows protobuf's sign rule for `Duration` (seconds and nanos share a sign),
+  which differs from the floor pair the Avro bridge uses.

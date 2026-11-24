@@ -830,8 +830,8 @@ class BinaryValidDataConformanceTest {
     gaps.put("ValidDataRepeated.UINT32.PackedInput.PackedOutput", "uint32-negative-carrier-wire");
     // A decoded singular enum is non-null even at its default, and a non-null enum is written.
     gaps.put("ValidDataScalarBinary.ENUM[0]", "enum-default-value-written");
-    // NestedMessage.corecursive is commented out, so its two occurrences stay unknown fields.
-    gaps.put("RepeatedScalarMessageMerge", "nested-message-corecursive");
+    // The second occurrence of NestedMessage.corecursive replaces the first, so the merge fails.
+    gaps.put("RepeatedScalarMessageMerge", "message-field-not-merged");
     return Map.copyOf(gaps);
   }
 

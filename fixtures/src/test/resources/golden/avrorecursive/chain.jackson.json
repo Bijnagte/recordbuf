@@ -1,0 +1,33 @@
+{
+  "label" : "root",
+  "child" : {
+    "label" : "mid",
+    "child" : {
+      "label" : "leaf",
+      "a" : {
+        "n" : 3
+      },
+      "kids" : [ ]
+    },
+    "a" : {
+      "n" : 2
+    },
+    "kids" : [ ]
+  },
+  "a" : {
+    "n" : 1,
+    "b" : {
+      "s" : "b",
+      "a" : {
+        "n" : 4
+      }
+    }
+  },
+  "kids" : [ {
+    "label" : "kid",
+    "a" : {
+      "n" : 5
+    },
+    "kids" : [ ]
+  } ]
+}

@@ -1,12 +1,23 @@
 package bijnagte.recordbuf.fixture.golden;
 
 import bijnagte.recordbuf.fixture.annotations.AnnotationsCases;
+import bijnagte.recordbuf.fixture.avroenum.AvroEnumCases;
+import bijnagte.recordbuf.fixture.avrorecursive.AvroRecursiveCases;
+import bijnagte.recordbuf.fixture.avrosingular.AvroSingularCases;
+import bijnagte.recordbuf.fixture.avrostructured.AvroStructuredCases;
+import bijnagte.recordbuf.fixture.avrowrappers.AvroWrappersCases;
 import bijnagte.recordbuf.fixture.bytes.BytesCases;
 import bijnagte.recordbuf.fixture.canonicalformat.CanonicalFormatCases;
 import bijnagte.recordbuf.fixture.combined.CompatCases;
 import bijnagte.recordbuf.fixture.corpus.TestAllTypesCorpusCases;
 import bijnagte.recordbuf.fixture.fixed.FixedCases;
 import bijnagte.recordbuf.fixture.i32.IntCases;
+import bijnagte.recordbuf.fixture.interopbytes.InteropBytesCases;
+import bijnagte.recordbuf.fixture.interopdynamic.InteropDynamicCases;
+import bijnagte.recordbuf.fixture.interopenum.InteropEnumCases;
+import bijnagte.recordbuf.fixture.interopnames.InteropNamesCases;
+import bijnagte.recordbuf.fixture.interopoptionalenum.InteropOptionalEnumCases;
+import bijnagte.recordbuf.fixture.interopwkt.InteropWktCases;
 import bijnagte.recordbuf.fixture.jackson.JacksonDynamicWktCases;
 import bijnagte.recordbuf.fixture.jackson.JacksonKnobsCases;
 import bijnagte.recordbuf.fixture.jackson.JacksonOneofCases;
@@ -59,6 +70,17 @@ public final class GoldenCaseRegistry {
         new OneofOrderCases(),
         new OneofWktCases(),
         new CompatCases(),
-        new AnnotationsCases());
+        new InteropNamesCases(),
+        new InteropEnumCases(),
+        new InteropOptionalEnumCases(),
+        new InteropBytesCases(),
+        new InteropWktCases(),
+        new InteropDynamicCases(),
+        new AnnotationsCases(),
+        new AvroEnumCases(),
+        new AvroWrappersCases(),
+        new AvroStructuredCases(),
+        new AvroSingularCases(),
+        new AvroRecursiveCases());
   }
 }

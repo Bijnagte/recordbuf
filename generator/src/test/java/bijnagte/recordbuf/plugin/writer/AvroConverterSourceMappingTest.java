@@ -1,5 +1,6 @@
 package bijnagte.recordbuf.plugin.writer;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import bijnagte.recordbuf.codegen.source.Formatter;
@@ -60,6 +61,26 @@ class AvroConverterSourceMappingTest {
         FieldKind.MESSAGE,
         "google.protobuf.Timestamp",
         TypeRef.OBJECT,
+        null,
+        null,
+        true,
+        null,
+        null,
+        false,
+        /* jacksonFormat= */ null,
+        "jsonName",
+        /* jsonIgnored= */ false);
+  }
+
+  private static Field repeatedWktField(String name, String typeUrl) {
+    return new Field(
+        name,
+        name,
+        3,
+        FieldLabel.REPEATED,
+        FieldKind.MESSAGE,
+        typeUrl,
+        TypeRefs.LIST.withGenerics(TypeRef.OBJECT),
         null,
         null,
         true,
@@ -281,5 +302,300 @@ class AvroConverterSourceMappingTest {
     // Repeated fields map the same arm per element.
     assertTrue(out.contains("s.getValues().stream().map(v -> v == null ? null :"), out);
     assertTrue(out.contains("r.values().stream().map(v -> v == null ? null :"), out);
+  }
+
+  private static Field enumField(
+      String name, int number, FieldLabel label, TypeRef.Named enumType) {
+    return new Field(
+        name,
+        name,
+        number,
+        label,
+        FieldKind.ENUM,
+        "bijnagte.recordbuf.fixture.Sample.Kind",
+        label == FieldLabel.REPEATED ? TypeRefs.LIST.withGenerics(enumType) : enumType,
+        null,
+        null,
+        false,
+        null,
+        null,
+        false,
+        /* jacksonFormat= */ null,
+        "jsonName",
+        /* jsonIgnored= */ false);
+  }
+
+  @Test
+  void nestedEnumConverterReferencesTheRecordEnumThroughItsEnclosingRecord() {
+    // The record-side enum of a nested enum is Sample.Kind in the record package, not a Sample.rec
+    // path: its converter refers to it through the enclosing record.
+    TypeRef.Named record = TypeRef.named("bijnagte.recordbuf.fixture.rec", "Sample");
+    TypeRef.Named kind = record.sub("Kind");
+    Message m =
+        new Message(
+            "Sample",
+            record,
+            List.of(
+                enumField("kind", 1, FieldLabel.OPTIONAL, kind),
+                enumField("kinds", 2, FieldLabel.REPEATED, kind)),
+            List.of(),
+            List.of(),
+            List.of(),
+            false,
+            null,
+            List.of(),
+            null);
+
+    String out =
+        AvroConverterSourceMapping.generate(
+            "Sample",
+            "sample.proto",
+            m,
+            "SampleAvro",
+            "bijnagte.recordbuf.fixture",
+            "bijnagte.recordbuf.fixture.rec",
+            registryFor(m),
+            Formatter.IDENTITY);
+
+    assertTrue(out.contains("Arrays.stream(Sample.Kind.values())"), out);
+    assertTrue(out.contains("c.name().contentEquals(s.getKind())"), out);
+    assertTrue(out.contains("c.name().contentEquals(v)"), out);
+    assertTrue(out.contains("r.kind() == null ? Arrays.stream(Sample.Kind.values())"), out);
+    assertFalse(out.contains(".rec.Kind"), out);
+  }
+
+  @Test
+  void repeatedWrapperWktsMapEachElementThroughTheSingularConversion() {
+    // A repeated wrapper is an Avro array of a nullable element, so each element converts with the
+    // wrapper's singular conversion: a CharSequence to a String, a ByteBuffer by its position.
+    Message m =
+        new Message(
+            "Sample",
+            TypeRef.named("bijnagte.recordbuf.fixture", "Sample"),
+            List.of(
+                repeatedWktField("strings", "google.protobuf.StringValue"),
+                repeatedWktField("blobs", "google.protobuf.BytesValue")),
+            List.of(),
+            List.of(),
+            List.of(),
+            false,
+            null,
+            List.of(),
+            null);
+
+    String out =
+        AvroConverterSourceMapping.generate(
+            "Sample",
+            "sample.proto",
+            m,
+            "SampleAvro",
+            "bijnagte.recordbuf.fixture.rec",
+            "bijnagte.recordbuf.fixture",
+            registryFor(m),
+            Formatter.IDENTITY);
+
+    assertTrue(
+        out.contains(
+            "b.strings(s.getStrings().stream().map(v -> v == null ? null : v.toString()).toList())"),
+        out);
+    assertTrue(
+        out.contains("s.setStrings(r.strings().stream().<CharSequence>map(v -> v).toList())"), out);
+    assertTrue(out.contains("s.getBlobs().stream().map(v -> v == null ? null : Bytes.of("), out);
+    assertTrue(out.contains("WktAvroBridge.bytes(v)"), out);
+    assertFalse(out.contains(".array()"), out);
+  }
+
+  @Test
+  void repeatedStructuredWktsMapEachElementThroughTheSingularConversion() {
+    // A repeated Duration takes the floor pair both ways (non-negative nanos), a repeated FieldMask
+    // and Empty map per element through the bridge and the empty record, and a repeated Timestamp
+    // copies its list (its Avro element is already an Instant).
+    Message m =
+        new Message(
+            "Sample",
+            TypeRef.named("bijnagte.recordbuf.fixture", "Sample"),
+            List.of(
+                repeatedWktField("durations", "google.protobuf.Duration"),
+                repeatedWktField("timestamps", "google.protobuf.Timestamp"),
+                repeatedWktField("masks", "google.protobuf.FieldMask"),
+                repeatedWktField("empties", "google.protobuf.Empty")),
+            List.of(),
+            List.of(),
+            List.of(),
+            false,
+            null,
+            List.of(),
+            null);
+
+    String out =
+        AvroConverterSourceMapping.generate(
+            "Sample",
+            "sample.proto",
+            m,
+            "SampleAvro",
+            "bijnagte.recordbuf.fixture.rec",
+            "bijnagte.recordbuf.fixture",
+            registryFor(m),
+            Formatter.IDENTITY);
+
+    assertTrue(
+        out.contains(
+            "s.getDurations().stream().map(v -> v == null ? null : java.time.Duration.ofSeconds("
+                + "v.getSeconds(), v.getNanos() % 1_000_000_000L)).toList()"),
+        out);
+    assertTrue(
+        out.contains("v == null ? null : new ") && out.contains("(v.toSeconds(), v.toNanosPart())"),
+        out);
+    assertTrue(out.contains("FieldMask.of(WktAvroBridge.fieldMaskFromAvro(v.toString()))"), out);
+    assertTrue(out.contains("WktAvroBridge.fieldMaskToAvro(v.paths())"), out);
+    assertTrue(out.contains("b.timestamps(s.getTimestamps().stream().toList())"), out);
+    assertFalse(out.contains("b.timestamps(s.getTimestamps())"), out);
+    assertTrue(out.contains("s.setTimestamps(r.timestamps())"), out);
+    assertTrue(out.contains("b.empties(s.getEmpties().stream().map(v -> v == null ? null : "), out);
+    assertFalse(out.contains("s.getDurations().getSeconds()"), out);
+  }
+
+  @Test
+  void repeatedFieldMaskReadsAnAbsentElementBackAsTheEmptyMask() {
+    // An empty mask is written as a null element, and a list element gets no constructor
+    // normalization, so the read-back maps the null element to the empty mask, not to null.
+    Message m =
+        new Message(
+            "Sample",
+            TypeRef.named("bijnagte.recordbuf.fixture", "Sample"),
+            List.of(repeatedWktField("masks", "google.protobuf.FieldMask")),
+            List.of(),
+            List.of(),
+            List.of(),
+            false,
+            null,
+            List.of(),
+            null);
+
+    String out =
+        AvroConverterSourceMapping.generate(
+            "Sample",
+            "sample.proto",
+            m,
+            "SampleAvro",
+            "bijnagte.recordbuf.fixture.rec",
+            "bijnagte.recordbuf.fixture",
+            registryFor(m),
+            Formatter.IDENTITY);
+
+    assertTrue(
+        out.contains(
+            "b.masks(s.getMasks().stream().map(v -> v == null ? FieldMask.empty() : "
+                + "FieldMask.of(WktAvroBridge.fieldMaskFromAvro(v.toString()))).toList())"),
+        out);
+  }
+
+  @Test
+  void repeatedScalarCopiesItsAvroListIntoAPlainList() {
+    // A repeated scalar's Avro array is a GenericData.Array after a binary decode: the record gets
+    // a plain List.copyOf of it, not the Avro list itself.
+    Field ints =
+        new Field(
+            "ints",
+            "ints",
+            4,
+            FieldLabel.REPEATED,
+            FieldKind.SCALAR,
+            "int32",
+            TypeRefs.LIST.withGenerics(TypeRef.OBJECT),
+            null,
+            null,
+            false,
+            null,
+            null,
+            false,
+            /* jacksonFormat= */ null,
+            "jsonName",
+            /* jsonIgnored= */ false);
+    Message m =
+        new Message(
+            "Sample",
+            TypeRef.named("bijnagte.recordbuf.fixture", "Sample"),
+            List.of(ints),
+            List.of(),
+            List.of(),
+            List.of(),
+            false,
+            null,
+            List.of(),
+            null);
+
+    String out =
+        AvroConverterSourceMapping.generate(
+            "Sample",
+            "sample.proto",
+            m,
+            "SampleAvro",
+            "bijnagte.recordbuf.fixture.rec",
+            "bijnagte.recordbuf.fixture",
+            registryFor(m),
+            Formatter.IDENTITY);
+
+    assertTrue(out.contains("b.ints(List.copyOf(s.getInts()))"), out);
+  }
+
+  @Test
+  void cycleClosingSingularReferenceIsNullCheckedInBothDirections() {
+    Field child =
+        new Field(
+            "child",
+            "child",
+            1,
+            FieldLabel.OPTIONAL,
+            FieldKind.MESSAGE,
+            "p.Node",
+            TypeRef.OBJECT,
+            null,
+            null,
+            false,
+            null,
+            null,
+            false,
+            /* jacksonFormat= */ null,
+            "child",
+            /* jsonIgnored= */ false);
+    Message node =
+        new Message(
+            "Node",
+            TypeRef.named("p", "Node"),
+            List.of(child),
+            List.of(),
+            List.of(),
+            List.of(),
+            false,
+            null,
+            List.of(),
+            null);
+    ProtoFile file =
+        new ProtoFile(
+            "a.proto",
+            "p",
+            "",
+            List.of(node),
+            List.of(),
+            false,
+            null,
+            AvroToggle.ON,
+            /* jackson= */ false);
+    AvroRegistry registry = AvroRegistry.build(file, node, null);
+
+    String out =
+        AvroConverterSourceMapping.generate(
+            "Node", "a.proto", node, "NodeAvro", "p", "p.rec", registry, Formatter.IDENTITY);
+
+    // An Avro null is the absent message, and an absent message is an Avro null.
+    assertTrue(
+        out.contains(
+            "b.child(s.getChild() == null ? null : NodeAvroConverter.toRecord(s.getChild()))"),
+        out);
+    assertTrue(
+        out.contains(
+            "s.setChild(r.child() == null ? null : NodeAvroConverter.fromRecord(r.child()))"),
+        out);
   }
 }

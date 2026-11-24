@@ -1,0 +1,37 @@
+// Avro probe for repeated structured well-known types: Duration, Timestamp, FieldMask and Empty
+// (the structured WKTs the Avro converter maps per element), and Struct and Any (the dynamic WKTs
+// that ride the Jackson envelope per element). The recordbuf record and its Avro twin are generated
+// from this file. Avro and Jackson are on by default for this file.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.avrostructured;
+option java_package = "bijnagte.recordbuf.fixture.avrostructured";
+option java_multiple_files = true;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/any.proto";
+
+// The target message comes first in the file (KTD2): one repeated field of each WKT kind.
+message Sample {
+  // Repeated Duration.
+  repeated google.protobuf.Duration durations = 1;
+
+  // Repeated Timestamp.
+  repeated google.protobuf.Timestamp timestamps = 2;
+
+  // Repeated FieldMask.
+  repeated google.protobuf.FieldMask masks = 3;
+
+  // Repeated Empty.
+  repeated google.protobuf.Empty empties = 4;
+
+  // Repeated Struct.
+  repeated google.protobuf.Struct structs = 5;
+
+  // Repeated Any.
+  repeated google.protobuf.Any anys = 6;
+}

@@ -38,11 +38,12 @@ import tools.jackson.databind.node.ObjectNode;
  * reachable record, via its registry namespace).
  *
  * <p><b>Field mapping.</b> A non-repeated message field references its reachable record by Avro
- * name; a repeated field wraps its element; a map is a JSON object for a string key, or an array of
- * named key/value pair records otherwise; a oneof is a {@code null}-first union of its members.
- * Every bridged record ends with the recordbuf unknown-field carrier as a trailing {@code
- * unknownFields} array field — the structural twin of the proto unknown-field carrier, so
- * unrecognized fields survive the {@code .avsc} round trip.
+ * name, under a {@code null}-first union when it closes a cycle ({@link
+ * AvroRegistry#isCycleClosing}); a repeated field wraps its element; a map is a JSON object for a
+ * string key, or an array of named key/value pair records otherwise; a oneof is a {@code
+ * null}-first union of its members. Every bridged record ends with the recordbuf unknown-field
+ * carrier as a trailing {@code unknownFields} array field — the structural twin of the proto
+ * unknown-field carrier, so unrecognized fields survive the {@code .avsc} round trip.
  *
  * <p><b>WKTs.</b> A WKT reference maps to its fixed Avro fragment (<em>not</em> the generated
  * message type — see the {@code .avsc} decision rationale in this family's plan):
@@ -572,9 +573,23 @@ public final class AvroSchemaGenerator {
     return switch (f.kind()) {
       case SCALAR -> text(scalarAvro(f.typeUrl()));
       case ENUM -> text("string");
-      case MESSAGE -> namedMessageNode(f, registry);
+      case MESSAGE ->
+          registry != null && registry.isCycleClosing(f)
+              ? cycleClosingNode(f, registry)
+              : namedMessageNode(f, registry);
       case MAP -> mapTypeNode(f, registry);
     };
+  }
+
+  /**
+   * A singular message reference that closes a cycle: a {@code null}-first union of its record, so
+   * an absent value is a finite choice. Every other singular message reference stays non-nullable.
+   */
+  static JsonNode cycleClosingNode(Field f, AvroRegistry registry) {
+    ArrayNode union = MAPPER.createArrayNode();
+    union.add(text("null"));
+    union.add(namedMessageNode(f, registry));
+    return union;
   }
 
   /**
@@ -800,12 +815,12 @@ public final class AvroSchemaGenerator {
   // ---- type-definition ordering ----
 
   /**
-   * Order the document's type definitions so that every referenced record precedes its referrer:
-   * the Avro parser resolves a name reference <em>at parse time</em>, so a forward reference inside
-   * a definition fails. First-seen (breadth-first) order breaks ties, keeping the output stable. A
-   * reference cycle — a recursive proto message — cannot be ordered (an Avro record is not
-   * recursively parseable); the leftovers are emitted in first-seen order and the specific-record
-   * step fails over to the {@code .avsc}-only output (recursion is a documented v1 gap).
+   * Order the document's type definitions so that every referenced record precedes its referrer,
+   * where the reference graph allows it. First-seen (breadth-first) order breaks ties, keeping the
+   * output stable. A reference cycle (a recursive proto message, or a mutual pair) cannot be
+   * ordered: its leftovers are emitted in first-seen order. Every such order parses, because the
+   * bridge resolves names once the whole document is read ({@link
+   * bijnagte.recordbuf.plugin.bridge.AvroBridge#parseDocument}).
    */
   static List<ObjectNode> dependencyOrder(List<ObjectNode> defs) {
     Set<String> allNames = new LinkedHashSet<>();

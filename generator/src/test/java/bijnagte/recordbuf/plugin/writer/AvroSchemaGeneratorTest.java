@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import bijnagte.recordbuf.codegen.source.TypeRef;
+import bijnagte.recordbuf.plugin.bridge.AvroBridge;
 import bijnagte.recordbuf.plugin.bridge.AvroUnsupportedException;
 import bijnagte.recordbuf.plugin.model.AvroToggle;
 import bijnagte.recordbuf.plugin.model.Enum;
@@ -154,6 +155,17 @@ class AvroSchemaGeneratorTest {
       }
     }
     throw new AssertionError("no field named " + fieldName + " in the document's message");
+  }
+
+  /** The type of a field of a named record in the document's {@code types}. */
+  private static JsonNode typeField(JsonNode types, String typeName, String fieldName) {
+    JsonNode record = types.get(typeNameIndex(types, typeName));
+    for (JsonNode f : record.get("fields")) {
+      if (f.get("name").asString().equals(fieldName)) {
+        return f.get("type");
+      }
+    }
+    throw new AssertionError("no field " + fieldName + " in record " + typeName);
   }
 
   private static int typeNameIndex(JsonNode types, String name) {
@@ -622,5 +634,77 @@ class AvroSchemaGeneratorTest {
 
     assertThrows(
         AvroUnsupportedException.class, () -> tree(file("a.proto", "p", root), root, null));
+  }
+
+  @Test
+  void selfRecursiveSingularReferenceIsANullableUnionAndTheRepeatedOneStaysAnArray()
+      throws Exception {
+    Message node =
+        message(
+            "Node",
+            "p",
+            field("label", 1, "string"),
+            field("child", 2, "p.Node"),
+            repeatedField("kids", 3, "p.Node"));
+
+    JsonNode doc = tree(file("a.proto", "p", node), node, null);
+
+    // The cycle-closing singular reference is null-first; the repeated one is finite as an array.
+    JsonNode child = rootField(doc, "child").get("type");
+    assertEquals(2, child.size(), child.toString());
+    assertEquals("null", child.get(0).asString());
+    assertEquals("NodeAvro", child.get(1).asString());
+    assertEquals("array", rootField(doc, "kids").get("type").get("type").asString());
+    assertEquals("NodeAvro", rootField(doc, "kids").get("type").get("items").asString());
+  }
+
+  @Test
+  void mutualCycleReferencesAreNullableAndTheDocumentParsesInTheBridgeOrder() throws Exception {
+    Message a = message("A", "p", field("n", 1, "int32"), field("b", 2, "p.B"));
+    Message b = message("B", "p", field("s", 1, "string"), field("a", 2, "p.A"));
+    // The root reaches the cycle but is not on it, so its reference stays a plain named record.
+    Message root = message("Node", "p", field("a", 1, "p.A"));
+
+    JsonNode doc = tree(file("a.proto", "p", root, a, b), root, null);
+
+    JsonNode types = doc.get("types");
+    assertEquals("[\"null\",\"BAvro\"]", typeField(types, "AAvro", "b").toString());
+    assertEquals("[\"null\",\"AAvro\"]", typeField(types, "BAvro", "a").toString());
+    assertEquals("AAvro", rootField(doc, "a").get("type").asString());
+    // A and B are defined in list order, each referencing the other: the bridge's parse resolves
+    // it.
+    Schema parsed = AvroBridge.parseDocument(doc);
+    assertEquals(Schema.Type.RECORD, parsed.getField("a").schema().getType());
+    assertEquals(Schema.Type.UNION, parsed.getField("a").schema().getField("b").schema().getType());
+  }
+
+  @Test
+  void nestedTypeReferencingTheRootParsesWithTheRootDefinedLast() throws Exception {
+    // Node -> A -> Node: both edges close the cycle, and A's reference to the root comes before the
+    // root's definition in the document.
+    Message root = message("Node", "p", field("a", 1, "p.A"));
+    Message a = message("A", "p", field("back", 1, "p.Node"));
+
+    JsonNode doc = tree(file("a.proto", "p", root, a), root, null);
+
+    JsonNode types = doc.get("types");
+    assertEquals("[\"null\",\"NodeAvro\"]", typeField(types, "AAvro", "back").toString());
+    assertEquals("[\"null\",\"AAvro\"]", rootField(doc, "a").get("type").toString());
+    Schema parsed = AvroBridge.parseDocument(doc);
+    assertEquals("NodeAvro", parsed.getName());
+    // Node.a is on the cycle too, so it is the null-first union; its record's back reference is
+    // one.
+    Schema aRecord = parsed.getField("a").schema().getTypes().get(1);
+    assertEquals(Schema.Type.UNION, aRecord.getField("back").schema().getType());
+  }
+
+  @Test
+  void nonRecursiveSingularReferenceStaysAPlainNamedRecord() throws Exception {
+    Message card = message("Card", "p", field("number", 1, "string"));
+    Message root = message("Sample", "p", field("card", 1, "p.Card"));
+
+    JsonNode doc = tree(file("a.proto", "p", root, card), root, null);
+
+    assertEquals("CardAvro", rootField(doc, "card").get("type").asString());
   }
 }

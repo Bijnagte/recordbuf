@@ -1,0 +1,50 @@
+// Interop probe for enum field conversion through protobuf-java's int-value accessors.
+// The recordbuf record is generated from this file (--recordbuf_out); the protobuf-java
+// reference is generated from this same file (--java_out). The Interop converter must convert
+// enum fields through the get/set<Stem>Value accessors, never naming the protobuf-java enum type.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.interopenum;
+option java_package = "bijnagte.recordbuf.fixture.interopenum";
+option java_multiple_files = true;
+
+import "recordbuf_options.proto";
+
+// Top-level enum: a singular, repeated and oneof member of the message below.
+enum Color {
+  COLOR_UNSPECIFIED = 0;
+  RED = 1;
+  GREEN = 2;
+}
+
+// The target message comes first in the file (KTD2): every enum shape of the Interop arms.
+message InteropEnum {
+  // Top-level singular enum.
+  Color singular_color = 1;
+
+  // Nested enum, with a negative constant.
+  enum Kind {
+    KIND_ZERO = 0;
+    ALPHA = 1;
+    BETA = 2;
+    NEG = -1;
+  }
+
+  // Nested singular enum.
+  Kind singular_kind = 2;
+
+  // Repeated enums, packed by the proto3 default.
+  repeated Kind repeated_kinds = 3;
+  repeated Color repeated_colors = 4;
+
+  // Repeated nested enum, unpacked.
+  repeated Kind unpacked_kinds = 5 [packed = false];
+
+  // Oneof with an enum member.
+  oneof choice {
+    Kind picked = 6;
+    int32 count = 7;
+  }
+
+  option (.recordbuf.protobuf_java) = "bijnagte.recordbuf.fixture.interopenum";
+}

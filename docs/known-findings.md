@@ -17,15 +17,3 @@ the parameter and no `@JsonCreator`; that is the likely cause, but it is not con
 No test reads an input that carries an ignored property, so no test catches this.
 
 The field stays on the wire either way (`JacksonKnobsTest.jsonIgnored_staysOnTheWire`).
-
-## Interop converter for singular proto3 enum fields
-
-The generated `Interop` converter dereferences a singular enum field, which the record holds as
-`@Nullable`, so NullAway rejects the converter at build time. Mapping an absent enum would also
-produce the enum's zero value, not an absent field. A message with a singular enum field therefore
-cannot carry `(recordbuf.protobuf_java)`.
-
-`canonical_format.proto` `Sample` (its `kind` field) is kept off Interop for this reason. Its proto3
-JSON goldens are checked structurally by `ProtoCanonicalJsonTest`, not as matrix cases (see the
-note in `CanonicalFormatCases`). The `interop-all-types` row of the ledger lists other Interop
-failures on `TestAllTypesProto3` and does not list this one.

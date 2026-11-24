@@ -1,0 +1,57 @@
+{
+  "label" : "root",
+  "child" : {
+    "bijnagte.recordbuf.fixture.avrorecursive.NodeAvro" : {
+      "label" : "mid",
+      "child" : {
+        "bijnagte.recordbuf.fixture.avrorecursive.NodeAvro" : {
+          "label" : "leaf",
+          "child" : null,
+          "a" : {
+            "n" : 3,
+            "b" : null,
+            "unknownFields" : [ ]
+          },
+          "kids" : [ ],
+          "unknownFields" : [ ]
+        }
+      },
+      "a" : {
+        "n" : 2,
+        "b" : null,
+        "unknownFields" : [ ]
+      },
+      "kids" : [ ],
+      "unknownFields" : [ ]
+    }
+  },
+  "a" : {
+    "n" : 1,
+    "b" : {
+      "bijnagte.recordbuf.fixture.avrorecursive.BAvro" : {
+        "s" : "b",
+        "a" : {
+          "bijnagte.recordbuf.fixture.avrorecursive.AAvro" : {
+            "n" : 4,
+            "b" : null,
+            "unknownFields" : [ ]
+          }
+        },
+        "unknownFields" : [ ]
+      }
+    },
+    "unknownFields" : [ ]
+  },
+  "kids" : [ {
+    "label" : "kid",
+    "child" : null,
+    "a" : {
+      "n" : 5,
+      "b" : null,
+      "unknownFields" : [ ]
+    },
+    "kids" : [ ],
+    "unknownFields" : [ ]
+  } ],
+  "unknownFields" : [ ]
+}

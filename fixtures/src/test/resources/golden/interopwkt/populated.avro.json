@@ -1,0 +1,112 @@
+{
+  "bool_wrapper" : {
+    "boolean" : true
+  },
+  "int32_wrapper" : {
+    "int" : -42
+  },
+  "uint32_wrapper" : {
+    "int" : 2000000000
+  },
+  "int64_wrapper" : {
+    "long" : -9000000000
+  },
+  "uint64_wrapper" : {
+    "long" : 9000000000
+  },
+  "float_wrapper" : {
+    "float" : 1.5
+  },
+  "double_wrapper" : {
+    "double" : -2.25
+  },
+  "string_wrapper" : {
+    "string" : "wrapped"
+  },
+  "bytes_wrapper" : {
+    "bytes" : "\u0001\u0002"
+  },
+  "duration" : {
+    "bijnagte.recordbuf.avro.wkt.Duration" : {
+      "seconds" : -2,
+      "nanos" : 500000000
+    }
+  },
+  "timestamp" : {
+    "long" : 1700000000123000
+  },
+  "field_mask" : {
+    "string" : "a,b.c"
+  },
+  "empty" : {
+    "bijnagte.recordbuf.avro.wkt.Empty" : { }
+  },
+  "repeated_bool_wrapper" : [ {
+    "boolean" : true
+  }, {
+    "boolean" : true
+  } ],
+  "repeated_int32_wrapper" : [ {
+    "int" : -1
+  }, {
+    "int" : 7
+  } ],
+  "repeated_uint32_wrapper" : [ {
+    "int" : 1
+  }, {
+    "int" : 2000000000
+  } ],
+  "repeated_int64_wrapper" : [ {
+    "long" : -5
+  }, {
+    "long" : 8
+  } ],
+  "repeated_uint64_wrapper" : [ {
+    "long" : 3
+  }, {
+    "long" : 9000000000
+  } ],
+  "repeated_float_wrapper" : [ {
+    "float" : 0.5
+  }, {
+    "float" : -2.5
+  } ],
+  "repeated_double_wrapper" : [ {
+    "double" : 1.25
+  }, {
+    "double" : -4.0
+  } ],
+  "repeated_string_wrapper" : [ {
+    "string" : "a"
+  }, {
+    "string" : "bc"
+  } ],
+  "repeated_bytes_wrapper" : [ {
+    "bytes" : "\t"
+  }, {
+    "bytes" : ""
+  } ],
+  "repeated_duration" : [ {
+    "bijnagte.recordbuf.avro.wkt.Duration" : {
+      "seconds" : 2,
+      "nanos" : 0
+    }
+  }, {
+    "bijnagte.recordbuf.avro.wkt.Duration" : {
+      "seconds" : -1,
+      "nanos" : 500000000
+    }
+  } ],
+  "repeated_timestamp" : [ {
+    "long" : 1000000
+  }, {
+    "long" : -500000
+  } ],
+  "repeated_field_mask" : [ {
+    "string" : "x"
+  }, {
+    "string" : "c.d,e"
+  } ],
+  "repeated_empty" : [ ],
+  "unknownFields" : [ ]
+}

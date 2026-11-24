@@ -1,0 +1,12 @@
+{
+  "bools" : [ ],
+  "int32s" : [ ],
+  "uint32s" : [ ],
+  "int64s" : [ ],
+  "uint64s" : [ ],
+  "floats" : [ ],
+  "doubles" : [ ],
+  "strings" : [ ],
+  "blobs" : [ ],
+  "unknownFields" : [ ]
+}
