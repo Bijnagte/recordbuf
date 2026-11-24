@@ -262,6 +262,8 @@
       "map_string_bytes" : { },
       "map_string_nested_message" : { },
       "map_string_foreign_message" : { },
+      "map_string_nested_enum" : { },
+      "map_string_foreign_enum" : { },
       "optional_bool_wrapper" : {
         "boolean" : false
       },
@@ -697,6 +699,8 @@
   "map_string_bytes" : { },
   "map_string_nested_message" : { },
   "map_string_foreign_message" : { },
+  "map_string_nested_enum" : { },
+  "map_string_foreign_enum" : { },
   "optional_bool_wrapper" : {
     "boolean" : false
   },

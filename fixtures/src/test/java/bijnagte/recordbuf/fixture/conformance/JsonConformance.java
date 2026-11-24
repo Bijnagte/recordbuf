@@ -9,7 +9,6 @@ import bijnagte.recordbuf.fixture.golden.format.ProtobufBinaryFormat;
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
-import com.google.protobuf.DescriptorProtos.MessageOptions;
 import com.google.protobuf.Descriptors.Descriptor;
 import com.google.protobuf.Descriptors.DescriptorValidationException;
 import com.google.protobuf.Descriptors.FileDescriptor;
@@ -117,7 +116,6 @@ final class JsonConformance {
 
   /** A construct of the upstream message that the vendored proto comments out. */
   enum Blocker {
-    MAP_ENUM_VALUE("map-enum-value"),
     NULL_VALUE("null-value-field"),
     ONEOF_NULL_VALUE("null-value-field");
 
@@ -134,7 +132,6 @@ final class JsonConformance {
     /** Whether the generated reference has the construct, so the scenario no longer needs this. */
     boolean presentInReference() {
       return switch (this) {
-        case MAP_ENUM_VALUE -> hasField("map_string_nested_enum");
         case NULL_VALUE -> hasField("optional_null_value");
         case ONEOF_NULL_VALUE -> hasField("oneof_null_value");
       };
@@ -320,9 +317,7 @@ final class JsonConformance {
     FileDescriptor file = REFERENCE.getFile();
     FileDescriptorProto.Builder fileProto = file.toProto().toBuilder();
     DescriptorProto.Builder message = fileProto.getMessageTypeBuilder(REFERENCE.getIndex());
-    String scope = "." + file.getPackage() + ".";
 
-    String nestedEnum = scope + REFERENCE_MESSAGE_NAME + ".NestedEnum";
     addOneofMember(
         message,
         "oneof_field",
@@ -331,19 +326,6 @@ final class JsonConformance {
     message.addField(
         scalarField("optional_null_value", 307, FieldDescriptorProto.Type.TYPE_ENUM)
             .setTypeName(NULL_VALUE_TYPE));
-
-    addMapField(
-        message,
-        "map_string_nested_enum",
-        73,
-        "MapStringNestedEnumEntry",
-        valueField(FieldDescriptorProto.Type.TYPE_ENUM).setTypeName(nestedEnum));
-    addMapField(
-        message,
-        "map_string_foreign_enum",
-        74,
-        "MapStringForeignEnumEntry",
-        valueField(FieldDescriptorProto.Type.TYPE_ENUM).setTypeName(scope + "ForeignEnum"));
 
     try {
       FileDescriptor extended =
@@ -389,34 +371,6 @@ final class JsonConformance {
     message.addField(insertAt, member.setOneofIndex(oneofIndex));
   }
 
-  private static FieldDescriptorProto.Builder valueField(FieldDescriptorProto.Type type) {
-    return scalarField("value", 2, type);
-  }
-
-  private static void addMapField(
-      DescriptorProto.Builder message,
-      String fieldName,
-      int number,
-      String entryName,
-      FieldDescriptorProto.Builder valueField) {
-    message.addNestedType(
-        DescriptorProto.newBuilder()
-            .setName(entryName)
-            .addField(scalarField("key", 1, FieldDescriptorProto.Type.TYPE_STRING))
-            .addField(valueField)
-            .setOptions(MessageOptions.newBuilder().setMapEntry(true)));
-    message.addField(
-        scalarField(fieldName, number, FieldDescriptorProto.Type.TYPE_MESSAGE)
-            .setLabel(FieldDescriptorProto.Label.LABEL_REPEATED)
-            .setTypeName(
-                "."
-                    + REFERENCE.getFile().getPackage()
-                    + "."
-                    + REFERENCE_MESSAGE_NAME
-                    + "."
-                    + entryName));
-  }
-
   static Case valid(String name, String json, String textFormat) {
     return new Case(name, new JsonInput(json, false), new Equivalent(textFormat), null);
   }
@@ -427,10 +381,6 @@ final class JsonConformance {
 
   static Case ignoreUnknown(String name, String json, String textFormat) {
     return new Case(name, new JsonInput(json, true), new Equivalent(textFormat), null);
-  }
-
-  static Case ignoreUnknown(String name, Blocker blocker, String json, String textFormat) {
-    return new Case(name, new JsonInput(json, true), new Equivalent(textFormat), blocker);
   }
 
   static Case validator(String name, Blocker blocker, String json, Predicate<JsonNode> validator) {

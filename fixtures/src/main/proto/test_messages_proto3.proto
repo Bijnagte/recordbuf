@@ -215,10 +215,8 @@ message TestAllTypesProto3 {
   map<string, bytes> map_string_bytes = 70;
   map<string, NestedMessage> map_string_nested_message = 71;
   map<string, ForeignMessage> map_string_foreign_message = 72;
-  // GAP(map-enum-value): map fields with an enum value type are not generated (the map codec only supports scalar keys and values).
-  // map<string, NestedEnum> map_string_nested_enum = 73;
-  // GAP(map-enum-value): map fields with an enum value type are not generated (the map codec only supports scalar keys and values).
-  // map<string, ForeignEnum> map_string_foreign_enum = 74;
+  map<string, NestedEnum> map_string_nested_enum = 73;
+  map<string, ForeignEnum> map_string_foreign_enum = 74;
 
   oneof oneof_field {
     uint32 oneof_uint32 = 111;

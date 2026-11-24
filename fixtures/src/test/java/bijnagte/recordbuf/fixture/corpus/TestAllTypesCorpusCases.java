@@ -88,6 +88,12 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
    */
   private static final String MAP_MESSAGE = "all-types-map-message";
 
+  /**
+   * The case name of the {@value #AVRO} record shape with {@code map_string_nested_enum} and {@code
+   * map_string_foreign_enum} populated.
+   */
+  private static final String MAP_ENUM = "all-types-map-enum";
+
   private static final String WIRE_GAPS =
       "the record sets fields whose protobuf binary encoding differs from protobuf-java's, or that"
           + " recordbuf cannot read back from protobuf-java's bytes (gaps"
@@ -145,6 +151,7 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         oneofCase(ONEOF_BYTES, oneofBytesRecord()),
         mapBytesCase(),
         mapMessageCase(),
+        mapEnumCase(),
         wireGapFields(),
         interopMessage("foreign-message", ForeignMessage.builder().c(Integer.MIN_VALUE).build()),
         interopMessage("nested-message", NestedMessage.builder().a(Integer.MAX_VALUE).build()));
@@ -278,6 +285,40 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
                 ForeignMessage.builder().build(),
                 "x",
                 ForeignMessage.builder().c(-5678).build()))
+        .build();
+  }
+
+  /**
+   * The case {@value #MAP_ENUM}: the {@value #AVRO} record shape with both enum-valued maps
+   * populated, lossless in all five formats, see {@link #mapEnumRecord()}.
+   */
+  private GoldenCase mapEnumCase() {
+    return GoldenCase.builder(FAMILY, MAP_ENUM, mapEnumRecord())
+        .lossless(protobufBinary)
+        .lossless(proto3Json)
+        .lossless(jackson)
+        .lossless(avroJson)
+        .lossless(avroBinary)
+        .build(formats());
+  }
+
+  /**
+   * The record of case {@value #MAP_ENUM}: the {@link #avroRecord()} with {@code
+   * map_string_nested_enum} and {@code map_string_foreign_enum} each holding the zero value and
+   * non-zero values, {@code NestedEnum.NEG} (a negative number) among them.
+   */
+  static TestAllTypesProto3 mapEnumRecord() {
+    return avroRecord().toBuilder()
+        .mapStringNestedEnum(
+            ordered("neg", NestedEnum.NEG, "foo", NestedEnum.FOO, "bar", NestedEnum.BAR))
+        .mapStringForeignEnum(
+            ordered(
+                "baz",
+                ForeignEnum.FOREIGN_BAZ,
+                "foo",
+                ForeignEnum.FOREIGN_FOO,
+                "bar",
+                ForeignEnum.FOREIGN_BAR))
         .build();
   }
 

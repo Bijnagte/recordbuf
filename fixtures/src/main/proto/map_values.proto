@@ -1,5 +1,5 @@
-// Probe for map values that are bytes, a message or an enum (the closed map-bytes-value and
-// map-message-value gaps, and the map-enum-value gap). The recordbuf record is generated from this file (--recordbuf_out); the
+// Probe for map values that are bytes, a message or an enum (the closed map-bytes-value,
+// map-message-value and map-enum-value gaps). The recordbuf record is generated from this file (--recordbuf_out); the
 // protobuf-java reference is generated from this same file (--java_out). A map's value type is the
 // record, enum or Bytes that a singular field of that type would use. map_int_nested checks a
 // non-string key with a message value. Jackson is on by default for this file. The Interop and Avro

@@ -181,6 +181,8 @@
     "mapStringBytes" : { },
     "mapStringNestedMessage" : { },
     "mapStringForeignMessage" : { },
+    "mapStringNestedEnum" : { },
+    "mapStringForeignEnum" : { },
     "optionalBoolWrapper" : false,
     "optionalInt32Wrapper" : -2147483648,
     "optionalInt64Wrapper" : 9223372036854775807,
@@ -411,6 +413,8 @@
       "c" : 2147483647
     }
   },
+  "mapStringNestedEnum" : { },
+  "mapStringForeignEnum" : { },
   "optionalBoolWrapper" : false,
   "optionalInt32Wrapper" : -2147483648,
   "optionalInt64Wrapper" : 9223372036854775807,

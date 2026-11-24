@@ -86,6 +86,8 @@
   "mapStringBytes" : { },
   "mapStringNestedMessage" : { },
   "mapStringForeignMessage" : { },
+  "mapStringNestedEnum" : { },
+  "mapStringForeignEnum" : { },
   "optionalUint32Wrapper" : -1,
   "repeatedBoolWrapper" : [ ],
   "repeatedInt32Wrapper" : [ ],

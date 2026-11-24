@@ -10,7 +10,6 @@ import static bijnagte.recordbuf.fixture.conformance.JsonConformance.valid;
 import static bijnagte.recordbuf.fixture.conformance.JsonConformance.validator;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import bijnagte.recordbuf.fixture.conformance.JsonConformance.Blocker;
 import bijnagte.recordbuf.fixture.conformance.JsonConformance.Case;
 import com.google.protobuf.Message;
 import com.google.protobuf_test_messages.proto3.TestAllTypesProto3;
@@ -570,7 +569,6 @@ class JsonCoreConformanceTest {
             ""),
         ignoreUnknown(
             "IgnoreUnknownEnumStringValueInMapValue",
-            Blocker.MAP_ENUM_VALUE,
             "{\"map_string_nested_enum\": {\"key\": \"UNKNOWN_ENUM_VALUE\"}}",
             ""),
         // A mix of known and unknown values in one array keeps the known ones.
@@ -580,7 +578,6 @@ class JsonCoreConformanceTest {
             "repeated_nested_enum: FOO repeated_nested_enum: FOO"),
         ignoreUnknown(
             "IgnoreUnknownEnumStringValueInMapPart",
-            Blocker.MAP_ENUM_VALUE,
             "{\"map_string_nested_enum\": {\"key1\": \"FOO\", \"key2\": \"UNKNOWN_ENUM_VALUE\"}}",
             "map_string_nested_enum: {key: \"key1\" value: FOO}"));
   }

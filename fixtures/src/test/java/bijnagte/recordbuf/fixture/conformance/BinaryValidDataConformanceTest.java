@@ -25,7 +25,6 @@ import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.Descriptors.OneofDescriptor;
 import com.google.protobuf_test_messages.proto3.rec.TestAllTypesProto3;
 import java.io.IOException;
-import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -59,9 +58,7 @@ import org.opentest4j.TestAbortedException;
  *
  * <p>A scenario recordbuf cannot satisfy yet is listed in {@link #KNOWN_GAPS} by its upstream case
  * name and the id of its gap-ledger row. It runs, and is reported as aborted with that id; if it
- * passes, the test fails, so closing a gap forces removing the entry. A map scenario whose field is
- * commented out of the vendored proto cannot run at all: {@link #BLOCKED} reports it as aborted,
- * and fails once the record has the field.
+ * passes, the test fails, so closing a gap forces removing the entry.
  *
  * <p>{@code TestValidDataForOneofType} targets the oneof of {@code TestAllTypesProto3}. Each oneof
  * scenario is a dynamic container of two tests, as in {@link JsonConformance}: {@code portCheck}
@@ -107,9 +104,6 @@ class BinaryValidDataConformanceTest {
       int wireType,
       byte[] defaultValue,
       byte[] nonDefaultValue) {}
-
-  /** A map scenario that cannot run because the vendored proto has no such field. */
-  private record BlockedCase(String name, String ledgerId, String recordComponent) {}
 
   /** An input and the payload upstream expects it to be written back as. */
   @SuppressWarnings("ArrayRecordComponent") // payload bytes, never compared or hashed
@@ -416,6 +410,7 @@ class BinaryValidDataConformanceTest {
       new MapType("BYTES", WIRETYPE_LENGTH_DELIMITED, delim(""), delim("a"));
   private static final MapType MESSAGE_MAP_TYPE =
       new MapType("MESSAGE", WIRETYPE_LENGTH_DELIMITED, delim(""), NESTED_MESSAGE_A_1234);
+  private static final MapType ENUM_MAP_TYPE = varintMapType("ENUM");
 
   /** The map fields {@code TestAllTypesProto3} has, in the upstream order. */
   private static final List<MapField> MAP_FIELDS =
@@ -435,7 +430,8 @@ class BinaryValidDataConformanceTest {
           new MapField(BOOL_MAP_TYPE, BOOL_MAP_TYPE, 68),
           new MapField(STRING_MAP_TYPE, STRING_MAP_TYPE, 69),
           new MapField(STRING_MAP_TYPE, BYTES_MAP_TYPE, 70),
-          new MapField(STRING_MAP_TYPE, MESSAGE_MAP_TYPE, 71));
+          new MapField(STRING_MAP_TYPE, MESSAGE_MAP_TYPE, 71),
+          new MapField(STRING_MAP_TYPE, ENUM_MAP_TYPE, 73));
 
   /**
    * The oneof member types, in the order {@code TestValidDataForOneofType} runs them. Upstream
@@ -463,23 +459,6 @@ class BinaryValidDataConformanceTest {
               NESTED_MESSAGE_A_1234));
 
   private static final String ONEOF_NAME = "oneof_field";
-
-  /** The scenario suffixes {@code TestValidDataForMapType} runs per map field, in order. */
-  private static final List<String> MAP_SCENARIOS =
-      List.of(
-          "Default",
-          "MissingDefault",
-          "NonDefault",
-          "Unordered",
-          "DuplicateKey",
-          "DuplicateKeyInMapEntry",
-          "DuplicateValueInMapEntry");
-
-  /**
-   * Upstream map scenarios whose map field is commented out of the vendored proto: {@code
-   * map<string, NestedEnum>} (gap {@code map-enum-value}).
-   */
-  private static final List<BlockedCase> BLOCKED = blockedMapCases();
 
   /**
    * The scenarios that fail today, by upstream case name, with the ledger id of the gap that
@@ -512,14 +491,11 @@ class BinaryValidDataConformanceTest {
   /** {@code TestValidDataForMapType}: map entries per key and value type. */
   @TestFactory
   Stream<DynamicNode> validDataForMapType() {
-    Stream<DynamicNode> mirrored =
-        MAP_FIELDS.stream()
-            .map(field ->
-                DynamicContainer.dynamicContainer(
-                    "ValidDataMap." + field.key().name() + "." + field.value().name(),
-                    validDataForMapTypeCases(field).stream().map(this::dynamicTest)));
-    Stream<DynamicNode> blocked = BLOCKED.stream().map(this::blockedTest);
-    return Stream.concat(mirrored, blocked);
+    return MAP_FIELDS.stream()
+        .map(field ->
+            DynamicContainer.dynamicContainer(
+                "ValidDataMap." + field.key().name() + "." + field.value().name(),
+                validDataForMapTypeCases(field).stream().map(this::dynamicTest)));
   }
 
   /**
@@ -564,29 +540,6 @@ class BinaryValidDataConformanceTest {
         Stream.of(
             DynamicTest.dynamicTest("portCheck", () -> oneofPortCheck(scenario)),
             DynamicTest.dynamicTest("recordbuf", () -> run(oneofRecordbufHalf(scenario)))));
-  }
-
-  private DynamicTest blockedTest(BlockedCase blocked) {
-    return DynamicTest.dynamicTest(
-        blocked.name(),
-        () -> {
-          boolean hasField =
-              Arrays.stream(TestAllTypesProto3.class.getRecordComponents())
-                  .map(RecordComponent::getName)
-                  .anyMatch(blocked.recordComponent()::equals);
-          if (hasField) {
-            fail(
-                "TestAllTypesProto3 now has "
-                    + blocked.recordComponent()
-                    + ": mirror "
-                    + blocked.name()
-                    + " and remove it from BLOCKED (gap "
-                    + blocked.ledgerId()
-                    + ")");
-          }
-          throw new TestAbortedException(
-              "gap " + blocked.ledgerId() + ": no " + blocked.recordComponent() + " field");
-        });
   }
 
   /**
@@ -966,18 +919,6 @@ class BinaryValidDataConformanceTest {
 
   private static OneofType varintOneofType(String name, String member, int number) {
     return new OneofType(name, member, number, WIRETYPE_VARINT, varint(0), varint(1));
-  }
-
-  private static List<BlockedCase> blockedMapCases() {
-    List<BlockedCase> blocked = new ArrayList<>();
-    String[][] fields = {{"ENUM", "map-enum-value", "mapStringNestedEnum"}};
-    for (String[] field : fields) {
-      for (String suffix : MAP_SCENARIOS) {
-        blocked.add(
-            new BlockedCase("ValidDataMap.STRING." + field[0] + "." + suffix, field[1], field[2]));
-      }
-    }
-    return List.copyOf(blocked);
   }
 
   private static Map<String, String> knownGaps() {
