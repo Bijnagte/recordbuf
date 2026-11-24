@@ -140,20 +140,21 @@ public final class InteropSourceMapping {
       return dynamicWktFrom(f);
     }
     if (f.isMap()) {
-      boolean hasBytes = "bytes".equals(f.mapKey()) || "bytes".equals(f.mapValue());
-      if (!hasBytes) {
-        // Non-byte maps: copy the protobuf-java map directly (compatible key/value types)
+      if (!convertsEntries(f)) {
+        // Scalar map: copy the protobuf-java map directly (compatible key/value types)
         out.add(
             Element.expr(
                 RawExpr.of(
                     "var _@0 = new @1<>(x.get@2Map())", f.javaName(), TypeRefs.HASH_MAP, cap)));
       } else {
-        String keyExpr = mapKeyFrom(f);
-        String valExpr = mapValueFrom(f);
-        out.add(Element.expr(RawExpr.of("var _@0 = new @1<>()", f.javaName(), TypeRefs.HASH_MAP)));
+        // A message or enum value, or a bytes key or value, converts entry by entry. The local is
+        // typed from the model: `var` would infer HashMap<Object, Object> from the diamond.
         out.add(
-            For.enhanced("var _e", "x.get@0Map().entrySet()", cap)
-                .body(Element.expr("_@0.put(@1, @2)", f.javaName(), keyExpr, valExpr))
+            LocalVar.builder(f.type(), "_" + f.javaName())
+                .assigned(RawExpr.of("new @0<>()", TypeRefs.HASH_MAP)));
+        out.add(
+            For.enhanced("var _e", "@0.entrySet()", mapEntriesFrom(f))
+                .body(Element.expr("_@0.put(@1, @2)", f.javaName(), mapKeyFrom(f), mapValueFrom(f)))
                 .build());
       }
       return out;
@@ -226,13 +227,22 @@ public final class InteropSourceMapping {
     if (dynamic != null) {
       return RawExpr.of("@0.@1(@2)", TypeRefs.DYNAMIC_WKT, dynamic.fromProtobuf(), src);
     }
-    if (f.isMessage()) {
-      return RawExpr.of("@0.Interop.from(@1)", elementType(f), src);
+    return convertFrom(f.kind(), "bytes".equals(f.typeUrl()), elementType(f), src);
+  }
+
+  /**
+   * The record form of one protobuf-java value that has no well-known type: a message through its
+   * Interop, an enum through {@code forNumber}, {@code bytes} through {@code Bytes}, and a scalar
+   * unchanged. A singular, repeated, oneof or map value all convert through this method.
+   */
+  private static Formattable convertFrom(FieldKind kind, boolean bytes, TypeRef type, String src) {
+    if (kind == FieldKind.MESSAGE) {
+      return RawExpr.of("@0.Interop.from(@1)", type, src);
     }
-    if (f.kind() == FieldKind.ENUM) {
-      return RawExpr.of("@0.forNumber(@1)", elementType(f), src);
+    if (kind == FieldKind.ENUM) {
+      return RawExpr.of("@0.forNumber(@1)", type, src);
     }
-    if ("bytes".equals(f.typeUrl())) {
+    if (bytes) {
       return RawExpr.of("@0.of(@1.toByteArray())", TypeRefs.BYTES, src);
     }
     return RawExpr.of("@0", src);
@@ -320,8 +330,10 @@ public final class InteropSourceMapping {
       return dynamicWktTo(f);
     }
     if (f.isMap()) {
+      // An enum value is put by its number, as the protobuf-java map setter takes an int.
+      String put = cap + (f.mapValueKind() == FieldKind.ENUM ? "Value" : "");
       return For.enhanced("var _e", "@0.entrySet()", src)
-          .body(Element.expr("_b.put@0(@1, @2)", cap, mapKeyTo(f), mapValueTo(f)))
+          .body(Element.expr("_b.put@0(@1, @2)", put, mapKeyTo(f), mapValueTo(f)))
           .build();
     }
     if (f.isRepeated()) {
@@ -368,13 +380,21 @@ public final class InteropSourceMapping {
     if (dynamic != null) {
       return dynamicToProtobuf(dynamic, src);
     }
-    if (f.isMessage()) {
-      return RawExpr.of("@0.Interop.to(@1)", elementType(f), src);
+    return convertTo(f.kind(), "bytes".equals(f.typeUrl()), elementType(f), src);
+  }
+
+  /**
+   * The inverse of {@link #convertFrom}: the protobuf-java argument of a value that has no
+   * well-known type. An enum is set by its number.
+   */
+  private static Formattable convertTo(FieldKind kind, boolean bytes, TypeRef type, String src) {
+    if (kind == FieldKind.MESSAGE) {
+      return RawExpr.of("@0.Interop.to(@1)", type, src);
     }
-    if (f.kind() == FieldKind.ENUM) {
+    if (kind == FieldKind.ENUM) {
       return RawExpr.of("@0.getNumber()", src);
     }
-    if ("bytes".equals(f.typeUrl())) {
+    if (bytes) {
       return RawExpr.of("@0.copyFrom(@1.toByteArray())", TypeRefs.BYTE_STRING, src);
     }
     return RawExpr.of("@0", src);
@@ -574,15 +594,36 @@ public final class InteropSourceMapping {
     return f.isRepeated() ? ((TypeRef.Named) f.type()).generics().get(0) : f.type();
   }
 
+  /**
+   * Whether a map's entries convert one by one rather than copying across: a message or enum value,
+   * or a bytes key or value. A scalar map with no bytes copies as protobuf-java's map.
+   */
+  private static boolean convertsEntries(Field f) {
+    return f.mapValueKind() != FieldKind.SCALAR
+        || "bytes".equals(f.mapKey())
+        || "bytes".equals(f.mapValue());
+  }
+
+  /**
+   * The protobuf-java map a converted map iterates. An enum value is read by its number through the
+   * {@code get<Name>ValueMap()} accessor, which avoids protobuf-java's {@code UNRECOGNIZED}
+   * constant.
+   */
+  private static String mapEntriesFrom(Field f) {
+    String cap = JavaNames.protobufJavaAccessor(f.name());
+    return "x.get" + cap + (f.mapValueKind() == FieldKind.ENUM ? "ValueMap()" : "Map()");
+  }
+
   private static String mapKeyFrom(Field f) {
     return "bytes".equals(f.mapKey()) ? "_e.getKey().toByteArray()" : "_e.getKey()";
   }
 
-  private static String mapValueFrom(Field f) {
-    String t = f.mapValue();
-    if (t == null) return "_e.getValue()";
-    if ("bytes".equals(t)) return "_e.getValue().toByteArray()";
-    return "_e.getValue()";
+  private static Formattable mapValueFrom(Field f) {
+    return convertFrom(
+        Objects.requireNonNull(f.mapValueKind()),
+        "bytes".equals(f.mapValue()),
+        f.mapValueType(),
+        "_e.getValue()");
   }
 
   private static Formattable mapKeyTo(Field f) {
@@ -593,9 +634,10 @@ public final class InteropSourceMapping {
   }
 
   private static Formattable mapValueTo(Field f) {
-    if ("bytes".equals(f.mapValue())) {
-      return RawExpr.of("@0.copyFrom(_e.getValue())", TypeRefs.BYTE_STRING);
-    }
-    return RawExpr.of("_e.getValue()");
+    return convertTo(
+        Objects.requireNonNull(f.mapValueKind()),
+        "bytes".equals(f.mapValue()),
+        f.mapValueType(),
+        "_e.getValue()");
   }
 }

@@ -1,0 +1,26 @@
+{
+  "mapStringBytes": {
+    "x": "CQ==",
+    "y": "AQID"
+  },
+  "mapStringNested": {
+    "x": {
+    },
+    "y": {
+      "a": 7,
+      "label": "seven"
+    }
+  },
+  "mapStringColor": {
+    "x": "RED",
+    "y": "BLUE"
+  },
+  "mapIntNested": {
+    "3": {
+      "a": 3
+    },
+    "20": {
+      "label": "twenty"
+    }
+  }
+}
