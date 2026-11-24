@@ -17,7 +17,6 @@ import bijnagte.recordbuf.codegen.source.While;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
-import bijnagte.recordbuf.plugin.model.JavaNames;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.Oneof;
 import bijnagte.recordbuf.plugin.types.TypeRefs;
@@ -769,7 +768,7 @@ public final class CodecSourceMapping {
     List<EncodeSlot> slots = new ArrayList<>();
     for (Field f : o.members()) {
       String bnd = String.valueOf(f.name().charAt(0)) + "_";
-      String recName = iface + "." + JavaNames.cap(f.name()) + "Value";
+      String recName = iface + "." + Oneof.valueRecordName(f);
       Entry wktMember = WktSourceMapping.resolve(f);
       Element write;
       if (wktMember != null) {
@@ -829,7 +828,7 @@ public final class CodecSourceMapping {
     // The per-member wrapper record, nested <Record>.<Iface>.<Name>Value, as a typed reference:
     // the renderer drops the in-scope enclosing segment so it renders in the baseline's
     // <Iface>.<Name>Value form.
-    TypeRef wrapper = recordRef.sub(iface).sub(JavaNames.cap(f.name()) + "Value");
+    TypeRef wrapper = recordRef.sub(iface).sub(Oneof.valueRecordName(f));
     Entry wktMember = WktSourceMapping.resolve(f);
     if (wktMember != null) {
       return RawExpr.of(

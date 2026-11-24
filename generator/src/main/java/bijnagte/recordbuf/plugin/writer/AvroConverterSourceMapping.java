@@ -592,7 +592,7 @@ public final class AvroConverterSourceMapping {
   private static TypeRef memberValueRef(Oneof oneof, Field member) {
     // Matches the record generator's naming: the sealed interface plus the capitalized member
     // name and "Value" (e.g. Compat.Choice.NameValue) -- never the oneof name prefixed.
-    return oneof.iface().sub(cap(member.name()) + "Value");
+    return oneof.iface().sub(Oneof.valueRecordName(member));
   }
 
   private static TypeRef scalarWrapperType(Field f) {

@@ -495,7 +495,7 @@ public final class InteropSourceMapping {
               : fromExpr(f);
       sw.caseArm(
           JavaNames.snakeUpper(f.name()),
-          RawExpr.of("new @0.@1Value(@2)", o.ifaceName(), JavaNames.cap(f.name()), inner));
+          RawExpr.of("new @0.@1(@2)", o.ifaceName(), Oneof.valueRecordName(f), inner));
     }
     sw.defaultArm(RawExpr.of("null"));
     return LocalVar.builder(TypeRef.of(o.ifaceName()), "_" + o.name())
@@ -510,9 +510,9 @@ public final class InteropSourceMapping {
     sw.caseArm("null");
     for (Field f : o.members()) {
       String cap = JavaNames.protobufJavaAccessor(f.name());
-      // The member value record is named on the record side (cap of the proto name), not by the
+      // The member value record is named on the record side (Oneof.valueRecordName), not by the
       // protobuf-java accessor rule.
-      String pattern = RawExpr.of("@0.@1Value v", iface, JavaNames.cap(f.name())).render(null);
+      String pattern = RawExpr.of("@0.@1 v", iface, Oneof.valueRecordName(f)).render(null);
       if (f.isMessage()) {
         String recSib = recordSiblingFqn(f);
         sw.caseArm(pattern, Element.expr("_b.set@0(@1.Interop.to(v.value()))", cap, recSib));

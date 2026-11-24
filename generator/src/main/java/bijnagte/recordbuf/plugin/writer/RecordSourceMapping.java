@@ -26,7 +26,6 @@ import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
 import bijnagte.recordbuf.plugin.model.JacksonTemporalFormat;
-import bijnagte.recordbuf.plugin.model.JavaNames;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.Oneof;
 import bijnagte.recordbuf.plugin.types.TypeRefs;
@@ -574,7 +573,7 @@ public final class RecordSourceMapping {
       // Every oneof member (scalar, enum, or message) gets a dedicated nested record
       // <Cap>Value(<valType> value) implementing the interface. Message members cannot be
       // identity subtypes in the source-AST path because each message is its own file.
-      String valName = JavaNames.cap(member.name()) + "Value";
+      String valName = Oneof.valueRecordName(member);
       var valRef =
           new TypeRef.Named(
               recordRef.pkg(), List.of(recordRef.shortName(), ifaceName), valName, List.of());
@@ -656,7 +655,7 @@ public final class RecordSourceMapping {
     return new TypeRef.Named(
         recordRef.pkg(),
         List.of(recordRef.shortName(), oneof.ifaceName()),
-        JavaNames.cap(member.name()) + "Value",
+        Oneof.valueRecordName(member),
         List.of());
   }
 
