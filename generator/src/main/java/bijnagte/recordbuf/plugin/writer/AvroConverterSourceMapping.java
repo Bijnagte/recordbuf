@@ -389,8 +389,8 @@ public final class AvroConverterSourceMapping {
 
   private static Element oneofToRecord(
       Oneof oneof, String param, String builder, AvroRegistry registry, String specificRecordPkg) {
-    String getter = param + ".get" + cap(oneof.name()) + "()";
-    String var = builder + "." + oneof.name();
+    String getter = param + ".get" + cap(oneof.componentName()) + "()";
+    String var = builder + "." + oneof.componentName();
     If.Builder b = If.condition(getter + " == null").body(Element.expr(var + "(null)"));
     // Message members each ride their own specific-record subtype in the Avro union; the
     // scalar/enum members ride one shared {tag, value} wrapper, dispatched by the member's tag.
@@ -860,8 +860,8 @@ public final class AvroConverterSourceMapping {
 
   private static Element oneofFromRecord(
       Oneof oneof, String param, String record, AvroRegistry registry, String specificRecordPkg) {
-    String setter = param + ".set" + cap(oneof.name());
-    String accessor = record + "." + oneof.name() + "()";
+    String setter = param + ".set" + cap(oneof.componentName());
+    String accessor = record + "." + oneof.componentName() + "()";
     If.Builder b = If.condition(accessor + " == null").body(Element.expr(setter + "(null)"));
     for (Field member : oneof.members()) {
       TypeRef valueRec = memberValueRef(oneof, member);
