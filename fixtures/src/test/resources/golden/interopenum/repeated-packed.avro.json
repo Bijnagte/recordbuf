@@ -1,0 +1,9 @@
+{
+  "singular_color" : "COLOR_UNSPECIFIED",
+  "singular_kind" : "KIND_ZERO",
+  "repeated_kinds" : [ "ALPHA", "NEG", "KIND_ZERO" ],
+  "repeated_colors" : [ "RED", "GREEN" ],
+  "unpacked_kinds" : [ ],
+  "choice" : null,
+  "unknownFields" : [ ]
+}

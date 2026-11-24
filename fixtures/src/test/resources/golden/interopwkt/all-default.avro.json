@@ -1,0 +1,38 @@
+{
+  "bool_wrapper" : null,
+  "int32_wrapper" : null,
+  "uint32_wrapper" : null,
+  "int64_wrapper" : null,
+  "uint64_wrapper" : null,
+  "float_wrapper" : null,
+  "double_wrapper" : null,
+  "string_wrapper" : null,
+  "bytes_wrapper" : null,
+  "duration" : {
+    "bijnagte.recordbuf.avro.wkt.Duration" : {
+      "seconds" : 0,
+      "nanos" : 0
+    }
+  },
+  "timestamp" : {
+    "long" : 0
+  },
+  "field_mask" : null,
+  "empty" : {
+    "bijnagte.recordbuf.avro.wkt.Empty" : { }
+  },
+  "repeated_bool_wrapper" : [ ],
+  "repeated_int32_wrapper" : [ ],
+  "repeated_uint32_wrapper" : [ ],
+  "repeated_int64_wrapper" : [ ],
+  "repeated_uint64_wrapper" : [ ],
+  "repeated_float_wrapper" : [ ],
+  "repeated_double_wrapper" : [ ],
+  "repeated_string_wrapper" : [ ],
+  "repeated_bytes_wrapper" : [ ],
+  "repeated_duration" : [ ],
+  "repeated_timestamp" : [ ],
+  "repeated_field_mask" : [ ],
+  "repeated_empty" : [ ],
+  "unknownFields" : [ ]
+}

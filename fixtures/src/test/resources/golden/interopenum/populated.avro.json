@@ -1,0 +1,16 @@
+{
+  "singular_color" : "GREEN",
+  "singular_kind" : "BETA",
+  "repeated_kinds" : [ ],
+  "repeated_colors" : [ ],
+  "unpacked_kinds" : [ "ALPHA", "NEG", "KIND_ZERO" ],
+  "choice" : {
+    "bijnagte.recordbuf.fixture.interopenum.RecordbufOneofValue" : {
+      "tag" : 6,
+      "value" : {
+        "int" : -1
+      }
+    }
+  },
+  "unknownFields" : [ ]
+}

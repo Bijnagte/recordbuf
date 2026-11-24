@@ -22,10 +22,6 @@ public final class InteropWktCases extends JacksonGoldenCases {
   /** The golden family directory of every case here. */
   public static final String FAMILY = "interopwkt";
 
-  private static final String AVRO_OFF =
-      "the file switches Avro off, and the Avro converter does not compile for its repeated WKT"
-          + " fields and singular Duration and BytesValue (gap avro-surface)";
-
   private static final String DEFAULT_ELEMENT_NOT_WRITTEN =
       "the record drops a repeated element equal to the default (Duration.ZERO, Empty.INSTANCE),"
           + " which protobuf-java writes, so its protobuf binary golden would not be protobuf-java's"
@@ -34,35 +30,25 @@ public final class InteropWktCases extends JacksonGoldenCases {
   @Override
   public List<GoldenCase> cases() {
     return List.of(
-        build(withoutAvro(jacksonLossless(FAMILY, "populated", populated()))),
-        build(withoutAvro(jacksonLossless(FAMILY, "all-default", InteropWkt.builder().build()))),
+        build(jacksonLossless(FAMILY, "populated", populated())),
+        build(jacksonLossless(FAMILY, "all-default", InteropWkt.builder().build())),
         build(
-            withoutAvro(
-                jacksonLossless(
-                    FAMILY,
-                    "zero-wrappers",
-                    InteropWkt.builder()
-                        .boolWrapper(false)
-                        .int32Wrapper(0)
-                        .stringWrapper("")
-                        .build()))),
+            jacksonLossless(
+                FAMILY,
+                "zero-wrappers",
+                InteropWkt.builder().boolWrapper(false).int32Wrapper(0).stringWrapper("").build())),
         // Its proto3.json golden was written from protobuf-java's own builder: the seeder seeds
         // from
         // the record's bytes, which drop the default elements (gap repeated-wkt-default-element).
         build(
-            withoutAvro(
-                    jacksonLossless(
-                        FAMILY,
-                        "repeated-defaults",
-                        InteropWkt.builder()
-                            .repeatedDuration(List.of(Duration.ZERO, Duration.ofSeconds(1)))
-                            .repeatedEmpty(List.of(Empty.INSTANCE, Empty.INSTANCE))
-                            .build()))
+            jacksonLossless(
+                    FAMILY,
+                    "repeated-defaults",
+                    InteropWkt.builder()
+                        .repeatedDuration(List.of(Duration.ZERO, Duration.ofSeconds(1)))
+                        .repeatedEmpty(List.of(Empty.INSTANCE, Empty.INSTANCE))
+                        .build())
                 .notApplicable(protobufBinary, DEFAULT_ELEMENT_NOT_WRITTEN)));
-  }
-
-  private GoldenCase.Builder withoutAvro(GoldenCase.Builder builder) {
-    return builder.notApplicable(avroJson, AVRO_OFF).notApplicable(avroBinary, AVRO_OFF);
   }
 
   /**

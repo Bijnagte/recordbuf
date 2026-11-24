@@ -12,17 +12,13 @@ import java.util.List;
  * enum, a top-level singular and repeated enum, and a oneof with an enum member. Every case also
  * has a proto3 JSON golden produced through the generated {@code Interop} converter.
  *
- * <p>The file switches Avro off, so both Avro formats are not applicable to every case (gap {@code
- * avro-surface}).
+ * <p>Avro converts each enum as its constant's name. A singular enum that is unset is written as
+ * the first constant, so the cases that leave one unset read it back as that constant.
  */
 public final class InteropEnumCases extends JacksonGoldenCases {
 
   /** The golden family directory of every case here. */
   public static final String FAMILY = "interopenum";
-
-  private static final String AVRO_OFF =
-      "the file switches Avro off, and the Avro converter does not convert enum fields yet (gap"
-          + " avro-surface)";
 
   private static final String REPEATED_NOT_UNPACKED =
       "the record writes a repeated enum unpacked, and protobuf-java writes the packed form that"
@@ -34,12 +30,18 @@ public final class InteropEnumCases extends JacksonGoldenCases {
 
   @Override
   public List<GoldenCase> cases() {
+    InteropEnum allDefaultRecord = InteropEnum.builder().build();
+    InteropEnum repeatedPackedRecord = repeatedPacked();
     return List.of(
-        build(withoutAvro(jacksonLossless(FAMILY, "populated", populated()))),
-        build(withoutAvro(jacksonLossless(FAMILY, "all-default", InteropEnum.builder().build()))),
+        build(jacksonLossless(FAMILY, "populated", populated())),
+        build(
+            withAvroAfterTrip(
+                jacksonLossless(FAMILY, "all-default", allDefaultRecord), allDefaultRecord)),
         build(zeroEnum()),
         build(
-            withoutAvro(jacksonLossless(FAMILY, "repeated-packed", repeatedPacked()))
+            withAvroAfterTrip(
+                    jacksonLossless(FAMILY, "repeated-packed", repeatedPackedRecord),
+                    repeatedPackedRecord)
                 .notApplicable(protobufBinary, REPEATED_NOT_UNPACKED)));
   }
 
@@ -72,14 +74,27 @@ public final class InteropEnumCases extends JacksonGoldenCases {
    */
   private GoldenCase.Builder zeroEnum() {
     InteropEnum record = InteropEnum.builder().singularKind(InteropEnum.Kind.KIND_ZERO).build();
-    return withoutAvro(
-        GoldenCase.builder(FAMILY, "zero-enum", record)
-            .lossless(jackson)
-            .expectedAfterTrip(proto3Json, InteropEnum.builder().build())
-            .notApplicable(protobufBinary, ZERO_ENUM_WRITTEN));
+    return withAvroAfterTrip(
+            GoldenCase.builder(FAMILY, "zero-enum", record)
+                .lossless(jackson)
+                .expectedAfterTrip(proto3Json, InteropEnum.builder().build()),
+            record)
+        .notApplicable(protobufBinary, ZERO_ENUM_WRITTEN);
   }
 
-  private GoldenCase.Builder withoutAvro(GoldenCase.Builder builder) {
-    return builder.notApplicable(avroJson, AVRO_OFF).notApplicable(avroBinary, AVRO_OFF);
+  /**
+   * Declares both Avro formats as reading back {@code record} with each unset singular enum as its
+   * first constant: an Avro enum is a non-null string, so an unset enum is written as the proto3
+   * default. Every other field round-trips.
+   */
+  private GoldenCase.Builder withAvroAfterTrip(GoldenCase.Builder builder, InteropEnum record) {
+    InteropEnum afterAvro =
+        record.toBuilder()
+            .singularColor(
+                record.singularColor() == null ? Color.COLOR_UNSPECIFIED : record.singularColor())
+            .singularKind(
+                record.singularKind() == null ? InteropEnum.Kind.KIND_ZERO : record.singularKind())
+            .build();
+    return builder.expectedAfterTrip(avroJson, afterAvro).expectedAfterTrip(avroBinary, afterAvro);
   }
 }

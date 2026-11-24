@@ -10,10 +10,6 @@ option java_multiple_files = true;
 
 import "recordbuf_options.proto";
 
-// Avro enum conversion is gap avro-surface (its own probe is avro_enum.proto, U10); Avro stays
-// off for this file.
-option (.recordbuf.avro) = RECORDBUF_AVRO_OFF;
-
 // Top-level enum: a singular, repeated and oneof member of the message below.
 enum Color {
   COLOR_UNSPECIFIED = 0;

@@ -15,10 +15,6 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/empty.proto";
 
-// Avro conversion of the repeated WKTs and the singular Duration and BytesValue is gap avro-surface
-// (its converter does not compile for this file, U11-U13 fix it), so Avro stays off here.
-option (.recordbuf.avro) = RECORDBUF_AVRO_OFF;
-
 // The target message comes first in the file (KTD2): every natively mapped WKT shape of the
 // Interop arms, singular and repeated.
 message InteropWkt {
