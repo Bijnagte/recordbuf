@@ -18,6 +18,7 @@ import bijnagte.recordbuf.fixture.interopbytes.InteropBytesCases;
 import bijnagte.recordbuf.fixture.interopdynamic.InteropDynamicCases;
 import bijnagte.recordbuf.fixture.interopenum.InteropEnumCases;
 import bijnagte.recordbuf.fixture.interopnames.InteropNamesCases;
+import bijnagte.recordbuf.fixture.interoponeof.InteropOneofCases;
 import bijnagte.recordbuf.fixture.interopoptionalenum.InteropOptionalEnumCases;
 import bijnagte.recordbuf.fixture.interopwkt.InteropWktCases;
 import bijnagte.recordbuf.fixture.jackson.JacksonDynamicWktCases;
@@ -82,6 +83,7 @@ public final class GoldenCaseRegistry {
         new InteropBytesCases(),
         new InteropWktCases(),
         new InteropDynamicCases(),
+        new InteropOneofCases(),
         new AnnotationsCases(),
         new AvroEnumCases(),
         new AvroWrappersCases(),

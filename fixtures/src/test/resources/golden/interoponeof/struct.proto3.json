@@ -1,0 +1,9 @@
+{
+  "pickStruct": {
+    "count": 2.5,
+    "name": "recordbuf",
+    "nested": {
+      "flag": true
+    }
+  }
+}

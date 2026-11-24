@@ -136,9 +136,8 @@ public final class InteropSourceMapping {
     if (wkt != null) {
       return nativeWktFrom(f, wkt);
     }
-    DynamicWktMethods dynamic = dynamicWkt(f);
-    if (dynamic != null) {
-      return dynamicWktFrom(f, dynamic);
+    if (dynamicWkt(f) != null) {
+      return dynamicWktFrom(f);
     }
     if (f.isMap()) {
       boolean hasBytes = "bytes".equals(f.mapKey()) || "bytes".equals(f.mapValue());
@@ -160,35 +159,20 @@ public final class InteropSourceMapping {
       return out;
     }
     if (f.isMessage() && f.isRepeated()) {
-      String recSib = recordSiblingFqn(f);
-      out.add(
-          LocalVar.builder(f.type(), "_" + f.javaName())
-              .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)));
-      out.add(
-          For.enhanced("var _e", "x.get@0List()", cap)
-              .body(Element.expr("_@0.add(@1.Interop.from(_e))", f.javaName(), recSib))
-              .build());
-      return out;
+      return repeatedFrom(f, "x.get" + cap + "List()");
     }
     if (f.isMessage()) {
       out.add(
           Element.expr(
               RawExpr.of(
-                  "var _@0 = x.has@1() ? @2.Interop.from(x.get@1()) : null",
+                  "var _@0 = x.has@1() ? @2 : null",
                   f.javaName(),
-                  JavaNames.protobufJavaAccessor(f.name()),
-                  f.type())));
+                  cap,
+                  valueFrom(f, "x.get" + cap + "()"))));
       return out;
     }
     if (f.kind() == FieldKind.ENUM && f.isRepeated()) {
-      out.add(
-          LocalVar.builder(f.type(), "_" + f.javaName())
-              .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)));
-      out.add(
-          For.enhanced("var _e", "x.get@0ValueList()", cap)
-              .body(Element.expr("_@0.add(@1.forNumber(_e))", f.javaName(), enumElementType(f)))
-              .build());
-      return out;
+      return repeatedFrom(f, "x.get" + cap + "ValueList()");
     }
     if (f.kind() == FieldKind.ENUM) {
       out.add(Element.expr("var _@0 = @1", f.javaName(), singularEnumFrom(f)));
@@ -196,16 +180,7 @@ public final class InteropSourceMapping {
     }
     if (f.isRepeated()) {
       if ("bytes".equals(f.typeUrl())) {
-        out.add(
-            LocalVar.builder(f.type(), "_" + f.javaName())
-                .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)));
-        out.add(
-            For.enhanced("var _e", "x.get@0List()", cap)
-                .body(
-                    Element.expr(
-                        RawExpr.of(
-                            "_@0.add(@1.of(_e.toByteArray()))", f.javaName(), TypeRefs.BYTES)))
-                .build());
+        return repeatedFrom(f, "x.get" + cap + "List()");
       } else {
         // For non-bytes repeated fields, use the protobuf-java list directly;
         // var infers the correct element type from x.getList().
@@ -214,17 +189,53 @@ public final class InteropSourceMapping {
       return out;
     }
     // Singular scalar / bytes
-    if ("bytes".equals(f.typeUrl())) {
-      out.add(
-          Element.expr(
-              RawExpr.of("var _@0 = @1.of(@2)", f.javaName(), TypeRefs.BYTES, fromExpr(f))));
-
-    } else if (f.isNullable()) {
+    if (f.isNullable() && !"bytes".equals(f.typeUrl())) {
       out.add(Element.expr("var _@0 = x.has@1() ? x.get@1() : null", f.javaName(), cap));
     } else {
-      out.add(Element.expr("var _@0 = @1", f.javaName(), fromExpr(f)));
+      out.add(Element.expr("var _@0 = @1", f.javaName(), valueFrom(f, "x.get" + cap + "()")));
     }
     return out;
+  }
+
+  /**
+   * A repeated field's record list: a new list that takes {@link #valueFrom} of each element of the
+   * protobuf-java list expression {@code protobufList}.
+   */
+  private static List<Element> repeatedFrom(Field f, String protobufList) {
+    return List.of(
+        LocalVar.builder(f.type(), "_" + f.javaName())
+            .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)),
+        For.enhanced("var _e", "@0", protobufList)
+            .body(Element.expr("_@0.add(@1)", f.javaName(), valueFrom(f, "_e")))
+            .build());
+  }
+
+  /**
+   * One value of {@code f}, read from protobuf-java and converted to its record form. The singular
+   * field arms, the repeated element arms and the oneof member arms all convert through this one
+   * method, so a kind converts the same way wherever it appears. {@code src} is the protobuf-java
+   * value expression: the message, the {@code ByteString} or scalar, or, for an enum, its number
+   * ({@code get<Name>Value()} or a {@code get<Name>ValueList()} element).
+   */
+  private static Formattable valueFrom(Field f, String src) {
+    NativeWkt wkt = nativeWkt(f);
+    if (wkt != null) {
+      return RawExpr.of("@0.@1(@2)", TypeRefs.PROTOBUF_JAVA_WKT, wkt.fromProtobuf(), src);
+    }
+    DynamicWktMethods dynamic = dynamicWkt(f);
+    if (dynamic != null) {
+      return RawExpr.of("@0.@1(@2)", TypeRefs.DYNAMIC_WKT, dynamic.fromProtobuf(), src);
+    }
+    if (f.isMessage()) {
+      return RawExpr.of("@0.Interop.from(@1)", elementType(f), src);
+    }
+    if (f.kind() == FieldKind.ENUM) {
+      return RawExpr.of("@0.forNumber(@1)", elementType(f), src);
+    }
+    if ("bytes".equals(f.typeUrl())) {
+      return RawExpr.of("@0.of(@1.toByteArray())", TypeRefs.BYTES, src);
+    }
+    return RawExpr.of("@0", src);
   }
 
   /**
@@ -236,26 +247,15 @@ public final class InteropSourceMapping {
   private static List<Element> nativeWktFrom(Field f, NativeWkt wkt) {
     String cap = JavaNames.protobufJavaAccessor(f.name());
     if (f.isRepeated()) {
-      return List.of(
-          LocalVar.builder(f.type(), "_" + f.javaName())
-              .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)),
-          For.enhanced("var _e", "x.get@0List()", cap)
-              .body(
-                  Element.expr(
-                      "_@0.add(@1.@2(_e))",
-                      f.javaName(),
-                      TypeRefs.PROTOBUF_JAVA_WKT,
-                      wkt.fromProtobuf()))
-              .build());
+      return repeatedFrom(f, "x.get" + cap + "List()");
     }
     String absent = wkt.entry().hasZeroDefault() ? zeroDefault(wkt) : "null";
     return List.of(
         Element.expr(
-            "var _@0 = x.has@1() ? @2.@3(x.get@1()) : @4",
+            "var _@0 = x.has@1() ? @2 : @3",
             f.javaName(),
             cap,
-            TypeRefs.PROTOBUF_JAVA_WKT,
-            wkt.fromProtobuf(),
+            valueFrom(f, "x.get" + cap + "()"),
             absent));
   }
 
@@ -264,28 +264,17 @@ public final class InteropSourceMapping {
    * Jackson node through {@link bijnagte.recordbuf.json.DynamicWkt}. A singular field is {@code
    * null} when absent; a repeated field converts every element.
    */
-  private static List<Element> dynamicWktFrom(Field f, DynamicWktMethods dynamic) {
+  private static List<Element> dynamicWktFrom(Field f) {
     String cap = JavaNames.protobufJavaAccessor(f.name());
     if (f.isRepeated()) {
-      return List.of(
-          LocalVar.builder(f.type(), "_" + f.javaName())
-              .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)),
-          For.enhanced("var _e", "x.get@0List()", cap)
-              .body(
-                  Element.expr(
-                      "_@0.add(@1.@2(_e))",
-                      f.javaName(),
-                      TypeRefs.DYNAMIC_WKT,
-                      dynamic.fromProtobuf()))
-              .build());
+      return repeatedFrom(f, "x.get" + cap + "List()");
     }
     return List.of(
         Element.expr(
-            "var _@0 = x.has@1() ? @2.@3(x.get@1()) : null",
+            "var _@0 = x.has@1() ? @2 : null",
             f.javaName(),
             cap,
-            TypeRefs.DYNAMIC_WKT,
-            dynamic.fromProtobuf()));
+            valueFrom(f, "x.get" + cap + "()")));
   }
 
   /**
@@ -295,20 +284,10 @@ public final class InteropSourceMapping {
   private static Formattable singularEnumFrom(Field f) {
     String cap = JavaNames.protobufJavaAccessor(f.name());
     if (f.isNullable()) {
-      return RawExpr.of("x.has@0() ? @1.forNumber(x.get@0Value()) : null", cap, f.type());
+      return RawExpr.of("x.has@0() ? @1 : null", cap, valueFrom(f, "x.get" + cap + "Value()"));
     }
-    return RawExpr.of("x.get@0Value() == 0 ? null : @1.forNumber(x.get@0Value())", cap, f.type());
-  }
-
-  private static Formattable fromExpr(Field f) {
-    String cap = JavaNames.protobufJavaAccessor(f.name());
-    if (f.kind() == FieldKind.ENUM) {
-      return RawExpr.of("@0.forNumber(x.get@1Value())", f.type(), cap);
-    }
-    if ("bytes".equals(f.typeUrl())) {
-      return RawExpr.of("x.get@0().toByteArray()", cap);
-    }
-    return RawExpr.of("x.get@0()", cap);
+    return RawExpr.of(
+        "x.get@0Value() == 0 ? null : @1", cap, valueFrom(f, "x.get" + cap + "Value()"));
   }
 
   // -- to(record) -> reference --------------------------------------------------
@@ -332,70 +311,73 @@ public final class InteropSourceMapping {
 
   private static Element toStmt(Field f) {
     String cap = JavaNames.protobufJavaAccessor(f.name());
-    final Element out;
     String src = "r." + f.javaName() + "()";
     NativeWkt wkt = nativeWkt(f);
     if (wkt != null) {
       return nativeWktTo(f, wkt);
     }
+    if (dynamicWkt(f) != null) {
+      return dynamicWktTo(f);
+    }
+    if (f.isMap()) {
+      return For.enhanced("var _e", "@0.entrySet()", src)
+          .body(Element.expr("_b.put@0(@1, @2)", cap, mapKeyTo(f), mapValueTo(f)))
+          .build();
+    }
+    if (f.isRepeated()) {
+      if (f.isMessage() || f.kind() == FieldKind.ENUM || "bytes".equals(f.typeUrl())) {
+        return For.enhanced("var _e", src)
+            .body(Element.expr("_b.add@0(@1)", setterStem(f), valueTo(f, "_e")))
+            .build();
+      }
+      return Element.expr("_b.addAll@0(@1)", cap, src);
+    }
+    if (f.isMessage() || f.kind() == FieldKind.ENUM) {
+      // Use a local variable so NullAway can track the non-null guard
+      String local = "n" + cap;
+      return If.condition("@0 != null", src)
+          .body(
+              Element.expr("var @0 = @1", local, src),
+              Element.expr("_b.set@0(@1)", setterStem(f), valueTo(f, local)))
+          .build();
+    }
+    return toSetStatement(f, src);
+  }
+
+  /**
+   * The stem of the protobuf-java setter and adder of {@code f}: {@code <Name>}, or {@code
+   * <Name>Value} for an enum, which protobuf-java sets by its number.
+   */
+  private static String setterStem(Field f) {
+    String cap = Objects.requireNonNull(JavaNames.protobufJavaAccessor(f.name()));
+    return f.kind() == FieldKind.ENUM ? cap + "Value" : cap;
+  }
+
+  /**
+   * One value of {@code f}, converted from its record form to the argument of the protobuf-java
+   * setter or adder named by {@link #setterStem}. The singular field arms, the repeated element
+   * arms and the oneof member arms all convert through this one method (the inverse of {@link
+   * #valueFrom}). {@code src} is the record value expression.
+   */
+  private static Formattable valueTo(Field f, String src) {
+    NativeWkt wkt = nativeWkt(f);
+    if (wkt != null) {
+      return RawExpr.of("@0.@1(@2)", TypeRefs.PROTOBUF_JAVA_WKT, wkt.toProtobuf(), src);
+    }
     DynamicWktMethods dynamic = dynamicWkt(f);
     if (dynamic != null) {
-      return dynamicWktTo(f, dynamic);
+      return dynamicToProtobuf(dynamic, src);
     }
-
-    if (f.isMap()) {
-      out =
-          For.enhanced("var _e", "@0.entrySet()", src)
-              .body(Element.expr("_b.put@0(@1, @2)", cap, mapKeyTo(f), mapValueTo(f)))
-              .build();
-    } else if (f.isMessage() && f.isRepeated()) {
-      String recSib = recordSiblingFqn(f);
-      out =
-          For.enhanced("var _e", src)
-              .body(Element.expr("_b.add@0(@1.Interop.to(_e))", cap, recSib))
-              .build();
-    } else if (f.isMessage()) {
-      String recSib = recordSiblingFqn(f);
-      // Use a local variable so NullAway can track the non-null guard
-
-      String local = "n" + cap;
-      out =
-          If.condition("@0 != null", src)
-              .body(
-                  Element.expr("var @0 = @1", local, src),
-                  Element.expr("_b.set@0(@1.Interop.to(@2))", cap, recSib, local))
-              .build();
-    } else if (f.kind() == FieldKind.ENUM && f.isRepeated()) {
-      out =
-          For.enhanced("var _e", src)
-              .body(Element.expr("_b.add@0Value(_e.getNumber())", cap))
-              .build();
-    } else if (f.kind() == FieldKind.ENUM) {
-      // Use a local variable so NullAway can track the non-null guard
-      String local = "n" + cap;
-      out =
-          If.condition("@0 != null", src)
-              .body(
-                  Element.expr("var @0 = @1", local, src),
-                  Element.expr("_b.set@0Value(@1.getNumber())", cap, local))
-              .build();
-    } else if (f.isRepeated()) {
-      if ("bytes".equals(f.typeUrl())) {
-        out =
-            For.enhanced("var _e", src)
-                .body(
-                    Element.expr(
-                        RawExpr.of(
-                            "_b.add@1(@0.copyFrom(_e.toByteArray()))", TypeRefs.BYTE_STRING, cap)))
-                .build();
-      } else {
-        out = Element.expr("_b.addAll@0(@1)", cap, src);
-      }
-
-    } else {
-      out = toSetStatement(f, src);
+    if (f.isMessage()) {
+      return RawExpr.of("@0.Interop.to(@1)", elementType(f), src);
     }
-    return out;
+    if (f.kind() == FieldKind.ENUM) {
+      return RawExpr.of("@0.getNumber()", src);
+    }
+    if ("bytes".equals(f.typeUrl())) {
+      return RawExpr.of("@0.copyFrom(@1.toByteArray())", TypeRefs.BYTE_STRING, src);
+    }
+    return RawExpr.of("@0", src);
   }
 
   /**
@@ -409,17 +391,13 @@ public final class InteropSourceMapping {
     String src = "r." + f.javaName() + "()";
     if (f.isRepeated()) {
       return For.enhanced("var _e", src)
-          .body(
-              Element.expr(
-                  "_b.add@0(@1.@2(_e))", cap, TypeRefs.PROTOBUF_JAVA_WKT, wkt.toProtobuf()))
+          .body(Element.expr("_b.add@0(@1)", cap, valueTo(f, "_e")))
           .build();
     }
     if (wkt.entry().hasZeroDefault()) {
       // The record component is @Nullable (its constructor normalizes null to the zero default).
       return If.condition("@0 != null && !@1.equals(@0)", src, zeroDefault(wkt))
-          .body(
-              Element.expr(
-                  "_b.set@0(@1.@2(@3))", cap, TypeRefs.PROTOBUF_JAVA_WKT, wkt.toProtobuf(), src))
+          .body(Element.expr("_b.set@0(@1)", cap, valueTo(f, src)))
           .build();
     }
     // Use a local variable so NullAway can track the non-null guard
@@ -427,8 +405,7 @@ public final class InteropSourceMapping {
     return If.condition("@0 != null", src)
         .body(
             Element.expr("var @0 = @1", local, src),
-            Element.expr(
-                "_b.set@0(@1.@2(@3))", cap, TypeRefs.PROTOBUF_JAVA_WKT, wkt.toProtobuf(), local))
+            Element.expr("_b.set@0(@1)", cap, valueTo(f, local)))
         .build();
   }
 
@@ -437,12 +414,12 @@ public final class InteropSourceMapping {
    * bijnagte.recordbuf.json.DynamicWkt}. A singular field is set when non-null, the same presence
    * the record's binary encoder uses; a repeated field converts every element.
    */
-  private static Element dynamicWktTo(Field f, DynamicWktMethods dynamic) {
+  private static Element dynamicWktTo(Field f) {
     String cap = JavaNames.protobufJavaAccessor(f.name());
     String src = "r." + f.javaName() + "()";
     if (f.isRepeated()) {
       return For.enhanced("var _e", src)
-          .body(Element.expr("_b.add@0(@1)", cap, dynamicToProtobuf(dynamic, "_e")))
+          .body(Element.expr("_b.add@0(@1)", cap, valueTo(f, "_e")))
           .build();
     }
     // Use a local variable so NullAway can track the non-null guard
@@ -450,7 +427,7 @@ public final class InteropSourceMapping {
     return If.condition("@0 != null", src)
         .body(
             Element.expr("var @0 = @1", local, src),
-            Element.expr("_b.set@0(@1)", cap, dynamicToProtobuf(dynamic, local)))
+            Element.expr("_b.set@0(@1)", cap, valueTo(f, local)))
         .build();
   }
 
@@ -470,32 +447,32 @@ public final class InteropSourceMapping {
     return RawExpr.of("@0.@1(@2)", TypeRefs.DYNAMIC_WKT, dynamic.toProtobuf(), node);
   }
 
+  /**
+   * A singular scalar or bytes field's setter call; a nullable (optional) field is set if present.
+   */
   private static Element toSetStatement(Field f, String src) {
-    String cap = JavaNames.protobufJavaAccessor(f.name());
-    if (f.kind() == FieldKind.ENUM) {
-      return Element.expr("_b.set@0Value(@1.getNumber())", cap, src);
+    Element set = Element.expr("_b.set@0(@1)", setterStem(f), valueTo(f, src));
+    if (f.isNullable() && !"bytes".equals(f.typeUrl())) {
+      return If.condition("@0 != null", src).body(set).build();
     }
-    if ("bytes".equals(f.typeUrl())) {
-      return Element.expr(
-          RawExpr.of("_b.set@0(@1.copyFrom(@2.toByteArray()))", cap, TypeRefs.BYTE_STRING, src));
-    }
-    if (f.isNullable()) {
-      return If.condition("@0 != null", src).body(Element.expr("_b.set@0(@1)", cap, src)).build();
-    }
-    return Element.expr("_b.set@0(@1)", cap, src);
+    return set;
   }
 
+  /**
+   * The record's oneof value read from protobuf-java's case switch. protobuf-java names the case
+   * accessor {@code get<Accessor>Case()} from the oneof's name and each case constant from the
+   * member's upper-cased name; an unset oneof (the {@code *_NOT_SET} constant) reads as null. Each
+   * set member converts through {@link #valueFrom}, as a singular field does, and is present even
+   * at its default value.
+   */
   private static Element emitOneofFrom(Oneof o) {
-    var sw = SwitchExpr.on("x.get@0Case()", o.ifaceName());
+    var sw = SwitchExpr.on("x.get@0Case()", JavaNames.protobufJavaAccessor(o.name()));
     for (Field f : o.members()) {
       String cap = JavaNames.protobufJavaAccessor(f.name());
-      Formattable inner =
-          f.isMessage()
-              ? RawExpr.of("@0.Interop.from(x.get@1())", recordSiblingFqn(f), cap)
-              : fromExpr(f);
+      String read = f.kind() == FieldKind.ENUM ? "x.get" + cap + "Value()" : "x.get" + cap + "()";
       sw.caseArm(
           JavaNames.snakeUpper(f.name()),
-          RawExpr.of("new @0.@1(@2)", o.ifaceName(), Oneof.valueRecordName(f), inner));
+          RawExpr.of("new @0.@1(@2)", o.ifaceName(), Oneof.valueRecordName(f), valueFrom(f, read)));
     }
     sw.defaultArm(RawExpr.of("null"));
     return LocalVar.builder(TypeRef.of(o.ifaceName()), "_" + o.name())
@@ -503,22 +480,20 @@ public final class InteropSourceMapping {
         .assigned(sw.build());
   }
 
+  /**
+   * Sets the set oneof member on the protobuf-java builder, converting its value through {@link
+   * #valueTo} as a singular field does. An unset oneof sets nothing.
+   */
   private static List<Element> emitOneofTo(Oneof o) {
     String iface = o.ifaceName();
     Switch.Builder sw = Switch.on("r.@0()", o.componentName());
     // The null arm: an empty body auto-braces to `case null -> {}`.
     sw.caseArm("null");
     for (Field f : o.members()) {
-      String cap = JavaNames.protobufJavaAccessor(f.name());
       // The member value record is named on the record side (Oneof.valueRecordName), not by the
       // protobuf-java accessor rule.
       String pattern = RawExpr.of("@0.@1 v", iface, Oneof.valueRecordName(f)).render(null);
-      if (f.isMessage()) {
-        String recSib = recordSiblingFqn(f);
-        sw.caseArm(pattern, Element.expr("_b.set@0(@1.Interop.to(v.value()))", cap, recSib));
-      } else {
-        sw.caseArm(pattern, toSetStatement(f, "v.value()"));
-      }
+      sw.caseArm(pattern, Element.expr("_b.set@0(@1)", setterStem(f), valueTo(f, "v.value()")));
     }
     return List.of(sw.build());
   }
@@ -590,23 +565,13 @@ public final class InteropSourceMapping {
     return Objects.requireNonNull(wkt.entry().zeroDefault());
   }
 
-  /** The record sibling short name from the field's typeUrl last segment. */
-  private static String recordSiblingFqn(Field f) {
-    return JavaNames.cap(lastSegment(f.typeUrl()));
-  }
-
   /**
-   * The record-side enum type of an enum field: the field's own type, or the element type of a
-   * repeated field's {@code List}. Taken from the model, so a nested enum resolves to its owner.
+   * The record-side type of one value of a field: the field's own type, or the element type of a
+   * repeated field's {@code List}. Taken from the model, so a nested message or enum resolves to
+   * its owner.
    */
-  private static TypeRef enumElementType(Field f) {
+  private static TypeRef elementType(Field f) {
     return f.isRepeated() ? ((TypeRef.Named) f.type()).generics().get(0) : f.type();
-  }
-
-  private static String lastSegment(String fqn) {
-    if (fqn == null) return "";
-    int dot = fqn.lastIndexOf('.');
-    return dot < 0 ? fqn : fqn.substring(dot + 1);
   }
 
   private static String mapKeyFrom(Field f) {
