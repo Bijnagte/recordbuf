@@ -28,6 +28,7 @@ import bijnagte.recordbuf.fixture.jackson.JacksonOneofCases;
 import bijnagte.recordbuf.fixture.jackson.JacksonRoundTripCases;
 import bijnagte.recordbuf.fixture.jacksonformat.JacksonFormatCases;
 import bijnagte.recordbuf.fixture.map.MapCases;
+import bijnagte.recordbuf.fixture.mapvalues.MapValuesCases;
 import bijnagte.recordbuf.fixture.message.MessageCases;
 import bijnagte.recordbuf.fixture.oneof.OneofCases;
 import bijnagte.recordbuf.fixture.oneofnames.OneofNamesCases;
@@ -79,6 +80,7 @@ public final class GoldenCaseRegistry {
         new EdgeNamesCases(),
         new EnumAliasCases(),
         new OneofNamesCases(),
+        new MapValuesCases(),
         new InteropEnumCases(),
         new InteropOptionalEnumCases(),
         new InteropBytesCases(),

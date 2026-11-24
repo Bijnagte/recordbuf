@@ -1,0 +1,36 @@
+// Probe for map values that are bytes, a message or an enum (the map-bytes-value, map-message-value
+// and map-enum-value gaps). The recordbuf record is generated from this file (--recordbuf_out); the
+// protobuf-java reference is generated from this same file (--java_out). A map's value type is the
+// record, enum or Bytes that a singular field of that type would use. map_int_nested checks a
+// non-string key with a message value. Jackson is on by default for this file. The Interop and Avro
+// converters are off: no protobuf_java option and RECORDBUF_AVRO_OFF, so this probe checks the
+// record, codec and Jackson surfaces only.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.mapvalues;
+option java_package = "bijnagte.recordbuf.fixture.mapvalues";
+option java_multiple_files = true;
+option (.recordbuf.avro) = RECORDBUF_AVRO_OFF;
+
+import "recordbuf_options.proto";
+
+// Target message: one map per value kind.
+message MapValues {
+  map<string, bytes> map_string_bytes = 1;
+  map<string, Nested> map_string_nested = 2;
+  map<string, Color> map_string_color = 3;
+  map<int32, Nested> map_int_nested = 4;
+
+  // Message map value type.
+  message Nested {
+    int32 a = 1;
+    string label = 2;
+  }
+
+  // Enum map value type.
+  enum Color {
+    RED = 0;
+    GREEN = 1;
+    BLUE = 2;
+  }
+}

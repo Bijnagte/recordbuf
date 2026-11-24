@@ -33,7 +33,6 @@ import bijnagte.recordbuf.plugin.types.WellKnownTypes;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
 
@@ -1108,7 +1107,7 @@ public final class RecordSourceMapping {
 
   /**
    * M4-C2d-7: emit a map entry record for a MAP field. The entry has two components: {@code key}
-   * and {@code value} (boxed types matching the proto map key/value types). The entry's body
+   * and {@code value} (the key and value types of the field's {@code Map<K, V>}). The entry's body
    * contains a nested {@code <Field>EntryCodec} class via {@link
    * CodecSourceMapping#emitEntryCodec}.
    */
@@ -1118,8 +1117,8 @@ public final class RecordSourceMapping {
         javaName.isEmpty() ? "" : Character.toUpperCase(javaName.charAt(0)) + javaName.substring(1);
     entryName += "Entry";
 
-    TypeRef keyTypeRef = TypeRef.boxedFor(Objects.requireNonNull(f.mapKey()));
-    TypeRef valueTypeRef = TypeRef.boxedFor(Objects.requireNonNull(f.mapValue()));
+    TypeRef keyTypeRef = f.mapKeyType();
+    TypeRef valueTypeRef = f.mapValueType();
 
     var entryRef = recordRef.sub(entryName);
     ClassSpec entryCodec = CodecSourceMapping.emitEntryCodec(entryRef, f);

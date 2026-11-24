@@ -379,10 +379,10 @@ public final class ModelLoader {
         FieldKind.MAP,
         /* typeUrl= */ synthetic.typeUrl(),
         TypeRefs.MAP.withGenerics(
-            TypeRef.boxedFor(Objects.requireNonNull(keyProtoType)),
-            TypeRef.boxedFor(Objects.requireNonNull(valProtoType))),
+            TypeRef.boxedFor(keyProtoType), mapValueType(valP.getType(), valProtoType)),
         keyProtoType,
         valProtoType,
+        mapValueKind(valP.getType()),
         /* proto3Optional= */ false,
         /* defaultValue= */ null,
         /* comment= */ synthetic.comment(),
@@ -390,6 +390,24 @@ public final class ModelLoader {
         /* jacksonFormat= */ synthetic.jacksonFormat(),
         /* jsonName= */ synthetic.jsonName(),
         /* jsonIgnored= */ synthetic.jsonIgnored());
+  }
+
+  /**
+   * The Java type of a map entry's value, resolved the way a singular field's type is: a message or
+   * enum to the referenced type, {@code bytes} to the runtime {@code Bytes}, a scalar to its boxed
+   * type. {@code valueProtoType} is the value's proto scalar name or resolved type FQN.
+   */
+  private TypeRef mapValueType(FieldDescriptorProto.Type valueType, String valueProtoType) {
+    if (isScalar(valueType)) return scalarReference(valueProtoType);
+    return referenceType(valueProtoType);
+  }
+
+  private static FieldKind mapValueKind(FieldDescriptorProto.Type valueType) {
+    return switch (valueType) {
+      case TYPE_MESSAGE, TYPE_GROUP -> FieldKind.MESSAGE;
+      case TYPE_ENUM -> FieldKind.ENUM;
+      default -> FieldKind.SCALAR;
+    };
   }
 
   /**
@@ -545,9 +563,10 @@ public final class ModelLoader {
         label,
         kind,
         typeUrl,
-        fieldType(kind, typeUrl, label, proto3Opt, mapKey, mapValue),
+        fieldType(kind, typeUrl, label, proto3Opt),
         mapKey,
         mapValue,
+        /* mapValueKind= */ null,
         /* proto3Optional= */ proto3Opt,
         defaultVal,
         /* comment= */ commentAtPath(path),
@@ -625,21 +644,12 @@ public final class ModelLoader {
    * The field's Java type as a {@link TypeRef}: a scalar token maps to its primitive form (or its
    * boxed/reference form when the field carries presence); a message/enum to the referenced type's
    * fully-typed {@link TypeRef.Named}; a well-known type to its native Java type; a repeated field
-   * to {@code List<T>}; a map to {@code Map<K, V>}. This is the value of {@link Field#type()} — the
-   * writers read it instead of re-deriving Java types from the {@code typeUrl} token.
+   * to {@code List<T>}. A map field's {@code Map<K, V>} is built in {@link #buildMapField}. This is
+   * the value of {@link Field#type()} — the writers read it instead of re-deriving Java types from
+   * the {@code typeUrl} token.
    */
   private TypeRef fieldType(
-      FieldKind kind,
-      String typeUrl,
-      FieldLabel label,
-      boolean proto3Optional,
-      @Nullable String mapKey,
-      @Nullable String mapValue) {
-    if (kind == FieldKind.MAP) {
-      return TypeRefs.MAP.withGenerics(
-          TypeRef.boxedFor(Objects.requireNonNull(mapKey)),
-          TypeRef.boxedFor(Objects.requireNonNull(mapValue)));
-    }
+      FieldKind kind, String typeUrl, FieldLabel label, boolean proto3Optional) {
     boolean presence = label != FieldLabel.REPEATED && proto3Optional;
     TypeRef element =
         switch (kind) {

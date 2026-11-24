@@ -35,6 +35,7 @@ class OneofTest {
         TypeRef.Primitive.INT,
         null,
         null,
+        null,
         false,
         null,
         null,

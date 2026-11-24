@@ -1,0 +1,20 @@
+{
+  "mapStringBytes" : {
+    "k" : ""
+  },
+  "mapStringNested" : {
+    "k" : {
+      "a" : 0,
+      "label" : ""
+    }
+  },
+  "mapStringColor" : {
+    "k" : "RED"
+  },
+  "mapIntNested" : {
+    "0" : {
+      "a" : 0,
+      "label" : ""
+    }
+  }
+}

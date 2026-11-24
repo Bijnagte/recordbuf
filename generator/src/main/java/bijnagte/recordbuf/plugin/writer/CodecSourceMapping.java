@@ -20,6 +20,7 @@ import bijnagte.recordbuf.plugin.model.FieldLabel;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.Oneof;
 import bijnagte.recordbuf.plugin.types.TypeRefs;
+import bijnagte.recordbuf.plugin.types.WellKnownTypes;
 import bijnagte.recordbuf.plugin.types.WellKnownTypes.Entry;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -142,12 +143,8 @@ public final class CodecSourceMapping {
       } else {
         switch (f.kind()) {
           case FieldKind.MAP -> {
-            TypeRef keyType = TypeRef.boxedFor(Objects.requireNonNull(f.mapKey()));
-            TypeRef valueType = TypeRef.boxedFor(Objects.requireNonNull(f.mapValue()));
-            TypeRef mapType = TypeRefs.MAP.withGenerics(keyType, valueType);
-
             method.body(
-                Element.expr("@0 @1 = new @2<>()", mapType, f.javaName(), TypeRefs.HASH_MAP));
+                Element.expr("@0 @1 = new @2<>()", f.type(), f.javaName(), TypeRefs.HASH_MAP));
           }
           case FieldKind.MESSAGE -> {
             if (f.label() == FieldLabel.REPEATED) {
@@ -588,24 +585,25 @@ public final class CodecSourceMapping {
 
   /**
    * M4-C2d-7: emit a 2-field entry codec for a map entry record. The entry has exactly two fields:
-   * {@code key} (field 1) and {@code value} (field 2). Both are scalar types.
+   * {@code key} (field 1, a scalar) and {@code value} (field 2). The value is a scalar, a message
+   * (length-delimited, through its record's codec) or an enum (a varint through {@code forNumber}).
+   * A missing key or value decodes to the type's default: the scalar default, a default message
+   * (the codec's decode of no bytes), or the enum's zero constant.
    *
    * @param entryRef the entry record's fully-typed name (e.g. {@code Sample.DataEntry})
    * @return the nested {@code <Entry>Codec} class
    */
   public static ClassSpec emitEntryCodec(TypeRef.Named entryRef, Field f) {
-    // M4-C2d-12: resolve key/value wire scalars from the Field's type URLs.
+    // M4-C2d-12: resolve the key wire scalar from the Field's type URL.
     WireScalar keyWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapKey()));
-    WireScalar valWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapValue()));
+    FieldKind valueKind = Objects.requireNonNull(f.mapValueKind());
+    TypeRef valueType = f.mapValueType();
     String codecName = entryRef.shortName() + "Codec";
 
     // key: field 1 — always field 1 in a map entry; written unconditionally.
     // A bytes-valued key unwraps to the raw array (Bytes.toByteArray()); every other writes
     // through.
     String keyArg = keyWire == WireScalar.BYTES ? "v.key().toByteArray()" : "v.key()";
-
-    // value: field 2 — always field 2; written unconditionally, same unwrapping rule.
-    String valArg = valWire == WireScalar.BYTES ? "v.value().toByteArray()" : "v.value()";
 
     return ClassSpec.named(entryRef.sub(codecName))
         .javadoc(
@@ -626,7 +624,7 @@ public final class CodecSourceMapping {
                     Element.expr("var enc = @0.start()", TypeRefs.ENCODER),
                     Element.expr("var out = enc.out()"),
                     Element.expr("out.@0(1, @1)", encodeCall(keyWire), keyArg),
-                    Element.expr("out.@0(2, @1)", encodeCall(valWire), valArg),
+                    entryValueEncode(f, valueKind),
                     Element.ret("enc.finish()"))
                 .build())
         .method(
@@ -641,7 +639,7 @@ public final class CodecSourceMapping {
                     Element.expr("var in = dec.in()"),
                     Element.expr("var unknown = @0.builder()", TypeRefs.UNKNOWN_FIELDS),
                     emitFieldLocalInit("key", keyWire, TypeRefs.CODEC_DEFAULTS),
-                    emitFieldLocalInit("value", valWire, TypeRefs.CODEC_DEFAULTS),
+                    entryValueLocalInit(f, valueKind, valueType),
                     While.condition("true")
                         .body(
                             LocalVar.builder(TypeRef.Primitive.INT, "tag")
@@ -650,14 +648,83 @@ public final class CodecSourceMapping {
                             Switch.on("@0.tagFieldNumber(tag)", TypeRefs.WIRE)
                                 .caseArms(
                                     emitFieldDecodeCase(1, "key", keyWire),
-                                    emitFieldDecodeCase(2, "value", valWire))
+                                    entryValueDecodeCase(f, valueKind, valueType))
                                 .defaultBody(Element.expr("unknown.add(in, tag)"))
                                 .build(),
                             Element.of(""))
                         .build(),
-                    Element.ret("new @0(key, value)", entryRef.shortName()))
+                    entryResult(f, valueKind, entryRef))
                 .build())
         .build();
+  }
+
+  /** The entry encoder's write of the value (field 2), which is written unconditionally. */
+  private static Element entryValueEncode(Field f, FieldKind valueKind) {
+    return switch (valueKind) {
+      case MESSAGE ->
+          Element.expr("out.writeByteArray(2, @0.encode(v.value()))", entryValueCodec(f));
+      case ENUM -> Element.expr("out.writeEnum(2, v.value().getNumber())");
+      default -> {
+        WireScalar wire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapValue()));
+        // A bytes value unwraps to the raw array, as a bytes key does.
+        String arg = wire == WireScalar.BYTES ? "v.value().toByteArray()" : "v.value()";
+        yield Element.expr("out.@0(2, @1)", encodeCall(wire), arg);
+      }
+    };
+  }
+
+  /** The entry decoder's local for the value, holding the type's default until field 2 is read. */
+  private static Element entryValueLocalInit(Field f, FieldKind valueKind, TypeRef valueType) {
+    return switch (valueKind) {
+      // A missing message value is defaulted when the entry is built, so no default message is
+      // decoded for an entry that carries one.
+      case MESSAGE -> Element.expr("@0 value = null", valueType);
+      case ENUM -> Element.expr("@0 value = @0.forNumber(0)", valueType);
+      default ->
+          emitFieldLocalInit(
+              "value",
+              wireScalarForTypeUrl(Objects.requireNonNull(f.mapValue())),
+              TypeRefs.CODEC_DEFAULTS);
+    };
+  }
+
+  /** The entry decoder's switch arm for the value (field 2). */
+  private static Case entryValueDecodeCase(Field f, FieldKind valueKind, TypeRef valueType) {
+    return switch (valueKind) {
+      case MESSAGE ->
+          Case.of("2", Element.expr("value = @0.decode(in.readByteArray())", entryValueCodec(f)));
+      case ENUM -> Case.of("2", Element.expr("value = @0.forNumber(in.readEnum())", valueType));
+      default ->
+          emitFieldDecodeCase(
+              2, "value", wireScalarForTypeUrl(Objects.requireNonNull(f.mapValue())));
+    };
+  }
+
+  /**
+   * The entry decoder's return: a message value that was never read becomes the default message.
+   */
+  private static Element entryResult(Field f, FieldKind valueKind, TypeRef.Named entryRef) {
+    if (valueKind == FieldKind.MESSAGE) {
+      return Element.ret(
+          "new @0(key, value != null ? value : @1.decode(new byte[0]))",
+          entryRef.shortName(),
+          entryValueCodec(f));
+    }
+    return Element.ret("new @0(key, value)", entryRef.shortName());
+  }
+
+  /**
+   * The {@code <Value>Codec} nested inside a message value's record. A well-known-type value is
+   * unsupported: it has no record of its own to carry a codec.
+   */
+  private static TypeRef entryValueCodec(Field f) {
+    String token = Objects.requireNonNull(f.mapValue());
+    if (WellKnownTypes.resolve(token) != null) {
+      throw new UnsupportedOperationException(
+          "map value of well-known type " + token + " is not supported");
+    }
+    TypeRef.Named value = (TypeRef.Named) f.mapValueType();
+    return value.sub(value.shortName() + "Codec");
   }
 
   /** M4-C2d-12: resolve a {@link WireScalar} from a proto scalar type URL string. */
@@ -682,6 +749,8 @@ public final class CodecSourceMapping {
   private static Element emitFieldLocalInit(String name, WireScalar ws, TypeRef cd) {
     if (ws == WireScalar.STRING) {
       return Element.expr("String @0 = \"\"", name);
+    } else if (ws == WireScalar.BYTES) {
+      return Element.expr("@0 @1 = @2.bytes()", TypeRefs.BYTES, name, cd);
     } else {
       return Element.expr("@0 @1 = @2.@3()", localTypeForWire(ws), name, cd, defaultForWire(ws));
     }
@@ -691,9 +760,12 @@ public final class CodecSourceMapping {
   private static Case emitFieldDecodeCase(int fieldNum, String name, WireScalar ws) {
     return Case.of(
         String.valueOf(fieldNum),
-        ws == WireScalar.STRING
-            ? Element.expr("@0 = in.readString()", name)
-            : Element.expr("@0 = @1", name, decodeCall(ws)));
+        switch (ws) {
+          case STRING -> Element.expr("@0 = in.readString()", name);
+          case BYTES ->
+              Element.expr("@0 = @1.of(in.readBytes().toByteArray())", name, TypeRefs.BYTES);
+          default -> Element.expr("@0 = @1", name, decodeCall(ws));
+        });
   }
 
   /** M4-C2d-12: the Java local type for a decoded map entry scalar. */
