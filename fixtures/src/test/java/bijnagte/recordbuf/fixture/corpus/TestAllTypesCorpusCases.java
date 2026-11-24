@@ -69,6 +69,9 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
   /** The case name of the record that sets every non-cycle singular message field. */
   private static final String AVRO = "all-types-avro";
 
+  /** The case name of the {@value #AVRO} record shape with every edge-named field set. */
+  private static final String EDGE_NAMES = "all-types-edge-names";
+
   private static final String WIRE_GAPS =
       "the record sets fields whose protobuf binary encoding differs from protobuf-java's, or that"
           + " recordbuf cannot read back from protobuf-java's bytes (gaps"
@@ -121,6 +124,7 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         allTypes(PROTO3_JSON_POPULATED, populatedWithStructAny()),
         allTypes("all-types-default", TestAllTypesProto3.builder().build()),
         avroCase(),
+        edgeNamesCase(),
         wireGapFields(),
         interopMessage("foreign-message", ForeignMessage.builder().c(Integer.MIN_VALUE).build()),
         interopMessage("nested-message", NestedMessage.builder().a(Integer.MAX_VALUE).build()));
@@ -155,6 +159,49 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         .lossless(avroJson)
         .lossless(avroBinary)
         .build(formats());
+  }
+
+  /**
+   * The case {@value #EDGE_NAMES}: the {@value #AVRO} record shape with all eighteen edge-named
+   * fields set, so every format carries each of them, see {@link #edgeNamesRecord()}.
+   */
+  private GoldenCase edgeNamesCase() {
+    return GoldenCase.builder(FAMILY, EDGE_NAMES, edgeNamesRecord())
+        .lossless(protobufBinary)
+        .lossless(proto3Json)
+        .lossless(jackson)
+        .lossless(avroJson)
+        .lossless(avroBinary)
+        .build(formats());
+  }
+
+  /**
+   * The record of case {@value #EDGE_NAMES}: the {@link #avroRecord()} with {@code fieldname1}
+   * through {@code Field_name18__} set to distinct non-default values, including the eight whose
+   * camel-cased Java name starts upper-case in protoc's rule (for example {@code _field_name3}, the
+   * component {@code fieldName3}).
+   */
+  static TestAllTypesProto3 edgeNamesRecord() {
+    return avroRecord().toBuilder()
+        .fieldname1(101)
+        .fieldName2(102)
+        .fieldName3(103)
+        .fieldName4(104)
+        .field0name5(105)
+        .field0Name6(106)
+        .fieldName7(107)
+        .fieldName8(108)
+        .fieldName9(109)
+        .fieldName10(110)
+        .fIELDNAME11(111)
+        .fIELDName12(112)
+        .fieldName13(113)
+        .fieldName14(114)
+        .fieldName15(115)
+        .fieldName16(116)
+        .fieldName17(117)
+        .fieldName18(118)
+        .build();
   }
 
   /**
@@ -346,8 +393,7 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         .repeatedValue(
             List.of(node("\"s\""), node("1.5"), node("true"), node("[1.5,\"x\"]"), node("{}")))
         .repeatedListValue(List.of((ArrayNode) node("[1.5,\"x\",null]"), (ArrayNode) node("[]")))
-        // edge-named fields (only the ones that generate cleanly, see gap
-        // field-name-uppercase-start)
+        // edge-named fields (the other edge names are set by case all-types-edge-names)
         .fieldname1(Integer.MIN_VALUE)
         .fieldName2(-2)
         .fieldName4(4)

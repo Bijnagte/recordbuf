@@ -120,7 +120,6 @@ final class JsonConformance {
 
   /** A construct of the upstream message that the vendored proto comments out. */
   enum Blocker {
-    UPPERCASE_EDGE_NAME("field-name-uppercase-start"),
     ONEOF("oneof-snake-case-member"),
     MAP_MESSAGE_VALUE("map-message-value"),
     MAP_ENUM_VALUE("map-enum-value"),
@@ -141,7 +140,6 @@ final class JsonConformance {
     /** Whether the generated reference has the construct, so the scenario no longer needs this. */
     boolean presentInReference() {
       return switch (this) {
-        case UPPERCASE_EDGE_NAME -> hasField("_field_name3");
         case ONEOF -> hasField("oneof_uint32");
         case MAP_MESSAGE_VALUE -> hasField("map_string_nested_message");
         case MAP_ENUM_VALUE -> hasField("map_string_nested_enum");
@@ -333,20 +331,6 @@ final class JsonConformance {
     FileDescriptorProto.Builder fileProto = file.toProto().toBuilder();
     DescriptorProto.Builder message = fileProto.getMessageTypeBuilder(REFERENCE.getIndex());
     String scope = "." + file.getPackage() + ".";
-
-    // The upstream edge-named int32 fields the vendored proto comments out, by field number.
-    Map<String, Integer> edgeFields =
-        Map.of(
-            "_field_name3", 403,
-            "FieldName8", 408,
-            "Field_Name10", 410,
-            "FIELD_NAME11", 411,
-            "FIELD_name12", 412,
-            "__field_name13", 413,
-            "__Field_name14", 414,
-            "Field_name18__", 418);
-    edgeFields.forEach((name, number) ->
-        message.addField(scalarField(name, number, FieldDescriptorProto.Type.TYPE_INT32)));
 
     int oneofIndex = message.getOneofDeclCount();
     message.addOneofDecl(OneofDescriptorProto.newBuilder().setName("oneof_field"));

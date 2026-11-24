@@ -119,25 +119,21 @@ class JsonCoreConformanceTest {
     return List.of(
         valid(
             "FieldNameInSnakeCase",
-            Blocker.UPPERCASE_EDGE_NAME,
             snakeCaseJson,
             "fieldname1: 1 field_name2: 2 _field_name3: 3 field__name4_: 4"),
         valid("FieldNameWithNumbers", numbersJson, "field0name5: 5 field_0_name6: 6"),
         valid(
             "FieldNameWithMixedCases",
-            Blocker.UPPERCASE_EDGE_NAME,
             mixedCasesJson,
             "fieldName7: 7 FieldName8: 8 field_Name9: 9 Field_Name10: 10 FIELD_NAME11: 11"
                 + " FIELD_name12: 12"),
         valid(
             "FieldNameWithDoubleUnderscores",
-            Blocker.UPPERCASE_EDGE_NAME,
             doubleUnderscoresJson,
             "__field_name13: 13 __Field_name14: 14 field__name15: 15 field__Name16: 16"
                 + " field_name17__: 17 Field_name18__: 18"),
         valid(
             "OriginalProtoFieldName",
-            Blocker.UPPERCASE_EDGE_NAME,
             "{\"fieldname1\": 1, \"field_name2\": 2, \"_field_name3\": 3, \"field__name4_\": 4,"
                 + " \"field0name5\": 5, \"field_0_name6\": 6, \"fieldName7\": 7,"
                 + " \"FieldName8\": 8, \"field_Name9\": 9, \"Field_Name10\": 10,"
@@ -169,7 +165,7 @@ class JsonCoreConformanceTest {
         // Serializers should use lowerCamelCase by default.
         validator(
             "FieldNameInLowerCamelCase.Validator",
-            Blocker.UPPERCASE_EDGE_NAME,
+            null,
             snakeCaseJson,
             json -> hasMembers(json, "fieldname1", "fieldName2", "FieldName3", "fieldName4")),
         validator(
@@ -179,7 +175,7 @@ class JsonCoreConformanceTest {
             json -> hasMembers(json, "field0name5", "field0Name6")),
         validator(
             "FieldNameWithMixedCases.Validator",
-            Blocker.UPPERCASE_EDGE_NAME,
+            null,
             mixedCasesJson,
             json ->
                 hasMembers(
@@ -192,7 +188,7 @@ class JsonCoreConformanceTest {
                     "FIELDName12")),
         validator(
             "FieldNameWithDoubleUnderscores.Validator",
-            Blocker.UPPERCASE_EDGE_NAME,
+            null,
             doubleUnderscoresJson,
             json ->
                 hasMembers(
@@ -205,7 +201,7 @@ class JsonCoreConformanceTest {
                     "FieldName18")),
         validator(
             "SkipsDefaultPrimitive.Validator",
-            Blocker.UPPERCASE_EDGE_NAME,
+            null,
             "{\"FieldName13\": 0}",
             json -> !json.has("FieldName13")));
   }
