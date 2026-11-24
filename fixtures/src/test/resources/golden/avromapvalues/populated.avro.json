@@ -1,0 +1,38 @@
+{
+  "map_string_bytes" : {
+    "x" : "\t",
+    "y" : "\u0001\u0002\u0003"
+  },
+  "map_string_nested" : {
+    "x" : {
+      "a" : 0,
+      "label" : "",
+      "unknownFields" : [ ]
+    },
+    "y" : {
+      "a" : 7,
+      "label" : "seven",
+      "unknownFields" : [ ]
+    }
+  },
+  "map_string_color" : {
+    "x" : "RED",
+    "y" : "BLUE"
+  },
+  "map_int_nested" : [ {
+    "key" : 3,
+    "value" : {
+      "a" : 3,
+      "label" : "",
+      "unknownFields" : [ ]
+    }
+  }, {
+    "key" : 20,
+    "value" : {
+      "a" : 0,
+      "label" : "twenty",
+      "unknownFields" : [ ]
+    }
+  } ],
+  "unknownFields" : [ ]
+}

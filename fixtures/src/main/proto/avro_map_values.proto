@@ -1,0 +1,31 @@
+// Avro probe for map values that are bytes, a message or an enum (the Avro arm of the
+// map-bytes-value, map-message-value and map-enum-value gaps). The recordbuf record and its Avro
+// twin are generated from this file. Avro and Jackson are on by default for this file; there is no
+// protobuf_java option, so the file has no Interop converter. Same map shapes as map_values.proto.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.avromapvalues;
+option java_package = "bijnagte.recordbuf.fixture.avromapvalues";
+option java_multiple_files = true;
+
+// The target message comes first in the file (KTD2): one map per value kind. It has no other field,
+// so every case is complete for Avro.
+message MapValues {
+  map<string, bytes> map_string_bytes = 1;
+  map<string, Nested> map_string_nested = 2;
+  map<string, Color> map_string_color = 3;
+  map<int32, Nested> map_int_nested = 4;
+
+  // Message map value type. It has no singular message field: Avro cannot express an absent one.
+  message Nested {
+    int32 a = 1;
+    string label = 2;
+  }
+
+  // Enum map value type.
+  enum Color {
+    RED = 0;
+    GREEN = 1;
+    BLUE = 2;
+  }
+}
