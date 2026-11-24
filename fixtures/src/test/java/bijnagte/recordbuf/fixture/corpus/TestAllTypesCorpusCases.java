@@ -79,6 +79,9 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
   /** The case name of the {@value #AVRO} record shape with {@code oneof_bytes} set. */
   private static final String ONEOF_BYTES = "all-types-oneof-bytes";
 
+  /** The case name of the {@value #AVRO} record shape with {@code map_string_bytes} populated. */
+  private static final String MAP_BYTES = "all-types-map-bytes";
+
   private static final String WIRE_GAPS =
       "the record sets fields whose protobuf binary encoding differs from protobuf-java's, or that"
           + " recordbuf cannot read back from protobuf-java's bytes (gaps"
@@ -134,6 +137,7 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         edgeNamesCase(),
         oneofCase(ONEOF_MESSAGE, oneofMessageRecord()),
         oneofCase(ONEOF_BYTES, oneofBytesRecord()),
+        mapBytesCase(),
         wireGapFields(),
         interopMessage("foreign-message", ForeignMessage.builder().c(Integer.MIN_VALUE).build()),
         interopMessage("nested-message", NestedMessage.builder().a(Integer.MAX_VALUE).build()));
@@ -196,6 +200,37 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         .lossless(avroJson)
         .lossless(avroBinary)
         .build(formats());
+  }
+
+  /**
+   * The case {@value #MAP_BYTES}: the {@value #AVRO} record shape with {@code map_string_bytes}
+   * populated, lossless in all five formats, see {@link #mapBytesRecord()}.
+   */
+  private GoldenCase mapBytesCase() {
+    return GoldenCase.builder(FAMILY, MAP_BYTES, mapBytesRecord())
+        .lossless(protobufBinary)
+        .lossless(proto3Json)
+        .lossless(jackson)
+        .lossless(avroJson)
+        .lossless(avroBinary)
+        .build(formats());
+  }
+
+  /**
+   * The record of case {@value #MAP_BYTES}: the {@link #avroRecord()} with {@code map_string_bytes}
+   * holding a non-empty value, an empty value and a value with high bytes.
+   */
+  static TestAllTypesProto3 mapBytesRecord() {
+    return avroRecord().toBuilder()
+        .mapStringBytes(
+            ordered(
+                "y",
+                NON_EMPTY_BYTES,
+                "empty",
+                Bytes.empty(),
+                "x",
+                Bytes.of(new byte[] {(byte) 0xde, (byte) 0xad, (byte) 0xbe, (byte) 0xef})))
+        .build();
   }
 
   /**

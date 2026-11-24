@@ -259,6 +259,7 @@
         "k\"q\\" : "v\n\t",
         "κλειδί" : "héllo 世界 😀 \"quoted\" back\\slash\ttab\nnewline \u0000nul </script>"
       },
+      "map_string_bytes" : { },
       "optional_bool_wrapper" : {
         "boolean" : false
       },
@@ -691,6 +692,7 @@
     "k\"q\\" : "v\n\t",
     "κλειδί" : "héllo 世界 😀 \"quoted\" back\\slash\ttab\nnewline \u0000nul </script>"
   },
+  "map_string_bytes" : { },
   "optional_bool_wrapper" : {
     "boolean" : false
   },

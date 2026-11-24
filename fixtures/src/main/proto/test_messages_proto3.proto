@@ -212,8 +212,7 @@ message TestAllTypesProto3 {
   map<int32, double> map_int32_double = 67;
   map<bool, bool> map_bool_bool = 68;
   map<string, string> map_string_string = 69;
-  // GAP(map-bytes-value): map<string, bytes> codec is generated wrongly (the entry codec declares the value as `String value = CodecDefaults.int32()` and decodes bytes into it), so the record does not compile.
-  // map<string, bytes> map_string_bytes = 70;
+  map<string, bytes> map_string_bytes = 70;
   // GAP(map-message-value): map fields with a message value type are not generated (the map codec only supports scalar keys and values).
   // map<string, NestedMessage> map_string_nested_message = 71;
   // GAP(map-message-value): map fields with a message value type are not generated (the map codec only supports scalar keys and values).

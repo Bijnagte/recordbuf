@@ -1,6 +1,6 @@
-// Interop probe for map values that are bytes, a message or an enum (the Interop arm of the
-// map-bytes-value, map-message-value and map-enum-value gaps). The recordbuf record is generated from
-// this file (--recordbuf_out); the protobuf-java reference is generated from this same file
+// Interop probe for map values that are bytes, a message or an enum (the Interop arm of the closed
+// map-bytes-value gap and of the map-message-value and map-enum-value gaps). The recordbuf record
+// is generated from this file (--recordbuf_out); the protobuf-java reference is generated from this same file
 // (--java_out). The message and its nested Nested carry protobuf_java, so each converts through its
 // Interop: a message value through Nested's Interop.from/to, an enum value through protobuf-java's
 // int-value map accessors, and a bytes value through ByteString. Same map shapes as map_values.proto.

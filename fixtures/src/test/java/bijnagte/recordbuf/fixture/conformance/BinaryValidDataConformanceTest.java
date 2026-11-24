@@ -412,6 +412,8 @@ class BinaryValidDataConformanceTest {
   private static final MapType BOOL_MAP_TYPE = varintMapType("BOOL");
   private static final MapType STRING_MAP_TYPE =
       new MapType("STRING", WIRETYPE_LENGTH_DELIMITED, delim(""), delim("a"));
+  private static final MapType BYTES_MAP_TYPE =
+      new MapType("BYTES", WIRETYPE_LENGTH_DELIMITED, delim(""), delim("a"));
 
   /** The map fields {@code TestAllTypesProto3} has, in the upstream order. */
   private static final List<MapField> MAP_FIELDS =
@@ -429,7 +431,8 @@ class BinaryValidDataConformanceTest {
           new MapField(INT32_MAP_TYPE, FLOAT_MAP_TYPE, 66),
           new MapField(INT32_MAP_TYPE, DOUBLE_MAP_TYPE, 67),
           new MapField(BOOL_MAP_TYPE, BOOL_MAP_TYPE, 68),
-          new MapField(STRING_MAP_TYPE, STRING_MAP_TYPE, 69));
+          new MapField(STRING_MAP_TYPE, STRING_MAP_TYPE, 69),
+          new MapField(STRING_MAP_TYPE, BYTES_MAP_TYPE, 70));
 
   /**
    * The oneof member types, in the order {@code TestValidDataForOneofType} runs them. Upstream
@@ -471,8 +474,8 @@ class BinaryValidDataConformanceTest {
 
   /**
    * Upstream map scenarios whose map field is commented out of the vendored proto: {@code
-   * map<string, bytes>} (gap {@code map-bytes-value}), {@code map<string, NestedMessage>} ({@code
-   * map-message-value}) and {@code map<string, NestedEnum>} ({@code map-enum-value}).
+   * map<string, NestedMessage>} (gap {@code map-message-value}) and {@code map<string, NestedEnum>}
+   * ({@code map-enum-value}).
    */
   private static final List<BlockedCase> BLOCKED = blockedMapCases();
 
@@ -945,7 +948,6 @@ class BinaryValidDataConformanceTest {
   private static List<BlockedCase> blockedMapCases() {
     List<BlockedCase> blocked = new ArrayList<>();
     String[][] fields = {
-      {"BYTES", "map-bytes-value", "mapStringBytes"},
       {"ENUM", "map-enum-value", "mapStringNestedEnum"},
       {"MESSAGE", "map-message-value", "mapStringNestedMessage"}
     };

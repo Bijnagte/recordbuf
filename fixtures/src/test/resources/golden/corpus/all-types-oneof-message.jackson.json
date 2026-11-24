@@ -178,6 +178,7 @@
       "k\"q\\" : "v\n\t",
       "κλειδί" : "héllo 世界 😀 \"quoted\" back\\slash\ttab\nnewline \u0000nul </script>"
     },
+    "mapStringBytes" : { },
     "optionalBoolWrapper" : false,
     "optionalInt32Wrapper" : -2147483648,
     "optionalInt64Wrapper" : 9223372036854775807,
@@ -385,6 +386,7 @@
     "k\"q\\" : "v\n\t",
     "κλειδί" : "héllo 世界 😀 \"quoted\" back\\slash\ttab\nnewline \u0000nul </script>"
   },
+  "mapStringBytes" : { },
   "optionalBoolWrapper" : false,
   "optionalInt32Wrapper" : -2147483648,
   "optionalInt64Wrapper" : 9223372036854775807,

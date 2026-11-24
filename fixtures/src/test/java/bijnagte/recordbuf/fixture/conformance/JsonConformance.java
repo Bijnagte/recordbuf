@@ -337,12 +337,6 @@ final class JsonConformance {
 
     addMapField(
         message,
-        "map_string_bytes",
-        70,
-        "MapStringBytesEntry",
-        valueField(FieldDescriptorProto.Type.TYPE_BYTES));
-    addMapField(
-        message,
         "map_string_nested_message",
         71,
         "MapStringNestedMessageEntry",

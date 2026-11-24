@@ -79,6 +79,7 @@
   "mapInt32Double" : { },
   "mapBoolBool" : { },
   "mapStringString" : { },
+  "mapStringBytes" : { },
   "repeatedBoolWrapper" : [ ],
   "repeatedInt32Wrapper" : [ ],
   "repeatedInt64Wrapper" : [ ],
