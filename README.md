@@ -164,6 +164,18 @@ explains why these options live outside protobuf's namespace.
   RecordbufJsonModule())`. A `FieldMask` is a JSON array of lowerCamel paths, and
   `JsonFieldMaskFilter` projects a JSON tree onto a mask.
 
+### Decode limits
+
+A binary decode is bounded. A generated `decode(byte[])` and `fromBytes` reject a payload that nests more than 100 message levels below the top-level message (protobuf-java's default depth) or hands more than 64 MiB of cumulative nested-message bytes to nested decodes; the top-level input is not charged. A rejection throws `InvalidProtocolBufferException`, an `IOException`, never `StackOverflowError`. To change the limits for one decode, bind `DecodeLimits.CURRENT`:
+
+```java
+// depth 200 below the top-level message, 16 MiB of nested bytes
+Sub back = ScopedValue.where(DecodeLimits.CURRENT, new DecodeLimits(200, 16L * 1024 * 1024))
+    .call(() -> Sub.fromBytes(wire));
+```
+
+`ScopedValue.Carrier.call` declares `Exception`, so the enclosing method must handle it. With no binding, `DecodeLimits.defaults()` applies.
+
 ### Consumer dependencies
 
 Generated code never depends on the generator. What it needs on the classpath depends on
