@@ -1,6 +1,7 @@
 package bijnagte.recordbuf.plugin.writer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import bijnagte.recordbuf.plugin.CodeGenerator;
@@ -14,10 +15,11 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
 /**
- * Every generated binary {@code decode(byte[])} runs through {@code DecodeScope}: the public method
- * is a one-line delegate and the field switch lives in a private {@code decodeBody}. Covers the
- * shapes that each emit a decode: an empty message, a singular and repeated message, a message
- * valued map (its entry codec), and a oneof with a message member.
+ * Every generated binary {@code decode(byte[])} that counts a nesting level runs through {@code
+ * DecodeScope}: the public method is a one-line delegate and the field switch lives in a private
+ * {@code decodeBody}. Covers the shapes that each emit a decode: an empty message, a singular and
+ * repeated message, a message valued map, and a oneof with a message member. The map entry codec is
+ * the exception: protobuf-java does not count an entry as a level, so its decode is the plain body.
  */
 class CodecDecodeScopeTest {
 
@@ -25,15 +27,20 @@ class CodecDecodeScopeTest {
   private static final String FILE = "bijnagte.recordbuf.plugin.writer.scoped.decode_scope.proto";
 
   @Test
-  void every_generated_decode_delegates_to_the_scope_and_keeps_the_body_private() {
+  void message_decodes_delegate_to_the_scope_and_map_entry_decode_is_plain() {
     String src = generatedSource();
 
     // The empty message still gets a wrapper and a body method.
     assertWrapped(src, "Blank", "BlankCodec");
     // The message with a singular message, a repeated message and a oneof message member.
     assertWrapped(src, "Holder", "HolderCodec");
-    // The map entry codec (a message-valued map) is wrapped too.
-    assertWrapped(src, "ItemsEntry", "ItemsEntry.ItemsEntryCodec");
+    // The map entry codec (a message-valued map) is not a nesting level: its decode is plain.
+    assertTrue(
+        src.contains("public static ItemsEntry decode(byte[] inBytes) throws IOException {"),
+        "the entry decode is public and unwrapped: " + src);
+    assertFalse(
+        src.contains("ItemsEntry.ItemsEntryCodec::decodeBody"),
+        "the entry decode is not delegated to the scope: " + src);
     // The leaf message decodes through the same shape.
     assertWrapped(src, "Leaf", "LeafCodec");
 
@@ -41,13 +48,13 @@ class CodecDecodeScopeTest {
         src.contains("import bijnagte.recordbuf.runtime.DecodeScope;"),
         "the scope entry point is imported: " + src);
     assertEquals(
-        4,
+        3,
         count(src, Pattern.compile("private static \\w+ decodeBody\\(byte\\[\\] inBytes\\)")),
-        "one private body method per generated codec: " + src);
+        "one private body method per scoped codec (Blank, Holder, Leaf): " + src);
     assertEquals(
-        4,
+        3,
         count(src, Pattern.compile("DecodeScope\\.decode\\(inBytes, [\\w.]+Codec::decodeBody\\)")),
-        "one scoped delegate per generated codec: " + src);
+        "one scoped delegate per scoped codec: " + src);
   }
 
   /** The public delegate, and the private body it names, for one codec of {@code recordName}. */

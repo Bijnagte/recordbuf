@@ -98,7 +98,7 @@ flowchart TD
 ### Assumptions
 
 - The default size cap is a single constant sized to admit the at-limit chain (100 levels of the `recursive_message` shape) with ample margin and to bound re-copy volume far below heap size. The implementer picks the number from the at-limit measurement; a caller who needs larger legitimate input raises it through KTD4.
-- Map-entry codecs also wrap their `decode`, so a message-valued map counts two levels per hop. The conformance at/over-limit cases do not use maps; whether protobuf-java counts entries the same way is not probed here.
+- Map-entry codecs do not wrap their `decode`: an entry is not a nesting level, so a message-valued map counts only its value message as one level per hop. protobuf-java likewise counts the value message, not the entry. The conformance at/over-limit cases do not use maps.
 
 ### Sources & Research
 

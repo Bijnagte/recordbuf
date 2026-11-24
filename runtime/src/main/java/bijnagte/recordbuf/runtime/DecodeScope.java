@@ -64,4 +64,9 @@ public final class DecodeScope {
     State nested = new State(depth, outer.limits(), budget);
     return ScopedValue.where(CURRENT, nested).call(() -> body.decode(inBytes));
   }
+
+  /** The depth of the level bound on this thread, or -1 outside any decode. Tests read it. */
+  static int currentDepth() {
+    return CURRENT.isBound() ? CURRENT.get().depth() : -1;
+  }
 }

@@ -645,10 +645,11 @@ public final class CodecSourceMapping {
                     entryValueEncode(f, valueKind),
                     Element.ret("enc.finish()"))
                 .build())
-        .method(scopedDecode(entryRef, entryRef.sub(codecName)))
+        // A map entry is not a nesting level (protobuf-java counts only the value message), so its
+        // decode is the plain body, not a DecodeScope delegate.
         .method(
-            Method.named("decodeBody")
-                .private_()
+            Method.named("decode")
+                .public_()
                 .static_()
                 .returnType(entryRef)
                 .param(TypeRef.BYTES, "inBytes")

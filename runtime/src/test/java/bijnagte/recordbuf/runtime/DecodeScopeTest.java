@@ -5,6 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -22,6 +25,26 @@ class DecodeScopeTest {
       return 0;
     }
     return 1 + DecodeScope.decode(new byte[0], in -> nest(levels - 1));
+  }
+
+  /** Enters {@code levels} nested decodes, recording the depth each level observes. */
+  private static int recordDepths(int levels, List<Integer> observed) throws IOException {
+    observed.add(DecodeScope.currentDepth());
+    if (levels == 0) {
+      return 0;
+    }
+    return 1 + DecodeScope.decode(new byte[0], in -> recordDepths(levels - 1, observed));
+  }
+
+  /** The depth each level observes runs 0 through the depth limit, one per nested decode. */
+  @Test
+  void observedDepthIsZeroThroughTheLimit() throws IOException {
+    List<Integer> observed = new ArrayList<>();
+
+    DecodeScope.decode(new byte[0], in -> recordDepths(DecodeLimits.DEFAULT_MAX_DEPTH, observed));
+
+    assertEquals(
+        IntStream.rangeClosed(0, DecodeLimits.DEFAULT_MAX_DEPTH).boxed().toList(), observed);
   }
 
   /**

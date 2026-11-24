@@ -166,15 +166,15 @@ explains why these options live outside protobuf's namespace.
 
 ### Decode limits
 
-A binary decode is bounded. A generated `decode(byte[])` and `fromBytes` reject a payload that nests more than 100 message levels below the top-level message (protobuf-java's default depth) or hands more than 64 MiB of cumulative nested-message bytes to nested decodes; the top-level input is not charged. A rejection throws `InvalidProtocolBufferException`, an `IOException`, never `StackOverflowError`. To change the limits for one decode, bind `DecodeLimits.CURRENT`:
+A binary decode is bounded. A generated `decode(byte[])` and `fromBytes` reject a payload that nests more than 100 message levels below the top-level message (protobuf-java's default depth) or hands more than 64 MiB of cumulative nested-message bytes to nested decodes; the top-level input is not charged. A rejection throws `InvalidProtocolBufferException`, an `IOException`, and never `StackOverflowError` at the default depth or at any depth the thread stack can hold. To change the limits for one decode, bind `DecodeLimits.CURRENT`:
 
 ```java
-// depth 200 below the top-level message, 16 MiB of nested bytes
+// depth 200 and 16 MiB of nested bytes; in a method that throws IOException (Sub is a generated record)
 Sub back = ScopedValue.where(DecodeLimits.CURRENT, new DecodeLimits(200, 16L * 1024 * 1024))
     .call(() -> Sub.fromBytes(wire));
 ```
 
-`ScopedValue.Carrier.call` declares `Exception`, so the enclosing method must handle it. With no binding, `DecodeLimits.defaults()` applies.
+`ScopedValue.Carrier.call` rethrows the body's checked exception: `fromBytes` throws `IOException`, so the enclosing method must declare or handle it. With no binding, `DecodeLimits.defaults()` applies.
 
 ### Consumer dependencies
 
