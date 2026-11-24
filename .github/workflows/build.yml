@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Temurin 25 matches the project's Gradle toolchain, so no JDK is downloaded at build time.
       - uses: actions/setup-java@v5
