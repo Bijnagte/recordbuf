@@ -78,8 +78,9 @@ SubAvro avro = SubAvroConverter.fromRecord(s);            // Avro bridge (defaul
 |---|---|
 | message | `record` implementing `bijnagte.recordbuf.runtime.ProtobufMessage`, with a compact constructor that normalizes defaults, a nested `Builder`, and a nested `<Name>Codec` |
 | `optional` / message-typed field | `@Nullable` component (JSpecify) |
-| `repeated` / `map` | `List` / `Map`, never null |
-| `oneof` | nested `sealed interface` with one `<Member>Value` record per case |
+| `repeated` / `map` | `List` / `Map`, never null; a map value may be a scalar, `bytes`, a message or an enum |
+| `oneof` | nested `sealed interface` with one `<Member>Value` record per case, named in UpperCamelCase (`oneof_uint32` → `OneofUint32Value`) |
+| field name | lowerCamelCase record component; a name that camel-cases to an upper-case start lowers only its first letter (`FIELD_NAME11` → `fIELDNAME11`), while its JSON name stays protoc's |
 | enum | Java `enum` with `getNumber()` / `forNumber(int)` |
 | `bytes` | `bijnagte.recordbuf.runtime.Bytes` (immutable, content-equal) |
 | `Timestamp` / `Duration` | `java.time.Instant` / `java.time.Duration` |

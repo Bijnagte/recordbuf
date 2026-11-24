@@ -259,6 +259,11 @@
         "k\"q\\" : "v\n\t",
         "κλειδί" : "héllo 世界 😀 \"quoted\" back\\slash\ttab\nnewline \u0000nul </script>"
       },
+      "map_string_bytes" : { },
+      "map_string_nested_message" : { },
+      "map_string_foreign_message" : { },
+      "map_string_nested_enum" : { },
+      "map_string_foreign_enum" : { },
       "optional_bool_wrapper" : {
         "boolean" : false
       },
@@ -476,14 +481,23 @@
       "repeated_empty" : [ ],
       "fieldname1" : -2147483648,
       "field_name2" : -2,
+      "_field_name3" : 0,
       "field__name4_" : 4,
       "field0name5" : 5,
       "field_0_name6" : 2147483647,
       "fieldName7" : 7,
+      "FieldName8" : 0,
       "field_Name9" : 9,
+      "Field_Name10" : 0,
+      "FIELD_NAME11" : 0,
+      "FIELD_name12" : 0,
+      "__field_name13" : 0,
+      "__Field_name14" : 0,
       "field__name15" : 15,
       "field__Name16" : 16,
       "field_name17__" : 17,
+      "Field_name18__" : 0,
+      "oneof_field" : null,
       "unknownFields" : [ ]
     }
   },
@@ -682,6 +696,11 @@
     "k\"q\\" : "v\n\t",
     "κλειδί" : "héllo 世界 😀 \"quoted\" back\\slash\ttab\nnewline \u0000nul </script>"
   },
+  "map_string_bytes" : { },
+  "map_string_nested_message" : { },
+  "map_string_foreign_message" : { },
+  "map_string_nested_enum" : { },
+  "map_string_foreign_enum" : { },
   "optional_bool_wrapper" : {
     "boolean" : false
   },
@@ -899,13 +918,22 @@
   "repeated_empty" : [ ],
   "fieldname1" : -2147483648,
   "field_name2" : -2,
+  "_field_name3" : 0,
   "field__name4_" : 4,
   "field0name5" : 5,
   "field_0_name6" : 2147483647,
   "fieldName7" : 7,
+  "FieldName8" : 0,
   "field_Name9" : 9,
+  "Field_Name10" : 0,
+  "FIELD_NAME11" : 0,
+  "FIELD_name12" : 0,
+  "__field_name13" : 0,
+  "__Field_name14" : 0,
   "field__name15" : 15,
   "field__Name16" : 16,
   "field_name17__" : 17,
+  "Field_name18__" : 0,
+  "oneof_field" : null,
   "unknownFields" : [ ]
 }

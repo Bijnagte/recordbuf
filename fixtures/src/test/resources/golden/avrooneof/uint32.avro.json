@@ -1,0 +1,11 @@
+{
+  "oneof_field" : {
+    "bijnagte.recordbuf.fixture.avrooneof.RecordbufOneofValue" : {
+      "tag" : 111,
+      "value" : {
+        "int" : 42
+      }
+    }
+  },
+  "unknownFields" : [ ]
+}

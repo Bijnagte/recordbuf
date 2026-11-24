@@ -1,0 +1,32 @@
+// Probe for an enum alias that differs only in case (the enum-alias-name-collision gap). The
+// recordbuf record is generated from this file (--recordbuf_out); the protobuf-java reference is
+// generated from this same file (--java_out). `foo` and `FOO` share a number, so the recordbuf
+// enum keeps one `FOO` constant and Jackson reads `foo` as its alias. Avro and Jackson are on by
+// default for this file. The target message comes first, because the Avro surface covers only a
+// file's first message (gap avro-first-message-only).
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.enumalias;
+option java_package = "bijnagte.recordbuf.fixture.enumalias";
+option java_multiple_files = true;
+
+import "recordbuf_options.proto";
+
+// Top-level enum with a case-colliding alias: `foo` and `FOO` are both number 1.
+enum Flavor {
+  option allow_alias = true;
+
+  ZERO = 0;
+  FOO = 1;
+  foo = 1;
+  Bar = 2;
+}
+
+// A singular and a repeated Flavor, the shapes the enum conversions and codecs take. The repeated
+// field is unpacked: the record writes a repeated enum unpacked only (gap
+// repeated-enum-unpacked-only), and packing is not what this probe tests.
+message EnumAlias {
+  Flavor singular_flavor = 1;
+  repeated Flavor repeated_flavors = 2 [packed = false];
+  option (.recordbuf.protobuf_java) = "bijnagte.recordbuf.fixture.enumalias";
+}

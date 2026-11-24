@@ -48,6 +48,7 @@ final class JsonBytesSurfaceTest {
         type,
         mapValue == null ? null : "string",
         mapValue,
+        mapValue == null ? null : FieldKind.SCALAR,
         false,
         null,
         null,

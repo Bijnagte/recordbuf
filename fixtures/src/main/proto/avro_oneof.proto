@@ -1,0 +1,33 @@
+// Avro probe for a snake_case oneof: the Avro converter reads and writes the oneof through the
+// specific record's accessors, which are named from the oneof's camel name (oneof_field ->
+// getOneofField). The recordbuf record and its Avro twin are generated from this file. Avro and
+// Jackson are on by default for this file. The members use the field numbers of
+// TestAllTypesProto3.oneof_field.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.avrooneof;
+option java_package = "bijnagte.recordbuf.fixture.avrooneof";
+option java_multiple_files = true;
+
+// The target message comes first in the file (KTD2): one oneof with a scalar, an enum, a bytes and a
+// message member. It has no other field, so every case is complete for Avro.
+message Sample {
+  oneof oneof_field {
+    uint32 oneof_uint32 = 111;
+    NestedMessage oneof_nested_message = 112;
+    bytes oneof_bytes = 114;
+    NestedEnum oneof_enum = 119;
+  }
+
+  // Nested-message oneof member type.
+  message NestedMessage {
+    int32 a = 1;
+  }
+
+  // Enum oneof member type.
+  enum NestedEnum {
+    FOO = 0;
+    BAR = 1;
+    BAZ = 2;
+  }
+}

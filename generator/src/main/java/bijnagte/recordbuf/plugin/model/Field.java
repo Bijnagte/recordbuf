@@ -20,7 +20,10 @@ import org.jspecify.annotations.Nullable;
  *     List<T>}/{@code Map<K,V>} for repeated/map fields, the referenced record/enum's fully-typed
  *     {@link TypeRef.Named} (the class the field comes from), or a well-known type's native Java
  *     type
- * @param mapValue for MAP, the proto scalar type of the value
+ * @param mapValue for MAP, the value's wire token: a proto scalar name, or the fully-qualified
+ *     proto type name of a message/enum value
+ * @param mapValueKind for MAP, whether the value is a scalar, message or enum; {@code null} for any
+ *     other field. The value's Java type is the second generic argument of {@link #type()}
  * @param proto3Optional the raw {@code optional} keyword flag, used (with the kind/label) to decide
  *     presence — see {@link #isNullable()}
  * @param defaultValue textual default (only meaningful for proto2 optionals and for map/scalar
@@ -43,6 +46,7 @@ public record Field(
     TypeRef type,
     @Nullable String mapKey,
     @Nullable String mapValue,
+    @Nullable FieldKind mapValueKind,
     boolean proto3Optional,
     @Nullable Object defaultValue,
     @Nullable String comment,
@@ -50,6 +54,27 @@ public record Field(
     @Nullable JacksonTemporalFormat jacksonFormat,
     String jsonName,
     boolean jsonIgnored) {
+  /** For a MAP field, the Java type of its keys: the first generic argument of {@link #type()}. */
+  public TypeRef mapKeyType() {
+    return mapTypeArgument(0);
+  }
+
+  /**
+   * For a MAP field, the Java type of its values: the second generic argument of {@link #type()}.
+   */
+  public TypeRef mapValueType() {
+    return mapTypeArgument(1);
+  }
+
+  private TypeRef mapTypeArgument(int index) {
+    if (kind == FieldKind.MAP
+        && type instanceof TypeRef.Named named
+        && named.generics().size() == 2) {
+      return named.generics().get(index);
+    }
+    throw new IllegalStateException("field " + name + " is not a Map<K, V> field: " + type);
+  }
+
   public boolean isMap() {
     return kind == FieldKind.MAP;
   }

@@ -1,0 +1,10 @@
+{
+  "pick2wayType" : "pickStruct",
+  "pickStruct" : {
+    "name" : "recordbuf",
+    "count" : 2.5,
+    "nested" : {
+      "flag" : true
+    }
+  }
+}

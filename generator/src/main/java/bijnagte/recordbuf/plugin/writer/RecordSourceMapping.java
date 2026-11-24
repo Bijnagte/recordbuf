@@ -26,7 +26,6 @@ import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
 import bijnagte.recordbuf.plugin.model.JacksonTemporalFormat;
-import bijnagte.recordbuf.plugin.model.JavaNames;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.Oneof;
 import bijnagte.recordbuf.plugin.types.TypeRefs;
@@ -34,7 +33,6 @@ import bijnagte.recordbuf.plugin.types.WellKnownTypes;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
 
@@ -101,7 +99,7 @@ public final class RecordSourceMapping {
     // its
     // full core + its BY_NUMBER reverse-lookup cluster (with shared java.util.* imports).
     for (Enum e : m.nestedEnums()) {
-      result.nested(EnumSourceMapping.toSource(e, pkg));
+      result.nested(EnumSourceMapping.toSource(e, pkg, jackson));
     }
     // M4-C2b-2b-12: oneof groups. Each contributes one @Nullable record component and
     // one nested sealed interface (the per-member value records live inside it).
@@ -166,7 +164,7 @@ public final class RecordSourceMapping {
       result.component(c);
     }
     for (Enum e : m.nestedEnums()) {
-      result.nested(EnumSourceMapping.toSource(e, recordRef.pkg()));
+      result.nested(EnumSourceMapping.toSource(e, recordRef.pkg(), jackson));
     }
     // M4-C2d-9: nested messages — emit each as an inner record via recursion.
     for (Message nested : m.nestedMessages()) {
@@ -574,7 +572,7 @@ public final class RecordSourceMapping {
       // Every oneof member (scalar, enum, or message) gets a dedicated nested record
       // <Cap>Value(<valType> value) implementing the interface. Message members cannot be
       // identity subtypes in the source-AST path because each message is its own file.
-      String valName = JavaNames.cap(member.name()) + "Value";
+      String valName = Oneof.valueRecordName(member);
       var valRef =
           new TypeRef.Named(
               recordRef.pkg(), List.of(recordRef.shortName(), ifaceName), valName, List.of());
@@ -656,7 +654,7 @@ public final class RecordSourceMapping {
     return new TypeRef.Named(
         recordRef.pkg(),
         List.of(recordRef.shortName(), oneof.ifaceName()),
-        JavaNames.cap(member.name()) + "Value",
+        Oneof.valueRecordName(member),
         List.of());
   }
 
@@ -1109,7 +1107,7 @@ public final class RecordSourceMapping {
 
   /**
    * M4-C2d-7: emit a map entry record for a MAP field. The entry has two components: {@code key}
-   * and {@code value} (boxed types matching the proto map key/value types). The entry's body
+   * and {@code value} (the key and value types of the field's {@code Map<K, V>}). The entry's body
    * contains a nested {@code <Field>EntryCodec} class via {@link
    * CodecSourceMapping#emitEntryCodec}.
    */
@@ -1119,8 +1117,8 @@ public final class RecordSourceMapping {
         javaName.isEmpty() ? "" : Character.toUpperCase(javaName.charAt(0)) + javaName.substring(1);
     entryName += "Entry";
 
-    TypeRef keyTypeRef = TypeRef.boxedFor(Objects.requireNonNull(f.mapKey()));
-    TypeRef valueTypeRef = TypeRef.boxedFor(Objects.requireNonNull(f.mapValue()));
+    TypeRef keyTypeRef = f.mapKeyType();
+    TypeRef valueTypeRef = f.mapValueType();
 
     var entryRef = recordRef.sub(entryName);
     ClassSpec entryCodec = CodecSourceMapping.emitEntryCodec(entryRef, f);

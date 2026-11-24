@@ -1,0 +1,41 @@
+// Interop probe for map values that are bytes, a message or an enum (the Interop arm of the closed
+// map-bytes-value, map-message-value and map-enum-value gaps). The recordbuf record
+// is generated from this file (--recordbuf_out); the protobuf-java reference is generated from this same file
+// (--java_out). The message and its nested Nested carry protobuf_java, so each converts through its
+// Interop: a message value through Nested's Interop.from/to, an enum value through protobuf-java's
+// int-value map accessors, and a bytes value through ByteString. Same map shapes as map_values.proto.
+// Jackson is on by default for this file; Avro is off, so this probe checks the Interop, record and
+// Jackson surfaces.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.interopmapvalues;
+option java_package = "bijnagte.recordbuf.fixture.interopmapvalues";
+option java_multiple_files = true;
+option (.recordbuf.avro) = RECORDBUF_AVRO_OFF;
+
+import "recordbuf_options.proto";
+
+// Target message: one map per value kind.
+message MapValues {
+  map<string, bytes> map_string_bytes = 1;
+  map<string, Nested> map_string_nested = 2;
+  map<string, Color> map_string_color = 3;
+  map<int32, Nested> map_int_nested = 4;
+
+  option (.recordbuf.protobuf_java) = "bijnagte.recordbuf.fixture.interopmapvalues";
+
+  // Message map value type. It carries protobuf_java too, so the value converts through its Interop.
+  message Nested {
+    int32 a = 1;
+    string label = 2;
+
+    option (.recordbuf.protobuf_java) = "bijnagte.recordbuf.fixture.interopmapvalues";
+  }
+
+  // Enum map value type.
+  enum Color {
+    RED = 0;
+    GREEN = 1;
+    BLUE = 2;
+  }
+}

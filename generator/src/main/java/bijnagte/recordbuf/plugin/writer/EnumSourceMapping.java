@@ -1,5 +1,7 @@
 package bijnagte.recordbuf.plugin.writer;
 
+import bijnagte.recordbuf.codegen.source.Annotation;
+import bijnagte.recordbuf.codegen.source.Arg;
 import bijnagte.recordbuf.codegen.source.Component;
 import bijnagte.recordbuf.codegen.source.Constructor;
 import bijnagte.recordbuf.codegen.source.Element;
@@ -39,8 +41,10 @@ public final class EnumSourceMapping {
    * @param proto the proto enum model
    * @param declaringPkg the Java package the generated enum belongs to — used to resolve the
    *     self-reference {@code Name} inside {@code Map<Integer, Name>}
+   * @param jackson when {@code true} (the file has the Jackson surface) a constant with aliases
+   *     carries {@code @JsonAlias} naming them; otherwise the enum stays free of Jackson
    */
-  public static EnumSpec toSource(Enum proto, String declaringPkg) {
+  public static EnumSpec toSource(Enum proto, String declaringPkg, boolean jackson) {
     String name = proto.name();
     var selfRef = TypeRef.named(declaringPkg, name);
 
@@ -56,12 +60,18 @@ public final class EnumSourceMapping {
 
     // 1. The constants — each with its number ctor-arg, its own Javadoc, and its own @Deprecated.
     for (Enum.EnumConstant c : proto.constants()) {
-      result.enumConstant(
+      EnumConstant.Builder constant =
           EnumConstant.named(c.name())
               .ctorArgs(Integer.toString(c.number()))
               .javadoc(GeneratedDocs.type(c.comment(), "Enum constant " + c.name() + "."))
-              .deprecated(c.deprecated())
-              .build());
+              .deprecated(c.deprecated());
+      if (jackson && !c.aliases().isEmpty()) {
+        constant.annotation(
+            Annotation.of(
+                TypeRef.of("com.fasterxml.jackson.annotation.JsonAlias"),
+                Arg.of(null, c.aliases().toArray(String[]::new))));
+      }
+      result.enumConstant(constant.build());
     }
 
     // 2. The number field + ctor + accessor — the core the M4-C2a slice mapped.

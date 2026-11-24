@@ -253,6 +253,7 @@ public final class ModelLoader {
       EnumDescriptorProto nested = m.getEnumType(j); // raw index: source_code_info keys on it
       nestedEnums.add(loadEnum(nested, child(basePath, 4, j)));
     }
+    requireUniqueJavaNames(m.getName(), fields, oneofs);
 
     return MessageBuilder.builder()
         .name(m.getName())
@@ -273,6 +274,36 @@ public final class ModelLoader {
             protobufJavaFor(
                 m.getOptions().getUnknownFields(), m.getOptions().getUninterpretedOptionList()))
         .build();
+  }
+
+  /**
+   * Fails generation when two fields of one message share a Java name. protoc rejects a JSON-name
+   * clash, but not a clash after {@link JavaNames#component(String)} lowers an upper-case start
+   * (for example {@code FieldName8} and {@code fieldName8}). Oneof members count too: they are
+   * fields of the message.
+   */
+  private static void requireUniqueJavaNames(
+      String messageName, List<Field> fields, List<Oneof> oneofs) {
+    List<Field> all = new ArrayList<>(fields);
+    for (Oneof oneof : oneofs) {
+      all.addAll(oneof.members());
+    }
+    Map<String, Field> byJavaName = new LinkedHashMap<>();
+    for (Field f : all) {
+      Field earlier = byJavaName.putIfAbsent(f.javaName(), f);
+      if (earlier != null) {
+        throw new IllegalStateException(
+            "message "
+                + messageName
+                + ": fields \""
+                + earlier.name()
+                + "\" and \""
+                + f.name()
+                + "\" both map to the Java name \""
+                + f.javaName()
+                + "\"; rename one of them");
+      }
+    }
   }
 
   private static String protoScopeForNested(DescriptorProto m, String protoScope) {
@@ -348,10 +379,10 @@ public final class ModelLoader {
         FieldKind.MAP,
         /* typeUrl= */ synthetic.typeUrl(),
         TypeRefs.MAP.withGenerics(
-            TypeRef.boxedFor(Objects.requireNonNull(keyProtoType)),
-            TypeRef.boxedFor(Objects.requireNonNull(valProtoType))),
+            TypeRef.boxedFor(keyProtoType), mapValueType(valP.getType(), valProtoType)),
         keyProtoType,
         valProtoType,
+        mapValueKind(valP.getType()),
         /* proto3Optional= */ false,
         /* defaultValue= */ null,
         /* comment= */ synthetic.comment(),
@@ -359,6 +390,24 @@ public final class ModelLoader {
         /* jacksonFormat= */ synthetic.jacksonFormat(),
         /* jsonName= */ synthetic.jsonName(),
         /* jsonIgnored= */ synthetic.jsonIgnored());
+  }
+
+  /**
+   * The Java type of a map entry's value, resolved the way a singular field's type is: a message or
+   * enum to the referenced type, {@code bytes} to the runtime {@code Bytes}, a scalar to its boxed
+   * type. {@code valueProtoType} is the value's proto scalar name or resolved type FQN.
+   */
+  private TypeRef mapValueType(FieldDescriptorProto.Type valueType, String valueProtoType) {
+    if (isScalar(valueType)) return scalarReference(valueProtoType);
+    return referenceType(valueProtoType);
+  }
+
+  private static FieldKind mapValueKind(FieldDescriptorProto.Type valueType) {
+    return switch (valueType) {
+      case TYPE_MESSAGE, TYPE_GROUP -> FieldKind.MESSAGE;
+      case TYPE_ENUM -> FieldKind.ENUM;
+      default -> FieldKind.SCALAR;
+    };
   }
 
   /**
@@ -402,16 +451,37 @@ public final class ModelLoader {
 
   // --- enums ---
 
+  /**
+   * Builds an enum's constants. Values that upper-case to the same constant name share a number
+   * (protoc enforces this, and only under {@code allow_alias}), so they become one constant at the
+   * first value's position. The other spellings are recorded as its aliases, which Jackson reads.
+   */
   private Enum loadEnum(EnumDescriptorProto e, List<Integer> basePath) {
-    List<Enum.EnumConstant> cs = new ArrayList<>();
+    Map<String, List<Integer>> valueIndexesByConstant = new LinkedHashMap<>();
     for (int i = 0; i < e.getValueCount(); i++) {
-      EnumValueDescriptorProto v = e.getValue(i);
+      valueIndexesByConstant
+          .computeIfAbsent(JavaNames.snakeUpper(e.getValue(i).getName()), k -> new ArrayList<>())
+          .add(i);
+    }
+    List<Enum.EnumConstant> cs = new ArrayList<>();
+    for (Map.Entry<String, List<Integer>> group : valueIndexesByConstant.entrySet()) {
+      String constantName = group.getKey();
+      List<Integer> indexes = group.getValue();
+      EnumValueDescriptorProto first = e.getValue(indexes.get(0));
+      List<String> aliases =
+          indexes.size() == 1
+              ? List.of()
+              : indexes.stream()
+                  .map(i -> e.getValue(i).getName())
+                  .filter(spelling -> !spelling.equals(constantName))
+                  .toList();
       cs.add(
           new Enum.EnumConstant(
-              JavaNames.snakeUpper(v.getName()),
-              v.getNumber(),
-              v.getOptions().getDeprecated(),
-              commentAtPath(child(basePath, 2, i))));
+              constantName,
+              first.getNumber(),
+              first.getOptions().getDeprecated(),
+              commentAtPath(child(basePath, 2, indexes.get(0))),
+              aliases));
     }
     return EnumBuilder.builder()
         .name(e.getName())
@@ -430,7 +500,7 @@ public final class ModelLoader {
   // --- fields ---
 
   private Field loadField(FieldDescriptorProto f, String protoScope, List<Integer> path) {
-    String javaName = JavaNames.camel(f.getName());
+    String javaName = JavaNames.component(f.getName());
     FieldLabel label = label(f.getLabel());
 
     FieldKind kind;
@@ -493,9 +563,10 @@ public final class ModelLoader {
         label,
         kind,
         typeUrl,
-        fieldType(kind, typeUrl, label, proto3Opt, mapKey, mapValue),
+        fieldType(kind, typeUrl, label, proto3Opt),
         mapKey,
         mapValue,
+        /* mapValueKind= */ null,
         /* proto3Optional= */ proto3Opt,
         defaultVal,
         /* comment= */ commentAtPath(path),
@@ -573,21 +644,12 @@ public final class ModelLoader {
    * The field's Java type as a {@link TypeRef}: a scalar token maps to its primitive form (or its
    * boxed/reference form when the field carries presence); a message/enum to the referenced type's
    * fully-typed {@link TypeRef.Named}; a well-known type to its native Java type; a repeated field
-   * to {@code List<T>}; a map to {@code Map<K, V>}. This is the value of {@link Field#type()} — the
-   * writers read it instead of re-deriving Java types from the {@code typeUrl} token.
+   * to {@code List<T>}. A map field's {@code Map<K, V>} is built in {@link #buildMapField}. This is
+   * the value of {@link Field#type()} — the writers read it instead of re-deriving Java types from
+   * the {@code typeUrl} token.
    */
   private TypeRef fieldType(
-      FieldKind kind,
-      String typeUrl,
-      FieldLabel label,
-      boolean proto3Optional,
-      @Nullable String mapKey,
-      @Nullable String mapValue) {
-    if (kind == FieldKind.MAP) {
-      return TypeRefs.MAP.withGenerics(
-          TypeRef.boxedFor(Objects.requireNonNull(mapKey)),
-          TypeRef.boxedFor(Objects.requireNonNull(mapValue)));
-    }
+      FieldKind kind, String typeUrl, FieldLabel label, boolean proto3Optional) {
     boolean presence = label != FieldLabel.REPEATED && proto3Optional;
     TypeRef element =
         switch (kind) {

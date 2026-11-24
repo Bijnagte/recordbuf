@@ -10,7 +10,6 @@ import static bijnagte.recordbuf.fixture.conformance.JsonConformance.valid;
 import static bijnagte.recordbuf.fixture.conformance.JsonConformance.validator;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import bijnagte.recordbuf.fixture.conformance.JsonConformance.Blocker;
 import bijnagte.recordbuf.fixture.conformance.JsonConformance.Case;
 import com.google.protobuf.Message;
 import com.google.protobuf_test_messages.proto3.TestAllTypesProto3;
@@ -119,25 +118,21 @@ class JsonCoreConformanceTest {
     return List.of(
         valid(
             "FieldNameInSnakeCase",
-            Blocker.UPPERCASE_EDGE_NAME,
             snakeCaseJson,
             "fieldname1: 1 field_name2: 2 _field_name3: 3 field__name4_: 4"),
         valid("FieldNameWithNumbers", numbersJson, "field0name5: 5 field_0_name6: 6"),
         valid(
             "FieldNameWithMixedCases",
-            Blocker.UPPERCASE_EDGE_NAME,
             mixedCasesJson,
             "fieldName7: 7 FieldName8: 8 field_Name9: 9 Field_Name10: 10 FIELD_NAME11: 11"
                 + " FIELD_name12: 12"),
         valid(
             "FieldNameWithDoubleUnderscores",
-            Blocker.UPPERCASE_EDGE_NAME,
             doubleUnderscoresJson,
             "__field_name13: 13 __Field_name14: 14 field__name15: 15 field__Name16: 16"
                 + " field_name17__: 17 Field_name18__: 18"),
         valid(
             "OriginalProtoFieldName",
-            Blocker.UPPERCASE_EDGE_NAME,
             "{\"fieldname1\": 1, \"field_name2\": 2, \"_field_name3\": 3, \"field__name4_\": 4,"
                 + " \"field0name5\": 5, \"field_0_name6\": 6, \"fieldName7\": 7,"
                 + " \"FieldName8\": 8, \"field_Name9\": 9, \"Field_Name10\": 10,"
@@ -169,7 +164,7 @@ class JsonCoreConformanceTest {
         // Serializers should use lowerCamelCase by default.
         validator(
             "FieldNameInLowerCamelCase.Validator",
-            Blocker.UPPERCASE_EDGE_NAME,
+            null,
             snakeCaseJson,
             json -> hasMembers(json, "fieldname1", "fieldName2", "FieldName3", "fieldName4")),
         validator(
@@ -179,7 +174,7 @@ class JsonCoreConformanceTest {
             json -> hasMembers(json, "field0name5", "field0Name6")),
         validator(
             "FieldNameWithMixedCases.Validator",
-            Blocker.UPPERCASE_EDGE_NAME,
+            null,
             mixedCasesJson,
             json ->
                 hasMembers(
@@ -192,7 +187,7 @@ class JsonCoreConformanceTest {
                     "FIELDName12")),
         validator(
             "FieldNameWithDoubleUnderscores.Validator",
-            Blocker.UPPERCASE_EDGE_NAME,
+            null,
             doubleUnderscoresJson,
             json ->
                 hasMembers(
@@ -205,7 +200,7 @@ class JsonCoreConformanceTest {
                     "FieldName18")),
         validator(
             "SkipsDefaultPrimitive.Validator",
-            Blocker.UPPERCASE_EDGE_NAME,
+            null,
             "{\"FieldName13\": 0}",
             json -> !json.has("FieldName13")));
   }
@@ -414,7 +409,6 @@ class JsonCoreConformanceTest {
             "optional_aliased_enum: ALIAS_BAZ"),
         valid(
             "EnumFieldWithAliasLowerCase",
-            Blocker.ALIAS_NAME,
             "{\"optionalAliasedEnum\": \"moo\"}",
             "optional_aliased_enum: ALIAS_BAZ"),
         valid(
@@ -477,28 +471,24 @@ class JsonCoreConformanceTest {
   }
 
   private static List<Case> oneofCases() {
-    Blocker oneof = Blocker.ONEOF;
     return List.of(
         valid(
             "OneofFieldNullFirst",
-            oneof,
             "{\"oneofUint32\": null, \"oneofString\": \"test\"}",
             "oneof_string: \"test\""),
         valid(
             "OneofFieldNullSecond",
-            oneof,
             "{\"oneofString\": \"test\", \"oneofUint32\": null}",
             "oneof_string: \"test\""),
-        valid("OneofZeroUint32", oneof, "{\"oneofUint32\": 0}", "oneof_uint32: 0"),
-        valid(
-            "OneofZeroMessage", oneof, "{\"oneofNestedMessage\": {}}", "oneof_nested_message: {}"),
-        valid("OneofZeroString", oneof, "{\"oneofString\": \"\"}", "oneof_string: \"\""),
-        valid("OneofZeroBytes", oneof, "{\"oneofBytes\": \"\"}", "oneof_bytes: \"\""),
-        valid("OneofZeroBool", oneof, "{\"oneofBool\": false}", "oneof_bool: false"),
-        valid("OneofZeroUint64", oneof, "{\"oneofUint64\": 0}", "oneof_uint64: 0"),
-        valid("OneofZeroFloat", oneof, "{\"oneofFloat\": 0.0}", "oneof_float: 0"),
-        valid("OneofZeroDouble", oneof, "{\"oneofDouble\": 0.0}", "oneof_double: 0"),
-        valid("OneofZeroEnum", oneof, "{\"oneofEnum\":\"FOO\"}", "oneof_enum: FOO"));
+        valid("OneofZeroUint32", "{\"oneofUint32\": 0}", "oneof_uint32: 0"),
+        valid("OneofZeroMessage", "{\"oneofNestedMessage\": {}}", "oneof_nested_message: {}"),
+        valid("OneofZeroString", "{\"oneofString\": \"\"}", "oneof_string: \"\""),
+        valid("OneofZeroBytes", "{\"oneofBytes\": \"\"}", "oneof_bytes: \"\""),
+        valid("OneofZeroBool", "{\"oneofBool\": false}", "oneof_bool: false"),
+        valid("OneofZeroUint64", "{\"oneofUint64\": 0}", "oneof_uint64: 0"),
+        valid("OneofZeroFloat", "{\"oneofFloat\": 0.0}", "oneof_float: 0"),
+        valid("OneofZeroDouble", "{\"oneofDouble\": 0.0}", "oneof_double: 0"),
+        valid("OneofZeroEnum", "{\"oneofEnum\":\"FOO\"}", "oneof_enum: FOO"));
   }
 
   private static List<Case> mapCases() {
@@ -525,7 +515,6 @@ class JsonCoreConformanceTest {
             "map_bool_bool: {key: true value: true} map_bool_bool: {key: false value: false}"),
         valid(
             "MessageMapField",
-            Blocker.MAP_MESSAGE_VALUE,
             "{\"mapStringNestedMessage\": {\"hello\": {\"a\": 1234}, \"world\": {\"a\": 5678}}}",
             "map_string_nested_message: {key: \"hello\" value: {a: 1234}}"
                 + " map_string_nested_message: {key: \"world\" value: {a: 5678}}"),
@@ -580,7 +569,6 @@ class JsonCoreConformanceTest {
             ""),
         ignoreUnknown(
             "IgnoreUnknownEnumStringValueInMapValue",
-            Blocker.MAP_ENUM_VALUE,
             "{\"map_string_nested_enum\": {\"key\": \"UNKNOWN_ENUM_VALUE\"}}",
             ""),
         // A mix of known and unknown values in one array keeps the known ones.
@@ -590,7 +578,6 @@ class JsonCoreConformanceTest {
             "repeated_nested_enum: FOO repeated_nested_enum: FOO"),
         ignoreUnknown(
             "IgnoreUnknownEnumStringValueInMapPart",
-            Blocker.MAP_ENUM_VALUE,
             "{\"map_string_nested_enum\": {\"key1\": \"FOO\", \"key2\": \"UNKNOWN_ENUM_VALUE\"}}",
             "map_string_nested_enum: {key: \"key1\" value: FOO}"));
   }

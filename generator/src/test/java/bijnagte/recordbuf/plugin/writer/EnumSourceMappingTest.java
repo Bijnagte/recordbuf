@@ -1,5 +1,6 @@
 package bijnagte.recordbuf.plugin.writer;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import bijnagte.recordbuf.codegen.SourceRenderer;
@@ -52,7 +53,7 @@ class EnumSourceMappingTest {
   @Test
   void maps_the_proto_enum_through_the_source_ast_and_compiles() throws Exception {
     TypeCollector ci = new TypeCollector(PKG);
-    EnumSpec e = EnumSourceMapping.toSource(color(), PKG);
+    EnumSpec e = EnumSourceMapping.toSource(color(), PKG, false);
     String src = SourceRenderer.render(new JavaFile(PKG, Javadoc.builder().build(), e, ci));
 
     assertTrue(src.contains("public enum Color {"), "enum header: " + src);
@@ -82,6 +83,44 @@ class EnumSourceMappingTest {
     assertTrue(src.contains("import java.util.Map;"), "the Map import: " + src);
 
     assertCompiles(src);
+  }
+
+  /**
+   * A merged constant ({@code MOO}, with alias {@code moo}) carries {@code @JsonAlias} only when
+   * the file has the Jackson surface, so an enum in a file without it stays free of Jackson.
+   */
+  @Test
+  void aliasedConstant_carriesJsonAliasOnlyWithTheJacksonSurface() {
+    Enum aliased =
+        new Enum(
+            "Flavor",
+            List.of(
+                new Enum.EnumConstant("ZERO", 0, false, null),
+                new Enum.EnumConstant("MOO", 2, false, null, List.of("moo"))),
+            false,
+            null,
+            List.of());
+    TypeCollector withJackson = new TypeCollector(PKG);
+    String jackson =
+        SourceRenderer.render(
+            new JavaFile(
+                PKG,
+                Javadoc.builder().build(),
+                EnumSourceMapping.toSource(aliased, PKG, true),
+                withJackson));
+    TypeCollector withoutJackson = new TypeCollector(PKG);
+    String plain =
+        SourceRenderer.render(
+            new JavaFile(
+                PKG,
+                Javadoc.builder().build(),
+                EnumSourceMapping.toSource(aliased, PKG, false),
+                withoutJackson));
+
+    assertTrue(jackson.contains("@JsonAlias(\"moo\")"), "the alias on MOO: " + jackson);
+    assertTrue(jackson.contains("MOO(2)"), "the merged constant keeps its number: " + jackson);
+    assertFalse(plain.contains("JsonAlias"), "no Jackson annotation without the surface: " + plain);
+    assertTrue(plain.contains("MOO(2)"), "the constant is the same without the surface: " + plain);
   }
 
   /**

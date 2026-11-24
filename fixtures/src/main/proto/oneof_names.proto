@@ -1,0 +1,42 @@
+// Probe for snake_case oneof member names (the closed oneof-snake-case-member gap). The recordbuf record
+// is generated from this file (--recordbuf_out); the protobuf-java reference is generated from this
+// same file (--java_out). Each member's value record takes the UpperCamelCase form of its camel
+// name, so oneof_uint32 is OneofUint32Value. The member kinds mirror TestAllTypesProto3.oneof_field
+// with the same field numbers. Jackson is on by default for this file. The Interop and Avro
+// converters are off: no protobuf_java option and RECORDBUF_AVRO_OFF, so this probe checks the
+// record, codec and Jackson surfaces only.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.oneofnames;
+option java_package = "bijnagte.recordbuf.fixture.oneofnames";
+option java_multiple_files = true;
+option (.recordbuf.avro) = RECORDBUF_AVRO_OFF;
+
+import "recordbuf_options.proto";
+
+// Target message: one oneof with one member of each kind of TestAllTypesProto3.oneof_field.
+message OneofNames {
+  oneof oneof_field {
+    uint32 oneof_uint32 = 111;
+    NestedMessage oneof_nested_message = 112;
+    string oneof_string = 113;
+    bytes oneof_bytes = 114;
+    bool oneof_bool = 115;
+    uint64 oneof_uint64 = 116;
+    float oneof_float = 117;
+    double oneof_double = 118;
+    NestedEnum oneof_enum = 119;
+  }
+
+  // Nested-message oneof member type.
+  message NestedMessage {
+    int32 a = 1;
+  }
+
+  // Enum oneof member type.
+  enum NestedEnum {
+    FOO = 0;
+    BAR = 1;
+    BAZ = 2;
+  }
+}

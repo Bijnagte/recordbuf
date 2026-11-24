@@ -29,10 +29,34 @@ public record Enum(
     boolean deprecated,
     @Nullable String comment,
     List<TypeRef> interfaces) {
-  /** One entry in an enum. */
+  /**
+   * One entry in an enum.
+   *
+   * @param name the Java constant name: the upper-cased proto value name
+   * @param number the proto number
+   * @param deprecated {@code option deprecated = true} on the value
+   * @param comment leading doc comment, if captured
+   * @param aliases the other proto spellings merged into this constant because they upper-case to
+   *     {@code name} (for example {@code moo} for {@code MOO}), in declaration order, never {@code
+   *     null}; empty when no other value upper-cases to {@code name}. In a file with the Jackson
+   *     surface, Jackson reads each as an alias of the constant.
+   */
   @RecordBuilder
   public record EnumConstant(
-      String name, int number, boolean deprecated, @Nullable String comment) {}
+      String name, int number, boolean deprecated, @Nullable String comment, List<String> aliases) {
+    /** A constant with no case-colliding alias. */
+    public EnumConstant(String name, int number, boolean deprecated, @Nullable String comment) {
+      this(name, number, deprecated, comment, List.of());
+    }
+
+    /**
+     * Enforce the never-{@code null}, empty-default invariant on {@link #aliases} even when a
+     * caller (or the record-builder's default initialization) supplies {@code null}.
+     */
+    public EnumConstant {
+      if (aliases == null) aliases = List.of();
+    }
+  }
 
   /**
    * Enforce the never-{@code null}, empty-default invariant on {@link #interfaces} even when a

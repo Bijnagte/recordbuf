@@ -95,8 +95,7 @@ message TestAllTypesProto3 {
     ALIAS_BAR = 1;
     ALIAS_BAZ = 2;
     MOO = 2;
-    // GAP(enum-alias-name-collision): enum constant names are upper-cased, so `moo` and `MOO` both become `MOO` and the generated enum has a duplicate constant.
-    // moo = 2;
+    moo = 2;
     bAz = 2;
   }
 
@@ -213,31 +212,25 @@ message TestAllTypesProto3 {
   map<int32, double> map_int32_double = 67;
   map<bool, bool> map_bool_bool = 68;
   map<string, string> map_string_string = 69;
-  // GAP(map-bytes-value): map<string, bytes> codec is generated wrongly (the entry codec declares the value as `String value = CodecDefaults.int32()` and decodes bytes into it), so the record does not compile.
-  // map<string, bytes> map_string_bytes = 70;
-  // GAP(map-message-value): map fields with a message value type are not generated (the map codec only supports scalar keys and values).
-  // map<string, NestedMessage> map_string_nested_message = 71;
-  // GAP(map-message-value): map fields with a message value type are not generated (the map codec only supports scalar keys and values).
-  // map<string, ForeignMessage> map_string_foreign_message = 72;
-  // GAP(map-enum-value): map fields with an enum value type are not generated (the map codec only supports scalar keys and values).
-  // map<string, NestedEnum> map_string_nested_enum = 73;
-  // GAP(map-enum-value): map fields with an enum value type are not generated (the map codec only supports scalar keys and values).
-  // map<string, ForeignEnum> map_string_foreign_enum = 74;
+  map<string, bytes> map_string_bytes = 70;
+  map<string, NestedMessage> map_string_nested_message = 71;
+  map<string, ForeignMessage> map_string_foreign_message = 72;
+  map<string, NestedEnum> map_string_nested_enum = 73;
+  map<string, ForeignEnum> map_string_foreign_enum = 74;
 
-  // GAP(oneof-snake-case-member): every member of this oneof has a snake_case name, so each generated member record (`Oneof_uint32Value` and so on) fails Checkstyle TypeName; a oneof cannot be emptied, so the whole oneof is commented out.
-  // oneof oneof_field {
-  //   uint32 oneof_uint32 = 111;
-  //   NestedMessage oneof_nested_message = 112;
-  //   string oneof_string = 113;
-  //   bytes oneof_bytes = 114;
-  //   bool oneof_bool = 115;
-  //   uint64 oneof_uint64 = 116;
-  //   float oneof_float = 117;
-  //   double oneof_double = 118;
-  //   NestedEnum oneof_enum = 119;
-  //   // GAP(null-value-field): google.protobuf.NullValue is not supported by the generator (DYNAMIC_UNSUPPORTED).
-  //   // google.protobuf.NullValue oneof_null_value = 120;
-  // }
+  oneof oneof_field {
+    uint32 oneof_uint32 = 111;
+    NestedMessage oneof_nested_message = 112;
+    string oneof_string = 113;
+    bytes oneof_bytes = 114;
+    bool oneof_bool = 115;
+    uint64 oneof_uint64 = 116;
+    float oneof_float = 117;
+    double oneof_double = 118;
+    NestedEnum oneof_enum = 119;
+    // GAP(null-value-field): google.protobuf.NullValue is not supported by the generator (DYNAMIC_UNSUPPORTED).
+    // google.protobuf.NullValue oneof_null_value = 120;
+  }
 
   // Well-known types
   google.protobuf.BoolValue optional_bool_wrapper = 201;
@@ -285,30 +278,22 @@ message TestAllTypesProto3 {
   // (protobuf says names can be any valid C/C++ identifier.)
   int32 fieldname1 = 401;
   int32 field_name2 = 402;
-  // GAP(field-name-uppercase-start): the Java name derived from this field name starts with an upper-case letter (leading `_` or upper-case first letter), so the generated record component fails Checkstyle MemberName/ParameterName.
-  // int32 _field_name3 = 403;
+  int32 _field_name3 = 403;
   int32 field__name4_ = 404;
   int32 field0name5 = 405;
   int32 field_0_name6 = 406;
   int32 fieldName7 = 407;
-  // GAP(field-name-uppercase-start): the Java name derived from this field name starts with an upper-case letter (leading `_` or upper-case first letter), so the generated record component fails Checkstyle MemberName/ParameterName.
-  // int32 FieldName8 = 408;
+  int32 FieldName8 = 408;
   int32 field_Name9 = 409;
-  // GAP(field-name-uppercase-start): the Java name derived from this field name starts with an upper-case letter (leading `_` or upper-case first letter), so the generated record component fails Checkstyle MemberName/ParameterName.
-  // int32 Field_Name10 = 410;
-  // GAP(field-name-uppercase-start): the Java name derived from this field name starts with an upper-case letter (leading `_` or upper-case first letter), so the generated record component fails Checkstyle MemberName/ParameterName.
-  // int32 FIELD_NAME11 = 411;
-  // GAP(field-name-uppercase-start): the Java name derived from this field name starts with an upper-case letter (leading `_` or upper-case first letter), so the generated record component fails Checkstyle MemberName/ParameterName.
-  // int32 FIELD_name12 = 412;
-  // GAP(field-name-uppercase-start): the Java name derived from this field name starts with an upper-case letter (leading `_` or upper-case first letter), so the generated record component fails Checkstyle MemberName/ParameterName.
-  // int32 __field_name13 = 413;
-  // GAP(field-name-uppercase-start): the Java name derived from this field name starts with an upper-case letter (leading `_` or upper-case first letter), so the generated record component fails Checkstyle MemberName/ParameterName.
-  // int32 __Field_name14 = 414;
+  int32 Field_Name10 = 410;
+  int32 FIELD_NAME11 = 411;
+  int32 FIELD_name12 = 412;
+  int32 __field_name13 = 413;
+  int32 __Field_name14 = 414;
   int32 field__name15 = 415;
   int32 field__Name16 = 416;
   int32 field_name17__ = 417;
-  // GAP(field-name-uppercase-start): the Java name derived from this field name starts with an upper-case letter (leading `_` or upper-case first letter), so the generated record component fails Checkstyle MemberName/ParameterName.
-  // int32 Field_name18__ = 418;
+  int32 Field_name18__ = 418;
 
   // Reserved for testing unknown fields
   reserved 501 to 510;

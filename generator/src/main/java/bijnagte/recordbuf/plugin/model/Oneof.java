@@ -78,4 +78,14 @@ public record Oneof(
   public String componentName() {
     return JavaNames.camel(name);
   }
+
+  /**
+   * The simple name of a oneof member's value record, nested in {@link #ifaceName()}: the
+   * UpperCamelCase form of the member's camel-cased proto name plus {@code Value}. E.g. member
+   * {@code oneof_uint32} -> {@code OneofUint32Value}, member {@code name} -> {@code NameValue}. The
+   * record, codec and converter writers all name the record through this helper, so they agree.
+   */
+  public static String valueRecordName(Field member) {
+    return JavaNames.cap(JavaNames.camel(member.name())) + "Value";
+  }
 }

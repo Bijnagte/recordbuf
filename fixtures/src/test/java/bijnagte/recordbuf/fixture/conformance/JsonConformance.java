@@ -7,12 +7,8 @@ import static org.junit.jupiter.api.Assertions.fail;
 import bijnagte.recordbuf.fixture.golden.format.Proto3JsonFormat;
 import bijnagte.recordbuf.fixture.golden.format.ProtobufBinaryFormat;
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
-import com.google.protobuf.DescriptorProtos.EnumDescriptorProto;
-import com.google.protobuf.DescriptorProtos.EnumValueDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
-import com.google.protobuf.DescriptorProtos.MessageOptions;
-import com.google.protobuf.DescriptorProtos.OneofDescriptorProto;
 import com.google.protobuf.Descriptors.Descriptor;
 import com.google.protobuf.Descriptors.DescriptorValidationException;
 import com.google.protobuf.Descriptors.FileDescriptor;
@@ -120,11 +116,6 @@ final class JsonConformance {
 
   /** A construct of the upstream message that the vendored proto comments out. */
   enum Blocker {
-    UPPERCASE_EDGE_NAME("field-name-uppercase-start"),
-    ONEOF("oneof-snake-case-member"),
-    MAP_MESSAGE_VALUE("map-message-value"),
-    MAP_ENUM_VALUE("map-enum-value"),
-    ALIAS_NAME("enum-alias-name-collision"),
     NULL_VALUE("null-value-field"),
     ONEOF_NULL_VALUE("null-value-field");
 
@@ -141,12 +132,6 @@ final class JsonConformance {
     /** Whether the generated reference has the construct, so the scenario no longer needs this. */
     boolean presentInReference() {
       return switch (this) {
-        case UPPERCASE_EDGE_NAME -> hasField("_field_name3");
-        case ONEOF -> hasField("oneof_uint32");
-        case MAP_MESSAGE_VALUE -> hasField("map_string_nested_message");
-        case MAP_ENUM_VALUE -> hasField("map_string_nested_enum");
-        case ALIAS_NAME ->
-            REFERENCE.findEnumTypeByName("AliasedEnum").findValueByName("moo") != null;
         case NULL_VALUE -> hasField("optional_null_value");
         case ONEOF_NULL_VALUE -> hasField("oneof_null_value");
       };
@@ -332,88 +317,16 @@ final class JsonConformance {
     FileDescriptor file = REFERENCE.getFile();
     FileDescriptorProto.Builder fileProto = file.toProto().toBuilder();
     DescriptorProto.Builder message = fileProto.getMessageTypeBuilder(REFERENCE.getIndex());
-    String scope = "." + file.getPackage() + ".";
 
-    // The upstream edge-named int32 fields the vendored proto comments out, by field number.
-    Map<String, Integer> edgeFields =
-        Map.of(
-            "_field_name3", 403,
-            "FieldName8", 408,
-            "Field_Name10", 410,
-            "FIELD_NAME11", 411,
-            "FIELD_name12", 412,
-            "__field_name13", 413,
-            "__Field_name14", 414,
-            "Field_name18__", 418);
-    edgeFields.forEach((name, number) ->
-        message.addField(scalarField(name, number, FieldDescriptorProto.Type.TYPE_INT32)));
+    addOneofMember(
+        message,
+        "oneof_field",
+        scalarField("oneof_null_value", 120, FieldDescriptorProto.Type.TYPE_ENUM)
+            .setTypeName(NULL_VALUE_TYPE));
+    message.addField(
+        scalarField("optional_null_value", 307, FieldDescriptorProto.Type.TYPE_ENUM)
+            .setTypeName(NULL_VALUE_TYPE));
 
-    int oneofIndex = message.getOneofDeclCount();
-    message.addOneofDecl(OneofDescriptorProto.newBuilder().setName("oneof_field"));
-    String nestedMessage = scope + REFERENCE_MESSAGE_NAME + ".NestedMessage";
-    String nestedEnum = scope + REFERENCE_MESSAGE_NAME + ".NestedEnum";
-    message
-        .addField(
-            oneofField("oneof_uint32", 111, FieldDescriptorProto.Type.TYPE_UINT32, oneofIndex))
-        .addField(
-            oneofField(
-                    "oneof_nested_message", 112, FieldDescriptorProto.Type.TYPE_MESSAGE, oneofIndex)
-                .setTypeName(nestedMessage))
-        .addField(
-            oneofField("oneof_string", 113, FieldDescriptorProto.Type.TYPE_STRING, oneofIndex))
-        .addField(oneofField("oneof_bytes", 114, FieldDescriptorProto.Type.TYPE_BYTES, oneofIndex))
-        .addField(oneofField("oneof_bool", 115, FieldDescriptorProto.Type.TYPE_BOOL, oneofIndex))
-        .addField(
-            oneofField("oneof_uint64", 116, FieldDescriptorProto.Type.TYPE_UINT64, oneofIndex))
-        .addField(oneofField("oneof_float", 117, FieldDescriptorProto.Type.TYPE_FLOAT, oneofIndex))
-        .addField(
-            oneofField("oneof_double", 118, FieldDescriptorProto.Type.TYPE_DOUBLE, oneofIndex))
-        .addField(
-            oneofField("oneof_enum", 119, FieldDescriptorProto.Type.TYPE_ENUM, oneofIndex)
-                .setTypeName(nestedEnum))
-        .addField(
-            oneofField("oneof_null_value", 120, FieldDescriptorProto.Type.TYPE_ENUM, oneofIndex)
-                .setTypeName(NULL_VALUE_TYPE))
-        .addField(
-            scalarField("optional_null_value", 307, FieldDescriptorProto.Type.TYPE_ENUM)
-                .setTypeName(NULL_VALUE_TYPE));
-
-    addMapField(
-        message,
-        "map_string_bytes",
-        70,
-        "MapStringBytesEntry",
-        valueField(FieldDescriptorProto.Type.TYPE_BYTES));
-    addMapField(
-        message,
-        "map_string_nested_message",
-        71,
-        "MapStringNestedMessageEntry",
-        valueField(FieldDescriptorProto.Type.TYPE_MESSAGE).setTypeName(nestedMessage));
-    addMapField(
-        message,
-        "map_string_foreign_message",
-        72,
-        "MapStringForeignMessageEntry",
-        valueField(FieldDescriptorProto.Type.TYPE_MESSAGE).setTypeName(scope + "ForeignMessage"));
-    addMapField(
-        message,
-        "map_string_nested_enum",
-        73,
-        "MapStringNestedEnumEntry",
-        valueField(FieldDescriptorProto.Type.TYPE_ENUM).setTypeName(nestedEnum));
-    addMapField(
-        message,
-        "map_string_foreign_enum",
-        74,
-        "MapStringForeignEnumEntry",
-        valueField(FieldDescriptorProto.Type.TYPE_ENUM).setTypeName(scope + "ForeignEnum"));
-
-    for (EnumDescriptorProto.Builder enumType : message.getEnumTypeBuilderList()) {
-      if (enumType.getName().equals("AliasedEnum")) {
-        enumType.addValue(EnumValueDescriptorProto.newBuilder().setName("moo").setNumber(2));
-      }
-    }
     try {
       FileDescriptor extended =
           FileDescriptor.buildFrom(
@@ -433,37 +346,29 @@ final class JsonConformance {
         .setType(type);
   }
 
-  private static FieldDescriptorProto.Builder oneofField(
-      String name, int number, FieldDescriptorProto.Type type, int oneofIndex) {
-    return scalarField(name, number, type).setOneofIndex(oneofIndex);
-  }
-
-  private static FieldDescriptorProto.Builder valueField(FieldDescriptorProto.Type type) {
-    return scalarField("value", 2, type);
-  }
-
-  private static void addMapField(
-      DescriptorProto.Builder message,
-      String fieldName,
-      int number,
-      String entryName,
-      FieldDescriptorProto.Builder valueField) {
-    message.addNestedType(
-        DescriptorProto.newBuilder()
-            .setName(entryName)
-            .addField(scalarField("key", 1, FieldDescriptorProto.Type.TYPE_STRING))
-            .addField(valueField)
-            .setOptions(MessageOptions.newBuilder().setMapEntry(true)));
-    message.addField(
-        scalarField(fieldName, number, FieldDescriptorProto.Type.TYPE_MESSAGE)
-            .setLabel(FieldDescriptorProto.Label.LABEL_REPEATED)
-            .setTypeName(
-                "."
-                    + REFERENCE.getFile().getPackage()
-                    + "."
-                    + REFERENCE_MESSAGE_NAME
-                    + "."
-                    + entryName));
+  /**
+   * Adds {@code member} to the existing oneof {@code oneofName}, right after that oneof's last
+   * field: a descriptor requires the fields of one oneof to be consecutive.
+   */
+  private static void addOneofMember(
+      DescriptorProto.Builder message, String oneofName, FieldDescriptorProto.Builder member) {
+    int oneofIndex = -1;
+    for (int i = 0; i < message.getOneofDeclCount(); i++) {
+      if (message.getOneofDecl(i).getName().equals(oneofName)) {
+        oneofIndex = i;
+      }
+    }
+    if (oneofIndex < 0) {
+      throw new IllegalStateException("the reference has no oneof " + oneofName);
+    }
+    int insertAt = 0;
+    for (int i = 0; i < message.getFieldCount(); i++) {
+      FieldDescriptorProto field = message.getField(i);
+      if (field.hasOneofIndex() && field.getOneofIndex() == oneofIndex) {
+        insertAt = i + 1;
+      }
+    }
+    message.addField(insertAt, member.setOneofIndex(oneofIndex));
   }
 
   static Case valid(String name, String json, String textFormat) {
@@ -476,10 +381,6 @@ final class JsonConformance {
 
   static Case ignoreUnknown(String name, String json, String textFormat) {
     return new Case(name, new JsonInput(json, true), new Equivalent(textFormat), null);
-  }
-
-  static Case ignoreUnknown(String name, Blocker blocker, String json, String textFormat) {
-    return new Case(name, new JsonInput(json, true), new Equivalent(textFormat), blocker);
   }
 
   static Case validator(String name, Blocker blocker, String json, Predicate<JsonNode> validator) {

@@ -1,7 +1,11 @@
 package bijnagte.recordbuf.fixture.conformance;
 
+import static bijnagte.recordbuf.fixture.conformance.WireBytes.WIRETYPE_FIXED32;
+import static bijnagte.recordbuf.fixture.conformance.WireBytes.WIRETYPE_FIXED64;
 import static bijnagte.recordbuf.fixture.conformance.WireBytes.WIRETYPE_VARINT;
 import static bijnagte.recordbuf.fixture.conformance.WireBytes.cat;
+import static bijnagte.recordbuf.fixture.conformance.WireBytes.dbl;
+import static bijnagte.recordbuf.fixture.conformance.WireBytes.flt;
 import static bijnagte.recordbuf.fixture.conformance.WireBytes.len;
 import static bijnagte.recordbuf.fixture.conformance.WireBytes.raw;
 import static bijnagte.recordbuf.fixture.conformance.WireBytes.tag;
@@ -17,9 +21,11 @@ import static org.junit.jupiter.api.Assertions.fail;
 import bijnagte.recordbuf.fixture.oneof.rec.Compat;
 import bijnagte.recordbuf.runtime.UnknownField;
 import bijnagte.recordbuf.runtime.WireType;
+import com.google.protobuf.Descriptors.OneofDescriptor;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 import com.google.protobuf.Parser;
+import com.google.protobuf.TextFormat;
 import com.google.protobuf_test_messages.proto3.rec.TestAllTypesProto3;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -31,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.DynamicContainer;
 import org.junit.jupiter.api.DynamicNode;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
@@ -40,8 +47,8 @@ import org.opentest4j.TestAbortedException;
 /**
  * Mirrors the remaining proto3 binary scenarios of the official protobuf conformance suite at
  * {@code v36.2} (KTD8): {@code TestUnknownMessage}, {@code TestUnknownOrdering}, {@code
- * TestMergeOneofMessage} and {@code RunRecursionLimitTests}. The payloads and case names are ported
- * from {@code binary_json_conformance_suite.cc}.
+ * TestMergeOneofMessage}, {@code TestOneofMessage} and {@code RunRecursionLimitTests}. The payloads
+ * and case names are ported from {@code binary_json_conformance_suite.cc}.
  *
  * <p>Each scenario decodes its input bytes with a recordbuf record, re-encodes the record and
  * compares the output through the protobuf-java reference, like the valid-data mirror does; a
@@ -49,21 +56,26 @@ import org.opentest4j.TestAbortedException;
  * the reference itself first, which proves the port is right: the reference must accept an input
  * the scenario expects to decode and reject one it expects to fail.
  *
+ * <p>{@code TestOneofMessage} targets the oneof of {@code TestAllTypesProto3}. Each of its
+ * scenarios is a dynamic container of two tests, as in {@link JsonConformance}: {@code portCheck}
+ * runs against protobuf-java alone and proves the port is faithful; {@code recordbuf} decodes the
+ * payload with the record, re-encodes it and compares through the reference, like the other
+ * scenarios. Upstream builds each message with the C++ setters and sends it as protobuf; the mirror
+ * writes the payload of the resulting message by hand, and the port check proves protobuf-java
+ * writes the same bytes. Upstream also runs each case with JSON output; as in the other binary
+ * mirrors, only the protobuf-in, protobuf-out setting is ported. {@code oneof_null_value} (field
+ * 120) is not set by any scenario.
+ *
  * <p>Three scenarios are not a literal port:
  *
  * <ul>
  *   <li>{@code TestMergeOneofMessage} merges the {@code oneof_nested_message} arm of {@code
- *       TestAllTypesProto3}, whose oneof is commented out of the vendored proto (gap {@code
- *       oneof-snake-case-member}). The mirror runs the same payload shape (two occurrences of one
- *       oneof message arm, the second adding an unknown field) against the {@code item} arm of the
- *       {@code oneof.Compat} fixture, which has the same semantics: a oneof arm of message type.
- *       {@code TestOneofMessage} and {@code TestValidDataForOneofType} stay unported: they name the
- *       nine oneof members of {@code TestAllTypesProto3} by number, and {@code Compat} has no
- *       {@code uint32}, {@code bytes}, {@code bool}, {@code uint64}, {@code float} or {@code
- *       double} arm.
+ *       TestAllTypesProto3}. The mirror runs the same payload shape (two occurrences of one oneof
+ *       message arm, the second adding an unknown field) against the {@code item} arm of the {@code
+ *       oneof.Compat} fixture, which has the same semantics: a oneof arm of message type.
  *   <li>{@code MergeSingularMessage} has no upstream case: it runs the same merge against the
- *       singular {@code optional_nested_message} field of {@code TestAllTypesProto3}, which is
- *       active, so the gap behind the oneof case is probed on the vendored message too.
+ *       singular {@code optional_nested_message} field of {@code TestAllTypesProto3}, so the gap
+ *       behind the oneof case is probed on the vendored message too.
  *   <li>{@code RunRecursionLimitTests} builds its input from {@code TestAllTypesEdition2023}'s
  *       {@code map_recursive} and a proto2 message set, neither of which is proto3. The mirror
  *       nests the vendored {@code recursive_message} field instead, at depth 100 (protobuf-java's
@@ -132,6 +144,13 @@ class BinaryBehaviorConformanceTest {
   private record Scenario(String name, Verification verification) {}
 
   /**
+   * One {@code TestOneofMessage} scenario: its upstream case name, the payload of the message
+   * upstream has built by then, and the text format of the message it expects back.
+   */
+  @SuppressWarnings("ArrayRecordComponent") // payload bytes, never compared or hashed
+  private record OneofMessageScenario(String name, byte[] payload, String textFormat) {}
+
+  /**
    * The scenarios recordbuf does not satisfy today, by case name, with the ledger id of the gap
    * that explains each. Keep this small and explicit: when a gap closes, its scenarios start
    * passing, the test then fails, and the entries are removed here.
@@ -148,6 +167,8 @@ class BinaryBehaviorConformanceTest {
   private static final Map<String, String> REFERENCE_DEVIATES = referenceDeviates();
 
   private static final String UNKNOWN_ORDERING = "UnknownOrdering";
+
+  private static final List<OneofMessageScenario> ONEOF_MESSAGE_SCENARIOS = oneofMessageScenarios();
 
   private static final List<Scenario> ALL_SCENARIOS = allScenarios();
 
@@ -168,6 +189,22 @@ class BinaryBehaviorConformanceTest {
   @TestFactory
   Stream<DynamicNode> mergeOneofMessage() {
     return mergeScenarios().stream().map(BinaryBehaviorConformanceTest::dynamicTest);
+  }
+
+  /**
+   * {@code TestOneofMessage}: each oneof member set to its zero value, one after the other, comes
+   * back as that member, set.
+   */
+  @TestFactory
+  Stream<DynamicNode> oneofMessage() {
+    return ONEOF_MESSAGE_SCENARIOS.stream()
+        .map(scenario ->
+            DynamicContainer.dynamicContainer(
+                scenario.name(),
+                Stream.of(
+                    DynamicTest.dynamicTest("portCheck", () -> oneofPortCheck(scenario)),
+                    DynamicTest.dynamicTest(
+                        "recordbuf", () -> run(oneofRecordbufHalf(scenario))))));
   }
 
   /** {@code RunRecursionLimitTests}: nesting at the limit decodes, beyond it is rejected. */
@@ -210,6 +247,42 @@ class BinaryBehaviorConformanceTest {
     return names;
   }
 
+  /**
+   * The protobuf-java half of a {@code TestOneofMessage} scenario: the payload must read as the
+   * message upstream expects (its text format) with its member set, and protobuf-java must write
+   * that message back as exactly the payload.
+   */
+  private static void oneofPortCheck(OneofMessageScenario scenario) throws IOException {
+    com.google.protobuf_test_messages.proto3.TestAllTypesProto3.Builder builder =
+        com.google.protobuf_test_messages.proto3.TestAllTypesProto3.newBuilder();
+    TextFormat.merge(scenario.textFormat(), builder);
+    com.google.protobuf_test_messages.proto3.TestAllTypesProto3 expected = builder.build();
+
+    com.google.protobuf_test_messages.proto3.TestAllTypesProto3 actual =
+        com.google.protobuf_test_messages.proto3.TestAllTypesProto3.parseFrom(scenario.payload());
+
+    assertEquals(expected, actual, "protobuf-java does not read the payload as the expected text");
+    OneofDescriptor oneof =
+        actual.getDescriptorForType().getOneofs().stream()
+            .filter(o -> o.getName().equals("oneof_field"))
+            .findFirst()
+            .orElseThrow();
+    assertTrue(actual.hasOneof(oneof), "protobuf-java leaves no oneof member set");
+    assertArrayEquals(
+        scenario.payload(), expected.toByteArray(), "protobuf-java writes another payload");
+  }
+
+  /** The record decodes the payload and writes the same bytes back, as protobuf-java reads them. */
+  private static Scenario oneofRecordbufHalf(OneofMessageScenario scenario) {
+    return conforms(
+        scenario.name(),
+        Comparison.WIRE_BYTES,
+        scenario.payload(),
+        scenario.payload(),
+        com.google.protobuf_test_messages.proto3.TestAllTypesProto3.parser(),
+        bytes -> TestAllTypesProto3.fromBytes(bytes).toByteArray());
+  }
+
   private static DynamicTest dynamicTest(Scenario scenario) {
     return DynamicTest.dynamicTest(scenario.name(), () -> run(scenario));
   }
@@ -237,6 +310,7 @@ class BinaryBehaviorConformanceTest {
     scenarios.add(unknownVarint());
     scenarios.add(unknownOrdering(UNKNOWN_ORDERING));
     scenarios.addAll(mergeScenarios());
+    ONEOF_MESSAGE_SCENARIOS.forEach(s -> scenarios.add(oneofRecordbufHalf(s)));
     scenarios.addAll(recursionScenarios());
     return List.copyOf(scenarios);
   }
@@ -395,6 +469,34 @@ class BinaryBehaviorConformanceTest {
             assertArrayEquals(expected, output, "output is not the expected wire format");
           }
         });
+  }
+
+  /**
+   * {@code TestOneofMessage}: upstream sets one member after another on one message, so each
+   * scenario's message holds only the member set last, and the payload is that member alone.
+   * Members have presence: a zero value is written, and an empty nested message too.
+   */
+  private static List<OneofMessageScenario> oneofMessageScenarios() {
+    byte[] nestedA1 = len(112, cat(tag(1, WIRETYPE_VARINT), varint(1)));
+    return List.of(
+        new OneofMessageScenario(
+            "OneofZeroUint32", cat(tag(111, WIRETYPE_VARINT), varint(0)), "oneof_uint32: 0"),
+        new OneofMessageScenario(
+            "OneofZeroMessage", len(112, new byte[0]), "oneof_nested_message: {}"),
+        new OneofMessageScenario(
+            "OneofZeroMessageSetTwice", nestedA1, "oneof_nested_message: {a: 1}"),
+        new OneofMessageScenario("OneofZeroString", len(113, new byte[0]), "oneof_string: \"\""),
+        new OneofMessageScenario("OneofZeroBytes", len(114, new byte[0]), "oneof_bytes: \"\""),
+        new OneofMessageScenario(
+            "OneofZeroBool", cat(tag(115, WIRETYPE_VARINT), varint(0)), "oneof_bool: false"),
+        new OneofMessageScenario(
+            "OneofZeroUint64", cat(tag(116, WIRETYPE_VARINT), varint(0)), "oneof_uint64: 0"),
+        new OneofMessageScenario(
+            "OneofZeroFloat", cat(tag(117, WIRETYPE_FIXED32), flt(0)), "oneof_float: 0"),
+        new OneofMessageScenario(
+            "OneofZeroDouble", cat(tag(118, WIRETYPE_FIXED64), dbl(0)), "oneof_double: 0"),
+        new OneofMessageScenario(
+            "OneofZeroEnum", cat(tag(119, WIRETYPE_VARINT), varint(0)), "oneof_enum: FOO"));
   }
 
   /**

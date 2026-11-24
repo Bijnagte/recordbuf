@@ -51,8 +51,7 @@ import org.opentest4j.TestAbortedException;
  * <p>A scenario the record decodes without error is a recordbuf bug. It is listed in {@link
  * #KNOWN_GAPS} by its upstream case name and the id of its gap-ledger row; it runs, and is reported
  * as aborted with that id. If it starts being rejected, the test fails, so closing a gap forces
- * removing the entry. A scenario that needs a field commented out of the vendored proto cannot run
- * at all: {@link #BLOCKED} reports it as aborted, and fails once the proto has the field.
+ * removing the entry.
  */
 class BinaryMalformedConformanceTest {
 
@@ -62,9 +61,6 @@ class BinaryMalformedConformanceTest {
   /** One mirrored scenario: its upstream case name and the malformed input. */
   @SuppressWarnings("ArrayRecordComponent") // payload bytes, never compared or hashed
   private record Case(String name, byte[] input) {}
-
-  /** A scenario that cannot run because the vendored proto lacks the field it needs. */
-  private record BlockedCase(String name, String ledgerId, int fieldNumber) {}
 
   /**
    * A field type of {@code TestAllTypesProto3}, other than group.
@@ -120,12 +116,6 @@ class BinaryMalformedConformanceTest {
 
   private static final byte[] INVALID_UTF8 = raw(0xA0, 0xB0, 0xC0, 0xD0);
 
-  /** A scenario whose field is commented out of the vendored proto. */
-  private static final List<BlockedCase> BLOCKED =
-      List.of(
-          new BlockedCase(
-              "RejectInvalidUtf8.String.Oneof", "oneof-snake-case-member", ONEOF_STRING));
-
   /**
    * The scenarios recordbuf decodes without error today, by upstream case name, with the ledger id
    * of the gap that explains each. Keep this small and explicit: when a gap closes, its scenarios
@@ -175,10 +165,7 @@ class BinaryMalformedConformanceTest {
   /** {@code TestInvalidUtf8String}: bytes that are not UTF-8 in a string field. */
   @TestFactory
   Stream<DynamicNode> invalidUtf8String() {
-    Stream<DynamicNode> mirrored =
-        invalidUtf8Cases().stream().map(BinaryMalformedConformanceTest::dynamicTest);
-    Stream<DynamicNode> blocked = BLOCKED.stream().map(BinaryMalformedConformanceTest::blockedTest);
-    return Stream.concat(mirrored, blocked);
+    return invalidUtf8Cases().stream().map(BinaryMalformedConformanceTest::dynamicTest);
   }
 
   /** Every known-gap entry names a scenario this test mirrors, so none can go stale unnoticed. */
@@ -214,27 +201,6 @@ class BinaryMalformedConformanceTest {
 
   private static DynamicTest dynamicTest(Case scenario) {
     return DynamicTest.dynamicTest(scenario.name(), () -> run(scenario));
-  }
-
-  private static DynamicTest blockedTest(BlockedCase blocked) {
-    return DynamicTest.dynamicTest(
-        blocked.name(),
-        () -> {
-          if (com.google.protobuf_test_messages.proto3.TestAllTypesProto3.getDescriptor()
-                  .findFieldByNumber(blocked.fieldNumber())
-              != null) {
-            fail(
-                "TestAllTypesProto3 now has field "
-                    + blocked.fieldNumber()
-                    + ": mirror "
-                    + blocked.name()
-                    + " and remove it from BLOCKED (gap "
-                    + blocked.ledgerId()
-                    + ")");
-          }
-          throw new TestAbortedException(
-              "gap " + blocked.ledgerId() + ": no field " + blocked.fieldNumber());
-        });
   }
 
   private static void run(Case scenario) {
@@ -461,7 +427,8 @@ class BinaryMalformedConformanceTest {
             len(MAP_STRING_STRING, cat(len(1, INVALID_UTF8), len(2, bytes("foo"))))),
         new Case(
             "RejectInvalidUtf8.String.MapValue",
-            len(MAP_STRING_STRING, cat(len(1, bytes("foo")), len(2, INVALID_UTF8)))));
+            len(MAP_STRING_STRING, cat(len(1, bytes("foo")), len(2, INVALID_UTF8)))),
+        new Case("RejectInvalidUtf8.String.Oneof", len(ONEOF_STRING, INVALID_UTF8)));
   }
 
   private static Map<String, String> referenceAccepts() {
@@ -497,7 +464,7 @@ class BinaryMalformedConformanceTest {
       gaps.put(name, "tag-varint-truncated-accepted");
     }
     // CodedInputStream.readString replaces invalid UTF-8 instead of rejecting it.
-    for (String suffix : List.of("Singular", "Repeated", "MapKey", "MapValue")) {
+    for (String suffix : List.of("Singular", "Repeated", "MapKey", "MapValue", "Oneof")) {
       gaps.put("RejectInvalidUtf8.String." + suffix, "invalid-utf8-accepted");
     }
     return Map.copyOf(gaps);

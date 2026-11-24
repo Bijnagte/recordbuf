@@ -175,7 +175,7 @@ public final class AvroConverterSourceMapping {
       return wktToRecord(wkt, var, getter, f.isRepeated());
     }
     if (f.isMap()) {
-      return mapToRecord(f, var, getter, specificRecordPkg);
+      return mapToRecord(f, var, getter, registry, specificRecordPkg);
     }
     if (f.kind() == FieldKind.MESSAGE) {
       if (f.isRepeated()) {
@@ -342,55 +342,107 @@ public final class AvroConverterSourceMapping {
     return Element.expr("@0(@2().stream().map(@1::toRecord).toList())", var, refConverter, getter);
   }
 
-  private static Element mapToRecord(Field f, String var, String getter, String specificRecordPkg) {
+  private static Element mapToRecord(
+      Field f, String var, String getter, AvroRegistry registry, String specificRecordPkg) {
     // A string-key proto map is an Avro map (keys are CharSequence); a non-string key is a list of
-    // pair-entry records. Rebuild the record's Map so its key/value Java types line up; scalar
-    // values pass through unchanged (a message/bytes value would need a per-value bridge).
+    // pair-entry records. Rebuild the record's Map so its key/value Java types line up, converting
+    // each value the way a repeated element of its kind converts.
     // The Avro map is never null here: it is either set by fromRecord or read back from a decoded
     // datum (an Avro non-union field is always present).
     // The Collectors and the entry-record are TypeRefs so the collector imports them and uses their
     // short names (EP's UnnecessarilyFullyQualified forbids inline FQN literals).
     TypeRef collectors = TypeRef.named("java.util.stream", "Collectors");
     String g = getter + "()";
-    // A string proto value is a CharSequence in Avro and a String in the record: materialize it.
-    String valueMapper =
-        "string".equals(f.mapValue()) ? "e -> e.getValue().toString()" : "e -> e.getValue()";
+    RawExpr valueMapper = mapValueToRecord(f, "e.getValue()", registry);
     if ("string".equals(f.mapKey())) {
-      String stream =
-          g
-              + ".entrySet().stream().collect(@0.toMap(e -> e.getKey().toString(), "
-              + valueMapper
-              + "))";
-      return Element.expr(var + "(" + stream + ")", collectors);
+      RawExpr stream =
+          RawExpr.of(
+              g + ".entrySet().stream().collect(@0.toMap(e -> e.getKey().toString(), e -> @1))",
+              collectors,
+              valueMapper);
+      return Element.expr(var + "(@0)", stream);
     }
     TypeRef entry = TypeRef.named(specificRecordPkg, AvroRegistry.mapEntryRecordName(f));
-    String stream = g + ".stream().collect(@0.toMap(@1::getKey, " + valueMapper + "))";
-    return Element.expr(var + "(" + stream + ")", collectors, entry);
+    RawExpr stream =
+        RawExpr.of(
+            g + ".stream().collect(@0.toMap(@1::getKey, e -> @2))", collectors, entry, valueMapper);
+    return Element.expr(var + "(@0)", stream);
+  }
+
+  /**
+   * The record value of one Avro map value {@code value}: a string as a String, bytes as {@code
+   * Bytes}, a message through its converter, an enum by constant name with the first-constant
+   * fallback, any other scalar as it is.
+   */
+  private static RawExpr mapValueToRecord(Field f, String value, AvroRegistry registry) {
+    return switch (Objects.requireNonNull(f.mapValueKind())) {
+      case MESSAGE -> RawExpr.of("@0.toRecord(" + value + ")", mapValueConverter(f, registry));
+      case ENUM -> enumFromName(f.mapValueType(), value);
+      default ->
+          switch (Objects.requireNonNull(f.mapValue())) {
+            case "string" -> RawExpr.of(value + ".toString()");
+            case "bytes" ->
+                RawExpr.of(
+                    "@0.of(@1.bytes(" + value + "))", TypeRefs.BYTES, TypeRefs.WKT_AVRO_BRIDGE);
+            default -> RawExpr.of(value);
+          };
+    };
+  }
+
+  /**
+   * The Avro value of one record map value {@code value}: the inverse of {@link #mapValueToRecord}.
+   */
+  private static RawExpr mapValueFromRecord(Field f, String value, AvroRegistry registry) {
+    return switch (Objects.requireNonNull(f.mapValueKind())) {
+      case MESSAGE -> RawExpr.of("@0.fromRecord(" + value + ")", mapValueConverter(f, registry));
+      case ENUM -> RawExpr.of(value + ".name()");
+      default ->
+          "bytes".equals(f.mapValue())
+              ? RawExpr.of("@0.wrap(" + value + ".toByteArray())", TypeRefs.BYTE_BUFFER)
+              : RawExpr.of(value);
+    };
+  }
+
+  /** The {@code <X>AvroConverter} of a message map value. */
+  private static TypeRef mapValueConverter(Field f, AvroRegistry registry) {
+    String fqn = Objects.requireNonNull(f.mapValue());
+    Message ref = registry.messageOf(fqn);
+    String refRecPkg = registry.recordPackageOf(fqn);
+    if (ref == null || refRecPkg == null) {
+      throw new AvroUnsupportedException(fqn, "unresolvable map value message reference");
+    }
+    return TypeRef.named(
+        refRecPkg, AvroSchemaGenerator.specificRecordName(ref.name()) + "Converter");
   }
 
   private static Element mapFromRecord(
-      Field f, String setter, String accessor, String specificRecordPkg) {
+      Field f, String setter, String accessor, AvroRegistry registry, String specificRecordPkg) {
     // Collectors and the entry-record are TypeRefs so the collector imports them and uses their
     // short names (EP's UnnecessarilyFullyQualified forbids inline FQN literals).
     TypeRef collectors = TypeRef.named("java.util.stream", "Collectors");
-    String a = accessor;
+    RawExpr valueMapper = mapValueFromRecord(f, "e.getValue()", registry);
     if ("string".equals(f.mapKey())) {
-      String stream =
-          a + ".entrySet().stream().collect(@0.toMap(e -> e.getKey(), " + "e -> e.getValue()))";
-      return Element.expr(setter + "(" + stream + ")", collectors);
+      RawExpr stream =
+          RawExpr.of(
+              accessor + ".entrySet().stream().collect(@0.toMap(e -> e.getKey(), e -> @1))",
+              collectors,
+              valueMapper);
+      return Element.expr(setter + "(@0)", stream);
     }
     TypeRef entry = TypeRef.named(specificRecordPkg, AvroRegistry.mapEntryRecordName(f));
-    String stream =
-        a
-            + ".entrySet().stream().map(e -> new @1(e.getKey(), e.getValue()))"
-            + ".collect(@0.toList())";
-    return Element.expr(setter + "(" + stream + ")", collectors, entry);
+    RawExpr stream =
+        RawExpr.of(
+            accessor + ".entrySet().stream().map(e -> new @1(e.getKey(), @2)).collect(@0.toList())",
+            collectors,
+            entry,
+            valueMapper);
+    return Element.expr(setter + "(@0)", stream);
   }
 
   private static Element oneofToRecord(
       Oneof oneof, String param, String builder, AvroRegistry registry, String specificRecordPkg) {
-    String getter = param + ".get" + cap(oneof.name()) + "()";
-    String var = builder + "." + oneof.name();
+    String getter = param + ".get" + cap(oneof.componentName()) + "()";
+    String var = builder + "." + oneof.componentName();
     If.Builder b = If.condition(getter + " == null").body(Element.expr(var + "(null)"));
     // Message members each ride their own specific-record subtype in the Avro union; the
     // scalar/enum members ride one shared {tag, value} wrapper, dispatched by the member's tag.
@@ -592,7 +644,7 @@ public final class AvroConverterSourceMapping {
   private static TypeRef memberValueRef(Oneof oneof, Field member) {
     // Matches the record generator's naming: the sealed interface plus the capitalized member
     // name and "Value" (e.g. Compat.Choice.NameValue) -- never the oneof name prefixed.
-    return oneof.iface().sub(cap(member.name()) + "Value");
+    return oneof.iface().sub(Oneof.valueRecordName(member));
   }
 
   private static TypeRef scalarWrapperType(Field f) {
@@ -655,7 +707,7 @@ public final class AvroConverterSourceMapping {
       return wktFromRecord(wkt, setter, accessor, f.isRepeated());
     }
     if (f.isMap()) {
-      return mapFromRecord(f, setter, accessor, specificRecordPkg);
+      return mapFromRecord(f, setter, accessor, registry, specificRecordPkg);
     }
     if (f.kind() == FieldKind.MESSAGE) {
       String fqn = f.typeUrl();
@@ -860,8 +912,8 @@ public final class AvroConverterSourceMapping {
 
   private static Element oneofFromRecord(
       Oneof oneof, String param, String record, AvroRegistry registry, String specificRecordPkg) {
-    String setter = param + ".set" + cap(oneof.name());
-    String accessor = record + "." + oneof.name() + "()";
+    String setter = param + ".set" + cap(oneof.componentName());
+    String accessor = record + "." + oneof.componentName() + "()";
     If.Builder b = If.condition(accessor + " == null").body(Element.expr(setter + "(null)"));
     for (Field member : oneof.members()) {
       TypeRef valueRec = memberValueRef(oneof, member);

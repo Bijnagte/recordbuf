@@ -1,0 +1,47 @@
+// Interop probe for oneof members, testing the Interop converter's oneof arms. The recordbuf record
+// is generated from this file (--recordbuf_out); the protobuf-java reference is generated from this
+// same file (--java_out). The oneof name puts a letter after a digit, so protoc's case accessor
+// (getPick2WayCase) differs from the capitalized camel-case name (Pick2way). Each member converts
+// as a singular field of its kind does: bytes, a natively mapped WKT, a dynamic WKT, an enum, a
+// message and a scalar. A member has explicit presence, so a Timestamp at the epoch is still set.
+// Jackson is on by default for this file (a Struct member needs it); Avro is off, so this probe
+// checks the Interop, record, codec and Jackson surfaces only.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.interoponeof;
+option java_package = "bijnagte.recordbuf.fixture.interoponeof";
+option java_multiple_files = true;
+option (.recordbuf.avro) = RECORDBUF_AVRO_OFF;
+
+import "recordbuf_options.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+// The target message comes first in the file (KTD2): one oneof with one member of each kind.
+message InteropOneof {
+  oneof pick_2way {
+    bytes pick_blob = 1;
+    google.protobuf.Timestamp pick_at = 2;
+    google.protobuf.Struct pick_struct = 3;
+    Color pick_color = 4;
+    Part pick_part = 5;
+    int32 pick_count = 6;
+  }
+
+  option (.recordbuf.protobuf_java) = "bijnagte.recordbuf.fixture.interoponeof";
+}
+
+// Enum oneof member type.
+enum Color {
+  COLOR_UNSPECIFIED = 0;
+  COLOR_RED = 1;
+  COLOR_BLUE = 2;
+}
+
+// Message oneof member type. It carries protobuf_java too, so the member converts through its own
+// Interop.
+message Part {
+  int32 a = 1;
+
+  option (.recordbuf.protobuf_java) = "bijnagte.recordbuf.fixture.interoponeof";
+}

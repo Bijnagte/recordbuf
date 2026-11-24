@@ -1,0 +1,9 @@
+{
+  "oneof_field" : {
+    "bijnagte.recordbuf.fixture.avrooneof.NestedMessageAvro" : {
+      "a" : 7,
+      "unknownFields" : [ ]
+    }
+  },
+  "unknownFields" : [ ]
+}

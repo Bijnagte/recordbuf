@@ -23,6 +23,7 @@ import com.google.protobuf_test_messages.proto3.rec.TestAllTypesProto3;
 import com.google.protobuf_test_messages.proto3.rec.TestAllTypesProto3.AliasedEnum;
 import com.google.protobuf_test_messages.proto3.rec.TestAllTypesProto3.NestedEnum;
 import com.google.protobuf_test_messages.proto3.rec.TestAllTypesProto3.NestedMessage;
+import com.google.protobuf_test_messages.proto3.rec.TestAllTypesProto3.OneofField;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -68,6 +69,30 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
 
   /** The case name of the record that sets every non-cycle singular message field. */
   private static final String AVRO = "all-types-avro";
+
+  /** The case name of the {@value #AVRO} record shape with every edge-named field set. */
+  private static final String EDGE_NAMES = "all-types-edge-names";
+
+  /** The case name of the {@value #AVRO} record shape with {@code oneof_nested_message} set. */
+  private static final String ONEOF_MESSAGE = "all-types-oneof-message";
+
+  /** The case name of the {@value #AVRO} record shape with {@code oneof_bytes} set. */
+  private static final String ONEOF_BYTES = "all-types-oneof-bytes";
+
+  /** The case name of the {@value #AVRO} record shape with {@code map_string_bytes} populated. */
+  private static final String MAP_BYTES = "all-types-map-bytes";
+
+  /**
+   * The case name of the {@value #AVRO} record shape with {@code map_string_nested_message} and
+   * {@code map_string_foreign_message} populated.
+   */
+  private static final String MAP_MESSAGE = "all-types-map-message";
+
+  /**
+   * The case name of the {@value #AVRO} record shape with {@code map_string_nested_enum} and {@code
+   * map_string_foreign_enum} populated.
+   */
+  private static final String MAP_ENUM = "all-types-map-enum";
 
   private static final String WIRE_GAPS =
       "the record sets fields whose protobuf binary encoding differs from protobuf-java's, or that"
@@ -121,6 +146,12 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         allTypes(PROTO3_JSON_POPULATED, populatedWithStructAny()),
         allTypes("all-types-default", TestAllTypesProto3.builder().build()),
         avroCase(),
+        edgeNamesCase(),
+        oneofCase(ONEOF_MESSAGE, oneofMessageRecord()),
+        oneofCase(ONEOF_BYTES, oneofBytesRecord()),
+        mapBytesCase(),
+        mapMessageCase(),
+        mapEnumCase(),
         wireGapFields(),
         interopMessage("foreign-message", ForeignMessage.builder().c(Integer.MIN_VALUE).build()),
         interopMessage("nested-message", NestedMessage.builder().a(Integer.MAX_VALUE).build()));
@@ -155,6 +186,189 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         .lossless(avroJson)
         .lossless(avroBinary)
         .build(formats());
+  }
+
+  /**
+   * The case {@value #EDGE_NAMES}: the {@value #AVRO} record shape with all eighteen edge-named
+   * fields set, so every format carries each of them, see {@link #edgeNamesRecord()}.
+   */
+  private GoldenCase edgeNamesCase() {
+    return GoldenCase.builder(FAMILY, EDGE_NAMES, edgeNamesRecord())
+        .lossless(protobufBinary)
+        .lossless(proto3Json)
+        .lossless(jackson)
+        .lossless(avroJson)
+        .lossless(avroBinary)
+        .build(formats());
+  }
+
+  /**
+   * A case of the {@value #AVRO} record shape with one oneof member set: lossless in all five
+   * formats, like {@value #AVRO}, so every format carries the member.
+   */
+  private GoldenCase oneofCase(String name, TestAllTypesProto3 record) {
+    return GoldenCase.builder(FAMILY, name, record)
+        .lossless(protobufBinary)
+        .lossless(proto3Json)
+        .lossless(jackson)
+        .lossless(avroJson)
+        .lossless(avroBinary)
+        .build(formats());
+  }
+
+  /**
+   * The case {@value #MAP_BYTES}: the {@value #AVRO} record shape with {@code map_string_bytes}
+   * populated, lossless in all five formats, see {@link #mapBytesRecord()}.
+   */
+  private GoldenCase mapBytesCase() {
+    return GoldenCase.builder(FAMILY, MAP_BYTES, mapBytesRecord())
+        .lossless(protobufBinary)
+        .lossless(proto3Json)
+        .lossless(jackson)
+        .lossless(avroJson)
+        .lossless(avroBinary)
+        .build(formats());
+  }
+
+  /**
+   * The record of case {@value #MAP_BYTES}: the {@link #avroRecord()} with {@code map_string_bytes}
+   * holding a non-empty value, an empty value and a value with high bytes.
+   */
+  static TestAllTypesProto3 mapBytesRecord() {
+    return avroRecord().toBuilder()
+        .mapStringBytes(
+            ordered(
+                "y",
+                NON_EMPTY_BYTES,
+                "empty",
+                Bytes.empty(),
+                "x",
+                Bytes.of(new byte[] {(byte) 0xde, (byte) 0xad, (byte) 0xbe, (byte) 0xef})))
+        .build();
+  }
+
+  /**
+   * The case {@value #MAP_MESSAGE}: the {@value #AVRO} record shape with both message-valued maps
+   * populated, lossless in all five formats, see {@link #mapMessageRecord()}.
+   */
+  private GoldenCase mapMessageCase() {
+    return GoldenCase.builder(FAMILY, MAP_MESSAGE, mapMessageRecord())
+        .lossless(protobufBinary)
+        .lossless(proto3Json)
+        .lossless(jackson)
+        .lossless(avroJson)
+        .lossless(avroBinary)
+        .build(formats());
+  }
+
+  /**
+   * The record of case {@value #MAP_MESSAGE}: the {@link #avroRecord()} with {@code
+   * map_string_nested_message} and {@code map_string_foreign_message} each holding a non-default
+   * value and a default-instance value. {@code NestedMessage.corecursive} stays unset, which Avro
+   * represents because the field closes a cycle and is nullable there.
+   */
+  static TestAllTypesProto3 mapMessageRecord() {
+    return avroRecord().toBuilder()
+        .mapStringNestedMessage(
+            ordered(
+                "y",
+                NestedMessage.builder().a(Integer.MIN_VALUE).build(),
+                "empty",
+                NestedMessage.builder().build(),
+                "x",
+                NestedMessage.builder().a(1234).build()))
+        .mapStringForeignMessage(
+            ordered(
+                "y",
+                ForeignMessage.builder().c(Integer.MAX_VALUE).build(),
+                "empty",
+                ForeignMessage.builder().build(),
+                "x",
+                ForeignMessage.builder().c(-5678).build()))
+        .build();
+  }
+
+  /**
+   * The case {@value #MAP_ENUM}: the {@value #AVRO} record shape with both enum-valued maps
+   * populated, lossless in all five formats, see {@link #mapEnumRecord()}.
+   */
+  private GoldenCase mapEnumCase() {
+    return GoldenCase.builder(FAMILY, MAP_ENUM, mapEnumRecord())
+        .lossless(protobufBinary)
+        .lossless(proto3Json)
+        .lossless(jackson)
+        .lossless(avroJson)
+        .lossless(avroBinary)
+        .build(formats());
+  }
+
+  /**
+   * The record of case {@value #MAP_ENUM}: the {@link #avroRecord()} with {@code
+   * map_string_nested_enum} and {@code map_string_foreign_enum} each holding the zero value and
+   * non-zero values, {@code NestedEnum.NEG} (a negative number) among them.
+   */
+  static TestAllTypesProto3 mapEnumRecord() {
+    return avroRecord().toBuilder()
+        .mapStringNestedEnum(
+            ordered("neg", NestedEnum.NEG, "foo", NestedEnum.FOO, "bar", NestedEnum.BAR))
+        .mapStringForeignEnum(
+            ordered(
+                "baz",
+                ForeignEnum.FOREIGN_BAZ,
+                "foo",
+                ForeignEnum.FOREIGN_FOO,
+                "bar",
+                ForeignEnum.FOREIGN_BAR))
+        .build();
+  }
+
+  /**
+   * The record of case {@value #ONEOF_MESSAGE}: the {@link #avroRecord()} with {@code
+   * oneof_nested_message} set to a non-default message.
+   */
+  static TestAllTypesProto3 oneofMessageRecord() {
+    return avroRecord().toBuilder()
+        .oneofField(new OneofField.OneofNestedMessageValue(NestedMessage.builder().a(1234).build()))
+        .build();
+  }
+
+  /**
+   * The record of case {@value #ONEOF_BYTES}: the {@link #avroRecord()} with {@code oneof_bytes}
+   * set to the non-empty bytes.
+   */
+  static TestAllTypesProto3 oneofBytesRecord() {
+    return avroRecord().toBuilder()
+        .oneofField(new OneofField.OneofBytesValue(NON_EMPTY_BYTES))
+        .build();
+  }
+
+  /**
+   * The record of case {@value #EDGE_NAMES}: the {@link #avroRecord()} with {@code fieldname1}
+   * through {@code Field_name18__} set to distinct non-default values, including the eight whose
+   * camel-cased Java name starts upper-case in protoc's rule (for example {@code _field_name3}, the
+   * component {@code fieldName3}).
+   */
+  static TestAllTypesProto3 edgeNamesRecord() {
+    return avroRecord().toBuilder()
+        .fieldname1(101)
+        .fieldName2(102)
+        .fieldName3(103)
+        .fieldName4(104)
+        .field0name5(105)
+        .field0Name6(106)
+        .fieldName7(107)
+        .fieldName8(108)
+        .fieldName9(109)
+        .fieldName10(110)
+        .fIELDNAME11(111)
+        .fIELDName12(112)
+        .fieldName13(113)
+        .fieldName14(114)
+        .fieldName15(115)
+        .fieldName16(116)
+        .fieldName17(117)
+        .fieldName18(118)
+        .build();
   }
 
   /**
@@ -346,8 +560,7 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         .repeatedValue(
             List.of(node("\"s\""), node("1.5"), node("true"), node("[1.5,\"x\"]"), node("{}")))
         .repeatedListValue(List.of((ArrayNode) node("[1.5,\"x\",null]"), (ArrayNode) node("[]")))
-        // edge-named fields (only the ones that generate cleanly, see gap
-        // field-name-uppercase-start)
+        // edge-named fields (the other edge names are set by case all-types-edge-names)
         .fieldname1(Integer.MIN_VALUE)
         .fieldName2(-2)
         .fieldName4(4)
