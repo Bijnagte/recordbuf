@@ -82,7 +82,7 @@ final class JsonConformance {
    * half runs and aborts with its id; a half that passes fails the test, so closing the gap forces
    * removing its entry.
    */
-  private static final Map<String, String> KNOWN_GAPS =
+  static final Map<String, String> KNOWN_GAPS =
       Map.of(
           "EnumFieldUnknownValue", "enum-unknown-number-default",
           "FieldMask", "field-mask-path-order",
@@ -501,5 +501,25 @@ final class JsonConformance {
 
   static boolean hasMembers(JsonNode json, String... names) {
     return Stream.of(names).allMatch(json::has);
+  }
+
+  /**
+   * Checks the {@code KNOWN_GAPS} table {@code knownGaps} against the mirrored scenario names and
+   * the gap-ledger ids. Returns one message per violation, in a stable order; an empty list means
+   * every key names a mirrored scenario and every value is a ledger id.
+   */
+  static List<String> knownGapProblems(
+      Map<String, String> knownGaps, Set<String> scenarioNames, Set<String> ledgerIds) {
+    List<String> problems = new ArrayList<>();
+    knownGaps.forEach((name, gapId) -> {
+      if (!scenarioNames.contains(name)) {
+        problems.add("KNOWN_GAPS entry '" + name + "' names no mirrored scenario");
+      }
+      if (!ledgerIds.contains(gapId)) {
+        problems.add(
+            "KNOWN_GAPS entry '" + name + "' names gap '" + gapId + "', which has no ledger row");
+      }
+    });
+    return List.copyOf(problems);
   }
 }

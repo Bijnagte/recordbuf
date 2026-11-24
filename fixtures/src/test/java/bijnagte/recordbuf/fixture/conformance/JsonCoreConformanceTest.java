@@ -82,7 +82,7 @@ class JsonCoreConformanceTest {
     assertEquals(List.of(), duplicateNames(allCases()), "scenario names used twice");
   }
 
-  private static Stream<Case> allCases() {
+  static Stream<Case> allCases() {
     return Stream.of(
             TOP_LEVEL,
             FIELD_NAME_CONVENTION,

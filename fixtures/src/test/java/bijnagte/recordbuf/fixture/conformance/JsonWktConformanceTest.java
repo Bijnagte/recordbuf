@@ -91,7 +91,7 @@ class JsonWktConformanceTest {
     assertEquals(List.of(), duplicateNames(allCases()), "scenario names used twice");
   }
 
-  private static Stream<Case> allCases() {
+  static Stream<Case> allCases() {
     return Stream.of(NULL_TYPES, WRAPPER_TYPES, FIELD_MASK, STRUCT, VALUE, ANY)
         .flatMap(List::stream);
   }
