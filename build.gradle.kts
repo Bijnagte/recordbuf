@@ -25,15 +25,76 @@
 // no Java source set of its own.
 plugins {
     alias(libs.plugins.spotless) apply false
+    // Maven Central (Central Portal) publishing; applied per-module below, not to this root.
+    alias(libs.plugins.vanniktech.publish) apply false
 }
 
-// KTD3: one `bijnagte.recordbuf:0.0.1` version of truth for every subproject,
-// inherited from the root. By construction the generator and the runtime its
-// generated code calls into are the same version, so no mismatch is possible
-// within this co-release.
+// KTD3: one version of truth for every subproject, inherited from the root. By construction the
+// generator and the runtime its generated code calls into are the same version, so no mismatch is
+// possible within this co-release. The version is `releaseVersion` (a Gradle property): the publish
+// workflow sets it from the pushed tag (`v0.0.2` -> `0.0.2`); local builds get a SNAPSHOT so they
+// are never mistaken for a release. Pass `-PreleaseVersion=x.y.z` to build a specific version.
+val releaseVersion: String = providers.gradleProperty("releaseVersion").getOrElse("0.0.1-SNAPSHOT")
+
+// The version and group are set once here; the published modules inherit them (no per-module version).
 subprojects {
-    group = "bijnagte.recordbuf"
-    version = "0.0.1"
+    group = "io.github.bijnagte.recordbuf"
+    version = releaseVersion
+}
+
+// Maven Central publishing (Central Portal) via com.vanniktech.maven.publish. Only the modules that
+// ship to consumers are published: `fixtures` (the compatibility suite) is never released. `options`
+// ships recordbuf_options.proto as a resource in a plain jar (see options/build.gradle.kts).
+// Coordinates are the inherited group/version above, i.e. io.github.bijnagte.recordbuf:<module>:0.0.1.
+// Credentials and the GPG signing key come from Gradle properties or ORG_GRADLE_PROJECT_* env vars;
+// see the README's Publishing section. Releases are left in the Portal's manual-release state
+// (publishToMavenCentral() default) so a human clicks Publish after validation.
+val publishedModules =
+    setOf(
+        ":recordbuf-runtime",
+        ":recordbuf-codegen",
+        ":recordbuf-json",
+        ":recordbuf-avro",
+        ":recordbuf-generator",
+        ":recordbuf-options",
+    )
+
+subprojects {
+    if (path !in publishedModules) return@subprojects
+    apply(plugin = "com.vanniktech.maven.publish")
+    configure<com.vanniktech.maven.publish.MavenPublishBaseExtension> {
+        publishToMavenCentral()
+        // Central requires every artifact to carry a GPG signature. Signing is enabled only when a key
+        // is supplied (CI / release), so `publishToMavenLocal` keeps working for local development.
+        val signingKeyPresent =
+            providers.gradleProperty("signingInMemoryKey").map { it.isNotBlank() }.orElse(false).get() ||
+                providers.gradleProperty("signing.keyId").isPresent
+        if (signingKeyPresent) signAllPublications()
+        pom {
+            name.set(project.name)
+            description.set("recordbuf: Protobuf-to-Java records and protobuf-compatible codecs (${project.name}).")
+            url.set("https://github.com/Bijnagte/recordbuf")
+            licenses {
+                license {
+                    name.set("MIT License")
+                    url.set("https://opensource.org/license/mit")
+                    distribution.set("repo")
+                }
+            }
+            developers {
+                developer {
+                    id.set("Bijnagte")
+                    name.set("Dylan Bijnagte")
+                    url.set("https://github.com/Bijnagte")
+                }
+            }
+            scm {
+                url.set("https://github.com/Bijnagte/recordbuf")
+                connection.set("scm:git:https://github.com/Bijnagte/recordbuf.git")
+                developerConnection.set("scm:git:ssh://git@github.com/Bijnagte/recordbuf.git")
+            }
+        }
+    }
 }
 
 // Spotless: format every Java file with Google Java Format, configured once and
