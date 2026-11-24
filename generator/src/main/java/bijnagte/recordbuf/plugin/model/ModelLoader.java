@@ -253,6 +253,7 @@ public final class ModelLoader {
       EnumDescriptorProto nested = m.getEnumType(j); // raw index: source_code_info keys on it
       nestedEnums.add(loadEnum(nested, child(basePath, 4, j)));
     }
+    requireUniqueJavaNames(m.getName(), fields, oneofs);
 
     return MessageBuilder.builder()
         .name(m.getName())
@@ -273,6 +274,36 @@ public final class ModelLoader {
             protobufJavaFor(
                 m.getOptions().getUnknownFields(), m.getOptions().getUninterpretedOptionList()))
         .build();
+  }
+
+  /**
+   * Fails generation when two fields of one message share a Java name. protoc rejects a JSON-name
+   * clash, but not a clash after {@link JavaNames#component(String)} lowers an upper-case start
+   * (for example {@code FieldName8} and {@code fieldName8}). Oneof members count too: they are
+   * fields of the message.
+   */
+  private static void requireUniqueJavaNames(
+      String messageName, List<Field> fields, List<Oneof> oneofs) {
+    List<Field> all = new ArrayList<>(fields);
+    for (Oneof oneof : oneofs) {
+      all.addAll(oneof.members());
+    }
+    Map<String, Field> byJavaName = new LinkedHashMap<>();
+    for (Field f : all) {
+      Field earlier = byJavaName.putIfAbsent(f.javaName(), f);
+      if (earlier != null) {
+        throw new IllegalStateException(
+            "message "
+                + messageName
+                + ": fields \""
+                + earlier.name()
+                + "\" and \""
+                + f.name()
+                + "\" both map to the Java name \""
+                + f.javaName()
+                + "\"; rename one of them");
+      }
+    }
   }
 
   private static String protoScopeForNested(DescriptorProto m, String protoScope) {
@@ -430,7 +461,7 @@ public final class ModelLoader {
   // --- fields ---
 
   private Field loadField(FieldDescriptorProto f, String protoScope, List<Integer> path) {
-    String javaName = JavaNames.camel(f.getName());
+    String javaName = JavaNames.component(f.getName());
     FieldLabel label = label(f.getLabel());
 
     FieldKind kind;

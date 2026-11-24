@@ -9,6 +9,7 @@ import org.jspecify.annotations.Nullable;
  * <ul>
  *   <li>{@link #cap(String)} capitalizes the first letter (for type names).
  *   <li>{@link #camel(String)} converts {@code foo_bar_baz} → {@code fooBarBaz}.
+ *   <li>{@link #component(String)} is {@code camel} with an upper-case start lowered.
  *   <li>{@link #snakeUpper(String)} produces an UPPER_SNAKE constant name.
  * </ul>
  */
@@ -35,6 +36,18 @@ public final class JavaNames {
       }
     }
     return out.toString();
+  }
+
+  /**
+   * The record component name of a proto field: {@link #camel(String)}, with the first letter
+   * lower-cased when the camel name starts upper-case. Only that first letter changes, so {@code
+   * _field_name3} → {@code fieldName3}, {@code FIELD_NAME11} → {@code fIELDNAME11} and {@code
+   * field_name2} is unchanged. The lower-case start is what Checkstyle's MemberName rule requires.
+   */
+  public static String component(String protoName) {
+    String camel = camel(protoName);
+    if (camel.isEmpty() || !Character.isUpperCase(camel.charAt(0))) return camel;
+    return Character.toLowerCase(camel.charAt(0)) + camel.substring(1);
   }
 
   public static String snakeUpper(String s) {

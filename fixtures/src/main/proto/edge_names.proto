@@ -1,0 +1,28 @@
+// Probe for field names that start upper-case after protoc's Java camel-case rule (the
+// field-name-uppercase-start gap). The recordbuf record is generated from this file (--recordbuf_out);
+// the protobuf-java reference is generated from this same file (--java_out). Each record component
+// lowers only the first letter of the camel name, while the Interop converter calls protobuf-java's
+// accessors and the Avro converter calls the Avro record's accessors, which both keep protoc's rule.
+// Avro and Jackson are on by default for this file. Field numbers are those of the vendored
+// TestAllTypesProto3 names that this probe mirrors.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.edgenames;
+option java_package = "bijnagte.recordbuf.fixture.edgenames";
+option java_multiple_files = true;
+
+import "recordbuf_options.proto";
+
+// Upper-case-start edge names, one per shape: leading underscore, upper-case first letter,
+// upper-case segment after an underscore, all-caps, and trailing underscores.
+message EdgeNames {
+  int32 _field_name3 = 403;
+  int32 FieldName8 = 408;
+  int32 Field_Name10 = 410;
+  int32 FIELD_NAME11 = 411;
+  int32 FIELD_name12 = 412;
+  int32 __field_name13 = 413;
+  int32 __Field_name14 = 414;
+  int32 Field_name18__ = 418;
+  option (.recordbuf.protobuf_java) = "bijnagte.recordbuf.fixture.edgenames";
+}
