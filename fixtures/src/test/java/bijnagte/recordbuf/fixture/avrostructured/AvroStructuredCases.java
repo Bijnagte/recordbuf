@@ -38,6 +38,11 @@ public final class AvroStructuredCases extends JacksonGoldenCases {
           + " repeated-wkt-default-element: a repeated Empty is always the default, so protobuf-java"
           + " writes bytes the encoder does not)";
 
+  private static final String EMPTY_MASK_ELEMENT_NOT_WRITTEN =
+      "masks holds an empty FieldMask element, which the generated encoder does not write (gap"
+          + " repeated-wkt-default-element: a repeated FieldMask element equal to the default is"
+          + " dropped, while protobuf-java writes it)";
+
   @Override
   public List<GoldenCase> cases() {
     return List.of(
@@ -48,7 +53,13 @@ public final class AvroStructuredCases extends JacksonGoldenCases {
                     FAMILY,
                     "empty-elements",
                     Sample.builder().empties(List.of(Empty.instance(), Empty.instance())).build())
-                .notApplicable(protobufBinary, EMPTY_ELEMENT_NOT_WRITTEN)));
+                .notApplicable(protobufBinary, EMPTY_ELEMENT_NOT_WRITTEN)),
+        build(
+            jacksonLossless(
+                    FAMILY,
+                    "empty-mask-element",
+                    Sample.builder().masks(List.of(FieldMask.empty(), FieldMask.of("a"))).build())
+                .notApplicable(protobufBinary, EMPTY_MASK_ELEMENT_NOT_WRITTEN)));
   }
 
   /**

@@ -1,0 +1,11 @@
+{
+  "durations" : [ ],
+  "timestamps" : [ ],
+  "masks" : [ null, {
+    "string" : "a"
+  } ],
+  "empties" : [ ],
+  "structs" : [ ],
+  "anys" : [ ],
+  "unknownFields" : [ ]
+}

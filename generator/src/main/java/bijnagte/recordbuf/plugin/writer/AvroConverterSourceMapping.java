@@ -250,7 +250,23 @@ public final class AvroConverterSourceMapping {
       return Element.expr("@0(@1().stream().toList())", var, getter);
     }
     return Element.expr(
-        "@0(@1().stream().map(v -> @2).toList())", var, getter, wktToRecordValue(wkt, "v"));
+        "@0(@1().stream().map(v -> @2).toList())", var, getter, repeatedElementToRecord(wkt));
+  }
+
+  /**
+   * The record value of one repeated WKT element {@code v}. A null FieldMask element reads back as
+   * the empty mask: a list element gets no constructor normalization, so the singular arm's
+   * null-to-empty step never reaches it, and a null record element would later fail in the
+   * encoders.
+   */
+  private static RawExpr repeatedElementToRecord(String wkt) {
+    if (wkt.equals("google.protobuf.FieldMask")) {
+      return RawExpr.of(
+          "v == null ? @0.empty() : @0.of(@1.fieldMaskFromAvro(v.toString()))",
+          TypeRefs.FIELD_MASK,
+          TypeRefs.WKT_AVRO_BRIDGE);
+    }
+    return wktToRecordValue(wkt, "v");
   }
 
   /**

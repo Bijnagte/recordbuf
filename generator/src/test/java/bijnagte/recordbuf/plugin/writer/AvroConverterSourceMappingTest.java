@@ -456,6 +456,41 @@ class AvroConverterSourceMappingTest {
   }
 
   @Test
+  void repeatedFieldMaskReadsAnAbsentElementBackAsTheEmptyMask() {
+    // An empty mask is written as a null element, and a list element gets no constructor
+    // normalization, so the read-back maps the null element to the empty mask, not to null.
+    Message m =
+        new Message(
+            "Sample",
+            TypeRef.named("bijnagte.recordbuf.fixture", "Sample"),
+            List.of(repeatedWktField("masks", "google.protobuf.FieldMask")),
+            List.of(),
+            List.of(),
+            List.of(),
+            false,
+            null,
+            List.of(),
+            null);
+
+    String out =
+        AvroConverterSourceMapping.generate(
+            "Sample",
+            "sample.proto",
+            m,
+            "SampleAvro",
+            "bijnagte.recordbuf.fixture.rec",
+            "bijnagte.recordbuf.fixture",
+            registryFor(m),
+            Formatter.IDENTITY);
+
+    assertTrue(
+        out.contains(
+            "b.masks(s.getMasks().stream().map(v -> v == null ? FieldMask.empty() : "
+                + "FieldMask.of(WktAvroBridge.fieldMaskFromAvro(v.toString()))).toList())"),
+        out);
+  }
+
+  @Test
   void repeatedScalarCopiesItsAvroListIntoAPlainList() {
     // A repeated scalar's Avro array is a GenericData.Array after a binary decode: the record gets
     // a plain List.copyOf of it, not the Avro list itself.
