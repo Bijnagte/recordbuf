@@ -51,7 +51,7 @@ public final class AvroConverterSourceMapping {
 
   /**
    * The WKTs whose Avro value is the record's value as it is (a number, a Timestamp's Instant, a
-   * boolean), so a repeated field of them passes its list through.
+   * boolean), so a repeated field of them needs no per-element conversion.
    */
   private static final Set<String> SAME_VALUE_WKTS =
       Set.of(
@@ -211,6 +211,11 @@ public final class AvroConverterSourceMapping {
     if (f.kind() == FieldKind.SCALAR && "string".equals(f.typeUrl())) {
       return Element.expr("@0(@1().toString())", var, getter);
     }
+    // A repeated scalar's Avro elements are never null, so a plain List.copyOf holds them: the
+    // record gets a plain list, not Avro's GenericData.Array.
+    if (f.kind() == FieldKind.SCALAR && f.isRepeated()) {
+      return Element.expr("@0(@1.copyOf(@2()))", var, TypeRefs.LIST, getter);
+    }
     if (f.kind() == FieldKind.SCALAR) {
       return Element.expr("@0(@1())", var, getter);
     }
@@ -240,7 +245,9 @@ public final class AvroConverterSourceMapping {
       return Element.expr("@0(@1)", var, wktToRecordValue(wkt, getter + "()"));
     }
     if (SAME_VALUE_WKTS.contains(wkt)) {
-      return Element.expr("@0(@1())", var, getter);
+      // The list is copied into a plain List: Avro's array is a GenericData.Array, whose equals
+      // rejects the record's Instant elements. Stream.toList() keeps a null wrapper element.
+      return Element.expr("@0(@1().stream().toList())", var, getter);
     }
     return Element.expr(
         "@0(@1().stream().map(v -> @2).toList())", var, getter, wktToRecordValue(wkt, "v"));

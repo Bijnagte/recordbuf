@@ -409,7 +409,7 @@ class AvroConverterSourceMappingTest {
   void repeatedStructuredWktsMapEachElementThroughTheSingularConversion() {
     // A repeated Duration takes the floor pair both ways (non-negative nanos), a repeated FieldMask
     // and Empty map per element through the bridge and the empty record, and a repeated Timestamp
-    // passes its list through (its Avro element is already an Instant).
+    // copies its list (its Avro element is already an Instant).
     Message m =
         new Message(
             "Sample",
@@ -448,10 +448,60 @@ class AvroConverterSourceMappingTest {
         out);
     assertTrue(out.contains("FieldMask.of(WktAvroBridge.fieldMaskFromAvro(v.toString()))"), out);
     assertTrue(out.contains("WktAvroBridge.fieldMaskToAvro(v.paths())"), out);
-    assertTrue(out.contains("b.timestamps(s.getTimestamps())"), out);
+    assertTrue(out.contains("b.timestamps(s.getTimestamps().stream().toList())"), out);
+    assertFalse(out.contains("b.timestamps(s.getTimestamps())"), out);
     assertTrue(out.contains("s.setTimestamps(r.timestamps())"), out);
     assertTrue(out.contains("b.empties(s.getEmpties().stream().map(v -> v == null ? null : "), out);
     assertFalse(out.contains("s.getDurations().getSeconds()"), out);
+  }
+
+  @Test
+  void repeatedScalarCopiesItsAvroListIntoAPlainList() {
+    // A repeated scalar's Avro array is a GenericData.Array after a binary decode: the record gets
+    // a plain List.copyOf of it, not the Avro list itself.
+    Field ints =
+        new Field(
+            "ints",
+            "ints",
+            4,
+            FieldLabel.REPEATED,
+            FieldKind.SCALAR,
+            "int32",
+            TypeRefs.LIST.withGenerics(TypeRef.OBJECT),
+            null,
+            null,
+            false,
+            null,
+            null,
+            false,
+            /* jacksonFormat= */ null,
+            "jsonName",
+            /* jsonIgnored= */ false);
+    Message m =
+        new Message(
+            "Sample",
+            TypeRef.named("bijnagte.recordbuf.fixture", "Sample"),
+            List.of(ints),
+            List.of(),
+            List.of(),
+            List.of(),
+            false,
+            null,
+            List.of(),
+            null);
+
+    String out =
+        AvroConverterSourceMapping.generate(
+            "Sample",
+            "sample.proto",
+            m,
+            "SampleAvro",
+            "bijnagte.recordbuf.fixture.rec",
+            "bijnagte.recordbuf.fixture",
+            registryFor(m),
+            Formatter.IDENTITY);
+
+    assertTrue(out.contains("b.ints(List.copyOf(s.getInts()))"), out);
   }
 
   @Test

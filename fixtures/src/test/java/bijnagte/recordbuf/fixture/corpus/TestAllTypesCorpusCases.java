@@ -171,7 +171,7 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
    * is absent. Each level sets {@code optional_empty} to the default Empty, which Avro needs for
    * its non-nullable message field, and whole-microsecond timestamps, the precision Avro keeps.
    */
-  private static TestAllTypesProto3 avroRecord() {
+  static TestAllTypesProto3 avroRecord() {
     TestAllTypesProto3 inner =
         avroLevel(populatedWithStructAny().toBuilder().recursiveMessage(null).build());
     return avroLevel(populatedWithStructAny().toBuilder().recursiveMessage(inner).build());
