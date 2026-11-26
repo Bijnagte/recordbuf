@@ -1,4 +1,4 @@
 {
-  "oneofFieldType" : "oneofBytes",
+  "oneofField" : "oneofBytes",
   "oneofBytes" : "AQID"
 }

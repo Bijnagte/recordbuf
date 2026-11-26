@@ -1,5 +1,5 @@
 {
-  "pick2wayType" : "pickStruct",
+  "pick2way" : "pickStruct",
   "pickStruct" : {
     "name" : "recordbuf",
     "count" : 2.5,

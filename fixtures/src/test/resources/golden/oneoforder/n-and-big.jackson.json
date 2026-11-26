@@ -2,8 +2,8 @@
   "first" : 1,
   "mid" : 5,
   "tail" : [ "t", "u" ],
-  "oType" : "n",
-  "pType" : "big",
+  "o" : "n",
+  "p" : "big",
   "n" : 3,
   "big" : 9
 }

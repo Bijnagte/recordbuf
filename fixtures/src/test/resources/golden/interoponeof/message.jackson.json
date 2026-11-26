@@ -1,5 +1,5 @@
 {
-  "pick2wayType" : "pickPart",
+  "pick2way" : "pickPart",
   "pickPart" : {
     "a" : 7
   }

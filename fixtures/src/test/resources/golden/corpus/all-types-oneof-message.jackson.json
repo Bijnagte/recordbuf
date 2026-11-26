@@ -475,7 +475,7 @@
   "fieldName16" : 16,
   "fieldName17" : 17,
   "FieldName18" : 0,
-  "oneofFieldType" : "oneofNestedMessage",
+  "oneofField" : "oneofNestedMessage",
   "oneofNestedMessage" : {
     "a" : 1234
   }

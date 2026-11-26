@@ -1,4 +1,4 @@
 {
-  "oneofFieldType" : "oneofBool",
+  "oneofField" : "oneofBool",
   "oneofBool" : true
 }

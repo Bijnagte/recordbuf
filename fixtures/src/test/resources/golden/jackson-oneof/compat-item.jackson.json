@@ -1,5 +1,5 @@
 {
-  "choiceType" : "item",
+  "choice" : "item",
   "item" : {
     "text" : "t"
   }

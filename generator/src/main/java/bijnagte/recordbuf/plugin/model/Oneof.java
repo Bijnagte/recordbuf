@@ -39,7 +39,7 @@ import org.jspecify.annotations.Nullable;
  *     fields list; never {@code null} (empty is the never-actually-emitted case: proto3 rejects
  *     empty oneof groups)
  * @param jsonOneof the per-oneof {@code recordbuf.json_oneof} discriminator property name override,
- *     or {@code null} when the option is absent (the default is {@code <oneofName>Type}); never
+ *     or {@code null} when the option is absent (the default is {@code <oneofName>}); never
  *     meaningful on a file without the {@code recordbuf.jackson} option (the loader fails loud on a
  *     knob without the toggle)
  */

@@ -4,6 +4,6 @@
   "repeatedKinds" : [ ],
   "repeatedColors" : [ ],
   "unpackedKinds" : [ "ALPHA", "NEG", "KIND_ZERO" ],
-  "choiceType" : "picked",
+  "choice" : "picked",
   "picked" : "NEG"
 }

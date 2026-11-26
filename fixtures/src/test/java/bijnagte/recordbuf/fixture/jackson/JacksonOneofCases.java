@@ -13,7 +13,7 @@ import java.util.List;
  * The golden cases of family {@code jackson-oneof}, migrated from {@code
  * JacksonOneofRoundTripTest}: a oneof renders flat, the set member as a top-level property under
  * its JSON name plus a discriminator naming it, and an unset oneof renders neither. {@code Compat}
- * is the default discriminator ({@code choiceType}); {@code Event} overrides it ({@code kind}) and
+ * is the default discriminator ({@code choice}); {@code Event} overrides it ({@code kind}) and
  * pairs a Timestamp and a bytes member.
  */
 public final class JacksonOneofCases extends JacksonGoldenCases {

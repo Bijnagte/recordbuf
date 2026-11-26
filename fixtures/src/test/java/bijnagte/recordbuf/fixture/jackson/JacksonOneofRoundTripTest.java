@@ -84,7 +84,7 @@ class JacksonOneofRoundTripTest {
 
   @Test
   void unknownPropertiesAreRetainedNextToTheOneof() {
-    Compat back = M.readValue("{\"name\":\"blue\",\"choiceType\":\"name\",\"x\":1}", Compat.class);
+    Compat back = M.readValue("{\"name\":\"blue\",\"choice\":\"name\",\"x\":1}", Compat.class);
 
     assertEquals(new Compat.Choice.NameValue("blue"), back.choice());
     assertEquals(M.readTree("1"), back.jsonExtras().get("x"));
@@ -95,10 +95,10 @@ class JacksonOneofRoundTripTest {
   void malformedOneofJsonFails() {
     for (String json :
         List.of(
-            "{\"name\":\"blue\",\"choiceType\":\"count\"}", // discriminator names another member
-            "{\"choiceType\":\"name\"}", // discriminator without its member
+            "{\"name\":\"blue\",\"choice\":\"count\"}", // discriminator names another member
+            "{\"choice\":\"name\"}", // discriminator without its member
             "{\"name\":\"blue\",\"count\":1}", // two members
-            "{\"name\":\"blue\",\"choiceType\":\"shade\"}")) { // unknown member
+            "{\"name\":\"blue\",\"choice\":\"shade\"}")) { // unknown member
       var e = assertThrows(JacksonException.class, () -> M.readValue(json, Compat.class), json);
       assertTrue(String.valueOf(e.getMessage()).contains("oneof choice"), e.getMessage());
     }

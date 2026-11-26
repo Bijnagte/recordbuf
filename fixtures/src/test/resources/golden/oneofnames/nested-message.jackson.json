@@ -1,5 +1,5 @@
 {
-  "oneofFieldType" : "oneofNestedMessage",
+  "oneofField" : "oneofNestedMessage",
   "oneofNestedMessage" : {
     "a" : 7
   }
