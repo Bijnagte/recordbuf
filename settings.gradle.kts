@@ -21,3 +21,6 @@ project(":recordbuf-codegen").projectDir = File(rootDir, "codegen")
 
 include(":recordbuf-json")
 project(":recordbuf-json").projectDir = File(rootDir, "json")
+
+include(":recordbuf-benchmarks")
+project(":recordbuf-benchmarks").projectDir = File(rootDir, "benchmarks")

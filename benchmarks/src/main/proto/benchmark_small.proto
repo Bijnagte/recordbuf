@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package bijnagte.recordbuf.benchmarks;
+
+import "recordbuf_options.proto";
+
+option java_multiple_files = true;
+
+// A minimal 3-field message for isolating per-field overhead.
+message BenchmarkSmall {
+  option (.recordbuf.protobuf_java) = "bijnagte.recordbuf.benchmarks";
+
+  int32 id = 1;
+  string name = 2;
+  repeated string tags = 3;
+}
