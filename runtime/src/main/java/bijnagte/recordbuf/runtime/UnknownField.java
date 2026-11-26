@@ -84,6 +84,7 @@ public record UnknownField(int fieldNumber, WireType wireType, byte[] value) {
     return switch (wireType) {
       case I32 -> varintToLong(value);
       case I64 -> littleEndian64(value);
+      case FIXED32 -> littleEndian32(value);
       default ->
           throw new IllegalStateException(
               "value is " + wireType + "; cannot read as a varint/fixed integer");
@@ -108,6 +109,15 @@ public record UnknownField(int fieldNumber, WireType wireType, byte[] value) {
     long v = 0;
     for (int i = 0; i < 8; i++) {
       v |= (long) (b[i] & 0xFF) << (8 * i);
+    }
+    return v;
+  }
+
+  /** Decode 4 little-endian bytes to an int (the fixed32 / FIXED32 wire shape). */
+  private static int littleEndian32(byte[] b) {
+    int v = 0;
+    for (int i = 0; i < 4; i++) {
+      v |= (b[i] & 0xFF) << (8 * i);
     }
     return v;
   }

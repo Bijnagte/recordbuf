@@ -159,6 +159,7 @@ public final class UnknownFields {
           byte[] content = in.readRawBytes(len);
           value = concat(varint32Bytes(len), content);
         }
+        case FIXED32 -> value = in.readRawBytes(4);
         default ->
             throw new IllegalStateException(
                 "cannot capture unknown wire type "

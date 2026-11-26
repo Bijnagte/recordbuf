@@ -24,6 +24,9 @@ public enum WireType {
   /** Legacy embedded-message group opening tag (proto3 never emits this). */
   START_GROUP(3),
 
+  /** 4 fixed bytes: uint32, float, fixed32, sfixed32. */
+  FIXED32(5),
+
   /** Legacy embedded-message group closing tag (proto3 never emits this). */
   END_GROUP(4);
 
@@ -46,6 +49,7 @@ public enum WireType {
       case 2 -> LENGTH_DELIMITED;
       case 3 -> START_GROUP;
       case 4 -> END_GROUP;
+      case 5 -> FIXED32;
       default -> throw new IllegalArgumentException("unknown wire type code: " + code);
     };
   }
