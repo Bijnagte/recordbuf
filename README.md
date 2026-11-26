@@ -41,6 +41,49 @@ Use the launcher under `generator/build/install/protoc-gen-recordbuf/bin/`. `ins
 writes a staging script to `generator/build/scripts/`, but that one cannot find its `lib/`
 when run in place.
 
+### Executable jar
+
+`./gradlew :recordbuf-generator:shadowJar` builds a single jar with every dependency inside,
+`generator/build/libs/recordbuf-generator-<version>-all.jar`. It runs with `java -jar` and has
+the same output as the launcher above. `protoc` plugins must be executable files, so point it at a
+small wrapper script:
+
+```bash
+printf '#!/bin/sh\nexec java -jar %s "$@"\n' "$PWD/generator/build/libs/recordbuf-generator-<version>-all.jar" > protoc-gen-recordbuf
+chmod +x protoc-gen-recordbuf
+protoc --plugin=protoc-gen-recordbuf=./protoc-gen-recordbuf --recordbuf_out=src/main/java your.proto
+```
+
+The jar's manifest carries the `Add-Exports` entries that google-java-format needs on a modern JDK,
+so no JVM flags are required. `build` creates this jar, and each release also publishes it to Maven Central as
+`io.github.bijnagte.recordbuf:recordbuf-generator:<version>:all` (a signed `-all.jar`). The default
+`recordbuf-generator` artifact stays the plain library jar with its dependencies in the POM, so existing
+consumers are unaffected.
+
+### Download a release
+
+Each [GitHub release](https://github.com/Bijnagte/recordbuf/releases) has a zip per platform with a
+bundled Java runtime, so it runs without a JDK installed:
+
+| Zip | Platform |
+|---|---|
+| `protoc-gen-recordbuf-<version>-linux-x86_64.zip` | Linux, Intel/AMD |
+| `protoc-gen-recordbuf-<version>-linux-aarch_64.zip` | Linux, ARM |
+| `protoc-gen-recordbuf-<version>-osx-x86_64.zip` | macOS, Intel |
+| `protoc-gen-recordbuf-<version>-osx-aarch_64.zip` | macOS, Apple Silicon |
+
+Unzip it and point `protoc` at the launcher inside:
+
+```bash
+unzip protoc-gen-recordbuf-<version>-osx-aarch_64.zip
+protoc --plugin=protoc-gen-recordbuf="$PWD/protoc-gen-recordbuf-<version>-osx-aarch_64/bin/protoc-gen-recordbuf" \
+       --recordbuf_out=src/main/java your.proto
+```
+
+`checksums_sha256.txt` on the release lists the SHA-256 of every zip. macOS may quarantine a downloaded
+zip; if it refuses to run the launcher, clear the flag with `xattr -dr com.apple.quarantine <dir>`.
+There is no Windows build.
+
 For a Gradle build, [`fixtures/build.gradle`](./fixtures/build.gradle) shows the full wiring
 with `com.google.protobuf` (protobuf-gradle-plugin): a managed `protoc`, the recordbuf plugin,
 and the options include path.
@@ -404,8 +447,10 @@ The consumer modules publish to Maven Central through the Central Portal under `
 `recordbuf-options` is a jar whose only content is `recordbuf_options.proto` at its root. Consumers who import
 `recordbuf_options.proto` get it by adding the jar's contents to their `protoc -I` path (for example, unzip it into
 a directory and pass that directory with `-I`). It imports `google/protobuf/descriptor.proto`, which protoc provides itself.
-The Gradle side uses [`com.vanniktech.maven.publish`](https://vanniktech.github.io/gradle-maven-publish-plugin/central/);
-its wiring lives in the root `build.gradle.kts`.
+Publishing uses Gradle's built-in `maven-publish` to stage every module into one directory (wiring in the root
+`build.gradle.kts`), and [JReleaser](https://jreleaser.org/guide/latest/reference/deploy/maven/maven-central.html) to sign
+the staged files and upload them to the Central Portal (wiring at the end of `generator/build.gradle.kts`). There is no other
+publishing plugin.
 
 To release, push a version tag. The tag is the version, so `v0.0.2` publishes `0.0.2`:
 
@@ -415,10 +460,21 @@ git push origin v0.0.2
 ```
 
 The `publish` workflow (`.github/workflows/publish.yml`) runs on every `v*` tag. It rejects tags that are not
-`v<major>.<minor>.<patch>[-qualifier]`, builds the project, and uploads all six modules to the Central Portal.
-Then, in the [Central Portal](https://central.sonatype.com/publishing/deployments), open each new deployment, check it,
-and click **Publish**. Nothing reaches Central until you do. Central never overwrites a version, so a tag that
-published something wrong needs a new version, not a re-push of the same tag.
+`v<major>.<minor>.<patch>[-qualifier]`, builds the project, and uploads all six modules to the Central Portal as one
+deployment. Then, in the [Central Portal](https://central.sonatype.com/publishing/deployments), open the new deployment,
+check it, and click **Publish**. Nothing reaches Central until you do (the deployer runs with `stage = UPLOAD`).
+Central never overwrites a version, so a tag that published something wrong needs a new version, not a re-push of the
+same tag.
+
+The same tag also triggers `.github/workflows/release.yml`, which creates the GitHub release and attaches the
+platform zips described under [Download a release](#download-a-release). The two workflows are independent: a failure
+in one does not stop the other. The release workflow needs no secrets beyond the built-in `GITHUB_TOKEN`.
+
+The zips are built by [JReleaser](https://jreleaser.org/guide/latest/reference/assemble/jlink.html) (its jlink
+assembler), configured at the end of `generator/build.gradle.kts`. One Linux runner builds all four platforms: jlink
+takes a JDK per target platform, which `scripts/fetch-target-jdks.sh` downloads (Amazon Corretto, checksum-verified;
+Temurin 25 no longer ships the `jmods` that cross-platform jlink needs). To build zips locally, run that script, then
+`./gradlew :recordbuf-generator:jreleaserAssemble`. Without target JDKs it builds only for your own platform.
 
 Local builds use `0.0.1-SNAPSHOT` unless you pass `-PreleaseVersion=x.y.z`.
 
@@ -428,15 +484,20 @@ One-time setup (repository secrets, used by `.github/workflows/publish.yml`):
 |---|---|
 | `MAVEN_CENTRAL_USERNAME` / `MAVEN_CENTRAL_PASSWORD` | A user token from the Central Portal (Account → Generate User Token). Not your login password. |
 | `GPG_PRIVATE_KEY` | `gpg --armor --export-secret-keys <KEY_ID>` (ASCII-armored secret key). |
-| `GPG_KEY_ID` | The key ID, e.g. the last 8 or 16 hex digits of the fingerprint. |
 | `GPG_PASSPHRASE` | The key's passphrase. Leave empty if the key has none. |
 
 The namespace `io.github.bijnagte` must be verified in the Central Portal before the first upload. Create a key with
 `gpg --full-generate-key`, and publish its public part to a keyserver such as `keys.openpgp.org`, or Central cannot
-verify the signatures.
+verify the signatures. (JReleaser reads the key ID from the key itself, so there is no key-ID secret.)
 
-Local check, which needs no key and no credentials: `./gradlew publishToMavenLocal`. Signing only happens when a key
-is supplied (`signingInMemoryKey` or `signing.keyId` as a Gradle property or `ORG_GRADLE_PROJECT_*` env var).
+The workflow maps those secrets onto the variables JReleaser reads: `JRELEASER_MAVENCENTRAL_SONATYPE_USERNAME` and
+`_PASSWORD`, and `JRELEASER_GPG_SECRET_KEY` and `JRELEASER_GPG_PASSPHRASE`. Signing is on only when
+`JRELEASER_GPG_SECRET_KEY` is set, so the GitHub release workflow and local runs need no key.
+
+Local checks, which need no key and no credentials:
+- `./gradlew publishToMavenLocal` installs every module into `~/.m2`.
+- `./gradlew publishAllPublicationsToStagingRepository` stages them into `build/staging-deploy`, which is what the
+  deployment uploads.
 
 
 ## License

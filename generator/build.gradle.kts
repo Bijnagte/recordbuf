@@ -1,6 +1,8 @@
 // net.ltgt.gradle.errorprone: brings the `options.errorprone { … }` DSL into
 // scope for the `JavaCompile` tasks below (required in *.gradle.kts scripts).
 import net.ltgt.gradle.errorprone.errorprone
+import org.jreleaser.model.Active
+import org.jreleaser.model.api.deploy.maven.MavenCentralMavenDeployer
 
 plugins {
     java
@@ -14,6 +16,10 @@ plugins {
     // is rejected as "invalid flag" on this plugin/toolchain combo.
     // Version comes from the catalog via `alias` (libs.plugins.gradle.errorprone).
     alias(libs.plugins.gradle.errorprone)
+    // Builds the executable fat jar (`shadowJar`); see the end of this file.
+    alias(libs.plugins.shadow)
+    // Builds the jlink runtime zips and creates the GitHub release; see the end of this file.
+    alias(libs.plugins.jreleaser)
 }
 
 java {
@@ -234,4 +240,178 @@ tasks.named<Jar>("jar") {
             "Implementation-Version" to project.version,
         )
     }
+}
+
+// The executable fat jar: `java -jar protoc-gen-recordbuf-<version>-all.jar` runs the plugin with every
+// dependency inside. It is a separate artifact from the `jar` above, which stays the plain library jar
+// that the published POM's dependencies resolve against, so what consumers get from Maven Central is
+// unchanged.
+//
+// `Add-Exports` is the manifest equivalent of the `--add-exports` flags in `gjfJvmArgs`: google-java-format
+// reaches into com.sun.tools.javac.*, and `java -jar` cannot take JVM flags from the jar, but the JVM does
+// read this attribute from the main jar's manifest. It is derived from `javacPackages`, so the launcher
+// script and the fat jar share one list.
+//
+// `mergeServiceFiles()` keeps the META-INF/services entries of every bundled library (the slf4j binding
+// is found through one), which would otherwise overwrite each other.
+tasks.shadowJar {
+    mergeServiceFiles()
+    manifest {
+        attributes(
+            "Add-Exports" to
+                javacPackages.joinToString(" ") {
+                    "jdk.compiler/com.sun.tools.javac${if (it.isEmpty()) "" else "." + it}"
+                },
+            "Implementation-Title" to "recordbuf-gen",
+            "Implementation-Version" to project.version,
+        )
+    }
+}
+
+// Build the fat jar as part of `assemble`/`build` so CI exercises it on every change.
+tasks.assemble {
+    dependsOn(tasks.shadowJar)
+}
+
+// JReleaser does two independent jobs for a version tag, each run by its own workflow:
+//  - Maven Central (`signing` and `deploy` below, .github/workflows/publish.yml): signs the modules that
+//    `maven-publish` staged (see the root build) and uploads them as one Portal deployment.
+//  - GitHub release (`assemble` and `release` below, .github/workflows/release.yml): jlink runtime zips
+//    (Linux and macOS). Each zip holds a trimmed Java runtime plus the plugin, so it runs with no JDK
+//    installed: unzip it and point protoc at `bin/protoc-gen-recordbuf`.
+//
+// jlink builds cross-platform from one machine when it is given a JDK per target platform
+// (`targetJdks`). The release workflow downloads those JDKs into build/target-jdks/<platform>; they must
+// all be the same Java major version as the JDK running Gradle. A platform whose directory is missing is
+// left out, so a local run can build just the platforms you have a JDK for.
+val jlinkPlatforms = listOf("linux-x86_64", "linux-aarch_64", "osx-x86_64", "osx-aarch_64")
+val targetJdkDir = layout.buildDirectory.dir("target-jdks")
+
+jreleaser {
+    // The git repository root is the parent of this module.
+    gitRootSearch.set(true)
+
+    project {
+        description.set("protoc plugin that generates Java records and protobuf codecs from .proto files")
+        copyright.set("2026 Dylan Bijnagte")
+        authors.add("Dylan Bijnagte")
+        license.set("MIT")
+        inceptionYear.set("2026")
+        links {
+            homepage.set("https://github.com/Bijnagte/recordbuf")
+        }
+    }
+
+    assemble {
+        jlink {
+            register("protoc-gen-recordbuf") {
+                active.set(Active.ALWAYS)
+                executable.set("protoc-gen-recordbuf")
+                imageName.set("protoc-gen-recordbuf-{{projectVersion}}")
+
+                // The fat jar is the input; its Main-Class and every dependency are inside it.
+                mainJar { path.set(tasks.shadowJar.flatMap { it.archiveFile }) }
+                java {
+                    mainClass.set("bijnagte.recordbuf.plugin.Main")
+                    // The jlink image runs the jar on the classpath, where the manifest `Add-Exports`
+                    // of the fat jar does not apply, so the launcher needs the same --add-exports flags
+                    // as the installDist launcher (one list: `gjfJvmArgs`).
+                    //
+                    // They go in as the launcher script's DEFAULT_JAVA_OPTS, NOT through `jvmOptions`:
+                    // JReleaser forwards `jvmOptions` to jlink as one quoted `--add-options="..."`
+                    // string, which jlink bakes into the runtime as a single garbled option and the JVM
+                    // then warns "Unknown module: ALL-UNNAMED --add-exports=..." on every run.
+                    environmentVariables {
+                        universal.put("DEFAULT_JAVA_OPTS", gjfJvmArgs.joinToString(" "))
+                    }
+                }
+
+                // google-java-format uses jdk.compiler, which jdeps cannot see through the reflective
+                // access, so it is listed explicitly. The fat jar bundles optional dependencies that
+                // are not all on the module path, hence ignoreMissingDeps.
+                additionalModuleNames.addAll("jdk.compiler", "java.logging")
+                // The fat jar is multi-release (bundled dependencies ship versioned classes), which jdeps
+                // refuses to scan without a --multi-release setting; `base` scans the unversioned classes.
+                jdeps {
+                    ignoreMissingDeps.set(true)
+                    multiRelease.set("base")
+                }
+
+                jlinkPlatforms.forEach { platform ->
+                    val dir = targetJdkDir.get().dir(platform).asFile
+                    if (dir.isDirectory) {
+                        targetJdk {
+                            path.set(dir)
+                            this.platform.set(platform)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Signing is for the Maven Central deployment below. It is on only when a key is supplied
+    // (JRELEASER_GPG_SECRET_KEY, set by publish.yml), so the GitHub release job, which has no key, and
+    // local runs are unaffected. `verify` is off because it would need the public key as another secret;
+    // Central itself validates every signature when the deployment is uploaded.
+    signing {
+        val hasKey = providers.environmentVariable("JRELEASER_GPG_SECRET_KEY").isPresent
+        active.set(if (hasKey) Active.ALWAYS else Active.NEVER)
+        armored.set(true)
+        verify.set(false)
+    }
+
+    // Maven Central, through the Central Portal publisher API. The modules are staged into one directory
+    // by `maven-publish` (see the root build), so this uploads them as a SINGLE deployment.
+    //   applyMavenCentralRules: signs and checksums what is staged and checks each POM and that every
+    //     module has its sources and javadoc jars, before anything is uploaded.
+    //   stage UPLOAD: upload and stop. The deployment waits in the Portal until someone clicks Publish
+    //     (FULL would also publish it), keeping the review step the Central releases have always had.
+    //   namespace: the namespace registered in the Portal, which is shorter than the groupId.
+    // Credentials come from JRELEASER_MAVENCENTRAL_SONATYPE_USERNAME / _PASSWORD (a Portal user token).
+    deploy {
+        maven {
+            mavenCentral {
+                register("sonatype") {
+                    // On only when the Central credentials are defined (publish.yml defines them), because
+                    // JReleaser validates every section on every run and would otherwise demand a token from
+                    // the GitHub release job too. publish.yml always defines the variable, even when the
+                    // secret is missing (then empty), so a missing secret fails validation loudly instead of
+                    // quietly skipping the upload. RELEASE: never for a snapshot, which Central rejects.
+                    val hasCredentials =
+                        providers.environmentVariable("JRELEASER_MAVENCENTRAL_SONATYPE_USERNAME").isPresent
+                    active.set(if (hasCredentials) Active.RELEASE else Active.NEVER)
+                    url.set("https://central.sonatype.com/api/v1/publisher")
+                    namespace.set("io.github.bijnagte")
+                    applyMavenCentralRules.set(true)
+                    stage.set(MavenCentralMavenDeployer.Stage.UPLOAD)
+                    stagingRepository(rootProject.layout.buildDirectory.dir("staging-deploy").get().asFile.absolutePath)
+                }
+            }
+        }
+    }
+
+    release {
+        github {
+            repoOwner.set("Bijnagte")
+            name.set("recordbuf")
+            // The tag is the trigger, so it already exists; JReleaser must not create or move it.
+            skipTag.set(true)
+            // CI checks out the tag (a detached HEAD), so name the branch instead of letting JReleaser
+            // read it from git.
+            branch.set("main")
+            // Re-running a failed release updates it instead of failing on the existing one.
+            overwrite.set(true)
+            changelog {
+                formatted.set(Active.ALWAYS)
+                preset.set("conventional-commits")
+            }
+        }
+    }
+}
+
+// The mainJar above is a plain path, so Gradle does not know the assemble step needs the fat jar built
+// first. Without this a stale jar from an earlier build would be bundled.
+tasks.withType<org.jreleaser.gradle.plugin.tasks.AbstractJReleaserTask>().configureEach {
+    dependsOn(tasks.shadowJar)
 }

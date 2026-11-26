@@ -316,16 +316,45 @@ details. Rules:
 - **Version comes from one place:** the `releaseVersion` Gradle property, read in the root `build.gradle.kts` and
   inherited by every subproject. Do not hard-code a version in a module's build file.
 - **Release = push a tag** `v<version>` (e.g. `v0.0.2`). `.github/workflows/publish.yml` validates the tag,
-  runs `./gradlew build`, then `publishToMavenCentral`. Each deployment waits in the Central Portal until someone
-  clicks Publish. Central never overwrites a version, so a bad release needs a new version.
-- **Plugin:** `com.vanniktech.maven.publish` (catalog alias `vanniktech-publish`), applied in the root to the
-  `publishedModules` set. Do not add bare `maven-publish` for Central. Signing runs only when a key is supplied
-  (`signingInMemoryKey` or `signing.keyId`), so `publishToMavenLocal` works without one.
+  runs `./gradlew build`, stages with `publishAllPublicationsToStagingRepository`, then uploads with
+  `:recordbuf-generator:jreleaserDeploy`. All modules go up as ONE deployment, which waits in the Central Portal until
+  someone clicks Publish (`stage = UPLOAD`). Central never overwrites a version, so a bad release needs a new version.
+- **No third-party publishing plugin besides JReleaser.** The root `build.gradle.kts` applies Gradle's built-in
+  `maven-publish` to the `publishedModules` set (POM, sources and javadoc jars, a `staging` repository at
+  `build/staging-deploy`). JReleaser (`deploy.maven.mavenCentral.sonatype` + `signing`, in `generator/build.gradle.kts`)
+  signs the staged files, checks POMs, and uploads. Credentials are `JRELEASER_MAVENCENTRAL_SONATYPE_USERNAME/_PASSWORD`;
+  the key is `JRELEASER_GPG_SECRET_KEY` + `JRELEASER_GPG_PASSPHRASE`. Signing is active only when the key variable is set,
+  so the GitHub release job and local runs need none. `signing.verify` is off to avoid a public-key secret. The Portal
+  namespace is set explicitly (`io.github.bijnagte`); it is not the groupId. (This replaced the vanniktech
+  publishing plugin; do not reintroduce it.)
 - **`options` publishes a resource-only jar:** `java-library` with `src/main/proto` as a resource root, so the jar
   holds `recordbuf_options.proto` at its root.
+- **The generator also ships an executable fat jar** (`shadowJar`, `com.gradleup.shadow`, catalog alias `shadow`),
+  published with each release as the signed `recordbuf-generator-<version>-all.jar` (Shadow adds it to the publication
+  on its own). The plain `jar` stays the library artifact, so the POM and default Gradle resolution are unchanged.
+  Its manifest `Add-Exports` is derived from `javacPackages`, the same list as the launcher's `--add-exports` flags,
+  because `java -jar` cannot take JVM flags. `mergeServiceFiles()` keeps the slf4j binding working.
+- **GitHub releases are a second, independent channel** (`.github/workflows/release.yml`, same `v*` tag as the Central
+  publish): JReleaser (`org.jreleaser`, catalog alias `jreleaser`, configured at the end of `generator/build.gradle.kts`)
+  builds jlink runtime zips for linux/osx x86_64+aarch_64 (no Windows) and uploads them with a checksum file.
+  Non-obvious points, each learned the hard way:
+  - `jreleaserFullRelease` does NOT assemble; run `jreleaserAssemble` first, in the same job.
+  - Cross-platform jlink needs each target JDK's `jmods`. Temurin 25 ships none (JEP 493), so
+    `scripts/fetch-target-jdks.sh` downloads Corretto, which does. The runtime in the zips is Corretto's.
+  - Do NOT pass the `--add-exports` flags via JReleaser `jvmOptions`: it forwards them to jlink as one quoted
+    `--add-options` string, which jlink bakes in garbled (a JVM "Unknown module" warning on every run). They go through
+    `environmentVariables { DEFAULT_JAVA_OPTS }` instead, and `src/jreleaser/.../bin/launcher.tpl` is the stock template
+    with one change (`{{{value}}}`, unescaped) because the stock one HTML-escapes `=` to `&#61;`. Regenerate it with
+    `jreleaserTemplateGenerate` when bumping JReleaser and re-apply that change.
+  - `jdeps` needs `multiRelease = base` because the fat jar is multi-release.
+  - CI needs `fetch-depth: 0` (changelog) and `branch = main` (the tag checkout is a detached HEAD).
 - **Javadoc must pass doclint** (the javadoc jar is part of publishing). Write `{@code X}` for classes that are not
   imported into the file. A `{@link}` to a missing class fails the publish.
-- Verify locally with `./gradlew publishToMavenLocal`, and check the release gate with `./gradlew publishToMavenCentral --dry-run`.
+- Verify locally with `./gradlew publishToMavenLocal` (every module into `~/.m2`) or
+  `./gradlew -PreleaseVersion=0.1.1-test publishAllPublicationsToStagingRepository` (what the upload sends). To exercise the
+  JReleaser side without uploading, dry-run it with a throwaway key: `JRELEASER_DRY_RUN=true JRELEASER_GPG_SECRET_KEY=... 
+  JRELEASER_GPG_PASSPHRASE=... JRELEASER_MAVENCENTRAL_SONATYPE_USERNAME=u JRELEASER_MAVENCENTRAL_SONATYPE_PASSWORD=p
+  ./gradlew -PreleaseVersion=0.1.1-test :recordbuf-generator:jreleaserDeploy`. Use a non-snapshot version or the deployer is inactive.
 
 
 ## Skills (apply automatically, user-level)
