@@ -323,6 +323,11 @@ details. Rules:
   (`signingInMemoryKey` or `signing.keyId`), so `publishToMavenLocal` works without one.
 - **`options` publishes a resource-only jar:** `java-library` with `src/main/proto` as a resource root, so the jar
   holds `recordbuf_options.proto` at its root.
+- **The generator also ships an executable fat jar** (`shadowJar`, `com.gradleup.shadow`, catalog alias `shadow`),
+  published with each release as the signed `recordbuf-generator-<version>-all.jar` (Shadow adds it to the publication
+  on its own). The plain `jar` stays the library artifact, so the POM and default Gradle resolution are unchanged.
+  Its manifest `Add-Exports` is derived from `javacPackages`, the same list as the launcher's `--add-exports` flags,
+  because `java -jar` cannot take JVM flags. `mergeServiceFiles()` keeps the slf4j binding working.
 - **Javadoc must pass doclint** (the javadoc jar is part of publishing). Write `{@code X}` for classes that are not
   imported into the file. A `{@link}` to a missing class fails the publish.
 - Verify locally with `./gradlew publishToMavenLocal`, and check the release gate with `./gradlew publishToMavenCentral --dry-run`.

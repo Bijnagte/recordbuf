@@ -41,6 +41,25 @@ Use the launcher under `generator/build/install/protoc-gen-recordbuf/bin/`. `ins
 writes a staging script to `generator/build/scripts/`, but that one cannot find its `lib/`
 when run in place.
 
+### Executable jar
+
+`./gradlew :recordbuf-generator:shadowJar` builds a single jar with every dependency inside,
+`generator/build/libs/recordbuf-generator-<version>-all.jar`. It runs with `java -jar` and has
+the same output as the launcher above. `protoc` plugins must be executable files, so point it at a
+small wrapper script:
+
+```bash
+printf '#!/bin/sh\nexec java -jar %s "$@"\n' "$PWD/generator/build/libs/recordbuf-generator-<version>-all.jar" > protoc-gen-recordbuf
+chmod +x protoc-gen-recordbuf
+protoc --plugin=protoc-gen-recordbuf=./protoc-gen-recordbuf --recordbuf_out=src/main/java your.proto
+```
+
+The jar's manifest carries the `Add-Exports` entries that google-java-format needs on a modern JDK,
+so no JVM flags are required. `build` creates this jar, and each release also publishes it to Maven Central as
+`io.github.bijnagte.recordbuf:recordbuf-generator:<version>:all` (a signed `-all.jar`). The default
+`recordbuf-generator` artifact stays the plain library jar with its dependencies in the POM, so existing
+consumers are unaffected.
+
 For a Gradle build, [`fixtures/build.gradle`](./fixtures/build.gradle) shows the full wiring
 with `com.google.protobuf` (protobuf-gradle-plugin): a managed `protoc`, the recordbuf plugin,
 and the options include path.
@@ -428,7 +447,7 @@ One-time setup (repository secrets, used by `.github/workflows/publish.yml`):
 |---|---|
 | `MAVEN_CENTRAL_USERNAME` / `MAVEN_CENTRAL_PASSWORD` | A user token from the Central Portal (Account → Generate User Token). Not your login password. |
 | `GPG_PRIVATE_KEY` | `gpg --armor --export-secret-keys <KEY_ID>` (ASCII-armored secret key). |
-| `GPG_KEY_ID` | The key ID, e.g. the last 8 or 16 hex digits of the fingerprint. |
+| `GPG_KEY_ID` | The last 8 hex digits of the key fingerprint, e.g. `9925E5B5`. This is the form verified in CI; use it as-is, with no trailing whitespace. |
 | `GPG_PASSPHRASE` | The key's passphrase. Leave empty if the key has none. |
 
 The namespace `io.github.bijnagte` must be verified in the Central Portal before the first upload. Create a key with
