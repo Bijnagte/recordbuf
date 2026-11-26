@@ -25,8 +25,6 @@
 // no Java source set of its own.
 plugins {
     alias(libs.plugins.spotless) apply false
-    // Maven Central (Central Portal) publishing; applied per-module below, not to this root.
-    alias(libs.plugins.vanniktech.publish) apply false
 }
 
 // KTD3: one version of truth for every subproject, inherited from the root. By construction the
@@ -42,13 +40,18 @@ subprojects {
     version = releaseVersion
 }
 
-// Maven Central publishing (Central Portal) via com.vanniktech.maven.publish. Only the modules that
-// ship to consumers are published: `fixtures` (the compatibility suite) is never released. `options`
-// ships recordbuf_options.proto as a resource in a plain jar (see options/build.gradle.kts).
-// Coordinates are the inherited group/version above, i.e. io.github.bijnagte.recordbuf:<module>:0.0.1.
-// Credentials and the GPG signing key come from Gradle properties or ORG_GRADLE_PROJECT_* env vars;
-// see the README's Publishing section. Releases are left in the Portal's manual-release state
-// (publishToMavenCentral() default) so a human clicks Publish after validation.
+// Maven Central publishing, in two halves that use no third-party Gradle plugin besides JReleaser:
+//
+//  1. Here: Gradle's built-in `maven-publish` stages every published module (jar, sources, javadoc, POM,
+//     Gradle module metadata) into ONE local Maven-layout directory, build/staging-deploy.
+//  2. In generator/build.gradle.kts: JReleaser signs what is staged and uploads it to the Central Portal
+//     as a single deployment (`jreleaserDeploy`). Credentials and the GPG key are read there from
+//     JRELEASER_* environment variables; see the README's Publishing section.
+//
+// Only the modules that ship to consumers are published: `fixtures` (the compatibility suite) is never
+// released. `options` ships recordbuf_options.proto as a resource in a plain jar (see
+// options/build.gradle.kts). Coordinates are the inherited group/version above, i.e.
+// io.github.bijnagte.recordbuf:<module>:<version>.
 val publishedModules =
     setOf(
         ":recordbuf-runtime",
@@ -59,39 +62,57 @@ val publishedModules =
         ":recordbuf-options",
     )
 
+// Shared with generator/build.gradle.kts, which points JReleaser at it.
+val stagingDeployDir: File = layout.buildDirectory.dir("staging-deploy").get().asFile
+
 subprojects {
     if (path !in publishedModules) return@subprojects
-    apply(plugin = "com.vanniktech.maven.publish")
-    configure<com.vanniktech.maven.publish.MavenPublishBaseExtension> {
-        publishToMavenCentral()
-        // Central requires every artifact to carry a GPG signature. Signing is enabled only when a key
-        // is supplied (CI / release), so `publishToMavenLocal` keeps working for local development.
-        val signingKeyPresent =
-            providers.gradleProperty("signingInMemoryKey").map { it.isNotBlank() }.orElse(false).get() ||
-                providers.gradleProperty("signing.keyId").isPresent
-        if (signingKeyPresent) signAllPublications()
-        pom {
-            name.set(project.name)
-            description.set("recordbuf: Protobuf-to-Java records and protobuf-compatible codecs (${project.name}).")
-            url.set("https://github.com/Bijnagte/recordbuf")
-            licenses {
-                license {
-                    name.set("MIT License")
-                    url.set("https://opensource.org/license/mit")
-                    distribution.set("repo")
+    // Waits for the module's own `java`/`java-library` plugin, which is applied after this root script.
+    pluginManager.withPlugin("java") {
+        apply(plugin = "maven-publish")
+        // Central requires a -sources.jar and a -javadoc.jar next to every jar.
+        configure<JavaPluginExtension> {
+            withSourcesJar()
+            withJavadocJar()
+        }
+        configure<PublishingExtension> {
+            publications {
+                create<MavenPublication>("maven") {
+                    from(components["java"])
+                    pom {
+                        name.set(project.name)
+                        description.set(
+                            "recordbuf: Protobuf-to-Java records and protobuf-compatible codecs (${project.name})."
+                        )
+                        url.set("https://github.com/Bijnagte/recordbuf")
+                        inceptionYear.set("2026")
+                        licenses {
+                            license {
+                                name.set("MIT License")
+                                url.set("https://opensource.org/license/mit")
+                                distribution.set("repo")
+                            }
+                        }
+                        developers {
+                            developer {
+                                id.set("Bijnagte")
+                                name.set("Dylan Bijnagte")
+                                url.set("https://github.com/Bijnagte")
+                            }
+                        }
+                        scm {
+                            url.set("https://github.com/Bijnagte/recordbuf")
+                            connection.set("scm:git:https://github.com/Bijnagte/recordbuf.git")
+                            developerConnection.set("scm:git:ssh://git@github.com/Bijnagte/recordbuf.git")
+                        }
+                    }
                 }
             }
-            developers {
-                developer {
-                    id.set("Bijnagte")
-                    name.set("Dylan Bijnagte")
-                    url.set("https://github.com/Bijnagte")
+            repositories {
+                maven {
+                    name = "staging"
+                    url = uri(stagingDeployDir)
                 }
-            }
-            scm {
-                url.set("https://github.com/Bijnagte/recordbuf")
-                connection.set("scm:git:https://github.com/Bijnagte/recordbuf.git")
-                developerConnection.set("scm:git:ssh://git@github.com/Bijnagte/recordbuf.git")
             }
         }
     }

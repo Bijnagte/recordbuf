@@ -2,6 +2,7 @@
 // scope for the `JavaCompile` tasks below (required in *.gradle.kts scripts).
 import net.ltgt.gradle.errorprone.errorprone
 import org.jreleaser.model.Active
+import org.jreleaser.model.api.deploy.maven.MavenCentralMavenDeployer
 
 plugins {
     java
@@ -272,10 +273,12 @@ tasks.assemble {
     dependsOn(tasks.shadowJar)
 }
 
-// JReleaser: jlink runtime zips (Linux and macOS) attached to a GitHub release. Each zip holds a trimmed
-// Java runtime plus the plugin, so it runs with no JDK installed: unzip it and point protoc at
-// `bin/protoc-gen-recordbuf`. Nothing here publishes to Maven Central (that is the vanniktech setup in
-// the root build); this is the second, independent release channel, run by .github/workflows/release.yml.
+// JReleaser does two independent jobs for a version tag, each run by its own workflow:
+//  - Maven Central (`signing` and `deploy` below, .github/workflows/publish.yml): signs the modules that
+//    `maven-publish` staged (see the root build) and uploads them as one Portal deployment.
+//  - GitHub release (`assemble` and `release` below, .github/workflows/release.yml): jlink runtime zips
+//    (Linux and macOS). Each zip holds a trimmed Java runtime plus the plugin, so it runs with no JDK
+//    installed: unzip it and point protoc at `bin/protoc-gen-recordbuf`.
 //
 // jlink builds cross-platform from one machine when it is given a JDK per target platform
 // (`targetJdks`). The release workflow downloads those JDKs into build/target-jdks/<platform>; they must
@@ -342,6 +345,47 @@ jreleaser {
                             this.platform.set(platform)
                         }
                     }
+                }
+            }
+        }
+    }
+
+    // Signing is for the Maven Central deployment below. It is on only when a key is supplied
+    // (JRELEASER_GPG_SECRET_KEY, set by publish.yml), so the GitHub release job, which has no key, and
+    // local runs are unaffected. `verify` is off because it would need the public key as another secret;
+    // Central itself validates every signature when the deployment is uploaded.
+    signing {
+        val hasKey = providers.environmentVariable("JRELEASER_GPG_SECRET_KEY").isPresent
+        active.set(if (hasKey) Active.ALWAYS else Active.NEVER)
+        armored.set(true)
+        verify.set(false)
+    }
+
+    // Maven Central, through the Central Portal publisher API. The modules are staged into one directory
+    // by `maven-publish` (see the root build), so this uploads them as a SINGLE deployment.
+    //   applyMavenCentralRules: signs and checksums what is staged and checks each POM and that every
+    //     module has its sources and javadoc jars, before anything is uploaded.
+    //   stage UPLOAD: upload and stop. The deployment waits in the Portal until someone clicks Publish
+    //     (FULL would also publish it), keeping the review step the Central releases have always had.
+    //   namespace: the namespace registered in the Portal, which is shorter than the groupId.
+    // Credentials come from JRELEASER_MAVENCENTRAL_SONATYPE_USERNAME / _PASSWORD (a Portal user token).
+    deploy {
+        maven {
+            mavenCentral {
+                register("sonatype") {
+                    // On only when the Central credentials are defined (publish.yml defines them), because
+                    // JReleaser validates every section on every run and would otherwise demand a token from
+                    // the GitHub release job too. publish.yml always defines the variable, even when the
+                    // secret is missing (then empty), so a missing secret fails validation loudly instead of
+                    // quietly skipping the upload. RELEASE: never for a snapshot, which Central rejects.
+                    val hasCredentials =
+                        providers.environmentVariable("JRELEASER_MAVENCENTRAL_SONATYPE_USERNAME").isPresent
+                    active.set(if (hasCredentials) Active.RELEASE else Active.NEVER)
+                    url.set("https://central.sonatype.com/api/v1/publisher")
+                    namespace.set("io.github.bijnagte")
+                    applyMavenCentralRules.set(true)
+                    stage.set(MavenCentralMavenDeployer.Stage.UPLOAD)
+                    stagingRepository(rootProject.layout.buildDirectory.dir("staging-deploy").get().asFile.absolutePath)
                 }
             }
         }
