@@ -328,9 +328,25 @@ details. Rules:
   on its own). The plain `jar` stays the library artifact, so the POM and default Gradle resolution are unchanged.
   Its manifest `Add-Exports` is derived from `javacPackages`, the same list as the launcher's `--add-exports` flags,
   because `java -jar` cannot take JVM flags. `mergeServiceFiles()` keeps the slf4j binding working.
+- **GitHub releases are a second, independent channel** (`.github/workflows/release.yml`, same `v*` tag as the Central
+  publish): JReleaser (`org.jreleaser`, catalog alias `jreleaser`, configured at the end of `generator/build.gradle.kts`)
+  builds jlink runtime zips for linux/osx x86_64+aarch_64 (no Windows) and uploads them with a checksum file.
+  Non-obvious points, each learned the hard way:
+  - `jreleaserFullRelease` does NOT assemble; run `jreleaserAssemble` first, in the same job.
+  - Cross-platform jlink needs each target JDK's `jmods`. Temurin 25 ships none (JEP 493), so
+    `scripts/fetch-target-jdks.sh` downloads Corretto, which does. The runtime in the zips is Corretto's.
+  - Do NOT pass the `--add-exports` flags via JReleaser `jvmOptions`: it forwards them to jlink as one quoted
+    `--add-options` string, which jlink bakes in garbled (a JVM "Unknown module" warning on every run). They go through
+    `environmentVariables { DEFAULT_JAVA_OPTS }` instead, and `src/jreleaser/.../bin/launcher.tpl` is the stock template
+    with one change (`{{{value}}}`, unescaped) because the stock one HTML-escapes `=` to `&#61;`. Regenerate it with
+    `jreleaserTemplateGenerate` when bumping JReleaser and re-apply that change.
+  - `jdeps` needs `multiRelease = base` because the fat jar is multi-release.
+  - CI needs `fetch-depth: 0` (changelog) and `branch = main` (the tag checkout is a detached HEAD).
 - **Javadoc must pass doclint** (the javadoc jar is part of publishing). Write `{@code X}` for classes that are not
   imported into the file. A `{@link}` to a missing class fails the publish.
-- Verify locally with `./gradlew publishToMavenLocal`, and check the release gate with `./gradlew publishToMavenCentral --dry-run`.
+- Verify locally with `./gradlew publishToMavenLocal`. To see which modules `publishToMavenCentral` reaches, dry-run it with
+  dummy credentials (the vanniktech plugin resolves them even for `--dry-run`):
+  `ORG_GRADLE_PROJECT_mavenCentralUsername=x ORG_GRADLE_PROJECT_mavenCentralPassword=x ./gradlew publishToMavenCentral --dry-run`.
 
 
 ## Skills (apply automatically, user-level)

@@ -60,6 +60,30 @@ so no JVM flags are required. `build` creates this jar, and each release also pu
 `recordbuf-generator` artifact stays the plain library jar with its dependencies in the POM, so existing
 consumers are unaffected.
 
+### Download a release
+
+Each [GitHub release](https://github.com/Bijnagte/recordbuf/releases) has a zip per platform with a
+bundled Java runtime, so it runs without a JDK installed:
+
+| Zip | Platform |
+|---|---|
+| `protoc-gen-recordbuf-<version>-linux-x86_64.zip` | Linux, Intel/AMD |
+| `protoc-gen-recordbuf-<version>-linux-aarch_64.zip` | Linux, ARM |
+| `protoc-gen-recordbuf-<version>-osx-x86_64.zip` | macOS, Intel |
+| `protoc-gen-recordbuf-<version>-osx-aarch_64.zip` | macOS, Apple Silicon |
+
+Unzip it and point `protoc` at the launcher inside:
+
+```bash
+unzip protoc-gen-recordbuf-<version>-osx-aarch_64.zip
+protoc --plugin=protoc-gen-recordbuf="$PWD/protoc-gen-recordbuf-<version>-osx-aarch_64/bin/protoc-gen-recordbuf" \
+       --recordbuf_out=src/main/java your.proto
+```
+
+`checksums_sha256.txt` on the release lists the SHA-256 of every zip. macOS may quarantine a downloaded
+zip; if it refuses to run the launcher, clear the flag with `xattr -dr com.apple.quarantine <dir>`.
+There is no Windows build.
+
 For a Gradle build, [`fixtures/build.gradle`](./fixtures/build.gradle) shows the full wiring
 with `com.google.protobuf` (protobuf-gradle-plugin): a managed `protoc`, the recordbuf plugin,
 and the options include path.
@@ -438,6 +462,16 @@ The `publish` workflow (`.github/workflows/publish.yml`) runs on every `v*` tag.
 Then, in the [Central Portal](https://central.sonatype.com/publishing/deployments), open each new deployment, check it,
 and click **Publish**. Nothing reaches Central until you do. Central never overwrites a version, so a tag that
 published something wrong needs a new version, not a re-push of the same tag.
+
+The same tag also triggers `.github/workflows/release.yml`, which creates the GitHub release and attaches the
+platform zips described under [Download a release](#download-a-release). The two workflows are independent: a failure
+in one does not stop the other. The release workflow needs no secrets beyond the built-in `GITHUB_TOKEN`.
+
+The zips are built by [JReleaser](https://jreleaser.org/guide/latest/reference/assemble/jlink.html) (its jlink
+assembler), configured at the end of `generator/build.gradle.kts`. One Linux runner builds all four platforms: jlink
+takes a JDK per target platform, which `scripts/fetch-target-jdks.sh` downloads (Amazon Corretto, checksum-verified;
+Temurin 25 no longer ships the `jmods` that cross-platform jlink needs). To build zips locally, run that script, then
+`./gradlew :recordbuf-generator:jreleaserAssemble`. Without target JDKs it builds only for your own platform.
 
 Local builds use `0.0.1-SNAPSHOT` unless you pass `-PreleaseVersion=x.y.z`.
 
