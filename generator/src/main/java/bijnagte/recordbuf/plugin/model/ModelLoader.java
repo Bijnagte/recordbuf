@@ -929,7 +929,7 @@ public final class ModelLoader {
 
   /**
    * Read the per-oneof {@code recordbuf.json_oneof} discriminator property name, or {@code null}
-   * when absent (the default discriminator is {@code <oneofName>Type}).
+   * when absent (the default discriminator is {@code <oneofName>}).
    */
   @Nullable
   private static String jacksonOneofFor(

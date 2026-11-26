@@ -1,4 +1,4 @@
 {
-  "oneofFieldType" : "oneofDouble",
+  "oneofField" : "oneofDouble",
   "oneofDouble" : 2.25
 }

@@ -1,4 +1,4 @@
 {
-  "pick2wayType" : "pickCount",
+  "pick2way" : "pickCount",
   "pickCount" : 42
 }

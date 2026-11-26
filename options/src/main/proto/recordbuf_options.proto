@@ -39,7 +39,7 @@ extend google.protobuf.EnumOptions {
 // ENABLED BY DEFAULT; this FILE-level option is the opt-OUT (an explicit false): an absent
 // recordbuf.jackson generates the Jackson annotation surface
 // (@JsonProperty wire names, any-getter/any-setter unknown-property retention, flat +
-// <oneofName>Type discriminator oneofs, node-typed dynamic WKT fields), and the consuming module
+// <oneofName> discriminator oneofs, node-typed dynamic WKT fields), and the consuming module
 // must put Jackson on the classpath; only an explicit false generates the byte-identical,
 // dependency-free output.
 // at its assigned tag, which the plugin reads by tag without linking this .proto.
@@ -61,7 +61,7 @@ extend google.protobuf.FieldOptions {
     optional bool json_ignored = 50007;
 };
 // (recordbuf.json_oneof) -- per-oneof override of the discriminator property name on a
-// jackson-enabled file (the default is <oneofName>Type, e.g. "choiceType").
+// jackson-enabled file (the default is <oneofName>, e.g. "choice").
 // (recordbuf.json_oneof_values) is RESERVED for v2 (discriminator value style): declared to
 // hold the tag and round-trip, but the current generator does not read it.
 extend google.protobuf.OneofOptions {

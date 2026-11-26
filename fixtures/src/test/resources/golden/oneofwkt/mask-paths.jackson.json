@@ -1,4 +1,4 @@
 {
-  "vType" : "mask",
+  "v" : "mask",
   "mask" : [ "a.b", "c" ]
 }

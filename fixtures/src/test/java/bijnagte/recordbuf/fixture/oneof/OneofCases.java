@@ -16,8 +16,8 @@ import java.util.List;
  *
  * <p>{@code Compat} carries {@code (recordbuf.protobuf_java)}, so every case also has a proto3 JSON
  * golden produced through the generated {@code Interop} converter. The Jackson goldens show the
- * oneof flat, the set member under its JSON name plus the {@code choiceType} discriminator. The
- * family {@code jackson-oneof} holds further renderings of this same record.
+ * oneof flat, the set member under its JSON name plus the {@code choice} discriminator. The family
+ * {@code jackson-oneof} holds further renderings of this same record.
  */
 public final class OneofCases extends JacksonGoldenCases {
 

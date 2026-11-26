@@ -7,8 +7,8 @@ import org.jspecify.annotations.Nullable;
 /**
  * Reading a oneof back from its flat JSON rendering (U7 of the 2026-11-20 Jackson plan). A
  * generated record writes the set member as a top-level property under the member's JSON name, next
- * to a discriminator property naming it ({@code {"name":"blue","choiceType":"name"}}); an unset
- * oneof writes neither. The record's generated {@code @JsonCreator} factory receives every member
+ * to a discriminator property naming it ({@code {"name":"blue","choice":"name"}}); an unset oneof
+ * writes neither. The record's generated {@code @JsonCreator} factory receives every member
  * property and the discriminator as parameters and asks {@link #select} which member is set.
  */
 public final class JsonOneof {

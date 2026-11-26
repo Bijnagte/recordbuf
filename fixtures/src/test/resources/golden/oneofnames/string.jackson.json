@@ -1,4 +1,4 @@
 {
-  "oneofFieldType" : "oneofString",
+  "oneofField" : "oneofString",
   "oneofString" : "hello"
 }

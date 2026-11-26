@@ -161,7 +161,7 @@ Inside a `recordbuf.*` package, reference them with a leading dot, e.g. `(.recor
 | `avro = RECORDBUF_AVRO_ON\|OFF\|NONE` | file | Per-file Avro override (`NONE` falls through to the plugin parameter) |
 | `jackson = false` | file | Opts out of the Jackson JSON surface (default **on**) |
 | `jackson_format = "json"\|"canonical"` | field | Renders a `Timestamp` / `Duration` as ISO-8601 (default) or in the proto3 JSON mapping |
-| `json_oneof = "<name>"` | oneof | Renames the oneof discriminator property (default `<oneofName>Type`) |
+| `json_oneof = "<name>"` | oneof | Renames the oneof discriminator property (default `<oneofName>`) |
 | `json_name = "<name>"` | field | Renames the field's JSON property on a jackson-enabled file, replacing the proto3 camelCase name |
 | `json_ignored = true` | field | Keeps the field out of the JSON output on a jackson-enabled file; it stays on the wire. Not enforced on read: see [known findings](docs/known-findings.md) |
 
@@ -199,7 +199,7 @@ explains why these options live outside protobuf's namespace.
   The unknown-field carrier has an (empty) slot in the Avro record but its entries are not copied
   across yet, so unknown fields do not survive an Avro round trip.
 - **JSON (Jackson 3).** Default on. Adds `@JsonProperty` wire names, keeps unknown JSON properties
-  in a `jsonExtras` map (JSON only: never written to the wire), flattens oneofs with a `<oneofName>Type` discriminator, and
+  in a `jsonExtras` map (JSON only: never written to the wire), flattens oneofs with a `<oneofName>` discriminator, and
   (de)serializes temporal fields per `jackson_format`. Generated records need no module
   registration (each field carries its own (de)serializer annotations): use a plain `JsonMapper`.
   Your own classes holding `Bytes`, `FieldMask` or `Empty` need

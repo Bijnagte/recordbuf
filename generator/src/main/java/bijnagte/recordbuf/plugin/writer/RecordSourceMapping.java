@@ -545,9 +545,13 @@ public final class RecordSourceMapping {
     if (jackson) {
       // Flat JSON (U7): the set member's wrapper is inlined into the record's object -- its single
       // renamed property appears at the top level. An unset oneof contributes nothing through the
-      // record-level @JsonInclude(NON_NULL).
-      componentBuilder.annotation(
-          Annotation.of(TypeRef.of("com.fasterxml.jackson.annotation.JsonUnwrapped")));
+      // record-level @JsonInclude(NON_NULL). The component additionally carries a distinct
+      // @JsonProperty name (the bare oneof name is reserved for the discriminator getter); because
+      // @JsonUnwrapped never emits the component's own name, this is purely a model-level
+      // disambiguation so the bare name can be the discriminator without a getter-name collision.
+      componentBuilder
+          .annotation(Annotation.of(TypeRef.of("com.fasterxml.jackson.annotation.JsonUnwrapped")))
+          .annotation(jsonProperty(componentName + "$"));
     }
     var component = componentBuilder.annotation(Annotation.NULLABLE).build();
 
@@ -661,7 +665,7 @@ public final class RecordSourceMapping {
   /** The oneof's discriminator: its JSON property name and the record method that renders it. */
   private static String discriminatorProperty(Oneof oneof) {
     String override = oneof.jsonOneof();
-    return override != null ? override : oneof.componentName() + "Type";
+    return override != null ? override : oneof.componentName();
   }
 
   /**
@@ -670,8 +674,8 @@ public final class RecordSourceMapping {
    *
    * <ul>
    *   <li>per oneof, a discriminator method ({@code choiceType()}) rendered as the JSON property
-   *       {@code "choiceType"} (or the {@code recordbuf.json_oneof} override): the set member's
-   *       JSON name, omitted when the oneof is unset;
+   *       {@code "choice"} (or the {@code recordbuf.json_oneof} override): the set member's JSON
+   *       name, omitted when the oneof is unset;
    *   <li>a {@code @JsonCreator} factory taking every field, every oneof member, every
    *       discriminator, and the retained unknown properties; it selects each oneof's member with
    *       {@code JsonOneof.select} (malformed combinations fail) and delegates to the canonical

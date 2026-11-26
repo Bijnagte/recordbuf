@@ -2,8 +2,8 @@
   "first" : 1,
   "mid" : 5,
   "tail" : [ "t" ],
-  "oType" : "s",
-  "pType" : "blob",
+  "o" : "s",
+  "p" : "blob",
   "s" : "x",
   "blob" : "Bw=="
 }

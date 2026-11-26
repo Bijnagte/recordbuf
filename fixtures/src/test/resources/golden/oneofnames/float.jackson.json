@@ -1,4 +1,4 @@
 {
-  "oneofFieldType" : "oneofFloat",
+  "oneofField" : "oneofFloat",
   "oneofFloat" : 1.5
 }

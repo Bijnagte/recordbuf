@@ -1,4 +1,4 @@
 {
-  "oneofFieldType" : "oneofEnum",
+  "oneofField" : "oneofEnum",
   "oneofEnum" : "BAR"
 }

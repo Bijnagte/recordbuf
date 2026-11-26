@@ -1,4 +1,4 @@
 {
-  "oneofFieldType" : "oneofUint32",
+  "oneofField" : "oneofUint32",
   "oneofUint32" : 42
 }

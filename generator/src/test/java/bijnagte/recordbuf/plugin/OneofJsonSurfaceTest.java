@@ -117,7 +117,11 @@ class OneofJsonSurfaceTest {
   void componentIsUnwrappedAndWrappersCarryTheMemberNameAndPair() {
     String src = render(event(true, null, ""));
 
-    assertTrue(src.contains("@JsonUnwrapped @Nullable When when"), src);
+    assertTrue(
+        src.contains("@JsonUnwrapped @JsonProperty(\"when$\") @Nullable When when"),
+        "the oneof component is @JsonUnwrapped and carries an internal @JsonProperty so the bare"
+            + " oneof name is free for the discriminator: "
+            + src);
     assertTrue(
         src.contains(
             "record AtValue(@JsonProperty(\"at\") @JsonSerialize(using ="
@@ -143,7 +147,7 @@ class OneofJsonSurfaceTest {
   void discriminatorDefaultsToTheOneofNameAndHonorsTheOverride() {
     String byDefault = render(event(true, null, ""));
     assertTrue(
-        byDefault.contains("@JsonProperty(\"whenType\") @Nullable" + " public String whenType()"),
+        byDefault.contains("@JsonProperty(\"when\") @Nullable" + " public String whenType()"),
         byDefault);
 
     String overridden = render(event(true, "kind", ""));
@@ -173,7 +177,7 @@ class OneofJsonSurfaceTest {
         src);
     assertTrue(
         src.contains(
-            "@JsonProperty(\"whenType\") @Nullable String whenType, @JsonAnySetter @Nullable"
+            "@JsonProperty(\"when\") @Nullable String whenType, @JsonAnySetter @Nullable"
                 + " Map<String, JsonNode> jsonExtras)"),
         src);
     assertTrue(
@@ -196,7 +200,7 @@ class OneofJsonSurfaceTest {
 
   @Test
   void discriminatorCollidingWithAFieldFailsGeneration() {
-    var e = assertThrows(IllegalStateException.class, () -> render(event(true, null, "when_type")));
+    var e = assertThrows(IllegalStateException.class, () -> render(event(true, null, "when")));
 
     assertTrue(
         String.valueOf(e.getMessage()).contains("collides with a field's JSON name"),
