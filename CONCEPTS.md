@@ -72,6 +72,11 @@ message data produced by the recordbuf plugin without a protobuf dependency.
 ### Opaque envelope
 The Avro-twin representation for a field the structural twin cannot map — an opaque wrapper instead of a structural type. Shelved when the structural twin landed (no shape then needed it), it returned with the 2026-11-20 Jackson JSON plan (U9) as the shared `RecordbufDynamicWkt` record `{format, contentType, payload}`: a dynamic WKT field on a file with both the Jackson surface and the Avro bridge on rides it (`format` = `"json"`, `contentType` = the WKT name or an `Any`'s `typeUrl`, `payload` = the node's JSON text), so the twin degrades those fields rather than dropping them or failing the file.
 
+## Jackson JSON surface
+
+### Oneof discriminator
+The flat JSON property that records which member of a flattened oneof is set. A oneof's members render as top-level properties under their own JSON names; this single added property names which of them is present. It defaults to the oneof's own name and can be overridden per oneof, and an unset oneof contributes neither the discriminator nor a member.
+
 ## Compatibility testing
 
 ### Golden
