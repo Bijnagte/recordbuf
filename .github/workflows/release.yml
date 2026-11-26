@@ -64,11 +64,15 @@ jobs:
         env:
           JRELEASER_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # JReleaser's own logs and the generated changelog, for diagnosing a failed release.
+      # JReleaser's log (secrets are masked in it) and the changelog, for diagnosing a failed release.
+      # Only the small diagnostic files: the rest of its output directory holds the unpacked runtimes.
       - name: Upload JReleaser output
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: jreleaser-output
-          path: generator/build/jreleaser/**
+          path: |
+            generator/build/jreleaser/trace.log
+            generator/build/jreleaser/output.properties
+            generator/build/jreleaser/release/CHANGELOG.md
           retention-days: 7
