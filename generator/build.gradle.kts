@@ -1,6 +1,7 @@
 // net.ltgt.gradle.errorprone: brings the `options.errorprone { … }` DSL into
 // scope for the `JavaCompile` tasks below (required in *.gradle.kts scripts).
 import net.ltgt.gradle.errorprone.errorprone
+import org.jreleaser.model.Active
 
 plugins {
     java
@@ -16,6 +17,8 @@ plugins {
     alias(libs.plugins.gradle.errorprone)
     // Builds the executable fat jar (`shadowJar`); see the end of this file.
     alias(libs.plugins.shadow)
+    // Builds the jlink runtime zips and creates the GitHub release; see the end of this file.
+    alias(libs.plugins.jreleaser)
 }
 
 java {
@@ -266,5 +269,105 @@ tasks.shadowJar {
 
 // Build the fat jar as part of `assemble`/`build` so CI exercises it on every change.
 tasks.assemble {
+    dependsOn(tasks.shadowJar)
+}
+
+// JReleaser: jlink runtime zips (Linux and macOS) attached to a GitHub release. Each zip holds a trimmed
+// Java runtime plus the plugin, so it runs with no JDK installed: unzip it and point protoc at
+// `bin/protoc-gen-recordbuf`. Nothing here publishes to Maven Central (that is the vanniktech setup in
+// the root build); this is the second, independent release channel, run by .github/workflows/release.yml.
+//
+// jlink builds cross-platform from one machine when it is given a JDK per target platform
+// (`targetJdks`). The release workflow downloads those JDKs into build/target-jdks/<platform>; they must
+// all be the same Java major version as the JDK running Gradle. A platform whose directory is missing is
+// left out, so a local run can build just the platforms you have a JDK for.
+val jlinkPlatforms = listOf("linux-x86_64", "linux-aarch_64", "osx-x86_64", "osx-aarch_64")
+val targetJdkDir = layout.buildDirectory.dir("target-jdks")
+
+jreleaser {
+    // The git repository root is the parent of this module.
+    gitRootSearch.set(true)
+
+    project {
+        description.set("protoc plugin that generates Java records and protobuf codecs from .proto files")
+        copyright.set("2026 Dylan Bijnagte")
+        authors.add("Dylan Bijnagte")
+        license.set("MIT")
+        inceptionYear.set("2026")
+        links {
+            homepage.set("https://github.com/Bijnagte/recordbuf")
+        }
+    }
+
+    assemble {
+        jlink {
+            register("protoc-gen-recordbuf") {
+                active.set(Active.ALWAYS)
+                executable.set("protoc-gen-recordbuf")
+                imageName.set("protoc-gen-recordbuf-{{projectVersion}}")
+
+                // The fat jar is the input; its Main-Class and every dependency are inside it.
+                mainJar { path.set(tasks.shadowJar.flatMap { it.archiveFile }) }
+                java {
+                    mainClass.set("bijnagte.recordbuf.plugin.Main")
+                    // The jlink image runs the jar on the classpath, where the manifest `Add-Exports`
+                    // of the fat jar does not apply, so the launcher needs the same --add-exports flags
+                    // as the installDist launcher (one list: `gjfJvmArgs`).
+                    //
+                    // They go in as the launcher script's DEFAULT_JAVA_OPTS, NOT through `jvmOptions`:
+                    // JReleaser forwards `jvmOptions` to jlink as one quoted `--add-options="..."`
+                    // string, which jlink bakes into the runtime as a single garbled option and the JVM
+                    // then warns "Unknown module: ALL-UNNAMED --add-exports=..." on every run.
+                    environmentVariables {
+                        universal.put("DEFAULT_JAVA_OPTS", gjfJvmArgs.joinToString(" "))
+                    }
+                }
+
+                // google-java-format uses jdk.compiler, which jdeps cannot see through the reflective
+                // access, so it is listed explicitly. The fat jar bundles optional dependencies that
+                // are not all on the module path, hence ignoreMissingDeps.
+                additionalModuleNames.addAll("jdk.compiler", "java.logging")
+                // The fat jar is multi-release (bundled dependencies ship versioned classes), which jdeps
+                // refuses to scan without a --multi-release setting; `base` scans the unversioned classes.
+                jdeps {
+                    ignoreMissingDeps.set(true)
+                    multiRelease.set("base")
+                }
+
+                jlinkPlatforms.forEach { platform ->
+                    val dir = targetJdkDir.get().dir(platform).asFile
+                    if (dir.isDirectory) {
+                        targetJdk {
+                            path.set(dir)
+                            this.platform.set(platform)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    release {
+        github {
+            repoOwner.set("Bijnagte")
+            name.set("recordbuf")
+            // The tag is the trigger, so it already exists; JReleaser must not create or move it.
+            skipTag.set(true)
+            // CI checks out the tag (a detached HEAD), so name the branch instead of letting JReleaser
+            // read it from git.
+            branch.set("main")
+            // Re-running a failed release updates it instead of failing on the existing one.
+            overwrite.set(true)
+            changelog {
+                formatted.set(Active.ALWAYS)
+                preset.set("conventional-commits")
+            }
+        }
+    }
+}
+
+// The mainJar above is a plain path, so Gradle does not know the assemble step needs the fat jar built
+// first. Without this a stale jar from an earlier build would be bundled.
+tasks.withType<org.jreleaser.gradle.plugin.tasks.AbstractJReleaserTask>().configureEach {
     dependsOn(tasks.shadowJar)
 }
