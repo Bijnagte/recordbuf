@@ -183,9 +183,9 @@ which bindings are enabled:
 
 | Needed for | Coordinate |
 |---|---|
-| always | `bijnagte.recordbuf:recordbuf-runtime` (brings `com.google.protobuf:protobuf-java` 4.36.2) and `org.jspecify:jspecify` |
-| JSON surface (default on) | `bijnagte.recordbuf:recordbuf-json` (brings Jackson 3 databind and the annotations) |
-| Avro bridge (default on) | `bijnagte.recordbuf:recordbuf-avro` (brings `org.apache.avro:avro`) |
+| always | `io.github.bijnagte.recordbuf:recordbuf-runtime` (brings `com.google.protobuf:protobuf-java` 4.36.2) and `org.jspecify:jspecify` |
+| JSON surface (default on) | `io.github.bijnagte.recordbuf:recordbuf-json` (brings Jackson 3 databind and the annotations) |
+| Avro bridge (default on) | `io.github.bijnagte.recordbuf:recordbuf-avro` (brings `org.apache.avro:avro`) |
 | `protobuf_java` interop | protobuf-java classes generated from the same `.proto` (`protoc --java_out`) |
 
 To get output that depends only on the runtime, turn off both default-on bindings
@@ -364,7 +364,7 @@ branch 0.7 (raised from the pre-restructure baseline). Those minimums do not go 
 
 ## Project layout
 
-Seven co-versioned subprojects (`bijnagte.recordbuf:0.0.1`) live in role-named directories under the
+Seven co-versioned subprojects (`io.github.bijnagte.recordbuf:<version>`) live in role-named directories under the
 repo root. The root `build.gradle.kts` is an aggregator that also applies the shared quality gates.
 
 | Dir | Project | Role |
@@ -395,6 +395,49 @@ the generated fixture output:
 Generation is cached. Changing the generator re-runs fixture generation automatically, because
 `installDist` is a tracked input. Use `--rerun-tasks` only to bypass the cache. To see the
 plugin's debug logs, set `-Dorg.slf4j.simpleLogger.defaultLogLevel=debug` (they go to stderr only).
+
+## Publishing
+
+The consumer modules publish to Maven Central through the Central Portal under `io.github.bijnagte.recordbuf`:
+`recordbuf-runtime`, `recordbuf-json`, `recordbuf-avro`, `recordbuf-codegen`, `recordbuf-generator` and `recordbuf-options`.
+`fixtures/` is never published.
+`recordbuf-options` is a jar whose only content is `recordbuf_options.proto` at its root. Consumers who import
+`recordbuf_options.proto` get it by adding the jar's contents to their `protoc -I` path (for example, unzip it into
+a directory and pass that directory with `-I`). It imports `google/protobuf/descriptor.proto`, which protoc provides itself.
+The Gradle side uses [`com.vanniktech.maven.publish`](https://vanniktech.github.io/gradle-maven-publish-plugin/central/);
+its wiring lives in the root `build.gradle.kts`.
+
+To release, push a version tag. The tag is the version, so `v0.0.2` publishes `0.0.2`:
+
+```bash
+git tag v0.0.2
+git push origin v0.0.2
+```
+
+The `publish` workflow (`.github/workflows/publish.yml`) runs on every `v*` tag. It rejects tags that are not
+`v<major>.<minor>.<patch>[-qualifier]`, builds the project, and uploads all six modules to the Central Portal.
+Then, in the [Central Portal](https://central.sonatype.com/publishing/deployments), open each new deployment, check it,
+and click **Publish**. Nothing reaches Central until you do. Central never overwrites a version, so a tag that
+published something wrong needs a new version, not a re-push of the same tag.
+
+Local builds use `0.0.1-SNAPSHOT` unless you pass `-PreleaseVersion=x.y.z`.
+
+One-time setup (repository secrets, used by `.github/workflows/publish.yml`):
+
+| Secret | Value |
+|---|---|
+| `MAVEN_CENTRAL_USERNAME` / `MAVEN_CENTRAL_PASSWORD` | A user token from the Central Portal (Account → Generate User Token). Not your login password. |
+| `GPG_PRIVATE_KEY` | `gpg --armor --export-secret-keys <KEY_ID>` (ASCII-armored secret key). |
+| `GPG_KEY_ID` | The key ID, e.g. the last 8 or 16 hex digits of the fingerprint. |
+| `GPG_PASSPHRASE` | The key's passphrase. Leave empty if the key has none. |
+
+The namespace `io.github.bijnagte` must be verified in the Central Portal before the first upload. Create a key with
+`gpg --full-generate-key`, and publish its public part to a keyserver such as `keys.openpgp.org`, or Central cannot
+verify the signatures.
+
+Local check, which needs no key and no credentials: `./gradlew publishToMavenLocal`. Signing only happens when a key
+is supplied (`signingInMemoryKey` or `signing.keyId` as a Gradle property or `ORG_GRADLE_PROJECT_*` env var).
+
 
 ## License
 

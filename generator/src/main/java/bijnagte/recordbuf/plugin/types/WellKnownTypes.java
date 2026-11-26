@@ -29,7 +29,7 @@ import org.jspecify.annotations.Nullable;
  *       present-iff-set.
  *   <li><b>dynamic</b> &mdash; {@code Struct}/{@code Value}/{@code ListValue}/{@code Any} carry
  *       arbitrary/unstructured shape; they carry <b>no canonical wire shape</b> (AE4). Per R11 the
- *       generator fails <em>loud</em> on these rather than coercing them (see {@link
+ *       generator fails <em>loud</em> on these rather than coercing them (see {@code
  *       TypeResolver}).
  * </ul>
  */

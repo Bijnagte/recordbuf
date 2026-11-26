@@ -7,6 +7,7 @@ error-prone       = "2.51.0"
 nullaway          = "0.14.3"
 gradle-errorprone = "5.1.1"   # net.ltgt.errorprone Gradle plugin
 spotless          = "8.11.0"   # diffplug Spotless Gradle plugin (latest, 2026-10)
+vanniktech-publish = "0.37.0"   # com.vanniktech.maven.publish -- Maven Central (Central Portal) publishing, signing, POM
 # Checkstyle TOOL version (the checkstyle gradle plugin is built-in and needs no catalog
 # plugin entry, but it otherwise defaults its tool to 10.24.0 -- far stale -- so we pin the
 # tool version explicitly and reference it via `checkstyle.toolVersion` in the root build's
@@ -104,3 +105,4 @@ test = ["junit-jupiter", "junit-platform-launcher"]
 [plugins]
 gradle-errorprone = { id = "net.ltgt.errorprone", version.ref = "gradle-errorprone" }
 spotless          = { id = "com.diffplug.spotless", version.ref = "spotless" }
+vanniktech-publish = { id = "com.vanniktech.maven.publish", version.ref = "vanniktech-publish" }

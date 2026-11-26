@@ -7,8 +7,8 @@ defaults in `~/.pi/agent/AGENTS.md` and the Java skills for this project.
 
 `recordbuf` builds **`protoc-gen-recordbuf`**, a `protoc` code generator plugin
 that turns `.proto` files into Java records + protobuf codecs.
-- Group / version: `bijnagte.recordbuf` / `0.0.1`, co-versioned from a single
-  `subprojects {}` block in the root `build.gradle.kts`.
+- Group / version: `io.github.bijnagte.recordbuf` / `releaseVersion` (a Gradle property; default
+  `0.0.1-SNAPSHOT`, set from the release tag). Co-versioned from a single `subprojects {}` block in the root `build.gradle.kts`.
 - **Multi-module (flat role-named dirs under the repo root; see
   `settings.gradle.kts` — KTD1):**
   - `:recordbuf-generator` → `generator/` — the plugin itself.
@@ -118,8 +118,8 @@ consult it when orienting to the codebase or discussing domain concepts.
   (`spotless = "8.11.0"`, `google-java-format = "2.0.0"`). So `spotlessCheck` **is** part
   of `./gradlew build`; run `./gradlew spotlessApply` before committing and match the
   Google Java Format style. Excluded from formatting: the `com.google.protobuf.compiler`
-  protocol shim, the protobuf-java reference output under `build/`, and `options/` (no
-  `java` source set, so skipped). The `:recordbuf-fixtures` module additionally pulls its
+  protocol shim and the protobuf-java reference output under `build/`. `options/` applies the java plugin but
+  has no Java sources, so nothing in it is formatted. The `:recordbuf-fixtures` module additionally pulls its
   recordbuf-generated `.rec` output into the formatted set, so generated records are
   expected to be format-clean.
   `googleJavaFormat` is configured with `.cleanup(false)`: Spotless 8.11 resolves GJF 2.0.0's
@@ -130,7 +130,7 @@ consult it when orienting to the codebase or discussing domain concepts.
 - **Checkstyle: WIRED (non-formatting quality gate, complementary to Spotless).** The root
   `build.gradle.kts` applies Gradle's built-in `checkstyle` plugin to **every** Java
   subproject via the same `subprojects { withPlugin("java") { … } }` block that owns
-  Spotless; `:recordbuf-options` (proto only) is skipped. A single shared config lives once at
+  Spotless; `:recordbuf-options` has no Java sources, so checkstyle has nothing to read there. A single shared config lives once at
   `config/checkstyle/checkstyle.xml` (the plugin's default location, resolved root-relative, so
   it is inherited everywhere — there is no per-module config). The plugin *defaults* its tool to a
   stale `10.24.0`, so the wiring MUST pin `checkstyle { toolVersion = libs.versions.checkstyle.get() }`
@@ -174,8 +174,8 @@ consult it when orienting to the codebase or discussing domain concepts.
   converters' `Map<String, _>` → `Map<CharSequence, _>` avro boundary (avro strings are
   `CharSequence`), but the keys ARE Strings, so it is a false positive on `.rec` output; (2) the
   pre-existing NullAway `excludedPaths` per module. Wired for **every** Java subproject;
-  `:recordbuf-options`
-  (proto only) is skipped. **Why not Error Prone/Checkstyle:** there is *no* EP or Checkstyle check
+  `:recordbuf-options` has no Java sources, so there is nothing for it to check.
+  **Why not Error Prone/Checkstyle:** there is *no* EP or Checkstyle check
   for deprecated API usage — deprecation is a javac lint, so `-Werror` is the gate; EP's blanket
   severity flags (`-XepAllWarningsAsErrors`, etc.) only rescale EP's *own* checks, and a Checkstyle
   regex would be brittle. The escape hatch is a scoped `@SuppressWarnings("deprecation")` — currently
@@ -308,6 +308,25 @@ details. Rules:
 2. If codegen was touched: `./gradlew :recordbuf-generator:installDist`, re-generate a sample
    `.proto`, and confirm the generated output compiles + round-trips.
 3. No manual reformatting that the project doesn't otherwise enforce.
+
+## Publishing (Maven Central)
+
+- **Published modules:** `runtime`, `json`, `avro`, `codegen`, `generator`, `options`. `fixtures` is never published.
+  Coordinates are `io.github.bijnagte.recordbuf:<module>:<version>`.
+- **Version comes from one place:** the `releaseVersion` Gradle property, read in the root `build.gradle.kts` and
+  inherited by every subproject. Do not hard-code a version in a module's build file.
+- **Release = push a tag** `v<version>` (e.g. `v0.0.2`). `.github/workflows/publish.yml` validates the tag,
+  runs `./gradlew build`, then `publishToMavenCentral`. Each deployment waits in the Central Portal until someone
+  clicks Publish. Central never overwrites a version, so a bad release needs a new version.
+- **Plugin:** `com.vanniktech.maven.publish` (catalog alias `vanniktech-publish`), applied in the root to the
+  `publishedModules` set. Do not add bare `maven-publish` for Central. Signing runs only when a key is supplied
+  (`signingInMemoryKey` or `signing.keyId`), so `publishToMavenLocal` works without one.
+- **`options` publishes a resource-only jar:** `java-library` with `src/main/proto` as a resource root, so the jar
+  holds `recordbuf_options.proto` at its root.
+- **Javadoc must pass doclint** (the javadoc jar is part of publishing). Write `{@code X}` for classes that are not
+  imported into the file. A `{@link}` to a missing class fails the publish.
+- Verify locally with `./gradlew publishToMavenLocal`, and check the release gate with `./gradlew publishToMavenCentral --dry-run`.
+
 
 ## Skills (apply automatically, user-level)
 

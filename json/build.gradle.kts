@@ -7,8 +7,7 @@ plugins {
     alias(libs.plugins.gradle.errorprone)
 }
 
-group = "bijnagte.recordbuf"
-version = "0.0.1"
+group = "io.github.bijnagte.recordbuf"
 
 java {
     // Pin the JDK via toolchain, matching the other modules (Temurin 25).

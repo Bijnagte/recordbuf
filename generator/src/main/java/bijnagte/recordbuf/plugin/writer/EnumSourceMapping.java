@@ -17,9 +17,9 @@ import bijnagte.recordbuf.plugin.types.TypeRefs;
 /**
  * Maps the generator's proto {@link Enum} model into a {@link EnumSpec} of the pure-Java,
  * proto-agnostic {@code source} AST ({@code bijnagte.recordbuf.codegen.source}) — the M4 step that
- * replaces the string-concatenation {@link EnumGenerator} with a renderable, structural tree.
+ * replaces the string-concatenation {@code EnumGenerator} with a renderable, structural tree.
  *
- * <p>M4-C2a-ext mirrors what {@link EnumGenerator#write} emits, in full: the {@code public enum
+ * <p>M4-C2a-ext mirrors what {@code EnumGenerator#write} emits, in full: the {@code public enum
  * Name [implements ...]} header (its Javadoc and {@code @Deprecated} come from the proto {@code
  * comment} / {@code deprecated}), each constant, the {@code private final int number;} field, the
  * {@code Name(int number)} constructor, the {@code getNumber()} accessor, and the reverse-lookup
