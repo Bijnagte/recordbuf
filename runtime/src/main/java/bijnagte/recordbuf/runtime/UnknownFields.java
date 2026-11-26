@@ -1,7 +1,9 @@
 package bijnagte.recordbuf.runtime;
 
+import com.google.protobuf.ByteString;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
+import com.google.protobuf.UnknownFieldSet;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -64,6 +66,59 @@ public final class UnknownFields {
   }
 
   /**
+   * Convert a protobuf-java {@link UnknownFieldSet} to a recordbuf {@link UnknownFields}.
+   *
+   * <p>Iterates the protobuf-java field map and reconstructs the exact post-tag value bytes for
+   * each captured entry. Wire order is not preserved (protobuf-java groups by field number), but
+   * every field's tag and value bytes are exact.
+   *
+   * @param proto the protobuf-java unknown-field set; may be {@code null} or empty
+   * @return a recordbuf carrier holding the same fields (the shared {@link #empty()} for a null
+   *     or empty input)
+   */
+  public static UnknownFields fromProto(UnknownFieldSet proto) {
+    if (proto == null || proto.isEmpty()) {
+      return EMPTY;
+    }
+    List<UnknownField> fields = new ArrayList<>();
+    for (var entry : proto.asMap().entrySet()) {
+      int fieldNumber = entry.getKey();
+      UnknownFieldSet.Field f = entry.getValue();
+      for (long v : f.getVarintList()) {
+        fields.add(new UnknownField(fieldNumber, WireType.I32, varintBytes(v)));
+      }
+      for (int v : f.getFixed32List()) {
+        fields.add(new UnknownField(fieldNumber, WireType.FIXED32, fixed32Bytes(v)));
+      }
+      for (long v : f.getFixed64List()) {
+        fields.add(new UnknownField(fieldNumber, WireType.I64, fixed64Bytes(v)));
+      }
+      for (ByteString v : f.getLengthDelimitedList()) {
+        byte[] content = v.toByteArray();
+        fields.add(
+            new UnknownField(fieldNumber, WireType.LENGTH_DELIMITED,
+                prependVarintLength(content)));
+      }
+    }
+    return fields.isEmpty() ? EMPTY : new UnknownFields(List.copyOf(fields));
+  }
+
+  /**
+   * The total serialized size in bytes of all captured fields (tag + value for each).
+   *
+   * <p>Used by the two-pass encode to size the output buffer before writing.
+   *
+   * @return the number of bytes this carrier would occupy on the wire
+   */
+  public int getSerializedSize() {
+    int size = 0;
+    for (UnknownField f : fields) {
+      size += CodedOutputStream.computeTagSize(f.fieldNumber());
+      size += f.value().length;
+    }
+    return size;
+  }
+  /**
    * Whether this carrier holds nothing to re-emit.
    *
    * @return {@code true} when this carrier holds nothing to re-emit.
@@ -117,6 +172,45 @@ public final class UnknownFields {
       out.writeTag(f.fieldNumber(), f.wireType().code());
       out.writeRawBytes(f.value());
     }
+  }
+
+  private static byte[] varintBytes(long v) {
+    int[] buf = new int[10];
+    int n = 0;
+    long v0 = v;
+    while (true) {
+      if ((v0 & ~0x7FL) == 0) {
+        buf[n++] = (int) v0;
+        break;
+      }
+      buf[n++] = (int) ((v0 & 0x7F) | 0x80);
+      v0 >>>= 7;
+    }
+    byte[] out = new byte[n];
+    for (int i = 0; i < n; i++) {
+      out[i] = (byte) buf[i];
+    }
+    return out;
+  }
+
+  private static byte[] fixed32Bytes(int v) {
+    return new byte[] { (byte) v, (byte) (v >>> 8), (byte) (v >>> 16), (byte) (v >>> 24) };
+  }
+
+  private static byte[] fixed64Bytes(long v) {
+    byte[] out = new byte[8];
+    for (int i = 0; i < 8; i++) {
+      out[i] = (byte) (v >>> (8 * i));
+    }
+    return out;
+  }
+
+  private static byte[] prependVarintLength(byte[] content) {
+    byte[] len = varintBytes(content.length & 0xFFFFFFFFL);
+    byte[] out = new byte[len.length + content.length];
+    System.arraycopy(len, 0, out, 0, len.length);
+    System.arraycopy(content, 0, out, len.length, content.length);
+    return out;
   }
 
   /**
