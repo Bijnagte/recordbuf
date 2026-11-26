@@ -447,8 +447,10 @@ The consumer modules publish to Maven Central through the Central Portal under `
 `recordbuf-options` is a jar whose only content is `recordbuf_options.proto` at its root. Consumers who import
 `recordbuf_options.proto` get it by adding the jar's contents to their `protoc -I` path (for example, unzip it into
 a directory and pass that directory with `-I`). It imports `google/protobuf/descriptor.proto`, which protoc provides itself.
-The Gradle side uses [`com.vanniktech.maven.publish`](https://vanniktech.github.io/gradle-maven-publish-plugin/central/);
-its wiring lives in the root `build.gradle.kts`.
+Publishing uses Gradle's built-in `maven-publish` to stage every module into one directory (wiring in the root
+`build.gradle.kts`), and [JReleaser](https://jreleaser.org/guide/latest/reference/deploy/maven/maven-central.html) to sign
+the staged files and upload them to the Central Portal (wiring at the end of `generator/build.gradle.kts`). There is no other
+publishing plugin.
 
 To release, push a version tag. The tag is the version, so `v0.0.2` publishes `0.0.2`:
 
@@ -458,10 +460,11 @@ git push origin v0.0.2
 ```
 
 The `publish` workflow (`.github/workflows/publish.yml`) runs on every `v*` tag. It rejects tags that are not
-`v<major>.<minor>.<patch>[-qualifier]`, builds the project, and uploads all six modules to the Central Portal.
-Then, in the [Central Portal](https://central.sonatype.com/publishing/deployments), open each new deployment, check it,
-and click **Publish**. Nothing reaches Central until you do. Central never overwrites a version, so a tag that
-published something wrong needs a new version, not a re-push of the same tag.
+`v<major>.<minor>.<patch>[-qualifier]`, builds the project, and uploads all six modules to the Central Portal as one
+deployment. Then, in the [Central Portal](https://central.sonatype.com/publishing/deployments), open the new deployment,
+check it, and click **Publish**. Nothing reaches Central until you do (the deployer runs with `stage = UPLOAD`).
+Central never overwrites a version, so a tag that published something wrong needs a new version, not a re-push of the
+same tag.
 
 The same tag also triggers `.github/workflows/release.yml`, which creates the GitHub release and attaches the
 platform zips described under [Download a release](#download-a-release). The two workflows are independent: a failure
@@ -481,15 +484,20 @@ One-time setup (repository secrets, used by `.github/workflows/publish.yml`):
 |---|---|
 | `MAVEN_CENTRAL_USERNAME` / `MAVEN_CENTRAL_PASSWORD` | A user token from the Central Portal (Account → Generate User Token). Not your login password. |
 | `GPG_PRIVATE_KEY` | `gpg --armor --export-secret-keys <KEY_ID>` (ASCII-armored secret key). |
-| `GPG_KEY_ID` | The last 8 hex digits of the key fingerprint, e.g. `9925E5B5`. This is the form verified in CI; use it as-is, with no trailing whitespace. |
 | `GPG_PASSPHRASE` | The key's passphrase. Leave empty if the key has none. |
 
 The namespace `io.github.bijnagte` must be verified in the Central Portal before the first upload. Create a key with
 `gpg --full-generate-key`, and publish its public part to a keyserver such as `keys.openpgp.org`, or Central cannot
-verify the signatures.
+verify the signatures. (JReleaser reads the key ID from the key itself, so there is no key-ID secret.)
 
-Local check, which needs no key and no credentials: `./gradlew publishToMavenLocal`. Signing only happens when a key
-is supplied (`signingInMemoryKey` or `signing.keyId` as a Gradle property or `ORG_GRADLE_PROJECT_*` env var).
+The workflow maps those secrets onto the variables JReleaser reads: `JRELEASER_MAVENCENTRAL_SONATYPE_USERNAME` and
+`_PASSWORD`, and `JRELEASER_GPG_SECRET_KEY` and `JRELEASER_GPG_PASSPHRASE`. Signing is on only when
+`JRELEASER_GPG_SECRET_KEY` is set, so the GitHub release workflow and local runs need no key.
+
+Local checks, which need no key and no credentials:
+- `./gradlew publishToMavenLocal` installs every module into `~/.m2`.
+- `./gradlew publishAllPublicationsToStagingRepository` stages them into `build/staging-deploy`, which is what the
+  deployment uploads.
 
 
 ## License
