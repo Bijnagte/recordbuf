@@ -28,10 +28,15 @@ public final class TypeRefs {
   public static final TypeRef CODEC_DEFAULTS =
       TypeRef.of("bijnagte.recordbuf.runtime.CodecDefaults");
   public static final TypeRef WIRE = TypeRef.of("bijnagte.recordbuf.runtime.Wire");
+  public static final TypeRef CODED_OUTPUT_STREAM =
+      TypeRef.of("com.google.protobuf.CodedOutputStream");
   public static final TypeRef BYTES = TypeRef.of("bijnagte.recordbuf.runtime.Bytes");
   public static final TypeRef PROTOBUF_MESSAGE =
       TypeRef.of("bijnagte.recordbuf.runtime.ProtobufMessage");
   public static final TypeRef UNWRAPABLE = TypeRef.of("bijnagte.recordbuf.runtime.Unwrapable");
+
+  public static final TypeRef BYTE_ARRAY_OUTPUT_STREAM =
+      TypeRef.named("java.io", "ByteArrayOutputStream");
 
   // --- well-known-type codec helper (bijnagte.recordbuf.runtime.wkt.Wkt) ---
   public static final TypeRef WKT = TypeRef.of("bijnagte.recordbuf.runtime.wkt.Wkt");

@@ -258,13 +258,13 @@ final class WktSourceMapping {
     return Objects.requireNonNull(entry.javaType(), "WKT javaType must resolve");
   }
 
-  private static String shortName(String fqn) {
+  static String shortName(String fqn) {
     int dot = fqn.lastIndexOf('.');
     return dot < 0 ? fqn : fqn.substring(dot + 1);
   }
 
   // Method name for structured WKT encode (write side): Wkt.timestamp, Wkt.duration, etc.
-  private static String encodeMethod(String typeUrl) {
+  static String encodeMethod(String typeUrl) {
     return switch (shortName(typeUrl)) {
       case "Timestamp" -> "timestamp";
       case "Duration" -> "duration";
@@ -285,7 +285,7 @@ final class WktSourceMapping {
     };
   }
 
-  private static String wrapKind(String typeUrl) {
+  static String wrapKind(String typeUrl) {
     return switch (shortName(typeUrl)) {
       case "Int32Value" -> "INT32";
       case "Int64Value" -> "INT64";

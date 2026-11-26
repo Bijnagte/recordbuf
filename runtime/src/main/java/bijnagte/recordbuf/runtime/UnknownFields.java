@@ -73,8 +73,8 @@ public final class UnknownFields {
    * every field's tag and value bytes are exact.
    *
    * @param proto the protobuf-java unknown-field set; may be {@code null} or empty
-   * @return a recordbuf carrier holding the same fields (the shared {@link #empty()} for a null
-   *     or empty input)
+   * @return a recordbuf carrier holding the same fields (the shared {@link #empty()} for a null or
+   *     empty input)
    */
   public static UnknownFields fromProto(UnknownFieldSet proto) {
     if (proto == null || proto.isEmpty()) {
@@ -96,8 +96,7 @@ public final class UnknownFields {
       for (ByteString v : f.getLengthDelimitedList()) {
         byte[] content = v.toByteArray();
         fields.add(
-            new UnknownField(fieldNumber, WireType.LENGTH_DELIMITED,
-                prependVarintLength(content)));
+            new UnknownField(fieldNumber, WireType.LENGTH_DELIMITED, prependVarintLength(content)));
       }
     }
     return fields.isEmpty() ? EMPTY : new UnknownFields(List.copyOf(fields));
@@ -118,6 +117,7 @@ public final class UnknownFields {
     }
     return size;
   }
+
   /**
    * Whether this carrier holds nothing to re-emit.
    *
@@ -167,7 +167,7 @@ public final class UnknownFields {
    * Re-emit every captured field's bytes onto {@code out}, in wire order, as each field's tag then
    * its exact post-tag value.
    */
-  void writeTo(CodedOutputStream out) throws IOException {
+  public void writeTo(CodedOutputStream out) throws IOException {
     for (UnknownField f : fields) {
       out.writeTag(f.fieldNumber(), f.wireType().code());
       out.writeRawBytes(f.value());
@@ -194,7 +194,7 @@ public final class UnknownFields {
   }
 
   private static byte[] fixed32Bytes(int v) {
-    return new byte[] { (byte) v, (byte) (v >>> 8), (byte) (v >>> 16), (byte) (v >>> 24) };
+    return new byte[] {(byte) v, (byte) (v >>> 8), (byte) (v >>> 16), (byte) (v >>> 24)};
   }
 
   private static byte[] fixed64Bytes(long v) {
