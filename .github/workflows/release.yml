@@ -1,0 +1,74 @@
+name: release
+
+# Creates the GitHub release for a version tag and attaches the generator's jlink runtime zips
+# (Linux and macOS, x86_64 and arm64), each with a bundled Java runtime so it runs without a JDK:
+#
+#   git tag v0.1.1 && git push origin v0.1.1
+#
+# This runs next to publish.yml on the same tag. That workflow publishes the libraries to Maven
+# Central; this one is independent of it, and a failure in one does not stop the other.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # JReleaser creates the release and uploads the assets
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      # JReleaser builds the changelog from the commits since the previous tag, so it needs full history.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Same tag validation as publish.yml: a mistyped tag must never create a release.
+      - name: Read version from tag
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?)$ ]]; then
+            echo "Tag '$TAG' is not of the form v<major>.<minor>.<patch>[-qualifier]" >&2
+            exit 1
+          fi
+          echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      # jlink builds a runtime for another platform from that platform's JDK, so one Linux runner
+      # produces every zip. The script verifies each download against the published SHA-256.
+      - name: Fetch target JDKs
+        run: scripts/fetch-target-jdks.sh 25 generator/build/target-jdks
+
+      # Assemble first: the release task only uploads zips that already exist for this version, and it
+      # does not build them itself. All four platforms must be present, so fail loudly if one is not.
+      - name: Assemble jlink zips
+        run: |
+          ./gradlew -PreleaseVersion=${{ steps.version.outputs.version }} :recordbuf-generator:jreleaserAssemble
+          count="$(find generator/build/jreleaser/assemble -name '*.zip' | wc -l)"
+          if [ "$count" -ne 4 ]; then
+            echo "Expected 4 platform zips, found $count" >&2
+            exit 1
+          fi
+
+      - name: Create GitHub release
+        run: ./gradlew -PreleaseVersion=${{ steps.version.outputs.version }} :recordbuf-generator:jreleaserFullRelease
+        env:
+          JRELEASER_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # JReleaser's own logs and the generated changelog, for diagnosing a failed release.
+      - name: Upload JReleaser output
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: jreleaser-output
+          path: generator/build/jreleaser/**
+          retention-days: 7
