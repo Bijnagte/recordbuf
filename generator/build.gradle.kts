@@ -14,6 +14,8 @@ plugins {
     // is rejected as "invalid flag" on this plugin/toolchain combo.
     // Version comes from the catalog via `alias` (libs.plugins.gradle.errorprone).
     alias(libs.plugins.gradle.errorprone)
+    // Builds the executable fat jar (`shadowJar`); see the end of this file.
+    alias(libs.plugins.shadow)
 }
 
 java {
@@ -234,4 +236,35 @@ tasks.named<Jar>("jar") {
             "Implementation-Version" to project.version,
         )
     }
+}
+
+// The executable fat jar: `java -jar protoc-gen-recordbuf-<version>-all.jar` runs the plugin with every
+// dependency inside. It is a separate artifact from the `jar` above, which stays the plain library jar
+// that the published POM's dependencies resolve against, so what consumers get from Maven Central is
+// unchanged.
+//
+// `Add-Exports` is the manifest equivalent of the `--add-exports` flags in `gjfJvmArgs`: google-java-format
+// reaches into com.sun.tools.javac.*, and `java -jar` cannot take JVM flags from the jar, but the JVM does
+// read this attribute from the main jar's manifest. It is derived from `javacPackages`, so the launcher
+// script and the fat jar share one list.
+//
+// `mergeServiceFiles()` keeps the META-INF/services entries of every bundled library (the slf4j binding
+// is found through one), which would otherwise overwrite each other.
+tasks.shadowJar {
+    mergeServiceFiles()
+    manifest {
+        attributes(
+            "Add-Exports" to
+                javacPackages.joinToString(" ") {
+                    "jdk.compiler/com.sun.tools.javac${if (it.isEmpty()) "" else "." + it}"
+                },
+            "Implementation-Title" to "recordbuf-gen",
+            "Implementation-Version" to project.version,
+        )
+    }
+}
+
+// Build the fat jar as part of `assemble`/`build` so CI exercises it on every change.
+tasks.assemble {
+    dependsOn(tasks.shadowJar)
 }
