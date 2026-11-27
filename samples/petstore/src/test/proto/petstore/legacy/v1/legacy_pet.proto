@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package petstore.legacy.v1;
+
+option java_package = "io.github.bijnagte.petstore.legacy";
+option java_multiple_files = true;
+
+// What an older service knew about a pet, before kind, status, timestamps, tags and price were added
+// (see Pet in petstore/v1/petstore.proto). Field numbers match, so Pet bytes decode into it.
+message LegacyPet {
+  string id = 1;
+  string name = 2;
+}

@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Objects;
-import java.util.function.Function;
 
 /**
  * The gRPC-agnostic core marshaller for a record type {@code T} that implements {@link
@@ -25,9 +24,29 @@ import java.util.function.Function;
  */
 public final class ProtobufMarshaller<T extends ProtobufMessage> {
 
-  private final Function<byte[], T> decode;
+  /**
+   * Decodes a record from its wire bytes. This is the shape of a generated {@code fromBytes}, which
+   * declares {@code throws IOException}, so a plain {@link java.util.function.Function} cannot
+   * carry it.
+   *
+   * @param <T> the record type
+   */
+  @FunctionalInterface
+  public interface ByteDecoder<T> {
 
-  private ProtobufMarshaller(Function<byte[], T> decode) {
+    /**
+     * Decodes one record.
+     *
+     * @param bytes the record's wire bytes
+     * @return the decoded record
+     * @throws IOException if the bytes are not a valid record
+     */
+    T decode(byte[] bytes) throws IOException;
+  }
+
+  private final ByteDecoder<T> decode;
+
+  private ProtobufMarshaller(ByteDecoder<T> decode) {
     this.decode = Objects.requireNonNull(decode, "decode");
   }
 
@@ -37,7 +56,7 @@ public final class ProtobufMarshaller<T extends ProtobufMessage> {
    * @param decode the record type's static byte-array decoder
    * @return a marshaller of that type
    */
-  public static <T extends ProtobufMessage> ProtobufMarshaller<T> of(Function<byte[], T> decode) {
+  public static <T extends ProtobufMessage> ProtobufMarshaller<T> of(ByteDecoder<T> decode) {
     return new ProtobufMarshaller<>(decode);
   }
 
@@ -60,6 +79,6 @@ public final class ProtobufMarshaller<T extends ProtobufMessage> {
    * @throws IOException if the decode or stream read fails
    */
   public T read(InputStream in) throws IOException {
-    return decode.apply(Objects.requireNonNull(in, "in").readAllBytes());
+    return decode.decode(Objects.requireNonNull(in, "in").readAllBytes());
   }
 }

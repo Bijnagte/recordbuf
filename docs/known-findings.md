@@ -17,3 +17,13 @@ the parameter and no `@JsonCreator`; that is the likely cause, but it is not con
 No test reads an input that carries an ignored property, so no test catches this.
 
 The field stays on the wire either way (`JacksonKnobsTest.jsonIgnored_staysOnTheWire`).
+
+## Avro class trust is the consumer's job
+
+Reading an Avro record back through a generated `<Name>Avro.fromByteBuffer` fails with a
+`SecurityException` ("This class is not trusted to be included in Avro schemas") until the generated
+package is trusted, either with `-Dorg.apache.avro.SERIALIZABLE_PACKAGES=<package>` or through
+`ClassSecurityValidator.setGlobal`. The README's *Bindings* section does not mention it. The fixtures
+set the system property in their test tasks, and the pet store sample sets the validator in code
+(`AvroEventLog`).
+
