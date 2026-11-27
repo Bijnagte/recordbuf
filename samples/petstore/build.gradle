@@ -1,0 +1,89 @@
+// The sample's build is Groovy on purpose: the protobuf Gradle plugin's per-task DSL is only
+// comfortable to drive from Groovy (see fixtures/build.gradle in the repository root for the
+// details). Everything else is what an ordinary Spring Boot project would have.
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath "com.google.protobuf:protobuf-gradle-plugin:${libs.versions.gradle.protobuf.get()}"
+    }
+}
+
+plugins {
+    id 'java'
+    alias(libs.plugins.spring.boot)
+    alias(libs.plugins.spotless)
+}
+apply plugin: 'com.google.protobuf'
+
+group = 'io.github.bijnagte.petstore'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation platform(org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES)
+
+    // recordbuf: the generated records call into the runtime; JSON and Avro are default-on
+    // bindings, so their support libraries must be on the compile classpath too.
+    implementation libs.recordbuf.runtime
+    implementation libs.recordbuf.json
+    implementation libs.recordbuf.avro
+    implementation libs.jspecify
+    // The recordbuf options proto extends descriptor.proto, so protoc needs the well-known types
+    // that this jar provides.
+    implementation libs.protobuf.java
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// The protoc plugin only exists as an executable. This sample points protoc at the launcher built
+// from the repository, which keeps it in step with the generator. A project outside this
+// repository would download the released launcher (or the fat-jar wrapper) instead; see README.md.
+def recordbufLauncher = file('../../generator/build/install/protoc-gen-recordbuf/bin/protoc-gen-recordbuf')
+def installLauncher = gradle.includedBuild('recordbuf-root').task(':recordbuf-generator:installDist')
+def optionsProtoDir = file('../../options/src/main/proto')
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:${libs.versions.protobuf.get()}"
+    }
+    plugins {
+        create('recordbuf') {
+            path = recordbufLauncher.absolutePath
+        }
+    }
+    generateProtoTasks {
+        all().configureEach { task ->
+            // The sample uses only recordbuf records, so the protobuf-java classes are not generated.
+            task.builtins.removeByName('java')
+            task.plugins.create('recordbuf')
+            task.includeDirs.from(optionsProtoDir)
+            task.dependsOn installLauncher
+            // The plugin executable is not a tracked input, so track its install dir to regenerate
+            // whenever the generator changes.
+            task.inputs.dir(file('../../generator/build/install/protoc-gen-recordbuf')).optional()
+        }
+    }
+}
+
+spotless {
+    java {
+        target 'src/**/*.java'
+        googleJavaFormat(libs.versions.google.java.format.get())
+    }
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}
