@@ -45,12 +45,12 @@ public final class JacksonOneofCases extends JacksonGoldenCases {
 
   /** A {@code Compat} with its message member set. */
   public static Compat compatItem() {
-    return compat(new Compat.Choice.ItemValue(Sub.builder().text("t").build()));
+    return compat(Sub.builder().text("t").build());
   }
 
   /** A {@code Compat} with its enum member set. */
   public static Compat compatColor() {
-    return compat(new Compat.Choice.ColorValue(Color.RED));
+    return compat(Color.RED);
   }
 
   /** A {@code Compat} with its oneof unset. */

@@ -64,7 +64,7 @@ class GrpcApiTest {
         PetStoreMethods.CREATE_PET,
         Pet.builder()
             .name(name)
-            .kind(new Pet.Kind.BirdValue(Bird.builder().species("Parrot").canTalk(true).build()))
+            .kind(Bird.builder().species("Parrot").canTalk(true).build())
             .build());
   }
 

@@ -268,12 +268,11 @@ public final class CodecSourceMapping {
    * size += CodedOutputStream.computeXxxSize(...)} instead of {@code out.writeXxx(...)}.
    */
   private static List<EncodeSlot> oneofSizeSlots(Oneof o) {
-    String iface = o.ifaceName();
     String getter = "v." + o.componentName() + "()";
     List<EncodeSlot> slots = new ArrayList<>();
     for (Field f : o.members()) {
       String bnd = String.valueOf(f.name().charAt(0)) + "_";
-      String recName = iface + "." + Oneof.valueRecordName(f);
+      Object recName = caseType(o, f);
       Entry wktMember = WktSourceMapping.resolve(f);
       boolean deferred = f.kind() == FieldKind.MAP;
       String cond = deferred ? "@0 instanceof @1" : "@0 instanceof @1 " + bnd;
@@ -293,12 +292,14 @@ public final class CodecSourceMapping {
             switch (f.kind()) {
               case FieldKind.MESSAGE ->
                   Element.expr(
-                      "size += Wire.lenDelimSize(@0, @1.getSerializedSize(" + bnd + ".value()))",
+                      "size += Wire.lenDelimSize(@0, @1.getSerializedSize("
+                          + memberValue(o, f, bnd)
+                          + "))",
                       f.number(),
                       codecRef(f));
               case FieldKind.ENUM ->
                   Element.expr(
-                      "size += @0.computeInt32Size(@1, " + bnd + ".value().getNumber())",
+                      "size += @0.computeInt32Size(@1, " + memberValue(o, f, bnd) + ".getNumber())",
                       TypeRefs.CODED_OUTPUT_STREAM,
                       f.number());
               case FieldKind.SCALAR -> {
@@ -306,10 +307,10 @@ public final class CodecSourceMapping {
                 if (wire == WireScalar.BYTES) {
                   yield Element.expr(
                       "size += @0.computeTagSize(@1) + @0.computeInt32Size(1, "
-                          + bnd
-                          + ".value().size()) - 1 + "
-                          + bnd
-                          + ".value().size()",
+                          + memberValue(o, f, bnd)
+                          + ".size()) - 1 + "
+                          + memberValue(o, f, bnd)
+                          + ".size()",
                       TypeRefs.CODED_OUTPUT_STREAM,
                       f.number());
                 }
@@ -319,7 +320,7 @@ public final class CodecSourceMapping {
                     TypeRefs.CODED_OUTPUT_STREAM,
                     call,
                     f.number(),
-                    bnd + ".value()");
+                    memberValue(o, f, bnd));
               }
               default -> Element.comment("unsupported oneof size kind " + f.kind());
             };
@@ -1666,12 +1667,11 @@ public final class CodecSourceMapping {
    * the wire primitive (or Wkt bridge) that matches their field type.
    */
   private static List<EncodeSlot> oneofEncodeSlots(Oneof o) {
-    String iface = o.ifaceName();
     String getter = "v." + o.componentName() + "()";
     List<EncodeSlot> slots = new ArrayList<>();
     for (Field f : o.members()) {
       String bnd = String.valueOf(f.name().charAt(0)) + "_";
-      String recName = iface + "." + Oneof.valueRecordName(f);
+      Object recName = caseType(o, f);
       Entry wktMember = WktSourceMapping.resolve(f);
       Element write;
       if (wktMember != null) {
@@ -1697,17 +1697,20 @@ public final class CodecSourceMapping {
                   bnd);
         }
       } else if (f.isMessage()) {
-        write = Element.expr("@1.encodeTo(out, @0, @2.value())", f.number(), codecRef(f), bnd);
+        write =
+            Element.expr(
+                "@1.encodeTo(out, @0, @2)", f.number(), codecRef(f), memberValue(o, f, bnd));
       } else if (f.kind() == FieldKind.ENUM) {
-        write = Element.expr("out.writeEnum(@0, @1.value().getNumber())", f.number(), bnd);
+        write =
+            Element.expr("out.writeEnum(@0, @1.getNumber())", f.number(), memberValue(o, f, bnd));
       } else {
         WireScalar wire = wireScalar(f);
         write =
             Element.expr(
-                "out.@0(@1, @2.value()" + (wire == WireScalar.BYTES ? ".toByteArray()" : "") + ")",
+                "out.@0(@1, @2" + (wire == WireScalar.BYTES ? ".toByteArray()" : "") + ")",
                 encodeCall(wire),
                 f.number(),
-                bnd);
+                memberValue(o, f, bnd));
       }
       slots.add(
           new EncodeSlot(
@@ -1737,7 +1740,10 @@ public final class CodecSourceMapping {
                 Element.expr("var _e = @0.forNumberOrNull(_n)", f.type()),
                 If.condition("_e == null")
                     .body(Element.expr("unknown.addVarint(@0, _n)", f.number()))
-                    .else_(Element.expr("@0 = new @1(_e)", cmp, wrapper))
+                    .else_(
+                        o.isIdentity(f)
+                            ? Element.expr("@0 = _e", cmp)
+                            : Element.expr("@0 = new @1(_e)", cmp, wrapper))
                     .build()));
         continue;
       }
@@ -1747,6 +1753,22 @@ public final class CodecSourceMapping {
               Element.expr("@0 = @1", cmp, oneofDecodeRhs(o, f, recordRef))));
     }
     return arms;
+  }
+
+  /**
+   * The arm's member value: the wrapper's {@code value()}, or the binding itself for an identity
+   * case, whose binding already is the member value.
+   */
+  private static String memberValue(Oneof o, Field f, String bnd) {
+    return o.isIdentity(f) ? bnd : bnd + ".value()";
+  }
+
+  /**
+   * The type an arm tests and builds: the member's own type for an identity case, else the member's
+   * wrapper record.
+   */
+  private static Object caseType(Oneof o, Field f) {
+    return o.isIdentity(f) ? f.type() : o.ifaceName() + "." + Oneof.valueRecordName(f);
   }
 
   /**
@@ -1763,6 +1785,16 @@ public final class CodecSourceMapping {
     if (wktMember != null) {
       return RawExpr.of(
           "new @0(@1)", wrapper, WktSourceMapping.decodeValue(f, wktMember, "in.readByteArray()"));
+    }
+    if (o.isIdentity(f)) {
+      // An identity case decodes straight to the member's own type: there is no wrapper to build.
+      return f.isMessage()
+          ? RawExpr.of(
+              "@1.decodeInto(@2 instanceof @0 _w ? _w : null, in.readByteArray())",
+              f.type(),
+              codecRef(f),
+              o.componentName())
+          : RawExpr.of("@0.forNumber(in.readEnum())", f.type());
     }
     if (f.isMessage()) {
       // A message member that occurs again merges into the one the oneof already holds.

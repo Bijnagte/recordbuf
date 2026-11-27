@@ -7,7 +7,6 @@ import bijnagte.recordbuf.fixture.golden.GoldenCase;
 import bijnagte.recordbuf.fixture.golden.GoldenMatrix;
 import bijnagte.recordbuf.fixture.golden.GoldenStore;
 import bijnagte.recordbuf.fixture.oneof.rec.Compat;
-import bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.ItemValue;
 import bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.NameValue;
 import bijnagte.recordbuf.fixture.oneof.rec.Sub;
 import java.io.IOException;
@@ -50,7 +49,7 @@ class OneofRoundTripTest {
   @Test
   void unwrapableValueForMessageMember() {
     Sub sub = Sub.builder().text("seven").build();
-    Compat record = Compat.builder().choice(new ItemValue(sub)).build();
+    Compat record = Compat.builder().choice(sub).build();
 
     assertEquals(sub, record.choice().value());
   }

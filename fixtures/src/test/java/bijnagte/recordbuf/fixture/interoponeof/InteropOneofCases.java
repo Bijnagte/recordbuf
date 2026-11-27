@@ -36,14 +36,8 @@ public final class InteropOneofCases extends JacksonGoldenCases {
                 FAMILY, "timestamp", pick(at(Instant.ofEpochSecond(1_700_000_000L, 5))))),
         build(jacksonLossless(FAMILY, "timestamp-epoch", pick(at(Instant.EPOCH)))),
         build(jacksonLossless(FAMILY, "struct", pick(struct()))),
-        build(
-            jacksonLossless(
-                FAMILY, "enum", pick(new InteropOneof.Pick2way.PickColorValue(Color.COLOR_RED)))),
-        build(
-            jacksonLossless(
-                FAMILY,
-                "message",
-                pick(new InteropOneof.Pick2way.PickPartValue(Part.builder().a(7).build())))),
+        build(jacksonLossless(FAMILY, "enum", pick(Color.COLOR_RED))),
+        build(jacksonLossless(FAMILY, "message", pick(Part.builder().a(7).build()))),
         build(
             jacksonLossless(FAMILY, "scalar", pick(new InteropOneof.Pick2way.PickCountValue(42)))),
         build(jacksonLossless(FAMILY, "unset", InteropOneof.builder().build())));

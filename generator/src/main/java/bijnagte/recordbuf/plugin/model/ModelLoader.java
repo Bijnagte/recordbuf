@@ -38,6 +38,8 @@ public final class ModelLoader {
 
   private final FileTable table;
   private final String javaPkgOf; // java package of the file being loaded, computed outside
+  private final IdentityCases identity; // identity-subtype decisions for this generation run
+  private String fileName = ""; // the file being loaded, set by load()
 
   // Leading doc comments (raw, un-escaped text) keyed by the element's location path in the
   // FileDescriptorProto's source_code_info tree. Populated by load() for the file being loaded;
@@ -89,14 +91,20 @@ public final class ModelLoader {
   private static final String EMPTY_PROTOBUF_JAVA = "";
 
   public ModelLoader(FileTable table, String javaPackageForThisFile) {
+    this(table, javaPackageForThisFile, IdentityCases.none(table));
+  }
+
+  public ModelLoader(FileTable table, String javaPackageForThisFile, IdentityCases identity) {
     this.table = table;
     this.javaPkgOf = javaPackageForThisFile;
+    this.identity = identity;
   }
 
   public ProtoFile load(FileDescriptorProto fdp) {
     // Leading comments are looked up by the element's source_code_info location path; build the
     // index up front so every nested load* helper can attach a comment to its target. The
     // file-level location (path []) is deliberately NOT rendered here (D3: file-level dropped).
+    this.fileName = fdp.getName();
     this.commentPaths = indexComments(fdp);
     this.jacksonEnabled =
         Optional.ofNullable(
@@ -112,7 +120,7 @@ public final class ModelLoader {
     List<Enum> topEnums = new ArrayList<>();
     for (int i = 0; i < fdp.getEnumTypeCount(); i++) {
       EnumDescriptorProto e = fdp.getEnumType(i);
-      topEnums.add(loadEnum(e, /* basePath= */ path(5, i)));
+      topEnums.add(loadEnum(e, TypeRef.named(javaPkgOf, JavaNames.cap(e.getName())), path(5, i)));
     }
     return new ProtoFile(
         fdp.getName(),
@@ -227,14 +235,13 @@ public final class ModelLoader {
                 + od.getName()
                 + "\" but the file opts out of the Jackson surface (recordbuf.jackson = false)");
       }
-      oneofs.add(
-          new Oneof(
-              od.getName(),
-              type.sub(JavaNames.cap(JavaNames.camel(od.getName()))),
-              od,
-              m,
-              members,
-              jsonOneof));
+      TypeRef.Named ifaceRef = type.sub(JavaNames.cap(JavaNames.camel(od.getName())));
+      List<String> identityMembers =
+          members.stream()
+              .filter(f -> identity.isIdentity(fileName, ifaceRef, f))
+              .map(Field::name)
+              .toList();
+      oneofs.add(new Oneof(od.getName(), ifaceRef, od, m, members, jsonOneof, identityMembers));
     }
 
     List<Message> nestedMsgs = new ArrayList<>();
@@ -251,7 +258,8 @@ public final class ModelLoader {
     List<Enum> nestedEnums = new ArrayList<>();
     for (int j = 0; j < m.getEnumTypeCount(); j++) {
       EnumDescriptorProto nested = m.getEnumType(j); // raw index: source_code_info keys on it
-      nestedEnums.add(loadEnum(nested, child(basePath, 4, j)));
+      nestedEnums.add(
+          loadEnum(nested, type.sub(JavaNames.cap(nested.getName())), child(basePath, 4, j)));
     }
     requireUniqueJavaNames(m.getName(), fields, oneofs);
 
@@ -265,11 +273,13 @@ public final class ModelLoader {
         .deprecated(m.getOptions().getDeprecated())
         .comment(commentAtPath(basePath))
         .interfaces(
-            interfacesFor(
-                m.getOptions().getUnknownFields(),
-                m.getOptions().getUninterpretedOptionList(),
-                MESSAGE_INTERFACE_TAG,
-                MESSAGE_INTERFACE_NAME))
+            withIdentity(
+                interfacesFor(
+                    m.getOptions().getUnknownFields(),
+                    m.getOptions().getUninterpretedOptionList(),
+                    MESSAGE_INTERFACE_TAG,
+                    MESSAGE_INTERFACE_NAME),
+                identity.implementedBy(type.fqn())))
         .protobufJava(
             protobufJavaFor(
                 m.getOptions().getUnknownFields(), m.getOptions().getUninterpretedOptionList()))
@@ -456,7 +466,7 @@ public final class ModelLoader {
    * (protoc enforces this, and only under {@code allow_alias}), so they become one constant at the
    * first value's position. The other spellings are recorded as its aliases, which Jackson reads.
    */
-  private Enum loadEnum(EnumDescriptorProto e, List<Integer> basePath) {
+  private Enum loadEnum(EnumDescriptorProto e, TypeRef.Named type, List<Integer> basePath) {
     Map<String, List<Integer>> valueIndexesByConstant = new LinkedHashMap<>();
     for (int i = 0; i < e.getValueCount(); i++) {
       valueIndexesByConstant
@@ -489,12 +499,22 @@ public final class ModelLoader {
         .deprecated(e.getOptions().getDeprecated())
         .comment(commentAtPath(basePath))
         .interfaces(
-            interfacesFor(
-                e.getOptions().getUnknownFields(),
-                e.getOptions().getUninterpretedOptionList(),
-                ENUM_INTERFACE_TAG,
-                ENUM_INTERFACE_NAME))
+            withIdentity(
+                interfacesFor(
+                    e.getOptions().getUnknownFields(),
+                    e.getOptions().getUninterpretedOptionList(),
+                    ENUM_INTERFACE_TAG,
+                    ENUM_INTERFACE_NAME),
+                identity.implementedBy(type.fqn())))
         .build();
+  }
+
+  /** The declared interfaces followed by the identity sealed interfaces, in that order. */
+  private static List<TypeRef> withIdentity(
+      List<TypeRef> declared, List<TypeRef.Named> sealedIfaces) {
+    List<TypeRef> out = new ArrayList<>(declared);
+    out.addAll(sealedIfaces);
+    return List.copyOf(out);
   }
 
   // --- fields ---

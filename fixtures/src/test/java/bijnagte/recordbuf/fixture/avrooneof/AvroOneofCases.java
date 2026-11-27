@@ -26,21 +26,13 @@ public final class AvroOneofCases extends JacksonGoldenCases {
                 FAMILY, "uint32", oneofField(new Sample.OneofField.OneofUint32Value(42)))),
         build(
             jacksonLossless(
-                FAMILY,
-                "nested-message",
-                oneofField(
-                    new Sample.OneofField.OneofNestedMessageValue(
-                        Sample.NestedMessage.builder().a(7).build())))),
+                FAMILY, "nested-message", oneofField(Sample.NestedMessage.builder().a(7).build()))),
         build(
             jacksonLossless(
                 FAMILY,
                 "bytes",
                 oneofField(new Sample.OneofField.OneofBytesValue(Bytes.of(new byte[] {1, 2, 3}))))),
-        build(
-            jacksonLossless(
-                FAMILY,
-                "enum",
-                oneofField(new Sample.OneofField.OneofEnumValue(Sample.NestedEnum.BAR)))),
+        build(jacksonLossless(FAMILY, "enum", oneofField(Sample.NestedEnum.BAR))),
         build(jacksonLossless(FAMILY, "unset", Sample.builder().build())));
   }
 

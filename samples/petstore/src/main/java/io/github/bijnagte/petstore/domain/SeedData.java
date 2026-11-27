@@ -33,19 +33,19 @@ public class SeedData implements ApplicationRunner {
     return List.of(
         Pet.builder()
             .name("Rex")
-            .kind(new Pet.Kind.DogValue(Dog.builder().breed("Labrador").goodBoy(true).build()))
+            .kind(Dog.builder().breed("Labrador").goodBoy(true).build())
             .tags(List.of("friendly", "energetic"))
             .priceCents(25_000)
             .build(),
         Pet.builder()
             .name("Tom")
-            .kind(new Pet.Kind.CatValue(Cat.builder().breed("Tabby").indoor(true).build()))
+            .kind(Cat.builder().breed("Tabby").indoor(true).build())
             .tags(List.of("calm"))
             .priceCents(18_000)
             .build(),
         Pet.builder()
             .name("Tweety")
-            .kind(new Pet.Kind.BirdValue(Bird.builder().species("Canary").canTalk(false).build()))
+            .kind(Bird.builder().species("Canary").canTalk(false).build())
             .priceCents(4_500)
             .build());
   }

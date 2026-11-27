@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import bijnagte.recordbuf.fixture.combined.rec.Compat;
 import bijnagte.recordbuf.fixture.combined.rec.Compat.CompatCodec;
 import bijnagte.recordbuf.fixture.combined.rec.Sub;
-import bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice;
 import bijnagte.recordbuf.fixture.oneof.rec.Compat.Interop;
 import bijnagte.recordbuf.runtime.UnknownFields;
 import com.google.protobuf.CodedOutputStream;
@@ -84,9 +83,9 @@ class MergeTest {
 
     var decoded = bijnagte.recordbuf.fixture.oneof.rec.Compat.fromBytes(wire);
 
-    var item = (Choice.ItemValue) decoded.choice();
-    assertEquals("abc", item.value().text(), "the second, empty occurrence keeps the text");
-    assertEquals(1, item.value().unknownFields().fields().size());
+    var item = (bijnagte.recordbuf.fixture.oneof.rec.Sub) decoded.choice();
+    assertEquals("abc", item.text(), "the second, empty occurrence keeps the text");
+    assertEquals(1, item.unknownFields().fields().size());
     assertEquals(bijnagte.recordbuf.fixture.oneof.Compat.parseFrom(wire), Interop.to(decoded));
   }
 

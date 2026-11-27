@@ -342,9 +342,7 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
    * oneof_nested_message} set to a non-default message.
    */
   static TestAllTypesProto3 oneofMessageRecord() {
-    return avroRecord().toBuilder()
-        .oneofField(new OneofField.OneofNestedMessageValue(NestedMessage.builder().a(1234).build()))
-        .build();
+    return avroRecord().toBuilder().oneofField(NestedMessage.builder().a(1234).build()).build();
   }
 
   /**

@@ -20,20 +20,12 @@ class SchemaShapeTest {
   void everyOneofArmBuildsAndRoundTrips() throws IOException {
     for (Pet pet :
         List.of(
-            Pet.builder()
-                .id("1")
-                .name("Rex")
-                .kind(new Pet.Kind.DogValue(Dog.builder().breed("lab").build()))
-                .build(),
-            Pet.builder()
-                .id("2")
-                .name("Tom")
-                .kind(new Pet.Kind.CatValue(Cat.builder().indoor(true).build()))
-                .build(),
+            Pet.builder().id("1").name("Rex").kind(Dog.builder().breed("lab").build()).build(),
+            Pet.builder().id("2").name("Tom").kind(Cat.builder().indoor(true).build()).build(),
             Pet.builder()
                 .id("3")
                 .name("Tweety")
-                .kind(new Pet.Kind.BirdValue(Bird.builder().canTalk(true).build()))
+                .kind(Bird.builder().canTalk(true).build())
                 .build())) {
       assertEquals(pet, Pet.fromBytes(pet.toByteArray()));
     }

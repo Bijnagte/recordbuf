@@ -475,8 +475,10 @@ public final class AvroConverterSourceMapping {
               refRecPkg, AvroSchemaGenerator.specificRecordName(ref.name()) + "Converter");
       b.elseIf(
           RawExpr.of(getter + " instanceof @0 m", memberAvro),
-          Element.expr(
-              var + "(new @0(@1.toRecord(m)))", memberValueRef(oneof, member), refConverter));
+          oneof.isIdentity(member)
+              ? Element.expr(var + "(@0.toRecord(m))", refConverter)
+              : Element.expr(
+                  var + "(new @0(@1.toRecord(m)))", memberValueRef(oneof, member), refConverter));
     }
     if (hasScalar) {
       boolean onlyWrapper =
@@ -521,10 +523,12 @@ public final class AvroConverterSourceMapping {
 
   private static Element memberValueToRecordBody(
       Oneof oneof, Field member, String var, String local, AvroRegistry registry) {
-    return Element.expr(
-        var + "(new @0(@1))",
-        memberValueRef(oneof, member),
-        fromWrapperValue(member, local + ".getValue()", registry));
+    return oneof.isIdentity(member)
+        ? Element.expr(var + "(@0)", fromWrapperValue(member, local + ".getValue()", registry))
+        : Element.expr(
+            var + "(new @0(@1))",
+            memberValueRef(oneof, member),
+            fromWrapperValue(member, local + ".getValue()", registry));
   }
 
   /**
@@ -653,7 +657,9 @@ public final class AvroConverterSourceMapping {
   private static TypeRef memberValueRef(Oneof oneof, Field member) {
     // Matches the record generator's naming: the sealed interface plus the capitalized member
     // name and "Value" (e.g. Compat.Choice.NameValue) -- never the oneof name prefixed.
-    return oneof.iface().sub(Oneof.valueRecordName(member));
+    return oneof.isIdentity(member)
+        ? member.type()
+        : oneof.iface().sub(Oneof.valueRecordName(member));
   }
 
   private static TypeRef scalarWrapperType(Field f) {
@@ -949,13 +955,16 @@ public final class AvroConverterSourceMapping {
                 refRecPkg, AvroSchemaGenerator.specificRecordName(ref.name()) + "Converter");
         b.elseIf(
             RawExpr.of(accessor + " instanceof @0 w", valueRec),
-            Element.expr(setter + "(@0.fromRecord(w.value()))", refConverter));
+            oneof.isIdentity(member)
+                ? Element.expr(setter + "(@0.fromRecord(w))", refConverter)
+                : Element.expr(setter + "(@0.fromRecord(w.value()))", refConverter));
       } else {
         // a wrapper-riding member: the shared {tag, value} wrapper, the value in its Avro form.
         String tag = String.valueOf(member.number());
-        RawExpr wrapperValue = toWrapperValue(member, "w.value()", registry);
+        String bound = oneof.isIdentity(member) ? "w" : "w.value()";
+        RawExpr wrapperValue = toWrapperValue(member, bound, registry);
         // A member whose Avro form ignores the value (Empty) binds no pattern variable.
-        String binding = wrapperValue.template().contains("w.value()") ? " w" : "";
+        String binding = wrapperValue.template().contains(bound) ? " w" : "";
         b.elseIf(
             RawExpr.of(accessor + " instanceof @0" + binding, valueRec),
             Element.expr(

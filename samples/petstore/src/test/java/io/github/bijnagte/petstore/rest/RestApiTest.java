@@ -38,7 +38,7 @@ class RestApiTest {
     Pet cat =
         Pet.builder()
             .name("Felix")
-            .kind(new Pet.Kind.CatValue(Cat.builder().breed("Siamese").indoor(true).build()))
+            .kind(Cat.builder().breed("Siamese").indoor(true).build())
             .build();
     return client()
         .post()
