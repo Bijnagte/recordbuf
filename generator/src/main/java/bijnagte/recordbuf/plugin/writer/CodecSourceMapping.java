@@ -1,5 +1,6 @@
 package bijnagte.recordbuf.plugin.writer;
 
+import bijnagte.recordbuf.codegen.source.Annotation;
 import bijnagte.recordbuf.codegen.source.Case;
 import bijnagte.recordbuf.codegen.source.ClassSpec;
 import bijnagte.recordbuf.codegen.source.CommaList;
@@ -78,25 +79,68 @@ public final class CodecSourceMapping {
         .javadoc(GeneratedDocs.type(null, "Wire codec for the " + recName + " record."))
         .constructor(Constructor.builder().private_().build())
         .method(encode(m))
+        .method(encodeTo(m))
+        .method(writeBody(m))
         .method(getSerializedSize(m))
         .method(scopedDecode(m.type(), codecType))
         .method(decodeBody(m, jackson))
         .build();
   }
 
-  /** The {@code byte[] encode(Message v) throws IOException} method body. */
+  /**
+   * The {@code byte[] encode(Message v)} method: pre-allocated buffer, delegates to {@code
+   * writeBody}.
+   */
   private static Method encode(Message m) {
+    return Method.named("encode")
+        .public_()
+        .static_()
+        .returnType(TypeRef.BYTES)
+        .param(m.type(), "v")
+        .thrown(TypeRef.IO_EXCEPTION)
+        .body(
+            Element.expr("int size = getSerializedSize(v)"),
+            Element.expr("byte[] buf = new byte[size]"),
+            Element.expr("var out = @0.newInstance(buf)", TypeRefs.CODED_OUTPUT_STREAM),
+            Element.expr("writeBody(out, v)"),
+            Element.ret("buf"))
+        .build();
+  }
+
+  /**
+   * The {@code void encodeTo(CodedOutputStream out, int fieldNum, Message v)} method: writes the
+   * tag, length prefix, and body directly to {@code out} without allocating an intermediate {@code
+   * byte[]}. Used by the parent codec for nested message fields.
+   */
+  private static Method encodeTo(Message m) {
+    return Method.named("encodeTo")
+        .public_()
+        .static_()
+        .param(TypeRefs.CODED_OUTPUT_STREAM, "out")
+        .param(TypeRef.Primitive.INT, "fieldNum")
+        .param(m.type(), "v")
+        .thrown(TypeRef.IO_EXCEPTION)
+        .annotation(Annotation.suppressWarnings("deprecation"))
+        .body(
+            Element.expr("int size = getSerializedSize(v)"),
+            Element.expr("out.writeRawVarint32((fieldNum << 3) | 2)"),
+            Element.expr("out.writeRawVarint32(size)"),
+            Element.expr("writeBody(out, v)"))
+        .build();
+  }
+
+  /**
+   * The private {@code writeBody(CodedOutputStream out, Message v)} method: writes all fields
+   * directly to {@code out}. Shared by {@link #encode} and {@link #encodeTo}.
+   */
+  private static Method writeBody(Message m) {
     var method =
-        Method.named("encode")
-            .public_()
+        Method.named("writeBody")
+            .private_()
             .static_()
-            .returnType(TypeRef.BYTES)
+            .param(TypeRefs.CODED_OUTPUT_STREAM, "out")
             .param(m.type(), "v")
-            .thrown(TypeRef.IO_EXCEPTION)
-            .body(
-                Element.expr("int size = getSerializedSize(v)"),
-                Element.expr("byte[] buf = new byte[size]"),
-                Element.expr("var out = @0.newInstance(buf)", TypeRefs.CODED_OUTPUT_STREAM));
+            .thrown(TypeRef.IO_EXCEPTION);
 
     // Write slots in ascending field-number order.
     List<EncodeSlot> slots = new ArrayList<>();
@@ -116,7 +160,8 @@ public final class CodecSourceMapping {
         If.condition("!v.unknownFields().isEmpty()")
             .body(Element.expr("v.unknownFields().writeTo(out)"))
             .build();
-    return method.body(unknownArm, Element.ret("buf")).build();
+    method.body(unknownArm);
+    return method.build();
   }
 
   /** The {@code int getSerializedSize(Message v)} method body. */
@@ -407,12 +452,10 @@ public final class CodecSourceMapping {
 
   // --- Per-field MESSAGE encode/decode (M4-C2d-5) ---
 
-  /** M4-C2d-5: singular MESSAGE encode — skip null, else writeByteArray(tag, Codec.encode(v)). */
+  /** M4-C2d-5: singular MESSAGE encode — skip null, else encodeTo(out, tag, Codec, v). */
   private static Element emitMessageEncode(Field f) {
     return If.condition("v.@0() != null", f.javaName())
-        .body(
-            Element.expr(
-                "out.writeByteArray(@0, @1.encode(v.@2()))", f.number(), codecRef(f), f.javaName()))
+        .body(Element.expr("@1.encodeTo(out, @0, v.@2())", f.number(), codecRef(f), f.javaName()))
         .build();
   }
 
@@ -420,7 +463,7 @@ public final class CodecSourceMapping {
   private static Element emitRepeatedMessageEncode(Field f) {
     String getter = "v." + f.javaName() + "()";
     return For.enhanced("var _m", getter)
-        .body(Element.expr("out.writeByteArray(@0, @1.encode(_m))", f.number(), codecRef(f)))
+        .body(Element.expr("@1.encodeTo(out, @0, _m)", f.number(), codecRef(f)))
         .build();
   }
 
@@ -525,7 +568,7 @@ public final class CodecSourceMapping {
     return For.enhanced("var _e", "v.@0().entrySet()", f.javaName())
         .body(
             Element.expr(
-                "out.writeByteArray(@0, @1.@1Codec.encode(new @1(_e.getKey(), _e.getValue())))",
+                "@1.@1Codec.encodeTo(out, @0, new @1(_e.getKey(), _e.getValue()))",
                 f.number(),
                 entryName))
         .build();
@@ -1053,9 +1096,34 @@ public final class CodecSourceMapping {
                     Element.expr("int size = getSerializedSize(v)"),
                     Element.expr("byte[] buf = new byte[size]"),
                     Element.expr("var out = @0.newInstance(buf)", TypeRefs.CODED_OUTPUT_STREAM),
-                    Element.expr("out.@0(1, @1)", encodeCall(keyWire), keyArg),
-                    entryValueEncode(f, valueKind),
+                    Element.expr("writeBody(out, v)"),
                     Element.ret("buf"))
+                .build())
+        .method(
+            Method.named("encodeTo")
+                .public_()
+                .static_()
+                .param(TypeRefs.CODED_OUTPUT_STREAM, "out")
+                .param(TypeRef.Primitive.INT, "fieldNum")
+                .param(entryRef, "v")
+                .thrown(TypeRef.IO_EXCEPTION)
+                .annotation(Annotation.suppressWarnings("deprecation"))
+                .body(
+                    Element.expr("int size = getSerializedSize(v)"),
+                    Element.expr("out.writeRawVarint32((fieldNum << 3) | 2)"),
+                    Element.expr("out.writeRawVarint32(size)"),
+                    Element.expr("writeBody(out, v)"))
+                .build())
+        .method(
+            Method.named("writeBody")
+                .private_()
+                .static_()
+                .param(TypeRefs.CODED_OUTPUT_STREAM, "out")
+                .param(entryRef, "v")
+                .thrown(TypeRef.IO_EXCEPTION)
+                .body(
+                    Element.expr("out.@0(1, @1)", encodeCall(keyWire), keyArg),
+                    entryValueEncode(f, valueKind))
                 .build())
         .method(
             Method.named("getSerializedSize")
@@ -1133,8 +1201,7 @@ public final class CodecSourceMapping {
   /** The entry encoder's write of the value (field 2), which is written unconditionally. */
   private static Element entryValueEncode(Field f, FieldKind valueKind) {
     return switch (valueKind) {
-      case MESSAGE ->
-          Element.expr("out.writeByteArray(2, @0.encode(v.value()))", entryValueCodec(f));
+      case MESSAGE -> Element.expr("@0.encodeTo(out, 2, v.value())", entryValueCodec(f));
       case ENUM -> Element.expr("out.writeEnum(2, v.value().getNumber())");
       default -> {
         WireScalar wire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapValue()));
@@ -1338,9 +1405,7 @@ public final class CodecSourceMapping {
                   bnd);
         }
       } else if (f.isMessage()) {
-        write =
-            Element.expr(
-                "out.writeByteArray(@0, @1.encode(@2.value()))", f.number(), codecRef(f), bnd);
+        write = Element.expr("@1.encodeTo(out, @0, @2.value())", f.number(), codecRef(f), bnd);
       } else if (f.kind() == FieldKind.ENUM) {
         write = Element.expr("out.writeEnum(@0, @1.value().getNumber())", f.number(), bnd);
       } else {
