@@ -229,6 +229,18 @@ final class WktSourceMapping {
     return RawExpr.of("@0.wrap(@0.Wrap.@1, @2)", TypeRefs.WKT, wrapKind(f.typeUrl()), value);
   }
 
+  /** Size expression for a WKT value (returns {@code int} directly, no allocation). */
+  static RawExpr sizeValue(Field f, Entry entry, String value) {
+    if (entry.nodeType() != null) {
+      // Dynamic WKT: no size method yet; fall back to encode().length.
+      return RawExpr.of("@0.encode(\"" + f.typeUrl() + "\", @1).length", TypeRefs.DYNAMIC_WKT, value);
+    }
+    if (entry.hasZeroDefault()) {
+      return RawExpr.of("@0.@1(@2)", TypeRefs.WKT, sizeMethod(f.typeUrl()), value);
+    }
+    return RawExpr.of("@0.wrapSize(@0.Wrap.@1, @2)", TypeRefs.WKT, wrapKind(f.typeUrl()), value);
+  }
+
   /**
    * One WKT value decoded from its wire bytes, as an expression (the inverse of {@link
    * #encodeValue}), cast to the member's Java type where the runtime returns a wider one.
@@ -271,6 +283,17 @@ final class WktSourceMapping {
       case "FieldMask" -> "fieldMask";
       case "Empty" -> "empty";
       default -> "write" + cap(shortName(typeUrl));
+    };
+  }
+
+  // Size method for structured WKT (no allocation): Wkt.timestampSize, Wkt.durationSize, etc.
+static @Nullable String sizeMethod(String typeUrl) {
+    return switch (shortName(typeUrl)) {
+      case "Timestamp" -> "timestampSize";
+      case "Duration" -> "durationSize";
+      case "FieldMask" -> "fieldMaskSize";
+      case "Empty" -> "emptySize";
+      default -> null;
     };
   }
 

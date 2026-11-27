@@ -300,4 +300,105 @@ public final class Wkt {
     }
     return pair;
   }
+
+  // ---- size computation (no allocation) ---------------------------------------
+
+  /**
+   * Compute the serialized inner-frame size of a {@code Timestamp} without encoding.
+   */
+  public static int timestampSize(Instant v) {
+    long seconds = v.getEpochSecond();
+    int nanos = v.getNano();
+    int size = 0;
+    if (seconds != 0L) size += CodedOutputStream.computeInt64Size(1, seconds);
+    if (nanos != 0) size += CodedOutputStream.computeInt32Size(2, nanos);
+    return size;
+  }
+
+  /**
+   * Compute the serialized inner-frame size of a {@code Duration} without encoding.
+   */
+  public static int durationSize(Duration v) {
+    long seconds = v.getSeconds();
+    int nanos = v.getNano();
+    if (seconds < 0 && nanos > 0) {
+      seconds += 1;
+      nanos -= 1_000_000_000;
+    }
+    int size = 0;
+    if (seconds != 0L) size += CodedOutputStream.computeInt64Size(1, seconds);
+    if (nanos != 0) size += CodedOutputStream.computeInt32Size(2, nanos);
+    return size;
+  }
+
+  /**
+   * Compute the serialized inner-frame size of a {@code FieldMask} without encoding.
+   */
+  public static int fieldMaskSize(FieldMask v) {
+    int size = 0;
+    for (String path : v.paths()) {
+      if (!path.isEmpty()) size += CodedOutputStream.computeStringSize(1, path);
+    }
+    return size;
+  }
+/**
+   * Compute the serialized inner-frame size of an {@code Empty} — always 0.
+   */
+  public static int emptySize(Empty v) {
+    return 0;
+  }
+
+
+  /**
+   * Compute the serialized inner-frame size of a scalar wrapper without encoding.
+   */
+  public static int wrapSize(Wrap wire, Object value) {
+    return switch (wire) {
+      case INT32, UINT32 -> {
+        int v = (int) value;
+        yield v != 0 ? CodedOutputStream.computeInt32Size(1, v) : 0;
+      }
+      case SINT_32 -> {
+        int v = (int) value;
+        yield v != 0 ? CodedOutputStream.computeSInt32Size(1, v) : 0;
+      }
+      case FIXED32 -> {
+        int v = (int) value;
+        yield v != 0 ? CodedOutputStream.computeFixed32Size(1, v) : 0;
+      }
+      case INT64, UINT64 -> {
+        long v = (long) value;
+        yield v != 0L ? CodedOutputStream.computeInt64Size(1, v) : 0;
+      }
+      case SINT_64 -> {
+        long v = (long) value;
+        yield v != 0L ? CodedOutputStream.computeSInt64Size(1, v) : 0;
+      }
+      case FIXED64 -> {
+        long v = (long) value;
+        yield v != 0L ? CodedOutputStream.computeFixed64Size(1, v) : 0;
+      }
+      case FLOAT -> {
+        float v = (float) value;
+        yield v != 0f ? CodedOutputStream.computeFloatSize(1, v) : 0;
+      }
+      case DOUBLE -> {
+        double v = (double) value;
+        yield v != 0d ? CodedOutputStream.computeDoubleSize(1, v) : 0;
+      }
+      case BOOL -> {
+        boolean v = (boolean) value;
+        yield v ? CodedOutputStream.computeBoolSize(1, v) : 0;
+      }
+      case STRING -> {
+        String v = (String) value;
+        yield !v.isEmpty() ? CodedOutputStream.computeStringSize(1, v) : 0;
+      }
+      case BYTES -> {
+        Bytes v = (Bytes) value;
+        yield !v.isEmpty() ? CodedOutputStream.computeByteArraySize(1, v.toByteArray()) : 0;
+      }
+    };
+  }
+
 }
