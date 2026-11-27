@@ -344,6 +344,33 @@ public final class CodecSourceMapping {
         .build();
   }
 
+  /** A repeated or map field: its decode local is allocated lazily on the first element. */
+  private static boolean isLazyCollection(Field f) {
+    return f.kind() == FieldKind.MAP || f.label() == FieldLabel.REPEATED;
+  }
+
+  /** Add a field's decode arm, first allocating its collection local if it is still null. */
+  private static void fieldArm(Switch.Builder switchB, Field f, Case c) {
+    if (!isLazyCollection(f)) {
+      switchB.caseArm(c);
+      return;
+    }
+    TypeRef impl = f.kind() == FieldKind.MAP ? TypeRefs.HASH_MAP : TypeRefs.ARRAY_LIST;
+    List<Element> body = new ArrayList<>();
+    body.add(
+        If.condition(f.javaName() + " == null")
+            .body(Element.expr(f.javaName() + " = new @0<>()", impl))
+            .build());
+    body.addAll(c.body());
+    switchB.caseArm(new Case(c.patterns(), body));
+  }
+
+  /** The record-constructor argument for a lazy collection: the local, or an immutable empty. */
+  private static Object lazyResult(Field f) {
+    TypeRef empty = f.kind() == FieldKind.MAP ? TypeRefs.MAP : TypeRefs.LIST;
+    return RawExpr.of(f.javaName() + " == null ? @0.of() : " + f.javaName(), empty);
+  }
+
   /** The private {@code decodeBody} the scoped {@code decode} runs: one level's tag loop. */
   private static Method decodeBody(Message m, boolean jackson) {
     var method =
@@ -360,10 +387,13 @@ public final class CodecSourceMapping {
             // M4-C2b-2b-5: the unknown-fields accumulator, initialised as a fresh builder.
             .body(Element.expr("var unknown = @0.builder()", TypeRefs.UNKNOWN_FIELDS));
 
-    // Per-field local default-init.
+    // Per-field local default-init. Repeated and map locals start null and are allocated on the
+    // first element (see lazyGuard); an absent collection is passed as an immutable empty one.
     for (Field f : m.fields()) {
       Entry wktEntry = WktSourceMapping.resolve(f);
-      if (wktEntry != null) {
+      if (isLazyCollection(f)) {
+        method.body(LocalVar.builder(f.type(), f.javaName()).assigned(RawExpr.of("null")));
+      } else if (wktEntry != null) {
         var wkt0 = Objects.requireNonNull(wktEntry);
         method.body(WktSourceMapping.localInitElement(f, wkt0));
       } else {
@@ -427,29 +457,29 @@ public final class CodecSourceMapping {
       Entry wktEntry = WktSourceMapping.resolve(f);
       if (wktEntry != null) {
         var wkt0 = Objects.requireNonNull(wktEntry);
-        switchB.caseArm(WktSourceMapping.emitDecodeCase(f, wkt0, "in"));
+        fieldArm(switchB, f, WktSourceMapping.emitDecodeCase(f, wkt0, "in"));
       } else {
         switch (f.kind()) {
-          case FieldKind.MAP -> switchB.caseArm(emitMapDecodeCase(f));
+          case FieldKind.MAP -> fieldArm(switchB, f, emitMapDecodeCase(f));
           case FieldKind.MESSAGE -> {
             Case c =
                 f.label() == FieldLabel.REPEATED
                     ? emitRepeatedMessageDecodeCase(f)
                     : emitMessageDecodeCase(f);
-            if (c != null) switchB.caseArm(c);
+            if (c != null) fieldArm(switchB, f, c);
           }
           case FieldKind.ENUM -> {
             Case c =
                 f.label() == FieldLabel.REPEATED
                     ? emitRepeatedEnumDecodeCase(f)
                     : emitEnumDecodeCase(f);
-            if (c != null) switchB.caseArm(c);
+            if (c != null) fieldArm(switchB, f, c);
           }
           case FieldKind.SCALAR -> {
             if (f.label() == FieldLabel.REPEATED) {
-              switchB.caseArm(emitRepeatedScalarDecodeCase(f));
+              fieldArm(switchB, f, emitRepeatedScalarDecodeCase(f));
             } else {
-              switchB.caseArm(emitScalarDecodeCase(f));
+              fieldArm(switchB, f, emitScalarDecodeCase(f));
             }
           }
         }
@@ -472,8 +502,8 @@ public final class CodecSourceMapping {
             .build());
 
     // Construct the record, passing the carrier as the last argument.
-    List<String> allNames = new ArrayList<>();
-    for (Field f : m.fields()) allNames.add(f.javaName());
+    List<Object> allNames = new ArrayList<>();
+    for (Field f : m.fields()) allNames.add(isLazyCollection(f) ? lazyResult(f) : f.javaName());
     // oneof components: pass the oneof local (assigned in the tag loop, or null).
     for (var oneof : m.oneofs()) allNames.add(oneof.componentName());
     if (jackson) allNames.add("null");
