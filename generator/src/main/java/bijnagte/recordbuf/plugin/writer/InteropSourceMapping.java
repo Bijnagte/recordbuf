@@ -317,7 +317,10 @@ public final class InteropSourceMapping {
       method.body(emitOneofTo(o));
     }
     return method
-        .body(Element.expr("_b.setUnknownFields(r.unknownFields().toProto())"))
+        .body(
+            If.condition("!r.unknownFields().isEmpty()")
+                .body(Element.expr("_b.setUnknownFields(r.unknownFields().toProto())"))
+                .build())
         .body(Element.ret("_b.build()"))
         .build();
   }
