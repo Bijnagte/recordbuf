@@ -13,6 +13,9 @@ reads and writes the record's fields in the wire format, and it is what the
 interop harness locks to the reference runtime by byte- and semantic-equality.
 A codec has no opinion on *what data is not modelled* — that is the carrier's job.
 
+### Wide message
+A message whose field and oneof slots exceed the chunking threshold (16). Its generated encode, size and decode bodies are split into bounded parts so HotSpot can compile them; decode accumulates into the record's builder instead of locals. Narrow messages keep the single-method forms.
+
 ### Unknown-field carrier
 The per-record holder for fields a decode saw on the wire that the record's
 schema does not model: the field number, its on-wire shape, and the raw value
