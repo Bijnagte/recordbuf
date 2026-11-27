@@ -7,6 +7,7 @@ import io.github.bijnagte.petstore.model.OrderStatusUpdate;
 import io.github.bijnagte.petstore.model.PlaceOrderRequest;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -53,7 +54,9 @@ public class OrderService {
         throw new NotFoundException("pet", petId);
       }
     }
-    Instant now = clock.instant();
+    // The Avro event log keeps timestamps in microseconds. Truncating here keeps the order and the
+    // event it produces equal after the event is decoded, whatever resolution the clock has.
+    Instant now = clock.instant().truncatedTo(ChronoUnit.MICROS);
     Order order =
         orders.save(
             Order.builder()

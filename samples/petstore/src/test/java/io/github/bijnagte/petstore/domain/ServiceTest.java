@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test;
 
 class ServiceTest {
 
-  private static final Instant NOW = Instant.parse("2026-11-27T10:00:00Z");
+  private static final Instant NOW = Instant.parse("2026-11-27T10:00:00.123456789Z");
 
   private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
   private final InMemoryPetRepository petRepository = new InMemoryPetRepository();
