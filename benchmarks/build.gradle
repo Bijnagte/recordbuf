@@ -117,3 +117,85 @@ tasks.named("compileJmhJava", JavaCompile).configure {
         disableAllChecks = true
     }
 }
+
+// ---------------------------------------------------------------------------
+// Profiling: ./gradlew :recordbuf-benchmarks:profile -Pbench=ConformanceBenchmark.decode
+//
+// Runs one benchmark (a JMH include regex) under JFR and prints the top CPU and allocation
+// frames as text. If ASYNC_PROFILER_LIB points at libasyncProfiler.{dylib,so}, async-profiler also
+// runs and writes a CPU flame graph. Artifacts land in build/profiles/<bench>/ (never committed).
+// The `jmh` task is untouched.
+// ---------------------------------------------------------------------------
+def profileLauncher = javaToolchains.launcherFor {
+    languageVersion = JavaLanguageVersion.of(25)
+}
+
+tasks.register('profile', JavaExec) {
+    group = 'verification'
+    description = 'Profiles one benchmark (-Pbench=<regex>) with JFR (+ async-profiler when ASYNC_PROFILER_LIB is set).'
+    dependsOn tasks.named('jmhJar')
+    javaLauncher = profileLauncher
+
+    def bench = providers.gradleProperty('bench')
+    def quick = providers.gradleProperty('profileQuick').isPresent()
+    def asyncLib = providers.environmentVariable('ASYNC_PROFILER_LIB')
+    def outDir = layout.buildDirectory.dir(bench.map { 'profiles/' + it.replaceAll('[^A-Za-z0-9_.-]', '_') })
+    def jfrFile = outDir.map { it.file('profile.jfr') }
+
+    classpath = files(tasks.named('jmhJar').flatMap { it.archiveFile })
+    mainClass = 'org.openjdk.jmh.Main'
+
+    doFirst {
+        if (!bench.isPresent()) {
+            throw new GradleException(
+                'Missing -Pbench=<benchmark regex>, e.g. ' +
+                    '-Pbench=ConformanceBenchmark.decode (use -PprofileQuick for a shorter run)')
+        }
+        def dir = outDir.get().asFile
+        delete(dir)
+        dir.mkdirs()
+
+        // DebugNonSafepoints makes sampled frames land on real lines inside inlined code.
+        def jvmArgs = "-XX:StartFlightRecording=filename=${jfrFile.get().asFile},settings=profile" +
+            ' -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints'
+        def jmhArgs = [bench.get(), '-f', '1', '-jvmArgsAppend', jvmArgs]
+        if (quick) {
+            jmhArgs += ['-wi', '2', '-i', '3', '-w', '1', '-r', '2']
+        }
+
+        def lib = asyncLib.getOrNull()
+        if (lib == null) {
+            logger.lifecycle('profile: ASYNC_PROFILER_LIB not set; JFR only.')
+        } else if (!file(lib).isFile()) {
+            logger.lifecycle("profile: ASYNC_PROFILER_LIB=${lib} does not exist; JFR only.")
+        } else {
+            logger.lifecycle("profile: async-profiler enabled (${lib}).")
+            jmhArgs += ['-prof', "async:libPath=${lib};output=flamegraph;event=cpu;dir=${dir}"]
+        }
+        args(jmhArgs)
+    }
+
+    doLast {
+        def jfr = profileLauncher.get().metadata.installationPath.file('bin/jfr').asFile
+        def rec = jfrFile.get().asFile
+        if (!rec.isFile()) {
+            throw new GradleException("profile: no JFR recording produced at ${rec}")
+        }
+        ['hot-methods', 'allocation-by-site'].each { view ->
+            def proc = new ProcessBuilder(
+                jfr.absolutePath, 'view', '--width', '160', view, rec.absolutePath)
+                .redirectErrorStream(true).start()
+            def text = proc.inputStream.text
+            proc.waitFor()
+            def lines = text.readLines()
+            logger.lifecycle("\n== jfr view ${view} (top 15 rows) ==")
+            if (lines.size() <= 3) {
+                logger.lifecycle("(no samples for ${view})")
+            } else {
+                logger.lifecycle(lines.take(18).join('\n'))
+            }
+        }
+        logger.lifecycle('\nArtifacts:')
+        fileTree(outDir).visit { if (!it.isDirectory()) { logger.lifecycle("  ${it.file}") } }
+    }
+}
