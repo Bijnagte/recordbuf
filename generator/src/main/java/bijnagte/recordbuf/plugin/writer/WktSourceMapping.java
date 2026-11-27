@@ -233,7 +233,8 @@ final class WktSourceMapping {
   static RawExpr sizeValue(Field f, Entry entry, String value) {
     if (entry.nodeType() != null) {
       // Dynamic WKT: no size method yet; fall back to encode().length.
-      return RawExpr.of("@0.encode(\"" + f.typeUrl() + "\", @1).length", TypeRefs.DYNAMIC_WKT, value);
+      return RawExpr.of(
+          "@0.encode(\"" + f.typeUrl() + "\", @1).length", TypeRefs.DYNAMIC_WKT, value);
     }
     if (entry.hasZeroDefault()) {
       return RawExpr.of("@0.@1(@2)", TypeRefs.WKT, sizeMethod(f.typeUrl()), value);
@@ -287,7 +288,7 @@ final class WktSourceMapping {
   }
 
   // Size method for structured WKT (no allocation): Wkt.timestampSize, Wkt.durationSize, etc.
-static @Nullable String sizeMethod(String typeUrl) {
+  static @Nullable String sizeMethod(String typeUrl) {
     return switch (shortName(typeUrl)) {
       case "Timestamp" -> "timestampSize";
       case "Duration" -> "durationSize";

@@ -22,6 +22,7 @@ class RuntimeFramingTest {
    * Encode scaffolding: a field written through {@link Encoder} is read back through {@link
    * Decoder} byte-for-byte, with the tag/skip primitives intact.
    */
+  @SuppressWarnings("deprecation")
   @Test
   void encodeDecodeRoundTripsRepresentativeValue() throws Exception {
     Encoder enc = Encoder.start();
@@ -39,6 +40,7 @@ class RuntimeFramingTest {
    * Packed buffer/drain: a populated no-tag sequence frames and drains to the exact values; an
    * empty sequence frames a 0-length group that drains nothing.
    */
+  @SuppressWarnings("deprecation")
   @Test
   void packedBufferFrameAndDrainRoundTrips() throws Exception {
     Encoder body = Encoder.start();
@@ -69,6 +71,7 @@ class RuntimeFramingTest {
   }
 
   /** Frame a tight value body as one length-delimited group (tag + raw bytes). */
+  @SuppressWarnings("deprecation")
   private static byte[] frame(int num, byte[] body) throws IOException {
     Encoder enc = Encoder.start();
     enc.out().writeByteArray(num, body);

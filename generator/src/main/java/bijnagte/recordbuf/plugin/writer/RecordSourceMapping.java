@@ -299,7 +299,7 @@ public final class RecordSourceMapping {
                 .javadoc(
                     Javadoc.builder()
                         .text(
-"This decode path is unfunded. For new code, prefer native protobuf decode + Interop.from().")
+                            "This decode path is unfunded. For new code, prefer native protobuf decode + Interop.from().")
                         .build())
                 .public_()
                 .static_()

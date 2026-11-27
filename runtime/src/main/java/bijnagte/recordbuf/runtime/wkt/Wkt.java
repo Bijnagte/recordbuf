@@ -307,9 +307,7 @@ public final class Wkt {
 
   // ---- size computation (no allocation) ---------------------------------------
 
-  /**
-   * Compute the serialized inner-frame size of a {@code Timestamp} without encoding.
-   */
+  /** Compute the serialized inner-frame size of a {@code Timestamp} without encoding. */
   public static int timestampSize(Instant v) {
     long seconds = v.getEpochSecond();
     int nanos = v.getNano();
@@ -319,9 +317,7 @@ public final class Wkt {
     return size;
   }
 
-  /**
-   * Compute the serialized inner-frame size of a {@code Duration} without encoding.
-   */
+  /** Compute the serialized inner-frame size of a {@code Duration} without encoding. */
   public static int durationSize(Duration v) {
     long seconds = v.getSeconds();
     int nanos = v.getNano();
@@ -335,9 +331,7 @@ public final class Wkt {
     return size;
   }
 
-  /**
-   * Compute the serialized inner-frame size of a {@code FieldMask} without encoding.
-   */
+  /** Compute the serialized inner-frame size of a {@code FieldMask} without encoding. */
   public static int fieldMaskSize(FieldMask v) {
     int size = 0;
     for (String path : v.paths()) {
@@ -345,17 +339,13 @@ public final class Wkt {
     }
     return size;
   }
-/**
-   * Compute the serialized inner-frame size of an {@code Empty} — always 0.
-   */
+
+  /** Compute the serialized inner-frame size of an {@code Empty} — always 0. */
   public static int emptySize(Empty v) {
     return 0;
   }
 
-
-  /**
-   * Compute the serialized inner-frame size of a scalar wrapper without encoding.
-   */
+  /** Compute the serialized inner-frame size of a scalar wrapper without encoding. */
   public static int wrapSize(Wrap wire, Object value) {
     return switch (wire) {
       case INT32, UINT32 -> {
@@ -404,5 +394,4 @@ public final class Wkt {
       }
     };
   }
-
 }
