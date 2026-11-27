@@ -405,6 +405,12 @@ classes and the module's `.rec` output. The vendored corpus package is excluded 
 runs `jacocoTestCoverageVerification`, whose minimums are line 0.8 and
 branch 0.7 (raised from the pre-restructure baseline). Those minimums do not go down. Report: `./gradlew :recordbuf-fixtures:jacocoTestReport`.
 
+## Samples
+
+[`samples/petstore`](./samples/petstore/README.md) is a Spring Boot pet store that serves one set of
+generated records over REST, gRPC and Avro, with a schema-evolution test. It is a standalone build
+that includes this repository, and `./gradlew build` runs it (the `petstoreSample` task).
+
 ## Project layout
 
 Eight co-versioned subprojects (`io.github.bijnagte.recordbuf:<version>`) live in role-named directories under the
@@ -420,6 +426,8 @@ repo root. The root `build.gradle.kts` is an aggregator that also applies the sh
 | `options/` | `:recordbuf-options` | `recordbuf_options.proto`, consumed as a protoc `-I` include, not as a Gradle dependency. |
 | `benchmarks/` | `:recordbuf-benchmarks` | JMH throughput and allocation benchmarks comparing recordbuf codecs and interop against protobuf-java (`./gradlew :recordbuf-benchmarks:jmh`), plus a one-command profiler (`./gradlew :recordbuf-benchmarks:profile -Pbench=<regex>`, see [Profiling](#profiling)). Not published; baselines are kept in `benchmarks/results/`. |
 | `fixtures/` | `:recordbuf-fixtures` | Per-feature `.proto` fixtures generated through the real launcher, and the [compatibility suite](#compatibility-suite): a golden matrix over five formats, checked against protobuf-java 4.36.2 and Avro, plus a protobuf conformance mirror. Its Gradle script is Groovy because of the protobuf-gradle-plugin's DSL. |
+
+`samples/petstore/` is the pet store sample, a standalone build outside this table's subprojects.
 
 Other files: `gradle/libs.versions.toml` (the version catalog, where versions are bumped),
 `config/checkstyle/checkstyle.xml` (shared Checkstyle config), `docs/plans/` (implementation plans),
