@@ -439,7 +439,7 @@ public final class CodecSourceMapping {
                         .assigned("@0.readTag(in)", TypeRefs.WIRE),
                     If.condition("tag == 0").body(Element.of("break;")).build(),
                     If.condition(
-                            "!decodeField(in, @0.tagFieldNumber(tag), tag, decodeCarrier)",
+                            "!decodeField(in, @0.tagFieldNumber(tag), tag, unknown, decodeCarrier)",
                             TypeRefs.WIRE)
                         .body(Element.expr("unknown.add(in, tag)"))
                         .build())
@@ -480,6 +480,7 @@ public final class CodecSourceMapping {
             .param(TypeRefs.CODED_INPUT_STREAM, "in")
             .param(TypeRef.Primitive.INT, "decodeFieldNo")
             .param(TypeRef.Primitive.INT, "tag")
+            .param(TypeRefs.UNKNOWN_FIELDS_BUILDER, "unknown")
             .param(builder, "decodeCarrier")
             .thrown(TypeRef.IO_EXCEPTION);
     for (int i = 0; i < chunks.size(); i++) {
@@ -487,10 +488,13 @@ public final class CodecSourceMapping {
       if (i < chunks.size() - 1) {
         route.body(
             If.condition("decodeFieldNo <= @0", chunk.get(chunk.size() - 1).number())
-                .body(Element.ret("decodePart" + i + "(in, decodeFieldNo, tag, decodeCarrier)"))
+                .body(
+                    Element.ret(
+                        "decodePart" + i + "(in, decodeFieldNo, tag, unknown, decodeCarrier)"))
                 .build());
       } else {
-        route.body(Element.ret("decodePart" + i + "(in, decodeFieldNo, tag, decodeCarrier)"));
+        route.body(
+            Element.ret("decodePart" + i + "(in, decodeFieldNo, tag, unknown, decodeCarrier)"));
       }
 
       Switch.Builder sw = Switch.on("decodeFieldNo");
@@ -512,6 +516,7 @@ public final class CodecSourceMapping {
               .param(TypeRefs.CODED_INPUT_STREAM, "in")
               .param(TypeRef.Primitive.INT, "decodeFieldNo")
               .param(TypeRef.Primitive.INT, "tag")
+              .param(TypeRefs.UNKNOWN_FIELDS_BUILDER, "unknown")
               .param(builder, "decodeCarrier")
               .thrown(TypeRef.IO_EXCEPTION)
               .body(sw.build(), Element.ret("false"))
@@ -732,8 +737,15 @@ public final class CodecSourceMapping {
   private static Case emitEnumDecodeCase(Field f) {
     int num = f.number();
     String local = f.javaName();
+    // A number no constant has stays in the unknown-field carrier, so it re-emits on encode.
     return Case.of(
-        String.valueOf(num), Element.expr("@0 = @1.forNumber(in.readEnum())", local, codecRef(f)));
+        String.valueOf(num),
+        Element.expr(
+            "@0 = @1.enumOrUnknown(unknown, @2, in.readEnum(), @3::forNumberOrNull, @0)",
+            local,
+            TypeRefs.WIRE,
+            num,
+            codecRef(f)));
   }
 
   /** M4-C2b-2b-9: repeated ENUM decode — add EnumName.forNumber(in.readEnum()) to the list. */
@@ -744,7 +756,13 @@ public final class CodecSourceMapping {
     // A packed group (wire type 2) or one tagged element, whichever the writer chose.
     return Case.of(
         String.valueOf(num),
-        packedOrSingle(Element.expr("@0.add(@1.forNumber(in.readEnum()))", local, codecRef(f))));
+        packedOrSingle(
+            Element.expr(
+                "@0.addEnum(unknown, @1, in.readEnum(), @2::forNumberOrNull, @3)",
+                TypeRefs.WIRE,
+                num,
+                codecRef(f),
+                local)));
   }
 
   /**
@@ -810,7 +828,7 @@ public final class CodecSourceMapping {
     String local = f.javaName();
     String pattern = String.valueOf(num);
     return switch (wireScalar(f)) {
-      case STRING -> Case.of(pattern, Element.expr("@0 = in.readString()", local));
+      case STRING -> Case.of(pattern, Element.expr("@0 = in.readStringRequireUtf8()", local));
       case BYTES ->
           Case.of(
               pattern,
@@ -1225,7 +1243,7 @@ public final class CodecSourceMapping {
       case FLOAT -> "in.readFloat()";
       case DOUBLE -> "in.readDouble()";
       case BOOL -> "in.readBool()";
-      case STRING -> "in.readString()";
+      case STRING -> "in.readStringRequireUtf8()";
       case BYTES -> "in.readBytes().toByteArray()";
     };
   }
@@ -1291,7 +1309,8 @@ public final class CodecSourceMapping {
     WireScalar wire = wireScalar(f);
     // Length-delimited scalars: each tag occurrence carries exactly one element.
     if (wire == WireScalar.STRING) {
-      return Case.of(String.valueOf(num), Element.expr("@0.add(in.readString())", local));
+      return Case.of(
+          String.valueOf(num), Element.expr("@0.add(in.readStringRequireUtf8())", local));
     }
     if (wire == WireScalar.BYTES) {
       return Case.of(
@@ -1554,7 +1573,7 @@ public final class CodecSourceMapping {
     return Case.of(
         String.valueOf(fieldNum),
         switch (ws) {
-          case STRING -> Element.expr("@0 = in.readString()", name);
+          case STRING -> Element.expr("@0 = in.readStringRequireUtf8()", name);
           case BYTES ->
               Element.expr("@0 = @1.of(in.readBytes().toByteArray())", name, TypeRefs.BYTES);
           default -> Element.expr("@0 = @1", name, decodeCall(ws));
@@ -1688,6 +1707,21 @@ public final class CodecSourceMapping {
     String cmp = o.componentName();
     List<Case> arms = new ArrayList<>();
     for (Field f : o.members()) {
+      if (f.kind() == FieldKind.ENUM && WktSourceMapping.resolve(f) == null) {
+        // A number no constant has stays in the unknown-field carrier and leaves the oneof as it
+        // was, so it re-emits on encode.
+        TypeRef wrapper = recordRef.sub(o.ifaceName()).sub(Oneof.valueRecordName(f));
+        arms.add(
+            Case.of(
+                String.valueOf(f.number()),
+                Element.expr("int _n = in.readEnum()"),
+                Element.expr("var _e = @0.forNumberOrNull(_n)", f.type()),
+                If.condition("_e == null")
+                    .body(Element.expr("unknown.addVarint(@0, _n)", f.number()))
+                    .else_(Element.expr("@0 = new @1(_e)", cmp, wrapper))
+                    .build()));
+        continue;
+      }
       arms.add(
           Case.of(
               String.valueOf(f.number()),
@@ -1724,7 +1758,7 @@ public final class CodecSourceMapping {
     WireScalar wire = wireScalar(f);
     String readCall = decodeCall(wire);
     return switch (wire) {
-      case STRING -> RawExpr.of("new @0(in.readString())", wrapper);
+      case STRING -> RawExpr.of("new @0(in.readStringRequireUtf8())", wrapper);
       case BYTES ->
           RawExpr.of("new @0(@1.of(in.readBytes().toByteArray()))", wrapper, TypeRefs.BYTES);
       default -> RawExpr.of("new @0(@1)", wrapper, readCall);

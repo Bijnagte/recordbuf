@@ -24,6 +24,10 @@ public final class TypeRefs {
   public static final TypeRef DECODE_SCOPE = TypeRef.of("bijnagte.recordbuf.runtime.DecodeScope");
   public static final TypeRef UNKNOWN_FIELDS =
       TypeRef.of("bijnagte.recordbuf.runtime.UnknownFields");
+  public static final TypeRef PROTOBUF_JAVA_ENUMS =
+      TypeRef.of("bijnagte.recordbuf.runtime.ProtobufJavaEnums");
+  public static final TypeRef UNKNOWN_FIELDS_BUILDER =
+      TypeRef.named("bijnagte.recordbuf.runtime", "UnknownFields").sub("Builder");
   public static final TypeRef CODEC_DEFAULTS =
       TypeRef.of("bijnagte.recordbuf.runtime.CodecDefaults");
   public static final TypeRef WIRE = TypeRef.of("bijnagte.recordbuf.runtime.Wire");

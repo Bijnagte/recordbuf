@@ -124,7 +124,7 @@ SubAvro avro = SubAvroConverter.fromRecord(s);            // Avro bridge (defaul
 | `repeated` / `map` | `List` / `Map`, never null; a map value may be a scalar, `bytes`, a message or an enum |
 | `oneof` | nested `sealed interface` with one `<Member>Value` record per case, named in UpperCamelCase (`oneof_uint32` → `OneofUint32Value`) |
 | field name | lowerCamelCase record component; a name that camel-cases to an upper-case start lowers only its first letter (`FIELD_NAME11` → `fIELDNAME11`), while its JSON name stays protoc's |
-| enum | Java `enum` with `getNumber()` / `forNumber(int)` |
+| enum | Java `enum` with `getNumber()` / `forNumber(int)` / `forNumberOrNull(int)`; a number no constant has (singular, repeated or oneof) is kept in the unknown-field carrier and re-emitted, as a proto2 parser does |
 | `bytes` | `bijnagte.recordbuf.runtime.Bytes` (immutable, content-equal) |
 | `Timestamp` / `Duration` | `java.time.Instant` / `java.time.Duration` |
 | scalar wrappers | boxed primitives (`BytesValue` → `Bytes`) |

@@ -80,8 +80,6 @@ final class JsonConformance {
    */
   static final Map<String, String> KNOWN_GAPS =
       Map.of(
-          "EnumFieldUnknownValue", "enum-unknown-number-default",
-          "FieldMask", "field-mask-path-order",
           "EmptyFieldMask", "singular-wkt-default-present",
           "TimestampEpochValue", "singular-wkt-default-present",
           "TimestampZeroNormalized", "singular-wkt-default-present",

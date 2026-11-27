@@ -5,6 +5,9 @@ import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.WireFormat;
 import java.io.IOException;
+import java.util.List;
+import java.util.function.IntFunction;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The tag / {@code skipField} decode primitives the per-message decode loop keeps — the skeleton of
@@ -17,17 +20,87 @@ public final class Wire {
   private Wire() {}
 
   /**
-   * Read the next wire tag (0 at end-of-stream — the {@code isAtEnd} break). A tag whose wire type
-   * is 6 or 7 is undefined, so it is rejected here, as protobuf-java does, instead of being read as
-   * whatever type its field number declares.
+   * Read the next wire tag (0 at end-of-stream — the {@code isAtEnd} break). The tag is read
+   * strictly: a tag varint longer than five bytes, or one whose value does not fit 32 bits, is
+   * rejected instead of being cut to its low 32 bits (as {@code CodedInputStream.readTag} does,
+   * which would let a six-byte tag spell a valid field). A tag whose wire type is 6 or 7 is
+   * undefined and rejected too, as is field number 0.
    */
   public static int readTag(CodedInputStream in) throws IOException {
-    int tag = in.readTag();
+    if (in.isAtEnd()) {
+      return 0;
+    }
+    int tag = 0;
+    int shift = 0;
+    while (true) {
+      byte b = in.readRawByte();
+      if (shift == 28 && (b & 0xF0) != 0) {
+        // The fifth byte may only carry the top four bits, with no continuation.
+        throw new InvalidProtocolBufferException("Protocol message tag varint is out of range.");
+      }
+      tag |= (b & 0x7F) << shift;
+      if (b >= 0) {
+        break;
+      }
+      shift += 7;
+    }
+    if (WireFormat.getTagFieldNumber(tag) == 0) {
+      throw new InvalidProtocolBufferException("Protocol message contained an invalid tag (zero).");
+    }
     int wireType = WireFormat.getTagWireType(tag);
     if (wireType > WireFormat.WIRETYPE_FIXED32) {
       throw new InvalidProtocolBufferException("Protocol message tag had invalid wire type.");
     }
     return tag;
+  }
+
+  /**
+   * The enum a decoded number names, for a singular field: when no constant has the number it is
+   * kept in {@code unknown} (so it re-emits) and the field keeps its {@code current} value.
+   *
+   * @param unknown the decode loop's unknown-field accumulator
+   * @param field the field number
+   * @param number the decoded enum number
+   * @param lookup the enum's exact lookup, {@code null} for an unknown number
+   * @param current the value the field holds so far
+   * @return the constant, or {@code current} when the number is unknown
+   */
+  public static <E> @Nullable E enumOrUnknown(
+      UnknownFields.Builder unknown,
+      int field,
+      int number,
+      IntFunction<@Nullable E> lookup,
+      @Nullable E current) {
+    E constant = lookup.apply(number);
+    if (constant == null) {
+      unknown.addVarint(field, number);
+      return current;
+    }
+    return constant;
+  }
+
+  /**
+   * Adds the enum a decoded number names to a repeated field's list; an unknown number is kept in
+   * {@code unknown} instead.
+   *
+   * @param unknown the decode loop's unknown-field accumulator
+   * @param field the field number
+   * @param number the decoded enum number
+   * @param lookup the enum's exact lookup, {@code null} for an unknown number
+   * @param into the field's list
+   */
+  public static <E> void addEnum(
+      UnknownFields.Builder unknown,
+      int field,
+      int number,
+      IntFunction<@Nullable E> lookup,
+      List<E> into) {
+    E constant = lookup.apply(number);
+    if (constant == null) {
+      unknown.addVarint(field, number);
+    } else {
+      into.add(constant);
+    }
   }
 
   /** The wire type of a wire tag: 2 is a length-delimited (packed) group. */

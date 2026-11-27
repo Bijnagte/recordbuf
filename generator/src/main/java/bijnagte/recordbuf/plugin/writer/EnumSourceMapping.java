@@ -117,6 +117,15 @@ public final class EnumSourceMapping {
                 .body(
                     Element.ret("BY_NUMBER.getOrDefault(number, " + firstConstantName(proto) + ")"))
                 .build())
+        .method(
+            Method.named("forNumberOrNull")
+                .annotation(Annotation.NULLABLE)
+                .public_()
+                .static_()
+                .returnType(selfRef)
+                .param(TypeRef.Primitive.INT, "number")
+                .body(Element.ret("BY_NUMBER.get(number)"))
+                .build())
         .build();
   }
 

@@ -24,8 +24,8 @@ class JsonFieldMaskEmptyTest {
   void fieldMaskPathsAreLowerCamel() {
     FieldMask mask = FieldMask.of("foo_bar.baz_qux", "a", "z.y_x");
 
-    assertEquals(List.of("a", "fooBar.bazQux", "z.yX"), JsonFieldMask.jsonPaths(mask));
-    assertEquals(mask, JsonFieldMask.fromJsonPaths(List.of("a", "fooBar.bazQux", "z.yX")));
+    assertEquals(List.of("fooBar.bazQux", "a", "z.yX"), JsonFieldMask.jsonPaths(mask));
+    assertEquals(mask, JsonFieldMask.fromJsonPaths(List.of("fooBar.bazQux", "a", "z.yX")));
   }
 
   @Test
@@ -52,7 +52,7 @@ class JsonFieldMaskEmptyTest {
 
     String json = M.writeValueAsString(h);
 
-    assertEquals("{\"mask\":[\"id\",\"user.displayName\"],\"empty\":{}}", json);
+    assertEquals("{\"mask\":[\"user.displayName\",\"id\"],\"empty\":{}}", json);
     Holder back = M.readValue(json, Holder.class);
     assertEquals(h.mask(), back.mask());
     assertSame(Empty.INSTANCE, back.empty());

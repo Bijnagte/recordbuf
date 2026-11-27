@@ -61,7 +61,7 @@ public final class InteropWktCases extends JacksonGoldenCases {
         .bytesWrapper(Bytes.of(new byte[] {1, 2}))
         .duration(Duration.ofMillis(-1500))
         .timestamp(Instant.ofEpochSecond(1_700_000_000L, 123_000_000))
-        .fieldMask(FieldMask.of("b.c", "a"))
+        .fieldMask(FieldMask.of("a", "b.c"))
         .empty(Empty.INSTANCE)
         .repeatedBoolWrapper(List.of(true, true))
         .repeatedInt32Wrapper(List.of(-1, 7))

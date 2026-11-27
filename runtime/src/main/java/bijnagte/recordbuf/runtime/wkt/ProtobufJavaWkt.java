@@ -90,7 +90,7 @@ public final class ProtobufJavaWkt {
 
   /**
    * Converts a {@code google.protobuf.FieldMask} to a {@link FieldMask}. The runtime mask
-   * normalizes its paths, so they come back lowercased, sorted and de-duplicated.
+   * normalizes its paths, so they come back lowercased and de-duplicated, in first-seen order.
    *
    * @param mask the protobuf field mask
    * @return the normalized runtime field mask

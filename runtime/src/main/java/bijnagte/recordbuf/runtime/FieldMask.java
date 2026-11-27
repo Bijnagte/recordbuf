@@ -2,6 +2,7 @@ package bijnagte.recordbuf.runtime;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 
@@ -10,32 +11,35 @@ import java.util.Locale;
  *
  * <p>A {@code FieldMask} is, semantically, a normalized set of dotted field paths. Per R3 / AE3
  * this type captures that semantics directly rather than mirroring a raw {@code List<String>}: the
- * paths are, on the way in, each lowercased, dot-trimmed, empty-dropped, and the whole set
- * de-duplicated and sorted. Two {@code FieldMask} values that name the same paths in any casing,
- * ordering, or with differing dot-padding compare <em>equal</em>, and the same canonical set
- * encodes to the same bytes — a content model that mirrors proto's {@code FieldMask} semantics and
- * that the wire codec leans on (R3 says the value model, not a raw field list, owns the semantics).
+ * paths are, on the way in, each lowercased, dot-trimmed, empty-dropped, and de-duplicated. Two
+ * {@code FieldMask} values that name the same paths in any casing, ordering, or with differing
+ * dot-padding compare <em>equal</em> — a content model that mirrors proto's {@code FieldMask}
+ * semantics (R3 says the value model, not a raw field list, owns the semantics).
  *
- * <p>On the wire it stays proto-compatible: the canonical, normalized paths are emitted in
- * ascending order as a repeated string field, which is byte-equal to a {@code FieldMask} built in
- * protobuf-java from the same normalized paths.
+ * <p>The mask keeps the order in which each path first appeared, and the wire codec and the JSON
+ * forms emit them in that order, as protobuf-java does for the same input. Equality and hash code
+ * ignore the order, so two masks with the same paths are equal even when they print differently.
  */
 public final class FieldMask {
 
   private static final FieldMask EMPTY = new FieldMask(List.of());
 
   private final List<String> paths;
+  private final List<String> sorted;
 
   private FieldMask(List<String> paths) {
     this.paths = paths;
+    List<String> copy = new ArrayList<>(paths);
+    Collections.sort(copy);
+    this.sorted = Collections.unmodifiableList(copy);
   }
 
   /**
    * Builds a {@code FieldMask} from raw path strings, normalizing each: lowercased, dot-trimmed,
-   * empty-dropped, then the whole set de-duplicated and sorted.
+   * empty-dropped, then the whole set de-duplicated keeping each path's first position.
    *
    * @param rawPaths the raw path strings; {@code null} is treated as "no paths"
-   * @return the normalized, canonical field mask
+   * @return the normalized field mask
    */
   public static FieldMask of(Iterable<String> rawPaths) {
     if (rawPaths == null) return EMPTY;
@@ -45,12 +49,7 @@ public final class FieldMask {
       String trimmed = trimDots(raw.toLowerCase(Locale.ROOT));
       if (!trimmed.isEmpty()) normalized.add(trimmed);
     }
-    List<String> sorted = new ArrayList<>(normalized);
-    Collections.sort(sorted);
-    List<String> deduped = new ArrayList<>();
-    for (String p : sorted) {
-      if (deduped.isEmpty() || !deduped.get(deduped.size() - 1).equals(p)) deduped.add(p);
-    }
+    List<String> deduped = new ArrayList<>(new LinkedHashSet<>(normalized));
     return deduped.isEmpty() ? EMPTY : new FieldMask(Collections.unmodifiableList(deduped));
   }
 
@@ -74,9 +73,9 @@ public final class FieldMask {
   }
 
   /**
-   * Returns the canonical, normalized, sorted, de-duplicated path list this mask holds.
+   * Returns the normalized, de-duplicated path list this mask holds, in first-seen order.
    *
-   * @return the unmodifiable canonical paths
+   * @return the unmodifiable paths
    */
   public List<String> paths() {
     return paths;
@@ -103,12 +102,12 @@ public final class FieldMask {
   public boolean equals(Object o) {
     if (this == o) return true;
     if (!(o instanceof FieldMask that)) return false;
-    return paths.equals(that.paths);
+    return sorted.equals(that.sorted);
   }
 
   @Override
   public int hashCode() {
-    return paths.hashCode();
+    return sorted.hashCode();
   }
 
   @Override

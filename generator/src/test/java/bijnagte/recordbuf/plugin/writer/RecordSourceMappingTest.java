@@ -744,7 +744,7 @@ class RecordSourceMappingTest {
    * forNumber}, referencing the enum by its short name (no {@code Codec} suffix).
    */
   @Test
-  void enum_field_codec_dispatches_to_forNumber() throws Exception {
+  void enum_field_codec_dispatches_to_forNumberOrNull() throws Exception {
     var colorField =
         new Field(
             "color",
@@ -780,8 +780,10 @@ class RecordSourceMappingTest {
     var rec = RecordSourceMapping.toSourceWithCodec(m);
     var file = new JavaFile(PKG, Javadoc.builder().build(), rec, ci);
     var src = SourceRenderer.render(file);
-    // The codec should reference Color.forNumber for the decode path
-    assertTrue(src.contains("Color.forNumber"), "enum decode should call Color.forNumber: " + src);
+    // The decode path looks the number up exactly, keeping a number no constant has as unknown
+    assertTrue(
+        src.contains("Color::forNumberOrNull"),
+        "enum decode should look up Color.forNumberOrNull: " + src);
     // The encode should reference writeEnum for the enum field
     assertTrue(src.contains("writeEnum(1,"), "enum encode should call writeEnum: " + src);
   }
