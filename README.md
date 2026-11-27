@@ -407,17 +407,18 @@ branch 0.7 (raised from the pre-restructure baseline). Those minimums do not go 
 
 ## Project layout
 
-Seven co-versioned subprojects (`io.github.bijnagte.recordbuf:<version>`) live in role-named directories under the
+Eight co-versioned subprojects (`io.github.bijnagte.recordbuf:<version>`) live in role-named directories under the
 repo root. The root `build.gradle.kts` is an aggregator that also applies the shared quality gates.
 
 | Dir | Project | Role |
 |---|---|---|
 | `generator/` | `:recordbuf-generator` | The plugin (`bijnagte.recordbuf.plugin.Main`). `model/` (proto model records), `types/` (type and WKT mapping), `writer/` (source mappings), `bridge/` (Avro bridge). `com/google/protobuf/compiler/` holds the protoc plugin-protocol shim, which is protocol glue and should not be refactored. |
 | `codegen/` | `:recordbuf-codegen` | Generator-only, dependency-free Java source AST + `SourceRenderer` (import collection, Javadoc, formatting SPI). |
-| `runtime/` | `:recordbuf-runtime` | What generated code calls: `Encoder`/`Decoder`/`Wire` framing, `UnknownFields`, `ProtobufMessage`, `ProtobufMarshaller`, `Bytes`, `FieldMask`, `Empty`, `wkt.Wkt`. |
+| `runtime/` | `:recordbuf-runtime` | What generated code calls: `Decoder`/`Wire` framing, `UnknownFields`, `ProtobufMessage`, `ProtobufMarshaller`, `Bytes`, `FieldMask`, `Empty`, `wkt.Wkt`. |
 | `json/` | `:recordbuf-json` | Jackson support: temporal / bytes / `FieldMask` / `Empty` (de)serializers, oneof reading, dynamic WKT bridging, the JSON envelope. |
 | `avro/` | `:recordbuf-avro` | Avro runtime support: WKT ↔ Avro conversions (`WktAvroBridge`). |
 | `options/` | `:recordbuf-options` | `recordbuf_options.proto`, consumed as a protoc `-I` include, not as a Gradle dependency. |
+| `benchmarks/` | `:recordbuf-benchmarks` | JMH throughput and allocation benchmarks comparing recordbuf codecs and interop against protobuf-java (`./gradlew :recordbuf-benchmarks:jmh`). Not published; baselines are kept in `benchmarks/results/`. |
 | `fixtures/` | `:recordbuf-fixtures` | Per-feature `.proto` fixtures generated through the real launcher, and the [compatibility suite](#compatibility-suite): a golden matrix over five formats, checked against protobuf-java 4.36.2 and Avro, plus a protobuf conformance mirror. Its Gradle script is Groovy because of the protobuf-gradle-plugin's DSL. |
 
 Other files: `gradle/libs.versions.toml` (the version catalog, where versions are bumped),

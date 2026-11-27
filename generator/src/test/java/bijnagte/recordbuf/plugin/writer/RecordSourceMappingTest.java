@@ -735,7 +735,7 @@ class RecordSourceMappingTest {
     assertTrue(src.contains("ScoresEntryCodec"), "entry codec emitted: " + src);
     // Verify the MAP encode iterates the entry set
     assertTrue(
-        src.contains("writeByteArray(1, ScoresEntry.ScoresEntryCodec.encode"),
+        src.contains("ScoresEntry.ScoresEntryCodec.encodeTo"),
         "MAP encode dispatches to entry codec: " + src);
   }
 

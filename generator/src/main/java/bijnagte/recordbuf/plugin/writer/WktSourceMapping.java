@@ -66,45 +66,38 @@ final class WktSourceMapping {
     TypeRef wktRef = TypeRefs.WKT;
     int num = f.number();
     String g = v + "." + f.javaName() + "()";
-    String methodName = encodeMethod(f.typeUrl());
+    String wm = writeMethod(f.typeUrl());
 
     if (f.label() == FieldLabel.REPEATED) {
       if (entry.hasZeroDefault()) {
         String def = Objects.requireNonNull(entry.zeroDefault());
-        // for (var e : v.field()) { if (!e.equals(def)) out.writeByteArray(n, Wkt.method(e)); }
+        // for (var e : v.field()) { if (!e.equals(def)) Wkt.writeXxx(out, n, e); }
         return For.enhanced("var e", g)
             .body(
                 If.condition("!e.equals(@0)", def)
-                    .body(
-                        Element.expr(
-                            "@0.writeByteArray(@1, @2.@3(e))", out, num, wktRef, methodName))
+                    .body(Element.expr("@2.@3(@0, @1, e)", out, num, wktRef, wm))
                     .build())
             .build();
       } else {
-        // for (var e : v.field()) out.writeByteArray(n, Wkt.wrap(Wkt.Wrap.KIND, e));
+        // for (var e : v.field()) Wkt.writeWrap(out, n, Wkt.Wrap.KIND, e);
         return For.enhanced("var e", g)
             .body(
                 Element.expr(
-                    "@0.writeByteArray(@1, @2.wrap(@2.Wrap.@3, e))",
-                    out,
-                    num,
-                    wktRef,
-                    wrapKind(f.typeUrl())))
+                    "@2.writeWrap(@0, @1, @2.Wrap.@3, e)", out, num, wktRef, wrapKind(f.typeUrl())))
             .build();
       }
     } else if (entry.hasZeroDefault()) {
       String def = Objects.requireNonNull(entry.zeroDefault());
-      // if (v.field() != null && !def.equals(v.field())) out.writeByteArray(n,
-      // Wkt.method(v.field()));
+      // if (v.field() != null && !def.equals(v.field())) Wkt.writeXxx(out, n, v.field());
       return If.condition("@0 != null && !@1.equals(@0)", g, def)
-          .body(Element.expr("@0.writeByteArray(@1, @2.@3(@4))", out, num, wktRef, methodName, g))
+          .body(Element.expr("@2.@3(@0, @1, @4)", out, num, wktRef, wm, g))
           .build();
     } else {
-      // if (v.field() != null) out.writeByteArray(n, Wkt.wrap(Wkt.Wrap.KIND, v.field()));
+      // if (v.field() != null) Wkt.writeWrap(out, n, Wkt.Wrap.KIND, v.field());
       return If.condition("@0 != null", g)
           .body(
               Element.expr(
-                  "@0.writeByteArray(@1, @2.wrap(@2.Wrap.@3, @4))",
+                  "@2.writeWrap(@0, @1, @2.Wrap.@3, @4)",
                   out,
                   num,
                   wktRef,
@@ -229,6 +222,19 @@ final class WktSourceMapping {
     return RawExpr.of("@0.wrap(@0.Wrap.@1, @2)", TypeRefs.WKT, wrapKind(f.typeUrl()), value);
   }
 
+  /** Size expression for a WKT value (returns {@code int} directly, no allocation). */
+  static RawExpr sizeValue(Field f, Entry entry, String value) {
+    if (entry.nodeType() != null) {
+      // Dynamic WKT: no size method yet; fall back to encode().length.
+      return RawExpr.of(
+          "@0.encode(\"" + f.typeUrl() + "\", @1).length", TypeRefs.DYNAMIC_WKT, value);
+    }
+    if (entry.hasZeroDefault()) {
+      return RawExpr.of("@0.@1(@2)", TypeRefs.WKT, sizeMethod(f.typeUrl()), value);
+    }
+    return RawExpr.of("@0.wrapSize(@0.Wrap.@1, @2)", TypeRefs.WKT, wrapKind(f.typeUrl()), value);
+  }
+
   /**
    * One WKT value decoded from its wire bytes, as an expression (the inverse of {@link
    * #encodeValue}), cast to the member's Java type where the runtime returns a wider one.
@@ -258,19 +264,41 @@ final class WktSourceMapping {
     return Objects.requireNonNull(entry.javaType(), "WKT javaType must resolve");
   }
 
-  private static String shortName(String fqn) {
+  static String shortName(String fqn) {
     int dot = fqn.lastIndexOf('.');
     return dot < 0 ? fqn : fqn.substring(dot + 1);
   }
 
   // Method name for structured WKT encode (write side): Wkt.timestamp, Wkt.duration, etc.
-  private static String encodeMethod(String typeUrl) {
+  static String encodeMethod(String typeUrl) {
     return switch (shortName(typeUrl)) {
       case "Timestamp" -> "timestamp";
       case "Duration" -> "duration";
       case "FieldMask" -> "fieldMask";
       case "Empty" -> "empty";
       default -> "write" + cap(shortName(typeUrl));
+    };
+  }
+
+  // Size method for structured WKT (no allocation): Wkt.timestampSize, Wkt.durationSize, etc.
+  static @Nullable String sizeMethod(String typeUrl) {
+    return switch (shortName(typeUrl)) {
+      case "Timestamp" -> "timestampSize";
+      case "Duration" -> "durationSize";
+      case "FieldMask" -> "fieldMaskSize";
+      case "Empty" -> "emptySize";
+      default -> null;
+    };
+  }
+
+  // Direct-stream write method for structured WKT: Wkt.writeTimestamp, Wkt.writeDuration, etc.
+  static @Nullable String writeMethod(String typeUrl) {
+    return switch (shortName(typeUrl)) {
+      case "Timestamp" -> "writeTimestamp";
+      case "Duration" -> "writeDuration";
+      case "FieldMask" -> "writeFieldMask";
+      case "Empty" -> "writeEmpty";
+      default -> null;
     };
   }
 
@@ -285,7 +313,7 @@ final class WktSourceMapping {
     };
   }
 
-  private static String wrapKind(String typeUrl) {
+  static String wrapKind(String typeUrl) {
     return switch (shortName(typeUrl)) {
       case "Int32Value" -> "INT32";
       case "Int64Value" -> "INT64";

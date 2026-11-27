@@ -49,6 +49,7 @@ jackson           = "3.1.8"
 # 3.1.8, which manages the same artifact at 2.21, so the two never diverge.
 jackson-annotations = "2.21"
 slf4j             = "2.0.20"   # org.slf4j -- latest GA (2.1.x is still alpha); generator and fixtures-test logging only
+jmh               = "0.7.4"    # me.champeau.jmh -- JMH benchmark plugin
 
 [libraries]
 # io.soabase.record-builder does not publish a Gradle plugin as of v53; wire
@@ -108,3 +109,4 @@ gradle-errorprone = { id = "net.ltgt.errorprone", version.ref = "gradle-errorpro
 spotless          = { id = "com.diffplug.spotless", version.ref = "spotless" }
 shadow            = { id = "com.gradleup.shadow", version.ref = "shadow" }
 jreleaser         = { id = "org.jreleaser", version.ref = "jreleaser" }
+jmh               = { id = "me.champeau.jmh", version.ref = "jmh" }

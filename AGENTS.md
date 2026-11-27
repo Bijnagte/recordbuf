@@ -20,6 +20,8 @@ that turns `.proto` files into Java records + protobuf codecs.
   - `:recordbuf-json` → `json/` — Jackson support generated records use (temporal /
     bytes / `FieldMask` / `Empty` (de)serializers, `RecordbufJsonModule`, `JsonOneof`,
     `DynamicWkt`, `JsonFieldMaskFilter`). Same Error Prone + NullAway wiring as the runtime.
+  - `:recordbuf-benchmarks` → `benchmarks/` — JMH benchmarks (recordbuf vs protobuf-java; local
+    tool, never published, results in `benchmarks/results/`).
   - `:recordbuf-fixtures` → `fixtures/` — the compatibility suite (golden matrix and conformance
     mirror, see *Fixtures: golden matrix* below) plus the `.proto` fixtures it generates from.
   There is **no top-level `src/`**; each module has its own `src/`.

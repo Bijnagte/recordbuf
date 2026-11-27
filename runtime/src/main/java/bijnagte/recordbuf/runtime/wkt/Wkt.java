@@ -3,11 +3,11 @@ package bijnagte.recordbuf.runtime.wkt;
 import bijnagte.recordbuf.runtime.Bytes;
 import bijnagte.recordbuf.runtime.Decoder;
 import bijnagte.recordbuf.runtime.Empty;
-import bijnagte.recordbuf.runtime.Encoder;
 import bijnagte.recordbuf.runtime.FieldMask;
 import bijnagte.recordbuf.runtime.Wire;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
@@ -60,13 +60,14 @@ public final class Wkt {
    * Encode a {@code google.protobuf.Timestamp} value ({@link Instant}) to its inner-frame content.
    */
   public static byte[] timestamp(Instant v) throws IOException {
-    Encoder e = Encoder.start();
-    CodedOutputStream out = e.out();
+    ByteArrayOutputStream e = new ByteArrayOutputStream();
+    CodedOutputStream out = CodedOutputStream.newInstance(e);
     long seconds = v.getEpochSecond();
     int nanos = v.getNano();
     if (seconds != 0L) out.writeInt64(1, seconds);
     if (nanos != 0) out.writeInt32(2, nanos);
-    return e.finish();
+    out.flush();
+    return e.toByteArray();
   }
 
   /**
@@ -124,12 +125,13 @@ public final class Wkt {
 
   /** Encode a {@code google.protobuf.FieldMask} ({@link FieldMask}) to its inner-frame content. */
   public static byte[] fieldMask(FieldMask v) throws IOException {
-    Encoder e = Encoder.start();
-    CodedOutputStream out = e.out();
+    ByteArrayOutputStream e = new ByteArrayOutputStream();
+    CodedOutputStream out = CodedOutputStream.newInstance(e);
     for (String path : v.paths()) {
       if (!path.isEmpty()) out.writeString(1, path);
     }
-    return e.finish();
+    out.flush();
+    return e.toByteArray();
   }
 
   /**
@@ -177,8 +179,8 @@ public final class Wkt {
    * protobuf-java does).
    */
   public static byte[] wrap(Wrap wire, Object value) throws IOException {
-    Encoder e = Encoder.start();
-    CodedOutputStream out = e.out();
+    ByteArrayOutputStream e = new ByteArrayOutputStream();
+    CodedOutputStream out = CodedOutputStream.newInstance(e);
     switch (wire) {
       case INT32, UINT32 -> {
         int v = (int) value;
@@ -225,7 +227,8 @@ public final class Wkt {
         if (!v.isEmpty()) out.writeByteArray(1, v.toByteArray());
       }
     }
-    return e.finish();
+    out.flush();
+    return e.toByteArray();
   }
 
   /**
@@ -275,11 +278,12 @@ public final class Wkt {
   // ---- shared seconds/nanos framing ------------------------------------------
 
   private static byte[] secondsNanosFrame(long seconds, int nanos) throws IOException {
-    Encoder e = Encoder.start();
-    CodedOutputStream out = e.out();
+    ByteArrayOutputStream e = new ByteArrayOutputStream();
+    CodedOutputStream out = CodedOutputStream.newInstance(e);
     if (seconds != 0L) out.writeInt64(1, seconds);
     if (nanos != 0) out.writeInt32(2, nanos);
-    return e.finish();
+    out.flush();
+    return e.toByteArray();
   }
 
   private static long[] readSecondsNanos(byte[] content) {
@@ -299,5 +303,224 @@ public final class Wkt {
       throw new IllegalStateException(ex);
     }
     return pair;
+  }
+
+  // ---- size computation (no allocation) ---------------------------------------
+
+  /** Compute the serialized inner-frame size of a {@code Timestamp} without encoding. */
+  public static int timestampSize(Instant v) {
+    long seconds = v.getEpochSecond();
+    int nanos = v.getNano();
+    int size = 0;
+    if (seconds != 0L) size += CodedOutputStream.computeInt64Size(1, seconds);
+    if (nanos != 0) size += CodedOutputStream.computeInt32Size(2, nanos);
+    return size;
+  }
+
+  /** Compute the serialized inner-frame size of a {@code Duration} without encoding. */
+  public static int durationSize(Duration v) {
+    long seconds = v.getSeconds();
+    int nanos = v.getNano();
+    if (seconds < 0 && nanos > 0) {
+      seconds += 1;
+      nanos -= 1_000_000_000;
+    }
+    int size = 0;
+    if (seconds != 0L) size += CodedOutputStream.computeInt64Size(1, seconds);
+    if (nanos != 0) size += CodedOutputStream.computeInt32Size(2, nanos);
+    return size;
+  }
+
+  /** Compute the serialized inner-frame size of a {@code FieldMask} without encoding. */
+  public static int fieldMaskSize(FieldMask v) {
+    int size = 0;
+    for (String path : v.paths()) {
+      if (!path.isEmpty()) size += CodedOutputStream.computeStringSize(1, path);
+    }
+    return size;
+  }
+
+  /** Compute the serialized inner-frame size of an {@code Empty} — always 0. */
+  public static int emptySize(Empty v) {
+    return 0;
+  }
+
+  /** Compute the serialized inner-frame size of a scalar wrapper without encoding. */
+  public static int wrapSize(Wrap wire, Object value) {
+    return switch (wire) {
+      case INT32, UINT32 -> {
+        int v = (int) value;
+        yield v != 0 ? CodedOutputStream.computeInt32Size(1, v) : 0;
+      }
+      case SINT_32 -> {
+        int v = (int) value;
+        yield v != 0 ? CodedOutputStream.computeSInt32Size(1, v) : 0;
+      }
+      case FIXED32 -> {
+        int v = (int) value;
+        yield v != 0 ? CodedOutputStream.computeFixed32Size(1, v) : 0;
+      }
+      case INT64, UINT64 -> {
+        long v = (long) value;
+        yield v != 0L ? CodedOutputStream.computeInt64Size(1, v) : 0;
+      }
+      case SINT_64 -> {
+        long v = (long) value;
+        yield v != 0L ? CodedOutputStream.computeSInt64Size(1, v) : 0;
+      }
+      case FIXED64 -> {
+        long v = (long) value;
+        yield v != 0L ? CodedOutputStream.computeFixed64Size(1, v) : 0;
+      }
+      case FLOAT -> {
+        float v = (float) value;
+        yield v != 0f ? CodedOutputStream.computeFloatSize(1, v) : 0;
+      }
+      case DOUBLE -> {
+        double v = (double) value;
+        yield v != 0d ? CodedOutputStream.computeDoubleSize(1, v) : 0;
+      }
+      case BOOL -> {
+        boolean v = (boolean) value;
+        yield v ? CodedOutputStream.computeBoolSize(1, v) : 0;
+      }
+      case STRING -> {
+        String v = (String) value;
+        yield !v.isEmpty() ? CodedOutputStream.computeStringSize(1, v) : 0;
+      }
+      case BYTES -> {
+        Bytes v = (Bytes) value;
+        yield !v.isEmpty() ? CodedOutputStream.computeByteArraySize(1, v.toByteArray()) : 0;
+      }
+    };
+  }
+
+  // ---- direct-stream write (no intermediate byte[]) ----------------------------
+
+  /**
+   * Write a Timestamp WKT directly to {@code out} at {@code fieldNum} without allocating a frame.
+   */
+  public static void writeTimestamp(CodedOutputStream out, int fieldNum, Instant v)
+      throws IOException {
+    long seconds = v.getEpochSecond();
+    int nanos = v.getNano();
+    int innerSize = 0;
+    if (seconds != 0L) innerSize += CodedOutputStream.computeInt64Size(1, seconds);
+    if (nanos != 0) innerSize += CodedOutputStream.computeInt64Size(2, nanos);
+    out.writeTag(fieldNum, 2);
+    out.writeUInt32NoTag(innerSize);
+    if (seconds != 0L) {
+      out.writeUInt32NoTag(8);
+      out.writeUInt64NoTag(seconds);
+    }
+    if (nanos != 0) {
+      out.writeUInt32NoTag(16);
+      out.writeUInt64NoTag(nanos);
+    }
+  }
+
+  /**
+   * Write a Duration WKT directly to {@code out} at {@code fieldNum} without allocating a frame.
+   */
+  public static void writeDuration(CodedOutputStream out, int fieldNum, Duration v)
+      throws IOException {
+    long seconds = v.getSeconds();
+    int nanos = v.getNano();
+    if (seconds < 0 && nanos > 0) {
+      seconds += 1;
+      nanos -= 1_000_000_000;
+    }
+    int innerSize = 0;
+    if (seconds != 0L) innerSize += CodedOutputStream.computeInt64Size(1, seconds);
+    if (nanos != 0) innerSize += CodedOutputStream.computeInt64Size(2, nanos);
+    out.writeTag(fieldNum, 2);
+    out.writeUInt32NoTag(innerSize);
+    if (seconds != 0L) {
+      out.writeUInt32NoTag(8);
+      out.writeUInt64NoTag(seconds);
+    }
+    if (nanos != 0) {
+      out.writeUInt32NoTag(16);
+      out.writeUInt64NoTag(nanos);
+    }
+  }
+
+  /**
+   * Write a FieldMask WKT directly to {@code out} at {@code fieldNum} without allocating a frame.
+   */
+  public static void writeFieldMask(CodedOutputStream out, int fieldNum, FieldMask v)
+      throws IOException {
+    int innerSize = 0;
+    for (String path : v.paths()) {
+      if (!path.isEmpty()) innerSize += CodedOutputStream.computeStringSize(1, path);
+    }
+    out.writeTag(fieldNum, 2);
+    out.writeUInt32NoTag(innerSize);
+    for (String path : v.paths()) {
+      if (!path.isEmpty()) out.writeString(1, path);
+    }
+  }
+
+  /** Write an Empty WKT directly to {@code out} at {@code fieldNum} — a zero-length frame. */
+  public static void writeEmpty(CodedOutputStream out, int fieldNum, Empty v) throws IOException {
+    out.writeTag(fieldNum, 2);
+    out.writeUInt32NoTag(0);
+  }
+
+  /**
+   * Write a scalar wrapper WKT directly to {@code out} at {@code fieldNum} without allocating a
+   * frame.
+   */
+  public static void writeWrap(CodedOutputStream out, int fieldNum, Wrap wire, Object value)
+      throws IOException {
+    int innerSize = wrapSize(wire, value);
+    out.writeTag(fieldNum, 2);
+    out.writeUInt32NoTag(innerSize);
+    switch (wire) {
+      case INT32, UINT32 -> {
+        int v = (int) value;
+        if (v != 0) out.writeInt32(1, v);
+      }
+      case SINT_32 -> {
+        int v = (int) value;
+        if (v != 0) out.writeSInt32(1, v);
+      }
+      case FIXED32 -> {
+        int v = (int) value;
+        if (v != 0) out.writeFixed32(1, v);
+      }
+      case INT64, UINT64 -> {
+        long v = (long) value;
+        if (v != 0L) out.writeInt64(1, v);
+      }
+      case SINT_64 -> {
+        long v = (long) value;
+        if (v != 0L) out.writeSInt64(1, v);
+      }
+      case FIXED64 -> {
+        long v = (long) value;
+        if (v != 0L) out.writeFixed64(1, v);
+      }
+      case FLOAT -> {
+        float v = (float) value;
+        if (v != 0f) out.writeFloat(1, v);
+      }
+      case DOUBLE -> {
+        double v = (double) value;
+        if (v != 0d) out.writeDouble(1, v);
+      }
+      case BOOL -> {
+        boolean v = (boolean) value;
+        if (v) out.writeBool(1, true);
+      }
+      case STRING -> {
+        String v = (String) value;
+        if (!v.isEmpty()) out.writeString(1, v);
+      }
+      case BYTES -> {
+        Bytes v = (Bytes) value;
+        if (!v.isEmpty()) out.writeByteArray(1, v.toByteArray());
+      }
+    }
   }
 }

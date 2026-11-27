@@ -37,7 +37,7 @@ dependencies {
     errorprone(libs.error.prone.core)
 
     // Generated code that calls the runtime also reaches protobuf's
-    // CodedInputStream/CodedOutputStream through Encoder.out()/Decoder.in(), so
+    // CodedInputStream/CodedOutputStream through CodedOutputStream/Decoder.in(), so
     // protobuf must flow transitively to every consumer of the runtime (R4).
     api(libs.protobuf)
 

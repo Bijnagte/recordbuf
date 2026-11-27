@@ -140,14 +140,14 @@ class ClassSourceTest {
   /**
    * The M4-C2b-2b-2 gate: a record that OWNS a nested {@code public static final class Codec} whose
    * {@code encode}/ {@code decode} bodies are REAL scalar codec bodies -- they call the runtime's
-   * {@link bijnagte.recordbuf.runtime.Encoder} / {@link bijnagte.recordbuf.runtime.Decoder} /
-   * {@link bijnagte.recordbuf.runtime.Wire} / {@link bijnagte.recordbuf.runtime.CodecDefaults}
-   * helpers just as {@code CodecGenerator} does today, but expressed via {@link Element}s in the
-   * source AST. The bodies reference the runtime module's classes fully-qualified so the file needs
-   * no runtime imports; the compile classpath is the test's own runtime classpath so {@code javac}
-   * sees the referenced classes. The first real codec -- singular int fields, no oneof, no WKT, no
-   * nested-message resolution, no unknown-field carrier -- the subset the plan scoped as the
-   * M4-C2b-2b-2 gate. M4-C2b-2b-3+ (deferred) fills in the remaining field families.
+   * {@link bijnagte.recordbuf.runtime.Decoder} / {@link bijnagte.recordbuf.runtime.Wire} / {@link
+   * bijnagte.recordbuf.runtime.CodecDefaults} helpers just as {@code CodecGenerator} does today,
+   * but expressed via {@link Element}s in the source AST. The bodies reference the runtime module's
+   * classes fully-qualified so the file needs no runtime imports; the compile classpath is the
+   * test's own runtime classpath so {@code javac} sees the referenced classes. The first real codec
+   * -- singular int fields, no oneof, no WKT, no nested-message resolution, no unknown-field
+   * carrier -- the subset the plan scoped as the M4-C2b-2b-2 gate. M4-C2b-2b-3+ (deferred) fills in
+   * the remaining field families.
    */
   @Test
   void message_owns_a_nested_static_codec_with_real_scalar_bodies() throws Exception {
@@ -166,8 +166,8 @@ class ClassSourceTest {
         src.contains("RecordWithRealCodec decode(byte[] inBytes) throws IOException"),
         "the decode signature + its throws clause: " + src);
     assertTrue(
-        src.contains("bijnagte.recordbuf.runtime.Encoder.start()"),
-        "the codec's body calls the runtime Encoder: " + src);
+        src.contains("com.google.protobuf.CodedOutputStream.newInstance(bos)"),
+        "the codec's body opens a CodedOutputStream: " + src);
     assertTrue(
         src.contains("bijnagte.recordbuf.runtime.Wire.readTag(in)"),
         "the decode body drives the tag loop via the runtime Wire: " + src);
@@ -330,8 +330,9 @@ class ClassSourceTest {
                     .param(TypeRef.of("RecordWithRealMultiScalar"), "v")
                     .thrown(TypeRef.IO_EXCEPTION)
                     .body(
-                        Element.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
-                        Element.of("var out = enc.out();"),
+                        Element.of("var bos = new java.io.ByteArrayOutputStream();"),
+                        Element.of(
+                            "var out = com.google.protobuf.CodedOutputStream.newInstance(bos);"),
                         Element.of(
                             "if (v.id() != bijnagte.recordbuf.runtime.CodecDefaults.int32()) "
                                 + "out.writeInt32(1, v.id());"),
@@ -339,7 +340,7 @@ class ClassSourceTest {
                             "if (v.value() != bijnagte.recordbuf.runtime.CodecDefaults.int64()) "
                                 + "out.writeInt64(2, v.value());"),
                         Element.of("if (!v.text().isEmpty()) " + "out.writeString(3, v.text());"),
-                        Element.of("return enc.finish();"))
+                        Element.of("out.flush(); return bos.toByteArray();"))
                     .build(),
                 // M4-C2b-2b-3: the multi-scalar decode body -- three per-field default-init,
                 // then a tag-loop switch that dispatches to the correct read for each field
@@ -402,12 +403,13 @@ class ClassSourceTest {
                     .param(TypeRef.of("RecordWithRealCodec"), "v")
                     .thrown(TypeRef.IO_EXCEPTION)
                     .body(
-                        Element.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
-                        Element.of("var out = enc.out();"),
+                        Element.of("var bos = new java.io.ByteArrayOutputStream();"),
+                        Element.of(
+                            "var out = com.google.protobuf.CodedOutputStream.newInstance(bos);"),
                         Element.of(
                             "if (v.id() != bijnagte.recordbuf.runtime.CodecDefaults.int32()) "
                                 + "out.writeInt32(1, v.id());"),
-                        Element.of("return enc.finish();"))
+                        Element.of("out.flush(); return bos.toByteArray();"))
                     .build(),
                 // The codec's decode is the real tag-loop body: a fresh runtime Decoder, a
                 // per-field default-init, the tag/field-number loop, a switch that dispatches
@@ -459,10 +461,10 @@ class ClassSourceTest {
             .param(TypeRef.of("RecordWithBytes"), "v")
             .thrown(TypeRef.IO_EXCEPTION)
             .body(
-                Element.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
-                Element.of("var out = enc.out();"),
+                Element.of("var bos = new java.io.ByteArrayOutputStream();"),
+                Element.of("var out = com.google.protobuf.CodedOutputStream.newInstance(bos);"),
                 Element.of("out.writeByteArray(1, v.data().toByteArray());"),
-                Element.of("return enc.finish();"))
+                Element.of("out.flush(); return bos.toByteArray();"))
             .build();
 
     var decode =
@@ -516,10 +518,10 @@ class ClassSourceTest {
             .param(TypeRef.of("RecordWithBytes"), "v")
             .thrown(TypeRef.IO_EXCEPTION)
             .body(
-                Element.of("var enc = bijnagte.recordbuf.runtime.Encoder.start();"),
-                Element.of("var out = enc.out();"),
+                Element.of("var bos = new java.io.ByteArrayOutputStream();"),
+                Element.of("var out = com.google.protobuf.CodedOutputStream.newInstance(bos);"),
                 Element.of("out.writeByteArray(1, v.data().toByteArray());"),
-                Element.of("return enc.finish();"))
+                Element.of("out.flush(); return bos.toByteArray();"))
             .build();
 
     var decode =

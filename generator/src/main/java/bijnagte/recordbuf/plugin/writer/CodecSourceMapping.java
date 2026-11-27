@@ -78,26 +78,41 @@ public final class CodecSourceMapping {
         .javadoc(GeneratedDocs.type(null, "Wire codec for the " + recName + " record."))
         .constructor(Constructor.builder().private_().build())
         .method(encode(m))
+        .method(encodeTo(m))
+        .method(writeBody(m))
+        .method(getSerializedSize(m))
+        .method(chunkParts(m).toArray(new Method[0]))
         .method(scopedDecode(m.type(), codecType))
         .method(decodeBody(m, jackson))
         .build();
   }
 
-  /** The {@code byte[] encode(Message v) throws IOException} method body. */
+  /**
+   * The {@code byte[] encode(Message v)} method: pre-allocated buffer, delegates to {@code
+   * writeBody}.
+   */
   private static Method encode(Message m) {
-    var method =
-        Method.named("encode")
-            .public_()
-            .static_()
-            .returnType(TypeRef.BYTES)
-            .param(m.type(), "v")
-            .thrown(TypeRef.IO_EXCEPTION)
-            .body(
-                Element.expr("var enc = @0.start()", TypeRefs.ENCODER),
-                Element.expr("var out = enc.out()"));
+    return Method.named("encode")
+        .public_()
+        .static_()
+        .returnType(TypeRef.BYTES)
+        .param(m.type(), "v")
+        .thrown(TypeRef.IO_EXCEPTION)
+        .body(
+            Element.expr("int size = getSerializedSize(v)"),
+            Element.expr("byte[] buf = new byte[size]"),
+            Element.expr("var out = @0.newInstance(buf)", TypeRefs.CODED_OUTPUT_STREAM),
+            Element.expr("writeBody(out, v)"),
+            Element.expr("out.checkNoSpaceLeft()"),
+            Element.ret("buf"))
+        .build();
+  }
 
-    // Every field AND every oneof member is one numbered slot; the slots are written in ascending
-    // field-number order across both, as protobuf-java does (OrderTest / OneofOrderTest prove it).
+  /** Messages with more field/oneof slots than this get their encode/size bodies chunked. */
+  private static final int CHUNK_SLOTS = 16;
+
+  /** Write slots in ascending field-number order. */
+  private static List<EncodeSlot> writeSlots(Message m) {
     List<EncodeSlot> slots = new ArrayList<>();
     for (Field f : m.fields()) {
       slots.add(new EncodeSlot(f.number(), regularFieldEncode(f)));
@@ -106,18 +121,209 @@ public final class CodecSourceMapping {
       slots.addAll(oneofEncodeSlots(o));
     }
     slots.sort(Comparator.comparingInt(EncodeSlot::number));
-    for (EncodeSlot slot : slots) {
-      method.body(slot.element());
+    return slots;
+  }
+
+  /** Size slots in ascending field-number order. */
+  private static List<EncodeSlot> sizeSlots(Message m) {
+    List<EncodeSlot> slots = new ArrayList<>();
+    for (Field f : m.fields()) {
+      slots.add(new EncodeSlot(f.number(), sizeFieldEncode(f)));
+    }
+    for (Oneof o : m.oneofs()) {
+      slots.addAll(oneofSizeSlots(o));
+    }
+    slots.sort(Comparator.comparingInt(EncodeSlot::number));
+    return slots;
+  }
+
+  /** The bounded {@code writeBodyPartN} / {@code sizePartN} helpers of a wide message. */
+  private static List<Method> chunkParts(Message m) {
+    List<Method> parts = new ArrayList<>();
+    List<EncodeSlot> w = writeSlots(m);
+    if (w.size() <= CHUNK_SLOTS) {
+      return parts;
+    }
+    for (int i = 0; i * CHUNK_SLOTS < w.size(); i++) {
+      var write =
+          Method.named("writeBodyPart" + i)
+              .private_()
+              .static_()
+              .param(TypeRefs.CODED_OUTPUT_STREAM, "out")
+              .param(m.type(), "v")
+              .thrown(TypeRef.IO_EXCEPTION);
+      for (EncodeSlot slot :
+          w.subList(i * CHUNK_SLOTS, Math.min(w.size(), (i + 1) * CHUNK_SLOTS))) {
+        write.body(slot.element());
+      }
+      parts.add(write.build());
+    }
+    List<EncodeSlot> z = sizeSlots(m);
+    for (int i = 0; i * CHUNK_SLOTS < z.size(); i++) {
+      var size =
+          Method.named("sizePart" + i)
+              .private_()
+              .static_()
+              .returnType(TypeRef.Primitive.INT)
+              .param(m.type(), "v")
+              .thrown(TypeRef.IO_EXCEPTION)
+              .body(Element.expr("int size = 0"));
+      for (EncodeSlot slot :
+          z.subList(i * CHUNK_SLOTS, Math.min(z.size(), (i + 1) * CHUNK_SLOTS))) {
+        size.body(slot.element());
+      }
+      size.body(Element.ret("size"));
+      parts.add(size.build());
+    }
+    return parts;
+  }
+
+  /**
+   * The {@code void encodeTo(CodedOutputStream out, int fieldNum, Message v)} method: writes the
+   * tag, length prefix, and body directly to {@code out} without allocating an intermediate {@code
+   * byte[]}. Used by the parent codec for nested message fields.
+   */
+  private static Method encodeTo(Message m) {
+    return Method.named("encodeTo")
+        .public_()
+        .static_()
+        .param(TypeRefs.CODED_OUTPUT_STREAM, "out")
+        .param(TypeRef.Primitive.INT, "fieldNum")
+        .param(m.type(), "v")
+        .thrown(TypeRef.IO_EXCEPTION)
+        .body(
+            Element.expr("int size = getSerializedSize(v)"),
+            Element.expr("out.writeTag(fieldNum, 2)"),
+            Element.expr("out.writeUInt32NoTag(size)"),
+            Element.expr("writeBody(out, v)"))
+        .build();
+  }
+
+  /**
+   * The private {@code writeBody(CodedOutputStream out, Message v)} method: writes all fields
+   * directly to {@code out}. Shared by {@link #encode} and {@link #encodeTo}.
+   */
+  private static Method writeBody(Message m) {
+    var method =
+        Method.named("writeBody")
+            .private_()
+            .static_()
+            .param(TypeRefs.CODED_OUTPUT_STREAM, "out")
+            .param(m.type(), "v")
+            .thrown(TypeRef.IO_EXCEPTION);
+
+    List<EncodeSlot> slots = writeSlots(m);
+    if (slots.size() <= CHUNK_SLOTS) {
+      for (EncodeSlot slot : slots) {
+        method.body(slot.element());
+      }
+    } else {
+      // Wide message: HotSpot never JIT-compiles a method over 8000 bytecodes (HugeMethodLimit),
+      // so split the field writes into bounded private parts that the main method calls in order.
+      for (int i = 0; i * CHUNK_SLOTS < slots.size(); i++) {
+        method.body(Element.expr("writeBodyPart" + i + "(out, v)"));
+      }
     }
 
     // M4-C2b-2b-5: re-emit the unknown-fields carrier, if any, preserving wire-order round-trip.
-    // The retained unknown JSON properties of a jackson record (jsonExtras) are JSON-only: they are
-    // deliberately NOT written to the wire, so no property name can ever occupy a field number.
     Element unknownArm =
         If.condition("!v.unknownFields().isEmpty()")
-            .body(Element.expr("@0.writeUnknown(out, v.unknownFields())", TypeRefs.WIRE))
+            .body(Element.expr("v.unknownFields().writeTo(out)"))
             .build();
-    return method.body(unknownArm, Element.ret("enc.finish()")).build();
+    method.body(unknownArm);
+    return method.build();
+  }
+
+  /** The {@code int getSerializedSize(Message v)} method body. */
+  private static Method getSerializedSize(Message m) {
+    var method =
+        Method.named("getSerializedSize")
+            .public_()
+            .static_()
+            .returnType(TypeRef.Primitive.INT)
+            .param(m.type(), "v")
+            .thrown(TypeRef.IO_EXCEPTION)
+            .body(Element.expr("int size = 0"));
+
+    List<EncodeSlot> slots = sizeSlots(m);
+    if (slots.size() <= CHUNK_SLOTS) {
+      for (EncodeSlot slot : slots) {
+        method.body(slot.element());
+      }
+    } else {
+      for (int i = 0; i * CHUNK_SLOTS < slots.size(); i++) {
+        method.body(Element.expr("size += sizePart" + i + "(v)"));
+      }
+    }
+
+    method.body(Element.expr("size += v.unknownFields().getSerializedSize()"), Element.ret("size"));
+    return method.build();
+  }
+
+  /**
+   * Size-computation slots for oneof members: mirrors {@link #oneofEncodeSlots} but emits {@code
+   * size += CodedOutputStream.computeXxxSize(...)} instead of {@code out.writeXxx(...)}.
+   */
+  private static List<EncodeSlot> oneofSizeSlots(Oneof o) {
+    String iface = o.ifaceName();
+    String getter = "v." + o.componentName() + "()";
+    List<EncodeSlot> slots = new ArrayList<>();
+    for (Field f : o.members()) {
+      String bnd = String.valueOf(f.name().charAt(0)) + "_";
+      String recName = iface + "." + Oneof.valueRecordName(f);
+      Entry wktMember = WktSourceMapping.resolve(f);
+      boolean deferred = f.kind() == FieldKind.MAP;
+      String cond = deferred ? "@0 instanceof @1" : "@0 instanceof @1 " + bnd;
+      Element size;
+      if (deferred) {
+        size = Element.comment("oneof size for " + f.name() + " deferred");
+      } else if (wktMember != null) {
+        // A WKT member writes through the same expression the encode arm uses (Wkt.<method>,
+        // Wkt.wrap, or DynamicWkt.encode), so its size is tag + length + those encoded bytes.
+        size =
+            Element.expr(
+                "size += Wire.lenDelimSize(@0, @1)",
+                f.number(),
+                WktSourceMapping.sizeValue(f, wktMember, bnd + ".value()"));
+      } else {
+        size =
+            switch (f.kind()) {
+              case FieldKind.MESSAGE ->
+                  Element.expr(
+                      "size += Wire.lenDelimSize(@0, @1.getSerializedSize(" + bnd + ".value()))",
+                      f.number(),
+                      codecRef(f));
+              case FieldKind.ENUM ->
+                  Element.expr(
+                      "size += @0.computeInt32Size(@1, " + bnd + ".value().getNumber())",
+                      TypeRefs.CODED_OUTPUT_STREAM,
+                      f.number());
+              case FieldKind.SCALAR -> {
+                WireScalar wire = wireScalar(f);
+                if (wire == WireScalar.BYTES) {
+                  yield Element.expr(
+                      "size += @0.computeTagSize(@1) + @0.computeInt32Size(1, "
+                          + bnd
+                          + ".value().size()) - 1 + "
+                          + bnd
+                          + ".value().size()",
+                      TypeRefs.CODED_OUTPUT_STREAM,
+                      f.number());
+                }
+                String call = sizeCall(wire);
+                yield Element.expr(
+                    "size += @0.@1(@2, @3)",
+                    TypeRefs.CODED_OUTPUT_STREAM,
+                    call,
+                    f.number(),
+                    bnd + ".value()");
+              }
+              default -> Element.comment("unsupported oneof size kind " + f.kind());
+            };
+      }
+      slots.add(new EncodeSlot(f.number(), If.condition(cond, getter, recName).body(size).build()));
+    }
+    return slots;
   }
 
   /**
@@ -136,6 +342,33 @@ public final class CodecSourceMapping {
         .build();
   }
 
+  /** A repeated or map field: its decode local is allocated lazily on the first element. */
+  private static boolean isLazyCollection(Field f) {
+    return f.kind() == FieldKind.MAP || f.label() == FieldLabel.REPEATED;
+  }
+
+  /** Add a field's decode arm, first allocating its collection local if it is still null. */
+  private static void fieldArm(Switch.Builder switchB, Field f, Case c) {
+    if (!isLazyCollection(f)) {
+      switchB.caseArm(c);
+      return;
+    }
+    TypeRef impl = f.kind() == FieldKind.MAP ? TypeRefs.HASH_MAP : TypeRefs.ARRAY_LIST;
+    List<Element> body = new ArrayList<>();
+    body.add(
+        If.condition(f.javaName() + " == null")
+            .body(Element.expr(f.javaName() + " = new @0<>()", impl))
+            .build());
+    body.addAll(c.body());
+    switchB.caseArm(new Case(c.patterns(), body));
+  }
+
+  /** The record-constructor argument for a lazy collection: the local, or an immutable empty. */
+  private static Object lazyResult(Field f) {
+    TypeRef empty = f.kind() == FieldKind.MAP ? TypeRefs.MAP : TypeRefs.LIST;
+    return RawExpr.of(f.javaName() + " == null ? @0.of() : " + f.javaName(), empty);
+  }
+
   /** The private {@code decodeBody} the scoped {@code decode} runs: one level's tag loop. */
   private static Method decodeBody(Message m, boolean jackson) {
     var method =
@@ -152,10 +385,13 @@ public final class CodecSourceMapping {
             // M4-C2b-2b-5: the unknown-fields accumulator, initialised as a fresh builder.
             .body(Element.expr("var unknown = @0.builder()", TypeRefs.UNKNOWN_FIELDS));
 
-    // Per-field local default-init.
+    // Per-field local default-init. Repeated and map locals start null and are allocated on the
+    // first element (see lazyGuard); an absent collection is passed as an immutable empty one.
     for (Field f : m.fields()) {
       Entry wktEntry = WktSourceMapping.resolve(f);
-      if (wktEntry != null) {
+      if (isLazyCollection(f)) {
+        method.body(LocalVar.builder(f.type(), f.javaName()).assigned(RawExpr.of("null")));
+      } else if (wktEntry != null) {
         var wkt0 = Objects.requireNonNull(wktEntry);
         method.body(WktSourceMapping.localInitElement(f, wkt0));
       } else {
@@ -219,29 +455,29 @@ public final class CodecSourceMapping {
       Entry wktEntry = WktSourceMapping.resolve(f);
       if (wktEntry != null) {
         var wkt0 = Objects.requireNonNull(wktEntry);
-        switchB.caseArm(WktSourceMapping.emitDecodeCase(f, wkt0, "in"));
+        fieldArm(switchB, f, WktSourceMapping.emitDecodeCase(f, wkt0, "in"));
       } else {
         switch (f.kind()) {
-          case FieldKind.MAP -> switchB.caseArm(emitMapDecodeCase(f));
+          case FieldKind.MAP -> fieldArm(switchB, f, emitMapDecodeCase(f));
           case FieldKind.MESSAGE -> {
             Case c =
                 f.label() == FieldLabel.REPEATED
                     ? emitRepeatedMessageDecodeCase(f)
                     : emitMessageDecodeCase(f);
-            if (c != null) switchB.caseArm(c);
+            if (c != null) fieldArm(switchB, f, c);
           }
           case FieldKind.ENUM -> {
             Case c =
                 f.label() == FieldLabel.REPEATED
                     ? emitRepeatedEnumDecodeCase(f)
                     : emitEnumDecodeCase(f);
-            if (c != null) switchB.caseArm(c);
+            if (c != null) fieldArm(switchB, f, c);
           }
           case FieldKind.SCALAR -> {
             if (f.label() == FieldLabel.REPEATED) {
-              switchB.caseArm(emitRepeatedScalarDecodeCase(f));
+              fieldArm(switchB, f, emitRepeatedScalarDecodeCase(f));
             } else {
-              switchB.caseArm(emitScalarDecodeCase(f));
+              fieldArm(switchB, f, emitScalarDecodeCase(f));
             }
           }
         }
@@ -264,8 +500,8 @@ public final class CodecSourceMapping {
             .build());
 
     // Construct the record, passing the carrier as the last argument.
-    List<String> allNames = new ArrayList<>();
-    for (Field f : m.fields()) allNames.add(f.javaName());
+    List<Object> allNames = new ArrayList<>();
+    for (Field f : m.fields()) allNames.add(isLazyCollection(f) ? lazyResult(f) : f.javaName());
     // oneof components: pass the oneof local (assigned in the tag loop, or null).
     for (var oneof : m.oneofs()) allNames.add(oneof.componentName());
     if (jackson) allNames.add("null");
@@ -313,12 +549,10 @@ public final class CodecSourceMapping {
 
   // --- Per-field MESSAGE encode/decode (M4-C2d-5) ---
 
-  /** M4-C2d-5: singular MESSAGE encode — skip null, else writeByteArray(tag, Codec.encode(v)). */
+  /** M4-C2d-5: singular MESSAGE encode — skip null, else encodeTo(out, tag, Codec, v). */
   private static Element emitMessageEncode(Field f) {
     return If.condition("v.@0() != null", f.javaName())
-        .body(
-            Element.expr(
-                "out.writeByteArray(@0, @1.encode(v.@2()))", f.number(), codecRef(f), f.javaName()))
+        .body(Element.expr("@1.encodeTo(out, @0, v.@2())", f.number(), codecRef(f), f.javaName()))
         .build();
   }
 
@@ -326,7 +560,7 @@ public final class CodecSourceMapping {
   private static Element emitRepeatedMessageEncode(Field f) {
     String getter = "v." + f.javaName() + "()";
     return For.enhanced("var _m", getter)
-        .body(Element.expr("out.writeByteArray(@0, @1.encode(_m))", f.number(), codecRef(f)))
+        .body(Element.expr("@1.encodeTo(out, @0, _m)", f.number(), codecRef(f)))
         .build();
   }
 
@@ -431,7 +665,7 @@ public final class CodecSourceMapping {
     return For.enhanced("var _e", "v.@0().entrySet()", f.javaName())
         .body(
             Element.expr(
-                "out.writeByteArray(@0, @1.@1Codec.encode(new @1(_e.getKey(), _e.getValue())))",
+                "@1.@1Codec.encodeTo(out, @0, new @1(_e.getKey(), _e.getValue()))",
                 f.number(),
                 entryName))
         .build();
@@ -501,13 +735,306 @@ public final class CodecSourceMapping {
     };
   }
 
+  /** The {@code CodedOutputStream.computeXxxSize} static method name for a wire scalar. */
+  private static String sizeCall(WireScalar wire) {
+    return switch (wire) {
+      case INT32, UINT32 -> "computeInt32Size";
+      case SINT_32 -> "computeSInt32Size";
+      case FIXED32 -> "computeFixed32Size";
+      case INT64, UINT64 -> "computeInt64Size";
+      case SINT_64 -> "computeSInt64Size";
+      case FIXED64 -> "computeFixed64Size";
+      case FLOAT -> "computeFloatSize";
+      case DOUBLE -> "computeDoubleSize";
+      case BOOL -> "computeBoolSize";
+      case STRING -> "computeStringSize";
+      case BYTES -> "computeBytesSize";
+    };
+  }
+
+  /**
+   * Size-computation element for a regular (non-oneof) field: mirrors {@link #regularFieldEncode}
+   * but emits {@code size += CodedOutputStream.computeXxxSize(...)} instead of {@code
+   * out.writeXxx(...)}.
+   */
+  private static Element sizeFieldEncode(Field f) {
+    Entry wktEntry = WktSourceMapping.resolve(f);
+    if (wktEntry != null) {
+      return sizeWktEncode(f, wktEntry);
+    }
+    return switch (f.kind()) {
+      case FieldKind.MAP -> sizeMapEncode(f);
+      case FieldKind.MESSAGE ->
+          f.label() == FieldLabel.REPEATED ? sizeRepeatedMessageEncode(f) : sizeMessageEncode(f);
+      case FieldKind.ENUM ->
+          f.label() == FieldLabel.REPEATED ? sizeRepeatedEnumEncode(f) : sizeEnumEncode(f);
+      case FieldKind.SCALAR ->
+          f.label() == FieldLabel.REPEATED ? sizeRepeatedScalarEncode(f) : sizeScalarEncode(f);
+    };
+  }
+
+  /** Size computation for a WKT field: mirrors {@code WktSourceMapping.emitEncode}. */
+  private static Element sizeWktEncode(Field f, Entry entry) {
+    int num = f.number();
+    String getter = "v." + f.javaName() + "()";
+    if (entry.nodeType() != null) {
+      // A dynamic WKT writes through DynamicWkt.encode("<fqn>", value) (the same expression the
+      // encode arm uses), so its size is tag + length + those encoded bytes.
+      if (f.label() == FieldLabel.REPEATED) {
+        return For.enhanced("var e", getter)
+            .body(
+                Element.expr(
+                    "size += Wire.lenDelimSize(@0, @1.length)",
+                    num,
+                    WktSourceMapping.encodeValue(f, entry, "e")))
+            .build();
+      }
+      return If.condition("@0 != null", getter)
+          .body(
+              Element.expr(
+                  "size += Wire.lenDelimSize(@0, @1.length)",
+                  num,
+                  WktSourceMapping.encodeValue(f, entry, getter)))
+          .build();
+    }
+    String methodName = WktSourceMapping.sizeMethod(f.typeUrl());
+    if (f.label() == FieldLabel.REPEATED) {
+      if (entry.hasZeroDefault()) {
+        String def = Objects.requireNonNull(entry.zeroDefault());
+        return For.enhanced("var e", getter)
+            .body(
+                If.condition("!e.equals(@0)", def)
+                    .body(
+                        Element.expr(
+                            "size += Wire.lenDelimSize(@0, @1.@2(e))",
+                            num,
+                            TypeRefs.WKT,
+                            methodName))
+                    .build())
+            .build();
+      }
+      String kind = WktSourceMapping.wrapKind(f.typeUrl());
+      return For.enhanced("var e", getter)
+          .body(
+              Element.expr(
+                  "size += Wire.lenDelimSize(@0, @1.wrapSize(@1.Wrap.@2, e))",
+                  num,
+                  TypeRefs.WKT,
+                  kind))
+          .build();
+    }
+    String sizeExpr;
+    if (entry.hasZeroDefault()) {
+      sizeExpr = "size += Wire.lenDelimSize(@1, @2.@3(@4))";
+      Object[] args = {TypeRefs.CODED_OUTPUT_STREAM, num, TypeRefs.WKT, methodName, getter};
+      String def = Objects.requireNonNull(entry.zeroDefault());
+      return If.condition("@0 != null && !@0.equals(@1)", getter, def)
+          .body(Element.expr(sizeExpr, args))
+          .build();
+    }
+    sizeExpr = "size += Wire.lenDelimSize(@1, @2.wrapSize(@2.Wrap.@3, @4))";
+    String kind = WktSourceMapping.wrapKind(f.typeUrl());
+    return If.condition("@0 != null", getter)
+        .body(Element.expr(sizeExpr, TypeRefs.CODED_OUTPUT_STREAM, num, TypeRefs.WKT, kind, getter))
+        .build();
+  }
+
+  /** Size computation for a MAP field: mirrors {@link #emitMapEncode}. */
+  private static Element sizeMapEncode(Field f) {
+    String entryName = mapEntryName(f);
+    return For.enhanced("var _e", "v.@0().entrySet()", f.javaName())
+        .body(
+            Element.expr(
+                "size += Wire.lenDelimSize(@0, @1.@1Codec.getSerializedSize(new @1(_e.getKey(), _e.getValue())))",
+                f.number(),
+                entryName))
+        .build();
+  }
+
+  private static Element sizeScalarEncode(Field f) {
+    String getter = "v." + f.javaName() + "()";
+    int num = f.number();
+    WireScalar wire = wireScalar(f);
+    String call = sizeCall(wire);
+    if (f.isNullable()) {
+      return If.condition("@0 != null", getter)
+          .body(
+              Element.expr(
+                  "size += @0.@1(@2, @3)", TypeRefs.CODED_OUTPUT_STREAM, call, num, getter))
+          .build();
+    }
+    return switch (wire) {
+      case STRING ->
+          If.condition("!@0.isEmpty()", getter)
+              .body(
+                  Element.expr(
+                      "size += @0.@1(@2, @3)", TypeRefs.CODED_OUTPUT_STREAM, call, num, getter))
+              .build();
+      case BYTES ->
+          If.condition("!@0.isEmpty()", getter)
+              .body(Element.expr("size += Wire.lenDelimSize(@0, @1.size())", num, getter))
+              .build();
+      default ->
+          If.condition("@0 != CodecDefaults.@1()", getter, defaultMethod(f))
+              .body(
+                  Element.expr(
+                      "size += @0.@1(@2, @3)", TypeRefs.CODED_OUTPUT_STREAM, call, num, getter))
+              .build();
+    };
+  }
+
+  private static Element sizeMessageEncode(Field f) {
+    String getter = "v." + f.javaName() + "()";
+    return If.condition("@0 != null", getter)
+        .body(
+            Element.expr(
+                "size += Wire.lenDelimSize(@0, @1.getSerializedSize(@2))",
+                f.number(),
+                codecRef(f),
+                getter))
+        .build();
+  }
+
+  private static Element sizeRepeatedMessageEncode(Field f) {
+    String getter = "v." + f.javaName() + "()";
+    return For.enhanced("var _m", getter)
+        .body(
+            Element.expr(
+                "size += Wire.lenDelimSize(@0, @1.getSerializedSize(_m))", f.number(), codecRef(f)))
+        .build();
+  }
+
+  private static Element sizeEnumEncode(Field f) {
+    String getter = "v." + f.javaName() + "()";
+    return If.condition("@0 != null", getter)
+        .body(
+            Element.expr(
+                "size += @0.computeInt32Size(@1, @2.getNumber())",
+                TypeRefs.CODED_OUTPUT_STREAM,
+                f.number(),
+                getter))
+        .build();
+  }
+
+  private static Element sizeRepeatedEnumEncode(Field f) {
+    String getter = "v." + f.javaName() + "()";
+    return For.enhanced("var _e", getter)
+        .body(
+            Element.expr(
+                "size += @0.computeInt32Size(@1, _e.getNumber())",
+                TypeRefs.CODED_OUTPUT_STREAM,
+                f.number()))
+        .build();
+  }
+
+  private static Element sizeRepeatedScalarEncode(Field f) {
+    String getter = "v." + f.javaName() + "()";
+    int num = f.number();
+    WireScalar wire = wireScalar(f);
+    if (wire == WireScalar.BYTES) {
+      // One tagged field per element (not packed).
+      return For.enhanced("var _x", getter)
+          .body(Element.expr("size += Wire.lenDelimSize(@0, _x.size())", num))
+          .build();
+    }
+    if (wire == WireScalar.STRING) {
+      // One tagged field per element (not packed).
+      return For.enhanced("var _x", getter)
+          .body(
+              Element.expr(
+                  "size += @0.computeStringSize(@1, _x)", TypeRefs.CODED_OUTPUT_STREAM, num))
+          .build();
+    }
+    // Packed scalar: one length-delimited group — tag + varint(bodySize) + bodySize.
+    // Fixed-size types: bodySize = count * fixedSize (no per-element iteration needed).
+    // Varint types: bodySize = sum of per-element varint sizes.
+    String fixedSize =
+        switch (wire) {
+          case FIXED32, FLOAT -> "4";
+          case FIXED64, DOUBLE -> "8";
+          case BOOL -> "1";
+          default -> null;
+        };
+    if (fixedSize != null) {
+      return If.condition("!@0.isEmpty()", getter)
+          .body(
+              Element.expr(
+                  "size += @0.computeTagSize(@1) + @0.computeInt32Size(1, @2.size() * @3) - 1"
+                      + " + @2.size() * @3",
+                  TypeRefs.CODED_OUTPUT_STREAM,
+                  num,
+                  getter,
+                  fixedSize))
+          .build();
+    }
+    // Varint types: iterate to sum per-element varint sizes.
+    Element bodySizeExpr =
+        switch (wire) {
+          case INT32 ->
+              Element.expr(
+                  "_bodySize += @0.computeInt32Size(1, _x) - 1", TypeRefs.CODED_OUTPUT_STREAM);
+          case UINT32 ->
+              Element.expr(
+                  "_bodySize += @0.computeUInt32SizeNoTag(_x)", TypeRefs.CODED_OUTPUT_STREAM);
+          case SINT_32 ->
+              Element.expr(
+                  "_bodySize += @0.computeSInt32Size(1, _x) - 1", TypeRefs.CODED_OUTPUT_STREAM);
+          case INT64 ->
+              Element.expr(
+                  "_bodySize += @0.computeInt64Size(1, _x) - 1", TypeRefs.CODED_OUTPUT_STREAM);
+          case UINT64 ->
+              Element.expr(
+                  "_bodySize += @0.computeUInt64SizeNoTag(_x)", TypeRefs.CODED_OUTPUT_STREAM);
+          case SINT_64 ->
+              Element.expr(
+                  "_bodySize += @0.computeSInt64Size(1, _x) - 1", TypeRefs.CODED_OUTPUT_STREAM);
+          default -> throw new IllegalStateException("not a packed varint scalar: " + wire);
+        };
+    return If.condition("!@0.isEmpty()", getter)
+        .body(
+            Element.expr("int _bodySize = 0"),
+            For.enhanced("var _x", getter).body(bodySizeExpr).build(),
+            Element.expr("size += Wire.lenDelimSize(@0, _bodySize)", num))
+        .build();
+  }
+
+  /**
+   * Size computation for a packed scalar body, as statements that declare {@code int bodySize}:
+   * fixed-size types use count * N, varint types sum per-element sizes.
+   */
+  private static List<Element> packedBodySizeExpr(WireScalar wire, String getter) {
+    return switch (wire) {
+      case FIXED32, FLOAT -> List.of(Element.expr("int bodySize = @0.size() * 4", getter));
+      case FIXED64, DOUBLE -> List.of(Element.expr("int bodySize = @0.size() * 8", getter));
+      case BOOL -> List.of(Element.expr("int bodySize = @0.size()", getter));
+      case INT32 -> summedBodySize(getter, "@0.computeInt32Size(1, _x) - 1");
+      case UINT32 -> summedBodySize(getter, "@0.computeUInt32SizeNoTag(_x)");
+      case SINT_32 -> summedBodySize(getter, "@0.computeSInt32Size(1, _x) - 1");
+      case INT64 -> summedBodySize(getter, "@0.computeInt64Size(1, _x) - 1");
+      case UINT64 -> summedBodySize(getter, "@0.computeUInt64SizeNoTag(_x)");
+      case SINT_64 -> summedBodySize(getter, "@0.computeUInt64SizeNoTag((_x << 1) ^ (_x >> 63))");
+      default -> throw new IllegalStateException(wire + " is not a packed numeric type");
+    };
+  }
+
+  /** {@code int bodySize = 0;} then a loop adding {@code perElement} (using {@code @0} = CIS). */
+  private static List<Element> summedBodySize(String getter, String perElement) {
+    return List.of(
+        Element.expr("int bodySize = 0"),
+        For.enhanced("var _x", getter)
+            .body(Element.expr("bodySize += " + perElement, TypeRefs.CODED_OUTPUT_STREAM))
+            .build());
+  }
+
   /** The no-tag write primitive for a packed scalar's element (mirrors{@code CodecGenerator}). */
   private static String packedNoTag(WireScalar wire) {
     return switch (wire) {
-      case INT32, UINT32 -> "writeInt32NoTag";
+      case INT32 -> "writeInt32NoTag";
+      case UINT32 -> "writeUInt32NoTag";
       case SINT_32 -> "writeSInt32NoTag";
       case FIXED32 -> "writeFixed32NoTag";
-      case INT64, UINT64 -> "writeInt64NoTag";
+      case INT64 -> "writeInt64NoTag";
+      case UINT64 -> "writeUInt64NoTag";
       case SINT_64 -> "writeSInt64NoTag";
       case FIXED64 -> "writeFixed64NoTag";
       case FLOAT -> "writeFloatNoTag";
@@ -562,15 +1089,13 @@ public final class CodecSourceMapping {
           .build();
     }
     // Packed scalar: emit one length-delimited group when the list is non-empty.
-    return If.condition("!@0.isEmpty()", getter)
-        .body(
-            Element.expr("var body = @0.start()", TypeRefs.ENCODER),
-            Element.expr("var _o = @0.out()", "body"),
-            For.enhanced("var _x", getter)
-                .body(Element.expr("_o.@0(_x)", packedNoTag(wire)))
-                .build(),
-            Element.expr("out.writeByteArray(@0, body.finish())", num))
-        .build();
+    List<Element> body = new ArrayList<>(packedBodySizeExpr(wire, getter));
+    body.add(Element.expr("byte[] bodyBuf = new byte[bodySize]"));
+    body.add(Element.expr("var _o = @0.newInstance(bodyBuf)", TypeRefs.CODED_OUTPUT_STREAM));
+    body.add(
+        For.enhanced("var _x", getter).body(Element.expr("_o.@0(_x)", packedNoTag(wire))).build());
+    body.add(Element.expr("out.writeByteArray(@0, bodyBuf)", num));
+    return If.condition("!@0.isEmpty()", getter).body(body.toArray(new Element[0])).build();
   }
 
   private static Case emitRepeatedScalarDecodeCase(Field f) {
@@ -639,11 +1164,45 @@ public final class CodecSourceMapping {
                 .param(entryRef, "v")
                 .thrown(TypeRef.IO_EXCEPTION)
                 .body(
-                    Element.expr("var enc = @0.start()", TypeRefs.ENCODER),
-                    Element.expr("var out = enc.out()"),
+                    Element.expr("int size = getSerializedSize(v)"),
+                    Element.expr("byte[] buf = new byte[size]"),
+                    Element.expr("var out = @0.newInstance(buf)", TypeRefs.CODED_OUTPUT_STREAM),
+                    Element.expr("writeBody(out, v)"),
+                    Element.ret("buf"))
+                .build())
+        .method(
+            Method.named("encodeTo")
+                .public_()
+                .static_()
+                .param(TypeRefs.CODED_OUTPUT_STREAM, "out")
+                .param(TypeRef.Primitive.INT, "fieldNum")
+                .param(entryRef, "v")
+                .thrown(TypeRef.IO_EXCEPTION)
+                .body(
+                    Element.expr("int size = getSerializedSize(v)"),
+                    Element.expr("out.writeTag(fieldNum, 2)"),
+                    Element.expr("out.writeUInt32NoTag(size)"),
+                    Element.expr("writeBody(out, v)"))
+                .build())
+        .method(
+            Method.named("writeBody")
+                .private_()
+                .static_()
+                .param(TypeRefs.CODED_OUTPUT_STREAM, "out")
+                .param(entryRef, "v")
+                .thrown(TypeRef.IO_EXCEPTION)
+                .body(
                     Element.expr("out.@0(1, @1)", encodeCall(keyWire), keyArg),
-                    entryValueEncode(f, valueKind),
-                    Element.ret("enc.finish()"))
+                    entryValueEncode(f, valueKind))
+                .build())
+        .method(
+            Method.named("getSerializedSize")
+                .public_()
+                .static_()
+                .returnType(TypeRef.Primitive.INT)
+                .param(entryRef, "v")
+                .thrown(TypeRef.IO_EXCEPTION)
+                .body(mapEntrySizeBody(f, keyWire, keyArg, valueKind))
                 .build())
         // A map entry is not a nesting level (protobuf-java counts only the value message), so its
         // decode is the plain body, not a DecodeScope delegate.
@@ -678,11 +1237,41 @@ public final class CodecSourceMapping {
         .build();
   }
 
+  /** Direct size computation for a map entry: key at field 1, value at field 2. */
+  private static Element mapEntrySizeBody(
+      Field f, WireScalar keyWire, String keyArg, FieldKind valueKind) {
+    String keySize =
+        keyWire == WireScalar.BYTES
+            ? "@0.computeByteArraySize(1, " + keyArg + ")"
+            : "@0." + sizeCall(keyWire) + "(1, " + keyArg + ")";
+    return switch (valueKind) {
+      case MESSAGE ->
+          Element.expr(
+              "return "
+                  + keySize
+                  + " + @0.computeTagSize(2) + @0.computeInt32Size(1, "
+                  + "@1.getSerializedSize(v.value())) - 1 + @1.getSerializedSize(v.value())",
+              TypeRefs.CODED_OUTPUT_STREAM,
+              entryValueCodec(f));
+      case ENUM ->
+          Element.expr(
+              "return " + keySize + " + @0.computeInt32Size(2, v.value().getNumber())",
+              TypeRefs.CODED_OUTPUT_STREAM);
+      default -> {
+        WireScalar valueWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapValue()));
+        String valueSize =
+            valueWire == WireScalar.BYTES
+                ? "@0.computeByteArraySize(2, v.value().toByteArray())"
+                : "@0." + sizeCall(valueWire) + "(2, v.value())";
+        yield Element.expr("return " + keySize + " + " + valueSize, TypeRefs.CODED_OUTPUT_STREAM);
+      }
+    };
+  }
+
   /** The entry encoder's write of the value (field 2), which is written unconditionally. */
   private static Element entryValueEncode(Field f, FieldKind valueKind) {
     return switch (valueKind) {
-      case MESSAGE ->
-          Element.expr("out.writeByteArray(2, @0.encode(v.value()))", entryValueCodec(f));
+      case MESSAGE -> Element.expr("@0.encodeTo(out, 2, v.value())", entryValueCodec(f));
       case ENUM -> Element.expr("out.writeEnum(2, v.value().getNumber())");
       default -> {
         WireScalar wire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapValue()));
@@ -866,15 +1455,27 @@ public final class CodecSourceMapping {
       if (wktMember != null) {
         // A well-known-type member: its native value through the Wkt / DynamicWkt bridge, written
         // whenever set (a oneof member has presence -- no default elision).
-        write =
-            Element.expr(
-                "out.writeByteArray(@0, @1)",
-                f.number(),
-                WktSourceMapping.encodeValue(f, wktMember, bnd + ".value()"));
+        String wm = WktSourceMapping.writeMethod(f.typeUrl());
+        if (wktMember.nodeType() != null) {
+          write =
+              Element.expr(
+                  "out.writeByteArray(@0, @1.encode(\"" + f.typeUrl() + "\", @2.value()))",
+                  f.number(),
+                  TypeRefs.DYNAMIC_WKT,
+                  bnd);
+        } else if (wm != null) {
+          write = Element.expr("@0.@1(out, @2, @3.value())", TypeRefs.WKT, wm, f.number(), bnd);
+        } else {
+          write =
+              Element.expr(
+                  "@0.writeWrap(out, @1, @0.Wrap.@2, @3.value())",
+                  TypeRefs.WKT,
+                  f.number(),
+                  WktSourceMapping.wrapKind(f.typeUrl()),
+                  bnd);
+        }
       } else if (f.isMessage()) {
-        write =
-            Element.expr(
-                "out.writeByteArray(@0, @1.encode(@2.value()))", f.number(), codecRef(f), bnd);
+        write = Element.expr("@1.encodeTo(out, @0, @2.value())", f.number(), codecRef(f), bnd);
       } else if (f.kind() == FieldKind.ENUM) {
         write = Element.expr("out.writeEnum(@0, @1.value().getNumber())", f.number(), bnd);
       } else {

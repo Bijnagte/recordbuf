@@ -1,0 +1,119 @@
+// NOTE: This module is intentionally Groovy (build.gradle, not .kts), mirroring
+// :recordbuf-fixtures. The protobuf-gradle-plugin's per-task DSL is not cleanly
+// drivable from Kotlin (see the extensive comment block in fixtures/build.gradle).
+
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.google.protobuf:protobuf-gradle-plugin:0.10.1'
+    }
+}
+
+plugins {
+    alias(libs.plugins.gradle.errorprone)
+    alias(libs.plugins.jmh)
+}
+
+apply plugin: 'java-library'
+apply plugin: 'com.google.protobuf'
+
+tasks.named('jmh') {
+    // Allocation profiler: measures bytes allocated per operation.
+    jmhArgs = '-prof gc'
+}
+def GenerateProtoTask = 'com.google.protobuf.gradle.GenerateProtoTask'
+
+// The managed protoc version (matches fixtures).
+def protocArtifact = 'com.google.protobuf:protoc:4.36.2'
+def protobufJava = 'com.google.protobuf:protobuf-java:4.36.2'
+
+// The recordbuf launcher (same as fixtures).
+def recordbufLauncher = project(':recordbuf-generator').file(
+    'build/install/protoc-gen-recordbuf/bin/protoc-gen-recordbuf',
+).absolutePath
+
+// The options proto directory.
+def optionsProtoDir = project(':recordbuf-options').file('src/main/proto')
+
+sourceSets {
+    main {
+        proto {
+            srcDir optionsProtoDir
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation project(':recordbuf-runtime')
+    implementation project(':recordbuf-json')
+    implementation project(':recordbuf-avro')
+    implementation libs.jspecify
+    implementation protobufJava
+
+    errorprone libs.nullaway
+    errorprone libs.error.prone.core
+}
+
+// WKT include dir (extracted from the protobuf-java jar).
+def wktIncludeDir = layout.buildDirectory.dir('wkt-include')
+def extractWkt = tasks.register('extractWkt', Copy) {
+    from configurations.runtimeClasspath
+    include 'google/protobuf/*.proto'
+    into wktIncludeDir
+}
+
+protobuf {
+    protoc {
+        artifact = protocArtifact
+    }
+    plugins {
+        create('recordbuf') {
+            path = recordbufLauncher
+        }
+    }
+    generateProtoTasks {
+        ofSourceSet('main')
+        all().configureEach { task ->
+            task.plugins.create('recordbuf')
+            if (task.name == 'generateProto') {
+                task.plugins.getByName('recordbuf').option('package_suffix=.rec')
+task.getIncludeDirs().from(optionsProtoDir)
+            }
+        }
+    }
+}
+
+// Generation depends on installDist so the launcher exists before protoc runs.
+def recordbufInstallDir = project(':recordbuf-generator').layout.buildDirectory
+    .dir('install/protoc-gen-recordbuf').get().asFile
+['generateProto'].each { n ->
+    tasks.named(n, Class.forName(GenerateProtoTask)).configure {
+        dependsOn ':recordbuf-generator:installDist'
+        inputs.dir(recordbufInstallDir)
+    }
+}
+
+// Error Prone + NullAway on the generated .rec output (mirrors fixtures).
+tasks.named("compileJava", JavaCompile).configure {
+    options.errorprone {
+        error("UnnecessarilyFullyQualified")
+        error("NullAway")
+        option("NullAway:OnlyNullMarked", "true")
+        disable("UndefinedEquals")
+        // Exclude the protobuf-java reference and Avro-specific generated records.
+        excludedPaths = '.*/proto/main/java/.*|.*Avro.java|.*RecordbufUnknownField.java|.*RecordbufOneofValue.java|.*RecordbufDynamicWkt.java|.*avro/wkt/.*'
+    }
+}
+
+// Disable Error Prone for JMH benchmark code (not part of the generated .rec output).
+tasks.named("compileJmhJava", JavaCompile).configure {
+    options.errorprone {
+        disableAllChecks = true
+    }
+}

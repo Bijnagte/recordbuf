@@ -166,7 +166,7 @@ final class JsonAnySurfaceTest {
         source.contains("v.jsonExtras"),
         "the codec must not read the extras: they are JSON-only: " + source);
     assertTrue(
-        source.contains("writeUnknown(out, v.unknownFields())"),
+        source.contains("v.unknownFields().writeTo(out)"),
         "the encode still re-emits the binary unknown-field carrier: " + source);
   }
 
