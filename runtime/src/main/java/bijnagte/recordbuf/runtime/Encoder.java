@@ -13,7 +13,7 @@ import java.io.IOException;
  * @deprecated Generated codecs no longer use this class. They use {@link CodedOutputStream}
  *     directly with a pre-allocated {@code byte[]}. Hand-written codecs should do the same.
  */
-@Deprecated
+@Deprecated(since = "0.0.2")
 public final class Encoder {
 
   private final ByteArrayOutputStream buffer;

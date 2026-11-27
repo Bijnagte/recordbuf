@@ -4,7 +4,7 @@
  * message; this helper owns the per-WKT inner-frame encode/decode so each generated codec emits one
  * line (e.g. {@code out.writeByteArray(num, Wkt.timestamp(v.ts()))}) instead of re-spelling the
  * nested framing — the same thinness the codec gains from {@link
- * bijnagte.recordbuf.runtime.Encoder} / {@link bijnagte.recordbuf.runtime.Decoder}.
+ * bijnagte.recordbuf.runtime.Decoder} and {@link bijnagte.recordbuf.runtime.Wire}.
  *
  * <p>Structured WKTs ({@code Timestamp}, {@code Duration}) map to {@link java.time.Instant} /
  * {@link java.time.Duration}; a {@code FieldMask} maps to {@link

@@ -137,23 +137,22 @@ as a bare tag would corrupt a *modeled* field number sharing that tag. The
 carrier reaches every message record; map entry records are the deliberate
 exception (their ctor is `(key, value)` — `CodecGenerator.java:196, 280`).
 
-### 4. A Java-to-Java converter never sees the wire — it seeds empty
+### 4. A Java-to-Java converter converts the carrier, it does not decode a stream
 
-Layer B interop (`bijnagte.recordbuf.plugin.writer.InteropGenerator`, the
-`Interop.from(X)` structural converter, which builds a record from the equivalent
-protobuf-java message `X`) **cannot** produce a populated carrier: it constructs a
-record field by field from a Java object, never reading a stream. So it seeds
-`UnknownFields.empty()` explicitly (`InteropGenerator.java:150-154`):
+Layer B interop (`InteropSourceMapping`, the `Interop.from(X)` / `Interop.to(r)`
+structural converters between a record and the equivalent protobuf-java message)
+never reads a stream, but protobuf-java messages do carry an `UnknownFieldSet`.
+The converters therefore translate it in both directions:
 
 ```java
-// InteropGenerator.emitFrom — Layer B `from(X)` seeds an empty carrier
-...
-bijnagte.recordbuf.runtime.UnknownFields.empty()   // InteropGenerator.java:154
+// from(X): protobuf-java -> record
+UnknownFields.fromProto(x.getUnknownFields())
+// to(r): record -> protobuf-java
+_b.setUnknownFields(r.unknownFields().toProto())
 ```
 
-The comment there states the reasoning: *unknown fields do not cross the
-protobuf-java boundary* — they are a wire-only phenomenon, and a converter that
-never touches a stream has none to carry.
+`fromProto` rebuilds each field's exact post-tag value bytes. Wire order is not
+preserved (protobuf-java groups by field number) and group fields are not captured.
 
 ### 5. Ergonomics: keep the single canonical ctor; use the builder in callers
 

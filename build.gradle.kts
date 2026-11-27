@@ -187,7 +187,12 @@ subprojects {
         tasks
             .withType(org.gradle.api.plugins.quality.Checkstyle::class.java)
             .configureEach {
-                val seg = if (name == "checkstyleTest") "test" else "main"
+                val seg =
+                    when (name) {
+                        "checkstyleTest" -> "test"
+                        "checkstyleJmh" -> "jmh"
+                        else -> "main"
+                    }
                 source =
                     project.fileTree(
                         mapOf(

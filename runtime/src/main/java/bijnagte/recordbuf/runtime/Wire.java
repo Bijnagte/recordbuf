@@ -63,6 +63,10 @@ public final class Wire {
   /**
    * Compute the wire size of a length-delimited field: tag + length-prefix + nested body. Shared by
    * generated codecs' {@code getSerializedSize} so the helper isn't re-emitted per codec.
+   *
+   * @param fieldNum the field number
+   * @param nestedSize the size in bytes of the nested body
+   * @return the total encoded size of the field
    */
   public static int lenDelimSize(int fieldNum, int nestedSize) {
     return CodedOutputStream.computeTagSize(fieldNum)

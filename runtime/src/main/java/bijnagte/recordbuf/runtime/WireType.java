@@ -1,10 +1,11 @@
 package bijnagte.recordbuf.runtime;
 
 /**
- * The four protobuf wire types a field's value occupies on the wire, in the 0-3 range carried by
- * the low three bits of a tag. The fourth (legacy {@code START_GROUP}/{@code END_GROUP}), never
- * produced by proto3, is carried here so a captured value that is not itself a group can be typed
- * honestly; group capture is out of scope (see {@link UnknownField}).
+ * The protobuf wire types a field's value occupies on the wire, in the 0-5 range carried by the low
+ * three bits of a tag. Note the naming: {@code I32} is the <em>varint</em> type (code 0), while
+ * {@code FIXED32} is the 4-byte type (code 5). The legacy {@code START_GROUP}/{@code END_GROUP},
+ * never produced by proto3, are carried here so a captured value that is not itself a group can be
+ * typed honestly; group capture is out of scope (see {@link UnknownField}).
  *
  * <p>{@code wireType} is the on-wire code ({@code tag & 0x7}); {@code fieldNumber} is {@code tag
  * >>> 3}. This mirrors {@code com.google.protobuf.WireFormat}'s tag packing so a captured field
@@ -15,7 +16,7 @@ public enum WireType {
   /** Varint value: int32, uint32, int64, uint64, sint{32,64}, bool, enum. */
   I32(0),
 
-  /** 8 fixed bytes: uint64, double, fixed64, sfixed64. */
+  /** 8 fixed bytes: double, fixed64, sfixed64. */
   I64(1),
 
   /** Length-prefixed bytes: string, bytes, embedded messages, packed repeated. */
@@ -24,11 +25,11 @@ public enum WireType {
   /** Legacy embedded-message group opening tag (proto3 never emits this). */
   START_GROUP(3),
 
-  /** 4 fixed bytes: uint32, float, fixed32, sfixed32. */
-  FIXED32(5),
-
   /** Legacy embedded-message group closing tag (proto3 never emits this). */
-  END_GROUP(4);
+  END_GROUP(4),
+
+  /** 4 fixed bytes: float, fixed32, sfixed32. */
+  FIXED32(5);
 
   private final int code;
 
