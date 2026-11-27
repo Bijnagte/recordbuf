@@ -118,6 +118,16 @@ public class OrderService {
   }
 
   /**
+   * Counts the watchers of an order.
+   *
+   * @param id the order id
+   * @return how many listeners are still registered
+   */
+  public int watcherCount(String id) {
+    return listeners.getOrDefault(id, new CopyOnWriteArrayList<>()).size();
+  }
+
+  /**
    * Reads the event log.
    *
    * @return every recorded order event, oldest first
