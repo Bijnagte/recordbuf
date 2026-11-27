@@ -10,6 +10,7 @@ import bijnagte.recordbuf.codegen.source.For;
 import bijnagte.recordbuf.codegen.source.If;
 import bijnagte.recordbuf.codegen.source.LocalVar;
 import bijnagte.recordbuf.codegen.source.Method;
+import bijnagte.recordbuf.codegen.source.Param;
 import bijnagte.recordbuf.codegen.source.RawExpr;
 import bijnagte.recordbuf.codegen.source.RecordSpec;
 import bijnagte.recordbuf.codegen.source.Switch;
@@ -83,7 +84,7 @@ public final class CodecSourceMapping {
         .method(writeBody(m))
         .method(getSerializedSize(m))
         .method(chunkParts(m).toArray(new Method[0]))
-        .method(scopedDecode(m.type(), codecType))
+        .method(scopedDecode(m.type(), codecType).toArray(new Method[0]))
         .method(decodeParts(m).toArray(new Method[0]))
         .method(decodeBody(m, jackson))
         .build();
@@ -333,15 +334,33 @@ public final class CodecSourceMapping {
    * {@code decodeBody} tag loop to {@code DecodeScope}, which bounds nesting depth and nested
    * bytes.
    */
-  private static Method scopedDecode(TypeRef returnType, TypeRef.Named codecType) {
-    return Method.named("decode")
-        .public_()
-        .static_()
-        .returnType(returnType)
-        .param(TypeRef.BYTES, "inBytes")
-        .thrown(TypeRef.IO_EXCEPTION)
-        .body(Element.ret("@0.decode(inBytes, @1::decodeBody)", TypeRefs.DECODE_SCOPE, codecType))
-        .build();
+  private static List<Method> scopedDecode(TypeRef returnType, TypeRef.Named codecType) {
+    return List.of(
+        Method.named("decode")
+            .public_()
+            .static_()
+            .returnType(returnType)
+            .param(TypeRef.BYTES, "inBytes")
+            .thrown(TypeRef.IO_EXCEPTION)
+            .body(
+                Element.ret("@0.decode(inBytes, @1::decodeBody)", TypeRefs.DECODE_SCOPE, codecType))
+            .build(),
+        // Protobuf merges a message field that occurs again on the wire into the one already
+        // read, which is parsing the two serialized forms one after the other: the later
+        // occurrence's set fields override, its repeated fields append, and the unknown fields of
+        // both are kept.
+        Method.named("decodeInto")
+            .public_()
+            .static_()
+            .returnType(returnType)
+            .param(Param.of(returnType, "base", Annotation.NULLABLE))
+            .param(TypeRef.BYTES, "inBytes")
+            .thrown(TypeRef.IO_EXCEPTION)
+            .body(
+                Element.ret(
+                    "base == null ? decode(inBytes) : decode(@0.concat(encode(base), inBytes))",
+                    TypeRefs.WIRE))
+            .build());
   }
 
   /** A repeated or map field: its decode local is allocated lazily on the first element. */
@@ -788,7 +807,7 @@ public final class CodecSourceMapping {
   private static Case emitMessageDecodeCase(Field f) {
     return Case.of(
         String.valueOf(f.number()),
-        Element.expr("@0 = @1.decode(in.readByteArray())", f.javaName(), codecRef(f)));
+        Element.expr("@0 = @1.decodeInto(@0, in.readByteArray())", f.javaName(), codecRef(f)));
   }
 
   /** M4-C2d-5: repeated MESSAGE decode — read length-delimited, add to the list. */
@@ -1746,7 +1765,12 @@ public final class CodecSourceMapping {
           "new @0(@1)", wrapper, WktSourceMapping.decodeValue(f, wktMember, "in.readByteArray()"));
     }
     if (f.isMessage()) {
-      return RawExpr.of("new @0(@1.decode(in.readByteArray()))", wrapper, codecRef(f));
+      // A message member that occurs again merges into the one the oneof already holds.
+      return RawExpr.of(
+          "new @0(@1.decodeInto(@2 instanceof @0 _w ? _w.value() : null, in.readByteArray()))",
+          wrapper,
+          codecRef(f),
+          o.componentName());
     }
     // Scalar or enum member: wrap the decoded value in the per-member record.
     if (f.kind() == FieldKind.ENUM) {
