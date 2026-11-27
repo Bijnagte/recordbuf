@@ -59,4 +59,15 @@ public final class Wire {
   public static void writeUnknown(CodedOutputStream out, UnknownFields unknown) throws IOException {
     unknown.writeTo(out);
   }
+
+  /**
+   * Compute the wire size of a length-delimited field: tag + length-prefix + nested body. Shared by
+   * generated codecs' {@code getSerializedSize} so the helper isn't re-emitted per codec.
+   */
+  public static int lenDelimSize(int fieldNum, int nestedSize) {
+    return CodedOutputStream.computeTagSize(fieldNum)
+        + CodedOutputStream.computeInt32Size(1, nestedSize)
+        - 1
+        + nestedSize;
+  }
 }

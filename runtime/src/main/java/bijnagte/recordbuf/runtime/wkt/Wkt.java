@@ -394,4 +394,138 @@ public final class Wkt {
       }
     };
   }
+
+  // ---- direct-stream write (no intermediate byte[]) ----------------------------
+
+  /**
+   * Write a Timestamp WKT directly to {@code out} at {@code fieldNum} without allocating a frame.
+   */
+  @SuppressWarnings("deprecation")
+  public static void writeTimestamp(CodedOutputStream out, int fieldNum, Instant v)
+      throws IOException {
+    long seconds = v.getEpochSecond();
+    int nanos = v.getNano();
+    int innerSize = 0;
+    if (seconds != 0L) innerSize += CodedOutputStream.computeInt64Size(1, seconds);
+    if (nanos != 0) innerSize += CodedOutputStream.computeInt64Size(2, nanos);
+    out.writeRawVarint32((fieldNum << 3) | 2);
+    out.writeRawVarint32(innerSize);
+    if (seconds != 0L) {
+      out.writeRawVarint32(8);
+      out.writeRawVarint64(seconds);
+    }
+    if (nanos != 0) {
+      out.writeRawVarint32(16);
+      out.writeRawVarint64(nanos);
+    }
+  }
+
+  /**
+   * Write a Duration WKT directly to {@code out} at {@code fieldNum} without allocating a frame.
+   */
+  @SuppressWarnings("deprecation")
+  public static void writeDuration(CodedOutputStream out, int fieldNum, Duration v)
+      throws IOException {
+    long seconds = v.getSeconds();
+    int nanos = v.getNano();
+    if (seconds < 0 && nanos > 0) {
+      seconds += 1;
+      nanos -= 1_000_000_000;
+    }
+    int innerSize = 0;
+    if (seconds != 0L) innerSize += CodedOutputStream.computeInt64Size(1, seconds);
+    if (nanos != 0) innerSize += CodedOutputStream.computeInt64Size(2, nanos);
+    out.writeRawVarint32((fieldNum << 3) | 2);
+    out.writeRawVarint32(innerSize);
+    if (seconds != 0L) {
+      out.writeRawVarint32(8);
+      out.writeRawVarint64(seconds);
+    }
+    if (nanos != 0) {
+      out.writeRawVarint32(16);
+      out.writeRawVarint64(nanos);
+    }
+  }
+
+  /**
+   * Write a FieldMask WKT directly to {@code out} at {@code fieldNum} without allocating a frame.
+   */
+  @SuppressWarnings("deprecation")
+  public static void writeFieldMask(CodedOutputStream out, int fieldNum, FieldMask v)
+      throws IOException {
+    int innerSize = 0;
+    for (String path : v.paths()) {
+      if (!path.isEmpty()) innerSize += CodedOutputStream.computeStringSize(1, path);
+    }
+    out.writeRawVarint32((fieldNum << 3) | 2);
+    out.writeRawVarint32(innerSize);
+    for (String path : v.paths()) {
+      if (!path.isEmpty()) out.writeString(1, path);
+    }
+  }
+
+  /** Write an Empty WKT directly to {@code out} at {@code fieldNum} — a zero-length frame. */
+  @SuppressWarnings("deprecation")
+  public static void writeEmpty(CodedOutputStream out, int fieldNum, Empty v) throws IOException {
+    out.writeRawVarint32((fieldNum << 3) | 2);
+    out.writeRawVarint32(0);
+  }
+
+  /**
+   * Write a scalar wrapper WKT directly to {@code out} at {@code fieldNum} without allocating a
+   * frame.
+   */
+  @SuppressWarnings("deprecation")
+  public static void writeWrap(CodedOutputStream out, int fieldNum, Wrap wire, Object value)
+      throws IOException {
+    int innerSize = wrapSize(wire, value);
+    out.writeRawVarint32((fieldNum << 3) | 2);
+    out.writeRawVarint32(innerSize);
+    switch (wire) {
+      case INT32, UINT32 -> {
+        int v = (int) value;
+        if (v != 0) out.writeInt32(1, v);
+      }
+      case SINT_32 -> {
+        int v = (int) value;
+        if (v != 0) out.writeSInt32(1, v);
+      }
+      case FIXED32 -> {
+        int v = (int) value;
+        if (v != 0) out.writeFixed32(1, v);
+      }
+      case INT64, UINT64 -> {
+        long v = (long) value;
+        if (v != 0L) out.writeInt64(1, v);
+      }
+      case SINT_64 -> {
+        long v = (long) value;
+        if (v != 0L) out.writeSInt64(1, v);
+      }
+      case FIXED64 -> {
+        long v = (long) value;
+        if (v != 0L) out.writeFixed64(1, v);
+      }
+      case FLOAT -> {
+        float v = (float) value;
+        if (v != 0f) out.writeFloat(1, v);
+      }
+      case DOUBLE -> {
+        double v = (double) value;
+        if (v != 0d) out.writeDouble(1, v);
+      }
+      case BOOL -> {
+        boolean v = (boolean) value;
+        if (v) out.writeBool(1, true);
+      }
+      case STRING -> {
+        String v = (String) value;
+        if (!v.isEmpty()) out.writeString(1, v);
+      }
+      case BYTES -> {
+        Bytes v = (Bytes) value;
+        if (!v.isEmpty()) out.writeByteArray(1, v.toByteArray());
+      }
+    }
+  }
 }

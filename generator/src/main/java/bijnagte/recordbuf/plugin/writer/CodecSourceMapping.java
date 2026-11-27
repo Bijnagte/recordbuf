@@ -1,6 +1,5 @@
 package bijnagte.recordbuf.plugin.writer;
 
-import bijnagte.recordbuf.codegen.source.Annotation;
 import bijnagte.recordbuf.codegen.source.Case;
 import bijnagte.recordbuf.codegen.source.ClassSpec;
 import bijnagte.recordbuf.codegen.source.CommaList;
@@ -80,7 +79,6 @@ public final class CodecSourceMapping {
         .constructor(Constructor.builder().private_().build())
         .method(encode(m))
         .method(getSerializedSize(m))
-        .method(lenDelimSizeHelper())
         .method(scopedDecode(m.type(), codecType))
         .method(decodeBody(m, jackson))
         .build();
@@ -149,28 +147,6 @@ public final class CodecSourceMapping {
   }
 
   /**
-   * The private {@code lenDelimSize(int fieldNum, int nestedSize)} helper: computes the total wire
-   * size of a length-delimited field (tag + length prefix + body) without re-evaluating the
-   * nested-size expression.
-   */
-  private static Method lenDelimSizeHelper() {
-    return Method.named("lenDelimSize")
-        .private_()
-        .static_()
-        .returnType(TypeRef.Primitive.INT)
-        .param(TypeRef.Primitive.INT, "fieldNum")
-        .param(TypeRef.Primitive.INT, "nestedSize")
-        .annotation(Annotation.suppressWarnings("unused"))
-        .body(
-            Element.ret(
-                "@0.computeTagSize(@1) + @0.computeInt32Size(1, @2) - 1 + @2",
-                TypeRefs.CODED_OUTPUT_STREAM,
-                "fieldNum",
-                "nestedSize"))
-        .build();
-  }
-
-  /**
    * Size-computation slots for oneof members: mirrors {@link #oneofEncodeSlots} but emits {@code
    * size += CodedOutputStream.computeXxxSize(...)} instead of {@code out.writeXxx(...)}.
    */
@@ -192,7 +168,7 @@ public final class CodecSourceMapping {
         // Wkt.wrap, or DynamicWkt.encode), so its size is tag + length + those encoded bytes.
         size =
             Element.expr(
-                "size += lenDelimSize(@0, @1)",
+                "size += Wire.lenDelimSize(@0, @1)",
                 f.number(),
                 WktSourceMapping.sizeValue(f, wktMember, bnd + ".value()"));
       } else {
@@ -200,7 +176,9 @@ public final class CodecSourceMapping {
             switch (f.kind()) {
               case FieldKind.MESSAGE ->
                   Element.expr(
-                      "size += lenDelimSize(@0, @1.@1Codec.getSerializedSize(" + bnd + ".value()))",
+                      "size += Wire.lenDelimSize(@0, @1.@1Codec.getSerializedSize("
+                          + bnd
+                          + ".value()))",
                       f.number(),
                       codecShortName(f));
               case FieldKind.ENUM ->
@@ -666,7 +644,7 @@ public final class CodecSourceMapping {
         return For.enhanced("var e", getter)
             .body(
                 Element.expr(
-                    "size += lenDelimSize(@0, @1.length)",
+                    "size += Wire.lenDelimSize(@0, @1.length)",
                     num,
                     WktSourceMapping.encodeValue(f, entry, "e")))
             .build();
@@ -674,7 +652,7 @@ public final class CodecSourceMapping {
       return If.condition("@0 != null", getter)
           .body(
               Element.expr(
-                  "size += lenDelimSize(@0, @1.length)",
+                  "size += Wire.lenDelimSize(@0, @1.length)",
                   num,
                   WktSourceMapping.encodeValue(f, entry, getter)))
           .build();
@@ -688,7 +666,10 @@ public final class CodecSourceMapping {
                 If.condition("!e.equals(@0)", def)
                     .body(
                         Element.expr(
-                            "size += lenDelimSize(@0, @1.@2(e))", num, TypeRefs.WKT, methodName))
+                            "size += Wire.lenDelimSize(@0, @1.@2(e))",
+                            num,
+                            TypeRefs.WKT,
+                            methodName))
                     .build())
             .build();
       }
@@ -696,19 +677,22 @@ public final class CodecSourceMapping {
       return For.enhanced("var e", getter)
           .body(
               Element.expr(
-                  "size += lenDelimSize(@0, @1.wrapSize(@1.Wrap.@2, e))", num, TypeRefs.WKT, kind))
+                  "size += Wire.lenDelimSize(@0, @1.wrapSize(@1.Wrap.@2, e))",
+                  num,
+                  TypeRefs.WKT,
+                  kind))
           .build();
     }
     String sizeExpr;
     if (entry.hasZeroDefault()) {
-      sizeExpr = "size += lenDelimSize(@1, @2.@3(@4))";
+      sizeExpr = "size += Wire.lenDelimSize(@1, @2.@3(@4))";
       Object[] args = {TypeRefs.CODED_OUTPUT_STREAM, num, TypeRefs.WKT, methodName, getter};
       String def = Objects.requireNonNull(entry.zeroDefault());
       return If.condition("@0 != null && !@0.equals(@1)", getter, def)
           .body(Element.expr(sizeExpr, args))
           .build();
     }
-    sizeExpr = "size += lenDelimSize(@1, @2.wrapSize(@2.Wrap.@3, @4))";
+    sizeExpr = "size += Wire.lenDelimSize(@1, @2.wrapSize(@2.Wrap.@3, @4))";
     String kind = WktSourceMapping.wrapKind(f.typeUrl());
     return If.condition("@0 != null", getter)
         .body(Element.expr(sizeExpr, TypeRefs.CODED_OUTPUT_STREAM, num, TypeRefs.WKT, kind, getter))
@@ -721,7 +705,7 @@ public final class CodecSourceMapping {
     return For.enhanced("var _e", "v.@0().entrySet()", f.javaName())
         .body(
             Element.expr(
-                "size += lenDelimSize(@0, @1.@1Codec.getSerializedSize(new @1(_e.getKey(), _e.getValue())))",
+                "size += Wire.lenDelimSize(@0, @1.@1Codec.getSerializedSize(new @1(_e.getKey(), _e.getValue())))",
                 f.number(),
                 entryName))
         .build();
@@ -748,7 +732,7 @@ public final class CodecSourceMapping {
               .build();
       case BYTES ->
           If.condition("!@0.isEmpty()", getter)
-              .body(Element.expr("size += lenDelimSize(@0, @1.size())", num, getter))
+              .body(Element.expr("size += Wire.lenDelimSize(@0, @1.size())", num, getter))
               .build();
       default ->
           If.condition("@0 != CodecDefaults.@1()", getter, defaultMethod(f))
@@ -764,7 +748,7 @@ public final class CodecSourceMapping {
     return If.condition("@0 != null", getter)
         .body(
             Element.expr(
-                "size += lenDelimSize(@0, @1.@1Codec.getSerializedSize(@2))",
+                "size += Wire.lenDelimSize(@0, @1.@1Codec.getSerializedSize(@2))",
                 f.number(),
                 codecShortName(f),
                 getter))
@@ -776,7 +760,7 @@ public final class CodecSourceMapping {
     return For.enhanced("var _m", getter)
         .body(
             Element.expr(
-                "size += lenDelimSize(@0, @1.@1Codec.getSerializedSize(_m))",
+                "size += Wire.lenDelimSize(@0, @1.@1Codec.getSerializedSize(_m))",
                 f.number(),
                 codecShortName(f)))
         .build();
@@ -812,7 +796,7 @@ public final class CodecSourceMapping {
     if (wire == WireScalar.BYTES) {
       // One tagged field per element (not packed).
       return For.enhanced("var _x", getter)
-          .body(Element.expr("size += lenDelimSize(@0, _x.size())", num))
+          .body(Element.expr("size += Wire.lenDelimSize(@0, _x.size())", num))
           .build();
     }
     if (wire == WireScalar.STRING) {
@@ -866,7 +850,7 @@ public final class CodecSourceMapping {
         .body(
             Element.expr("int _bodySize = 0"),
             For.enhanced("var _x", getter).body(bodySizeExpr).build(),
-            Element.expr("size += lenDelimSize(@0, _bodySize)", num))
+            Element.expr("size += Wire.lenDelimSize(@0, _bodySize)", num))
         .build();
   }
 
@@ -1334,11 +1318,25 @@ public final class CodecSourceMapping {
       if (wktMember != null) {
         // A well-known-type member: its native value through the Wkt / DynamicWkt bridge, written
         // whenever set (a oneof member has presence -- no default elision).
-        write =
-            Element.expr(
-                "out.writeByteArray(@0, @1)",
-                f.number(),
-                WktSourceMapping.encodeValue(f, wktMember, bnd + ".value()"));
+        String wm = WktSourceMapping.writeMethod(f.typeUrl());
+        if (wktMember.nodeType() != null) {
+          write =
+              Element.expr(
+                  "out.writeByteArray(@0, @1.encode(\"" + f.typeUrl() + "\", @2.value()))",
+                  f.number(),
+                  TypeRefs.DYNAMIC_WKT,
+                  bnd);
+        } else if (wm != null) {
+          write = Element.expr("@0.@1(out, @2, @3.value())", TypeRefs.WKT, wm, f.number(), bnd);
+        } else {
+          write =
+              Element.expr(
+                  "@0.writeWrap(out, @1, @0.Wrap.@2, @3.value())",
+                  TypeRefs.WKT,
+                  f.number(),
+                  WktSourceMapping.wrapKind(f.typeUrl()),
+                  bnd);
+        }
       } else if (f.isMessage()) {
         write =
             Element.expr(
