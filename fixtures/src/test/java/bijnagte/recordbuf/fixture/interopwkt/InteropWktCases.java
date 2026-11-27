@@ -22,11 +22,6 @@ public final class InteropWktCases extends JacksonGoldenCases {
   /** The golden family directory of every case here. */
   public static final String FAMILY = "interopwkt";
 
-  private static final String DEFAULT_ELEMENT_NOT_WRITTEN =
-      "the record drops a repeated element equal to the default (Duration.ZERO, Empty.INSTANCE),"
-          + " which protobuf-java writes, so its protobuf binary golden would not be protobuf-java's"
-          + " bytes (gap repeated-wkt-default-element)";
-
   @Override
   public List<GoldenCase> cases() {
     return List.of(
@@ -37,18 +32,14 @@ public final class InteropWktCases extends JacksonGoldenCases {
                 FAMILY,
                 "zero-wrappers",
                 InteropWkt.builder().boolWrapper(false).int32Wrapper(0).stringWrapper("").build())),
-        // Its proto3.json golden was written from protobuf-java's own builder: the seeder seeds
-        // from
-        // the record's bytes, which drop the default elements (gap repeated-wkt-default-element).
         build(
             jacksonLossless(
-                    FAMILY,
-                    "repeated-defaults",
-                    InteropWkt.builder()
-                        .repeatedDuration(List.of(Duration.ZERO, Duration.ofSeconds(1)))
-                        .repeatedEmpty(List.of(Empty.INSTANCE, Empty.INSTANCE))
-                        .build())
-                .notApplicable(protobufBinary, DEFAULT_ELEMENT_NOT_WRITTEN)));
+                FAMILY,
+                "repeated-defaults",
+                InteropWkt.builder()
+                    .repeatedDuration(List.of(Duration.ZERO, Duration.ofSeconds(1)))
+                    .repeatedEmpty(List.of(Empty.INSTANCE, Empty.INSTANCE))
+                    .build())));
   }
 
   /**

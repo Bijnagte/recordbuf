@@ -16,71 +16,47 @@ import java.util.List;
  * a zero-length message and so distinct from {@code all-default}'s {@code null}, and {@code
  * items-with-default-element} keeps an empty element in a repeated message, which is never dropped.
  *
- * <p>No case has an Avro golden: {@code Sample} is the second message of its proto file (gap {@code
- * avro-first-message-only}).
+ * <p>Every case has an Avro golden: {@code single} is a null-first union, so an unset message is
+ * the null branch.
  */
 public final class MessageCases extends JacksonGoldenCases {
 
   /** The golden family directory of every case here. */
   public static final String FAMILY = "message";
 
-  private static final String NO_AVRO_FOR_SECOND_MESSAGE =
-      "Sample is the second top-level message of message.proto, and the Avro surface is generated"
-          + " for the first message (Item) and what it references only, so Sample has no Avro"
-          + " converter (gap avro-first-message-only)";
-
   @Override
   public List<GoldenCase> cases() {
     return List.of(
         build(
-            withoutAvro(
-                jacksonLossless(
-                    FAMILY,
-                    "populated",
-                    Sample.builder()
-                        .single(item(7, "seven"))
-                        .items(List.of(item(1, "one"), item(2, "two")))
-                        .build()))),
-        build(withoutAvro(jacksonLossless(FAMILY, "all-default", Sample.builder().build()))),
+            jacksonLossless(
+                FAMILY,
+                "populated",
+                Sample.builder()
+                    .single(item(7, "seven"))
+                    .items(List.of(item(1, "one"), item(2, "two")))
+                    .build())),
+        build(jacksonLossless(FAMILY, "all-default", Sample.builder().build())),
         build(
-            withoutAvro(
-                jacksonLossless(
-                    FAMILY,
-                    "single-and-one-item",
-                    Sample.builder()
-                        .single(item(7, "seven"))
-                        .items(List.of(item(1, "one")))
-                        .build()))),
+            jacksonLossless(
+                FAMILY,
+                "single-and-one-item",
+                Sample.builder().single(item(7, "seven")).items(List.of(item(1, "one"))).build())),
         build(
-            withoutAvro(
-                jacksonLossless(
-                    FAMILY, "single-only", Sample.builder().single(item(7, "seven")).build()))),
+            jacksonLossless(
+                FAMILY, "single-only", Sample.builder().single(item(7, "seven")).build())),
         build(
-            withoutAvro(
-                jacksonLossless(
-                    FAMILY,
-                    "items-only",
-                    Sample.builder().items(List.of(item(1, "one"))).build()))),
+            jacksonLossless(
+                FAMILY, "items-only", Sample.builder().items(List.of(item(1, "one"))).build())),
         build(
-            withoutAvro(
-                jacksonLossless(
-                    FAMILY,
-                    "single-default-item",
-                    Sample.builder().single(Item.builder().build()).build()))),
+            jacksonLossless(
+                FAMILY,
+                "single-default-item",
+                Sample.builder().single(Item.builder().build()).build())),
         build(
-            withoutAvro(
-                jacksonLossless(
-                    FAMILY,
-                    "items-with-default-element",
-                    Sample.builder()
-                        .items(List.of(Item.builder().build(), item(2, "two")))
-                        .build()))));
-  }
-
-  private GoldenCase.Builder withoutAvro(GoldenCase.Builder builder) {
-    return builder
-        .notApplicable(avroJson, NO_AVRO_FOR_SECOND_MESSAGE)
-        .notApplicable(avroBinary, NO_AVRO_FOR_SECOND_MESSAGE);
+            jacksonLossless(
+                FAMILY,
+                "items-with-default-element",
+                Sample.builder().items(List.of(Item.builder().build(), item(2, "two"))).build())));
   }
 
   private static Item item(int id, String name) {

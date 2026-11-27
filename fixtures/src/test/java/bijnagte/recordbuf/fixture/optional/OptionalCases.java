@@ -21,11 +21,6 @@ public final class OptionalCases extends JacksonGoldenCases {
   /** The golden family directory of every case here. */
   public static final String FAMILY = "optional";
 
-  private static final String AVRO_HAS_NO_PRESENCE =
-      "the record leaves every optional field null, which the generated Avro converter cannot"
-          + " write: the Avro schema declares each field non-nullable, so the converter sets null"
-          + " on the string and message fields and Avro rejects it (gap optional-avro-presence)";
-
   @Override
   public List<GoldenCase> cases() {
     return List.of(
@@ -39,10 +34,7 @@ public final class OptionalCases extends JacksonGoldenCases {
                     .c(true)
                     .d(Fixed.builder().value(1).build())
                     .build())),
-        build(
-            jacksonLossless(FAMILY, "all-absent", Sample.builder().build())
-                .notApplicable(avroJson, AVRO_HAS_NO_PRESENCE)
-                .notApplicable(avroBinary, AVRO_HAS_NO_PRESENCE)),
+        build(jacksonLossless(FAMILY, "all-absent", Sample.builder().build())),
         build(
             jacksonLossless(
                 FAMILY,

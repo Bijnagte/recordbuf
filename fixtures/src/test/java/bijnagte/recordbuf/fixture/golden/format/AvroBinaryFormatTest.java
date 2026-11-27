@@ -12,7 +12,7 @@ import bijnagte.recordbuf.fixture.golden.GoldenMatrix;
 import bijnagte.recordbuf.fixture.golden.GoldenStore;
 import bijnagte.recordbuf.fixture.jackson.avro.DynAvro;
 import bijnagte.recordbuf.fixture.jackson.avro.rec.Dyn;
-import bijnagte.recordbuf.fixture.message.rec.Sample;
+import bijnagte.recordbuf.fixture.mapvalues.rec.MapValues;
 import bijnagte.recordbuf.json.DynamicWkt;
 import com.google.protobuf.Any;
 import com.google.protobuf.Struct;
@@ -136,12 +136,12 @@ class AvroBinaryFormatTest {
   /** A message of a proto generated without Avro has no converter, so the format is skipped. */
   @Test
   void recordWithoutConverter_reportsNotApplicable() {
-    Sample noConverter = Sample.builder().build();
+    MapValues noConverter = MapValues.builder().build();
 
     String reason = format.notApplicableReason(noConverter).orElseThrow();
 
-    assertTrue(reason.contains("SampleAvroConverter"), reason);
-    assertTrue(reason.contains(Sample.class.getName()), reason);
+    assertTrue(reason.contains("MapValuesAvroConverter"), reason);
+    assertTrue(reason.contains(MapValues.class.getName()), reason);
 
     GoldenCase goldenCase =
         GoldenCase.builder(FAMILY, "no-converter", noConverter)
@@ -160,7 +160,7 @@ class AvroBinaryFormatTest {
   @Test
   void recordWithoutConverter_declaredApplicable_failsConstruction() {
     GoldenCase.Builder builder =
-        GoldenCase.builder(FAMILY, "no-converter", Sample.builder().build());
+        GoldenCase.builder(FAMILY, "no-converter", MapValues.builder().build());
     builder.lossless(format);
 
     IllegalStateException error =

@@ -13,7 +13,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.apache.avro.Schema;
 import org.apache.avro.compiler.specific.SpecificCompiler;
 import tools.jackson.databind.JsonNode;
@@ -56,7 +58,41 @@ public final class AvroBridge implements FormatBridge {
     // Off: a disabled file contributes nothing, exactly as an absent bridge would (R1/R3).
     if (!enabledFor(file, ctx)) return List.of();
     if (file.messages().isEmpty()) return List.of(); // no top-level message: nothing to bridge
-    Message root = file.messages().get(0);
+    // The first top-level message is the root, and so is every later one that no earlier root
+    // reaches: a message already in an earlier root's graph is emitted with it, not again.
+    List<CodeGeneratorResponse.File> all = new ArrayList<>();
+    Set<String> seenFqns = new HashSet<>();
+    Set<String> seenPaths = new HashSet<>();
+    for (Message root : file.messages()) {
+      List<CodeGeneratorResponse.File> rootFiles = new ArrayList<>();
+      Set<String> rootFqns = new HashSet<>();
+      emitRoot(file, root, table, formatter, rootFiles, rootFqns, seenFqns);
+      seenFqns.addAll(rootFqns);
+      for (CodeGeneratorResponse.File f : rootFiles) {
+        // The shared records (unknown-field entry, oneof value) come out of every root's document.
+        if (seenPaths.add(f.getName())) {
+          all.add(f);
+        }
+      }
+    }
+    return all;
+  }
+
+  /**
+   * Emit the Avro surface of one root message: its reachable graph's schemas, specific records and
+   * converters. A root an earlier one already reached emits nothing.
+   *
+   * @param reached receives the fqns of every message in this root's graph
+   * @param alreadyEmitted the fqns earlier roots covered
+   */
+  private void emitRoot(
+      ProtoFile file,
+      Message root,
+      FileTable table,
+      Formatter formatter,
+      List<CodeGeneratorResponse.File> out,
+      Set<String> reached,
+      Set<String> alreadyEmitted) {
 
     // The structural twin: the reachable type graph (the registry) drives the whole .avsc
     // document; a mapping failure aborts the bridge for this file (R3 fail-loud: the mapping
@@ -69,11 +105,12 @@ public final class AvroBridge implements FormatBridge {
     } catch (AvroUnsupportedException notYetSupported) {
       // Fail-loud at the mapping unit (unit-tested); at the file level v1 skips so an existing
       // generation with an unsupported shape is not aborted by the bridge.
-      return List.of();
+      return;
     }
-    if (schema.isEmpty()) return List.of();
+    if (schema.isEmpty()) return;
 
-    List<CodeGeneratorResponse.File> out = new ArrayList<>();
+    reached.addAll(registry.protoFqns());
+    if (alreadyEmitted.contains(registry.fqnOf(root))) return;
 
     // ---- the .avsc document for every reachable message ----
     // Each bridged record's structural twin is its message's complete .avsc (the whole reachable
@@ -118,7 +155,7 @@ public final class AvroBridge implements FormatBridge {
                 .build());
       }
     } catch (Exception generationFailed) {
-      return out;
+      return;
     }
     // ---- XAvro converter: lives in the record's .rec package; specific record referenced by FQN
     // ----
@@ -144,7 +181,6 @@ public final class AvroBridge implements FormatBridge {
               .setContent(converterSource)
               .build());
     }
-    return out;
   }
 
   /**

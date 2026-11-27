@@ -127,6 +127,10 @@ public final class AvroConverterSourceMapping {
     return comment + rendered;
   }
 
+  /** The runtime helper that maps an unknown field to and from its Avro entry record. */
+  private static final TypeRef UNKNOWN_FIELDS_AVRO =
+      TypeRef.of("bijnagte.recordbuf.avro.UnknownFieldsAvro");
+
   // --- toRecord body builder (Avro specific record -> recordbuf record) -------------------
 
   private static Method buildToRecord(
@@ -150,10 +154,10 @@ public final class AvroConverterSourceMapping {
     for (Oneof oneof : message.oneofs()) {
       method.body(oneofToRecord(oneof, "s", "b", registry, specificRecordPkg));
     }
-    // TODO(avro): transite the record's unknown-field carrier (1:1 tuple array); the checkpoint
-    // defaults it to empty.
+    // The unknown-field carrier: the schema's entry records become the captured fields.
     return method
-        .body(Element.expr("@0.unknownFields(@1.empty())", "b", TypeRefs.UNKNOWN_FIELDS))
+        .body(
+            Element.expr("b.unknownFields(@0.fromAvro(s.getUnknownFields()))", UNKNOWN_FIELDS_AVRO))
         .body(Element.ret("b.build()"))
         .build();
   }
@@ -202,13 +206,18 @@ public final class AvroConverterSourceMapping {
     }
     if (f.kind() == FieldKind.SCALAR && "bytes".equals(f.typeUrl())) {
       return Element.expr(
-          "@0(@1() != null ? @2.of(@3.copyOf(@1().array(), @1().remaining())) : @2.empty())",
+          "@0(@1() != null ? @2.of(@3.copyOf(@1().array(), @1().remaining())) : "
+              + (f.isNullable() ? "null" : "@2.empty()")
+              + ")",
           var,
           getter,
           TypeRefs.BYTES,
           TypeRefs.ARRAYS);
     }
     if (f.kind() == FieldKind.SCALAR && "string".equals(f.typeUrl())) {
+      if (f.isNullable()) {
+        return Element.expr("@0(@1() == null ? null : @1().toString())", var, getter);
+      }
       return Element.expr("@0(@1().toString())", var, getter);
     }
     // A repeated scalar's Avro elements are never null, so a plain List.copyOf holds them: the
@@ -232,6 +241,10 @@ public final class AvroConverterSourceMapping {
     if (f.isRepeated()) {
       return Element.expr(
           "@0(@1().stream().map(v -> @2).toList())", var, getter, enumFromName(enumType, "v"));
+    }
+    if (f.isNullable()) {
+      return Element.expr(
+          "@0(@1() == null ? null : @2)", var, getter, enumFromName(enumType, getter + "()"));
     }
     return Element.expr("@0(@1)", var, enumFromName(enumType, getter + "()"));
   }
@@ -319,12 +332,8 @@ public final class AvroConverterSourceMapping {
     }
     TypeRef refConverter =
         TypeRef.named(refRecPkg, AvroSchemaGenerator.specificRecordName(ref.name()) + "Converter");
-    if (registry.isCycleClosing(f)) {
-      // A cycle-closing reference is a null-first union in Avro: an absent value is the null
-      // branch.
-      return Element.expr("@0(@1() == null ? null : @2.toRecord(@1()))", var, getter, refConverter);
-    }
-    return Element.expr("@0(@1.toRecord(@2()))", var, refConverter, getter);
+    // A singular message is a null-first union in Avro: an absent value is the null branch.
+    return Element.expr("@0(@1() == null ? null : @2.toRecord(@1()))", var, getter, refConverter);
   }
 
   private static Element repeatedMessageToRecord(
@@ -682,11 +691,14 @@ public final class AvroConverterSourceMapping {
     for (Oneof oneof : message.oneofs()) {
       method.body(oneofFromRecord(oneof, "s", "r", registry, specificRecordPkg));
     }
-    // TODO(avro): transit the record's unknown-field carrier into the specific record. Until then
-    // the always-present (non-nullable) carrier array is set empty, so the specific record the
-    // converter returns can be Avro-encoded (a null array fails the binary write).
+    // The unknown-field carrier: each captured field becomes one entry record of the array.
+    TypeRef entry = TypeRef.named(specificRecordPkg, registry.entryRecordName());
     return method
-        .body(Element.expr("s.setUnknownFields(@0.of())", TypeRefs.LIST))
+        .body(
+            Element.expr(
+                "s.setUnknownFields(@0.toAvro(r.unknownFields(), @1::new))",
+                UNKNOWN_FIELDS_AVRO,
+                entry))
         .body(Element.ret("s"))
         .build();
   }
@@ -745,18 +757,21 @@ public final class AvroConverterSourceMapping {
           accessor);
     }
     if (f.kind() == FieldKind.SCALAR && "bytes".equals(f.typeUrl())) {
+      if (f.isNullable()) {
+        return Element.expr(
+            "@0(@2 == null ? null : @1.wrap(@2.toByteArray()))",
+            setter,
+            TypeRefs.BYTE_BUFFER,
+            accessor);
+      }
       return Element.expr("@0(@1.wrap(@2.toByteArray()))", setter, TypeRefs.BYTE_BUFFER, accessor);
     }
     if (f.kind() == FieldKind.SCALAR && "string".equals(f.typeUrl())) {
       return Element.expr("@0(@1)", setter, accessor);
     }
     if (f.kind() == FieldKind.SCALAR) {
-      if (f.isNullable()) {
-        // A presence-tracked scalar is a @Nullable boxed primitive; the Avro twin's field is a
-        // primitive, so null-check and default to the primitive's zero value when absent.
-        return Element.expr(
-            "@0(@1 == null ? " + scalarDefault(f.typeUrl()) + " : @1)", setter, accessor);
-      }
+      // A presence-tracked scalar is a @Nullable boxed primitive and the Avro twin's field a
+      // null-first union of it, so it passes straight through: absent stays null.
       return Element.expr("@0(@1)", setter, accessor);
     }
     throw new AvroUnsupportedException(
@@ -905,6 +920,9 @@ public final class AvroConverterSourceMapping {
           accessor,
           TypeRef.named("java.lang", "CharSequence"));
     }
+    if (f.isNullable()) {
+      return Element.expr("@0(@1 == null ? null : @1.name())", setter, accessor);
+    }
     TypeRef enumType = enumType(f);
     return Element.expr(
         "@0(@1 == null ? @2.name() : @1.name())", setter, accessor, firstConstant(enumType));
@@ -988,21 +1006,6 @@ public final class AvroConverterSourceMapping {
   private static RawExpr firstConstant(TypeRef enumType) {
     return RawExpr.of(
         "@0.stream(@1.values()).findFirst().orElseThrow()", TypeRefs.ARRAYS, enumType);
-  }
-
-  /**
-   * The zero-value literal for a scalar proto type, used to default a presence-tracked scalar to
-   * its primitive's default when the record's value is null (absent).
-   */
-  private static String scalarDefault(String typeUrl) {
-    return switch (typeUrl) {
-      case "int32", "uint32", "sint32", "fixed32", "sfixed32" -> "0";
-      case "int64", "uint64", "sint64", "fixed64", "sfixed64" -> "0L";
-      case "float" -> "0.0f";
-      case "double" -> "0.0";
-      case "bool" -> "false";
-      default -> "0";
-    };
   }
 
   private static String cap(String s) {

@@ -1,0 +1,24 @@
+{
+  "i" : 42,
+  "fx" : 0,
+  "s" : "",
+  "b" : "",
+  "packed" : [ ],
+  "nested" : null,
+  "subs" : [ ],
+  "m" : { },
+  "presence" : null,
+  "unknownFields" : [ {
+    "number" : 99,
+    "wireType" : "I32",
+    "value" : {
+      "bytes" : "\u0001"
+    }
+  }, {
+    "number" : 98,
+    "wireType" : "LENGTH_DELIMITED",
+    "value" : {
+      "bytes" : "\u0006second"
+    }
+  } ]
+}

@@ -26,6 +26,7 @@ import com.google.protobuf_test_messages.proto3.rec.TestAllTypesProto3.NestedMes
 import com.google.protobuf_test_messages.proto3.rec.TestAllTypesProto3.OneofField;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,13 +43,11 @@ import tools.jackson.databind.node.ObjectNode;
  * <p>Which formats serve which message follows the gap ledger and the JSON printer. The {@code
  * TestAllTypesProto3} cases run in proto3 JSON except {@link #POPULATED}, whose {@code
  * repeated_any} holds an {@code Any} of a type with no descriptor, which {@code JsonFormat} cannot
- * print (the case with that element replaced is {@code all-types-proto3-json}), and {@code
- * all-types-wire-gaps}, whose default-valued repeated WKT elements its golden cannot hold (gap
- * {@code repeated-wkt-default-element}). Of the {@code TestAllTypesProto3} cases, only {@code
- * all-types-avro} runs in Avro: it sets every non-cycle singular message field at both levels, and
- * each other case leaves one unset, which Avro cannot write (gap {@code
- * avro-absent-singular-message}). {@code ForeignMessage} and {@code NestedMessage} run in proto3
- * JSON and Avro too.
+ * print (the case with that element replaced is {@code all-types-proto3-json}). Of the {@code
+ * TestAllTypesProto3} cases, only {@code all-types-avro} runs in Avro: it sets every non-cycle
+ * singular message field at both levels, and each other case leaves one unset, which Avro cannot
+ * write (gap {@code avro-absent-singular-message}). {@code ForeignMessage} and {@code
+ * NestedMessage} run in proto3 JSON and Avro too.
  *
  * <p>Maps are built as {@link LinkedHashMap}s with several entries. The record's codec writes a map
  * in the iteration order of the {@code Map} the record holds, so the insertion order of these maps
@@ -94,27 +93,10 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
    */
   private static final String MAP_ENUM = "all-types-map-enum";
 
-  private static final String WIRE_GAPS =
-      "the record sets fields whose protobuf binary encoding differs from protobuf-java's, or that"
-          + " recordbuf cannot read back from protobuf-java's bytes (gaps"
-          + " uint32-negative-carrier-wire, repeated-enum-unpacked-only, packed-false-ignored and"
-          + " repeated-wkt-default-element)";
-
-  private static final String PROTO3_JSON_WIRE_GAPS =
-      "the proto3 JSON golden is protobuf-java's JsonFormat of the record's own protobuf binary"
-          + " bytes, which drop the default-valued repeated Duration, Timestamp, FieldMask and Empty"
-          + " elements (gap repeated-wkt-default-element), so the golden would not hold the record's"
-          + " elements";
-
   private static final String OPAQUE_ANY =
       "protobuf-java's JsonFormat cannot print an Any whose type URL has no descriptor"
           + " (repeated_any holds type.googleapis.com/com.example.Opaque), a Google-owned JSON limit"
           + " (R15), not a recordbuf gap; case all-types-proto3-json is the same record without it";
-
-  private static final String AVRO_ABSENT_SINGULAR_MESSAGE =
-      "the record leaves a non-cycle singular message field unset, which the Avro schema declares"
-          + " non-nullable, so Avro cannot write it (gap avro-absent-singular-message); case"
-          + " all-types-avro sets every such field";
 
   private static final JsonMapper NODES = new JsonMapper();
 
@@ -153,8 +135,41 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         mapMessageCase(),
         mapEnumCase(),
         wireGapFields(),
+        uint32NegativeCarrierCase(),
+        wktDefaultElementsCase(),
         interopMessage("foreign-message", ForeignMessage.builder().c(Integer.MIN_VALUE).build()),
         interopMessage("nested-message", NestedMessage.builder().a(Integer.MAX_VALUE).build()));
+  }
+
+  /**
+   * The record as Avro reads it back: a plain proto3 enum has no presence, so an unset one (null)
+   * is written as the enum's first constant, which is the same value on the protobuf wire. An
+   * {@code optional} enum keeps its absence. Avro's timestamp is whole microseconds, so the
+   * timestamps are cut to them.
+   */
+  private static TestAllTypesProto3 afterAvro(TestAllTypesProto3 record) {
+    return record.toBuilder()
+        .optionalNestedEnum(
+            record.optionalNestedEnum() == null ? NestedEnum.FOO : record.optionalNestedEnum())
+        .optionalForeignEnum(
+            record.optionalForeignEnum() == null
+                ? ForeignEnum.FOREIGN_FOO
+                : record.optionalForeignEnum())
+        .optionalAliasedEnum(
+            record.optionalAliasedEnum() == null
+                ? AliasedEnum.ALIAS_FOO
+                : record.optionalAliasedEnum())
+        .optionalTimestamp(
+            record.optionalTimestamp() == null
+                ? null
+                : record.optionalTimestamp().truncatedTo(ChronoUnit.MICROS))
+        .repeatedTimestamp(
+            record.repeatedTimestamp().stream()
+                .map(timestamp -> timestamp.truncatedTo(ChronoUnit.MICROS))
+                .toList())
+        .recursiveMessage(
+            record.recursiveMessage() == null ? null : afterAvro(record.recursiveMessage()))
+        .build();
   }
 
   private GoldenCase populatedCase() {
@@ -162,8 +177,8 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         .lossless(protobufBinary)
         .notApplicable(proto3Json, OPAQUE_ANY)
         .lossless(jackson)
-        .notApplicable(avroJson, AVRO_ABSENT_SINGULAR_MESSAGE)
-        .notApplicable(avroBinary, AVRO_ABSENT_SINGULAR_MESSAGE)
+        .expectedAfterTrip(avroJson, afterAvro(populated()))
+        .expectedAfterTrip(avroBinary, afterAvro(populated()))
         .build(formats());
   }
 
@@ -172,8 +187,8 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         .lossless(protobufBinary)
         .lossless(proto3Json)
         .lossless(jackson)
-        .notApplicable(avroJson, AVRO_ABSENT_SINGULAR_MESSAGE)
-        .notApplicable(avroBinary, AVRO_ABSENT_SINGULAR_MESSAGE)
+        .expectedAfterTrip(avroJson, afterAvro(record))
+        .expectedAfterTrip(avroBinary, afterAvro(record))
         .build(formats());
   }
 
@@ -404,18 +419,55 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
   }
 
   /**
-   * The fields {@link #populated()} leaves out because the protobuf binary codec does not match
-   * protobuf-java for them, set to the values that expose it. They serialize and round-trip in
-   * Jackson JSON; protobuf binary is declared not applicable until the gaps close, at which point
-   * these move into the populated case.
+   * The fields {@link #populated()} leaves out: the repeated enum lists, the {@code [packed =
+   * false]} scalar lists and the values at the edge of the wire encoding (a negative uint32
+   * carrier, default-valued repeated well-known elements). It was added while those did not match
+   * protobuf-java and is kept as it is, so its goldens stay.
    */
   private GoldenCase wireGapFields() {
     return GoldenCase.builder(FAMILY, "all-types-wire-gaps", wireGaps())
-        .notApplicable(protobufBinary, WIRE_GAPS)
-        .notApplicable(proto3Json, PROTO3_JSON_WIRE_GAPS)
+        .lossless(protobufBinary)
+        .lossless(proto3Json)
         .lossless(jackson)
-        .notApplicable(avroJson, AVRO_ABSENT_SINGULAR_MESSAGE)
-        .notApplicable(avroBinary, AVRO_ABSENT_SINGULAR_MESSAGE)
+        .expectedAfterTrip(avroJson, afterAvro(wireGaps()))
+        .expectedAfterTrip(avroBinary, afterAvro(wireGaps()))
+        .build(formats());
+  }
+
+  /**
+   * The case {@code all-types-uint32-negative}: every uint32 field at a value above {@code
+   * Integer.MAX_VALUE} (the negative signed carrier), which the protobuf binary encoder writes as
+   * protobuf-java does, a five-byte varint.
+   */
+  private GoldenCase uint32NegativeCarrierCase() {
+    return GoldenCase.builder(FAMILY, "all-types-uint32-negative", uint32NegativeCarrier())
+        .lossless(protobufBinary)
+        .lossless(proto3Json)
+        .lossless(jackson)
+        .expectedAfterTrip(avroJson, afterAvro(uint32NegativeCarrier()))
+        .expectedAfterTrip(avroBinary, afterAvro(uint32NegativeCarrier()))
+        .build(formats());
+  }
+
+  /**
+   * The case {@code all-types-wkt-default-elements}: repeated Duration, Timestamp, FieldMask and
+   * Empty lists whose elements include the type's default, which the encoder writes as
+   * protobuf-java does.
+   */
+  private GoldenCase wktDefaultElementsCase() {
+    TestAllTypesProto3 record =
+        TestAllTypesProto3.builder()
+            .repeatedDuration(List.of(Duration.ZERO, Duration.ofSeconds(1)))
+            .repeatedTimestamp(List.of(Instant.EPOCH, Instant.ofEpochSecond(1)))
+            .repeatedFieldmask(List.of(FieldMask.empty(), FieldMask.of("a")))
+            .repeatedEmpty(List.of(Empty.INSTANCE, Empty.INSTANCE))
+            .build();
+    return GoldenCase.builder(FAMILY, "all-types-wkt-default-elements", record)
+        .lossless(protobufBinary)
+        .lossless(proto3Json)
+        .lossless(jackson)
+        .expectedAfterTrip(avroJson, afterAvro(record))
+        .expectedAfterTrip(avroBinary, afterAvro(record))
         .build(formats());
   }
 
@@ -481,8 +533,7 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
             List.of(ForeignMessage.builder().c(3).build(), ForeignMessage.builder().c(-4).build()))
         .repeatedStringPiece(List.of("piece-1", "piece-\u00e9"))
         .repeatedCord(List.of("cord-1", "cord-\u00e9"))
-        // packed, and the unpacked fields: the enum lists and the unpacked scalars are not here
-        // (gaps repeated-enum-unpacked-only and packed-false-ignored), see wireGaps()
+        // the enum lists and the unpacked scalars are in case all-types-wire-gaps, see wireGaps()
         // packed
         .packedInt32(List.of(Integer.MIN_VALUE, -1, 0, Integer.MAX_VALUE))
         .packedInt64(List.of(Long.MIN_VALUE, -1L, 0L, Long.MAX_VALUE))
@@ -537,7 +588,8 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         .repeatedBytesWrapper(List.of(Bytes.empty(), NON_EMPTY_BYTES))
         // well-known structured types; the default-valued singular and repeated elements are left
         // out: a default Duration, Timestamp, FieldMask or Empty is the unset value, not a
-        // present-but-empty message (see gap repeated-wkt-default-element)
+        // present-but-empty message (a singular default is not written: gap
+        // singular-wkt-default-present)
         .optionalDuration(Duration.ofSeconds(-3, -500_000_000))
         .optionalTimestamp(Instant.parse("2023-11-14T22:13:20.123456789Z"))
         .optionalFieldMask(FieldMask.of("foo_bar.baz", "qux"))
@@ -574,10 +626,22 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         .build();
   }
 
+  /** The record of case {@code all-types-uint32-negative}. */
+  static TestAllTypesProto3 uint32NegativeCarrier() {
+    return TestAllTypesProto3.builder()
+        .optionalUint32(-1)
+        .repeatedUint32(List.of(0, 1, -1))
+        .packedUint32(List.of(0, 1, -1))
+        .mapUint32Uint32(ordered(-1, -1, 0, 1, 5, 6))
+        .optionalUint32Wrapper(-1)
+        .repeatedUint32Wrapper(List.of(-1, 0, 1))
+        .build();
+  }
+
   /** The record of case {@code all-types-wire-gaps}: only the fields the populated case omits. */
   static TestAllTypesProto3 wireGaps() {
     return TestAllTypesProto3.builder()
-        // gap uint32-negative-carrier-wire: uint32 above Integer.MAX_VALUE
+        // the uint32 fields above Integer.MAX_VALUE also live in case all-types-uint32-negative
         .optionalUint32(-1)
         .repeatedUint32(List.of(0, 1, -1))
         .packedUint32(List.of(0, 1, -1))
@@ -585,11 +649,11 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         .mapUint32Uint32(ordered(-1, -1, 0, 1, 5, 6))
         .optionalUint32Wrapper(-1)
         .repeatedUint32Wrapper(List.of(-1, 0, 1))
-        // gap repeated-enum-unpacked-only: repeated enums, default-packed and explicitly packed
+        // repeated enums, default-packed and explicitly packed
         .repeatedNestedEnum(List.of(NestedEnum.FOO, NestedEnum.NEG, NestedEnum.BAZ))
         .repeatedForeignEnum(List.of(ForeignEnum.FOREIGN_BAR, ForeignEnum.FOREIGN_FOO))
         .packedNestedEnum(List.of(NestedEnum.NEG, NestedEnum.FOO, NestedEnum.BAR))
-        // gap packed-false-ignored: the unpacked scalar lists (the uint32 one is above)
+        // the unpacked scalar lists (the uint32 one is above)
         .unpackedInt32(List.of(Integer.MIN_VALUE, -1, 0, Integer.MAX_VALUE))
         .unpackedInt64(List.of(Long.MIN_VALUE, -1L, 0L, Long.MAX_VALUE))
         .unpackedUint64(List.of(0L, 1L, -1L))
@@ -602,7 +666,7 @@ public final class TestAllTypesCorpusCases implements GoldenCaseSource {
         .unpackedFloat(List.of(-Float.MAX_VALUE, Float.MIN_VALUE, 0.5f))
         .unpackedDouble(List.of(-Double.MAX_VALUE, Double.MIN_VALUE, 0.25))
         .unpackedBool(List.of(true, false, true))
-        // gap repeated-wkt-default-element: default-valued elements
+        // default-valued WKT elements also live in case all-types-wkt-default-elements
         .repeatedDuration(List.of(Duration.ZERO, Duration.ofSeconds(1)))
         .repeatedTimestamp(List.of(Instant.EPOCH, Instant.ofEpochSecond(1)))
         .repeatedFieldmask(List.of(FieldMask.empty(), FieldMask.of("a")))

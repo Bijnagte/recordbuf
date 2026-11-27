@@ -32,10 +32,6 @@ option java_multiple_files = true;
 // recordbuf.protobuf_java declarations resolve at parse time.
 import "recordbuf_options.proto";
 
-// GAP(avro-unknown-fields-dropped): the generated Avro converter drops a record's unknown-field
-// carrier in both directions (the schema has the `unknownFields` array, the converter leaves it
-// empty), so unknown fields do not survive an Avro round trip for any record of this file.
-
 // message field's Interop.from/to recurses through its sibling's Interop. Both top-level
 // messages here opt in the same way.
 message Compat {
@@ -44,9 +40,6 @@ message Compat {
     string       s        = 3;
     bytes        b        = 4;
     repeated int32 packed = 5;
-
-    // GAP(avro-absent-singular-message): the Avro schema declares `nested` non-nullable, so an
-    // absent (null) message cannot be written to Avro (the converter sets null on it).
 
     Sub          nested   = 6;
     repeated Sub subs     = 7;

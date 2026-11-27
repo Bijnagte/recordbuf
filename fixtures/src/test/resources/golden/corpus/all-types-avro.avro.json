@@ -22,8 +22,10 @@
     }
   },
   "optional_foreign_message" : {
-    "c" : 2147483647,
-    "unknownFields" : [ ]
+    "protobuf_test_messages.proto3.ForeignMessageAvro" : {
+      "c" : 2147483647,
+      "unknownFields" : [ ]
+    }
   },
   "optional_nested_enum" : "NEG",
   "optional_foreign_enum" : "FOREIGN_BAZ",
@@ -55,8 +57,10 @@
         }
       },
       "optional_foreign_message" : {
-        "c" : 2147483647,
-        "unknownFields" : [ ]
+        "protobuf_test_messages.proto3.ForeignMessageAvro" : {
+          "c" : 2147483647,
+          "unknownFields" : [ ]
+        }
       },
       "optional_nested_enum" : "NEG",
       "optional_foreign_enum" : "FOREIGN_BAZ",

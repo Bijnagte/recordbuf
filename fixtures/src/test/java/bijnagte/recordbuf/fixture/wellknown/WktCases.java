@@ -21,7 +21,7 @@ import java.util.List;
  * boundary the test could not reach: each wrapper set to its type's default, which is a present,
  * empty wrapper message and so not the {@code null} of {@code all-default}. {@code
  * default-timestamp-element} keeps a default element in the repeated {@code Timestamp}, which the
- * encoder drops (gap {@code repeated-wkt-default-element}), so it has no protobuf binary golden.
+ * encoder writes as protobuf-java does.
  *
  * <p>{@code timestamp-nanos} is lossy in both Avro formats by design: Avro's timestamp is whole
  * microseconds, so those goldens deserialize to a record without the nanoseconds.
@@ -33,11 +33,6 @@ public final class WktCases extends JacksonGoldenCases {
 
   /** The golden family directory of every case here. */
   public static final String FAMILY = "wellknown";
-
-  private static final String DEFAULT_ELEMENT_NOT_WRITTEN =
-      "whens holds a Timestamp element equal to the default (Instant.EPOCH), which the generated"
-          + " encoder does not write while protobuf-java does (gap repeated-wkt-default-element),"
-          + " so its protobuf binary golden would not be protobuf-java's bytes";
 
   @Override
   public List<GoldenCase> cases() {
@@ -84,12 +79,9 @@ public final class WktCases extends JacksonGoldenCases {
                     .build())),
         build(
             jacksonLossless(
-                    FAMILY,
-                    "default-timestamp-element",
-                    Sample.builder()
-                        .whens(List.of(Instant.EPOCH, Instant.ofEpochSecond(1)))
-                        .build())
-                .notApplicable(protobufBinary, DEFAULT_ELEMENT_NOT_WRITTEN)));
+                FAMILY,
+                "default-timestamp-element",
+                Sample.builder().whens(List.of(Instant.EPOCH, Instant.ofEpochSecond(1))).build())));
   }
 
   /** Every well-known field populated: the value {@code WktInteropTest} asserted on. */

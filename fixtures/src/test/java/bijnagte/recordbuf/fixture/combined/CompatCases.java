@@ -33,11 +33,12 @@ import java.util.Map;
  * no-unknown-fields} is the same message with nothing unknown, whose carrier is the shared empty
  * one. The unknown fields are wire-level only: the carrier is {@code @JsonIgnore}d and the {@code
  * Interop} converter does not copy it, so the Jackson and proto3 JSON goldens hold the known fields
- * alone and deserialize to the record with the carrier cleared. The generated Avro converter drops
- * the carrier in both directions (gap {@code avro-unknown-fields-dropped}), and every unknown-field
- * case has {@code nested} absent, which Avro cannot write either (gap {@code
- * avro-absent-singular-message}), so the unknown-field cases declare both Avro formats not
- * applicable, as {@code all-default} and {@code no-unknown-fields} do for the second gap.
+ * alone and deserialize to the record with the carrier cleared. The Avro converter does carry it,
+ * as the schema's {@code unknownFields} entry records, so the {@code -populated} cases (with {@code
+ * nested} and {@code presence} set, which Avro needs) hold the unknown fields in both Avro formats.
+ * The other unknown-field cases have {@code nested} absent, which Avro cannot write (gap {@code
+ * avro-absent-singular-message}), so they declare both Avro formats not applicable, as {@code
+ * all-default} and {@code no-unknown-fields} do.
  *
  * <p>protobuf-java keeps unknown fields in a {@code UnknownFieldSet} that serializes in ascending
  * field number, while the record re-emits them in wire order, so a descending pair cannot be
@@ -62,16 +63,6 @@ public final class CompatCases extends JacksonGoldenCases {
   /** The value of the unknown length-delimited field appended by the unknown-field cases. */
   public static final String UNKNOWN_LENGTH_VALUE = "future-data";
 
-  private static final String ABSENT_MESSAGE_NOT_IN_AVRO =
-      "nested is absent (null), and the Avro schema declares it non-nullable, so the converter"
-          + " cannot write the record to Avro (gap avro-absent-singular-message)";
-
-  private static final String UNKNOWN_FIELDS_NOT_IN_AVRO =
-      "the record carries unknown fields, and the generated Avro converter drops the carrier in both"
-          + " directions (gap avro-unknown-fields-dropped), so its Avro golden could not hold them;"
-          + " nested is also absent (null), which Avro cannot write (gap"
-          + " avro-absent-singular-message)";
-
   private static final String UNKNOWN_FIELDS_NOT_SORTED =
       "protobuf-java re-serializes unknown fields in ascending field number, while the record"
           + " re-emits them in wire order (99 before 98 here), so the bytes cannot be identical";
@@ -82,9 +73,9 @@ public final class CompatCases extends JacksonGoldenCases {
     Compat knownFxOnly = Compat.builder().fx(7).build();
     return List.of(
         build(jacksonLossless(FAMILY, "populated", populated())),
-        build(withoutAvro(jacksonLossless(FAMILY, "all-default", Compat.builder().build()))),
+        build(jacksonLossless(FAMILY, "all-default", Compat.builder().build())),
         build(jacksonLossless(FAMILY, "sub-alpha", Sub.builder().id(123).label("alpha").build())),
-        build(withoutAvro(jacksonLossless(FAMILY, "no-unknown-fields", decode(knownBytes())))),
+        build(jacksonLossless(FAMILY, "no-unknown-fields", decode(knownBytes()))),
         build(unknownCase("unknown-varint", decode(withUnknownVarint(knownBytes())), knownOnly)),
         build(
             unknownCase(
@@ -168,15 +159,7 @@ public final class CompatCases extends JacksonGoldenCases {
    */
   private GoldenCase.Builder unknownCase(String name, Compat record, Compat withoutUnknowns) {
     return jacksonExpectedAfterTrip(FAMILY, name, record, withoutUnknowns)
-        .expectedAfterTrip(proto3Json, withoutUnknowns)
-        .notApplicable(avroJson, UNKNOWN_FIELDS_NOT_IN_AVRO)
-        .notApplicable(avroBinary, UNKNOWN_FIELDS_NOT_IN_AVRO);
-  }
-
-  private GoldenCase.Builder withoutAvro(GoldenCase.Builder builder) {
-    return builder
-        .notApplicable(avroJson, ABSENT_MESSAGE_NOT_IN_AVRO)
-        .notApplicable(avroBinary, ABSENT_MESSAGE_NOT_IN_AVRO);
+        .expectedAfterTrip(proto3Json, withoutUnknowns);
   }
 
   private static byte[] encode(Compat record) {

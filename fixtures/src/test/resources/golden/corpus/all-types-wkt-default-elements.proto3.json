@@ -1,0 +1,8 @@
+{
+  "repeatedDuration": ["0s", "1s"],
+  "repeatedTimestamp": ["1970-01-01T00:00:00Z", "1970-01-01T00:00:01Z"],
+  "repeatedFieldmask": ["", "a"],
+  "repeatedEmpty": [{
+  }, {
+  }]
+}

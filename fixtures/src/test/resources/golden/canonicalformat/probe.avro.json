@@ -1,0 +1,27 @@
+{
+  "i32" : -42,
+  "i64" : 9007199254740993,
+  "u64" : 9223372036854775807,
+  "s32" : -1,
+  "f64" : 7,
+  "flt" : 0.5,
+  "dbl" : 0.1,
+  "flag" : true,
+  "text" : "say \"hi\" \\ é A",
+  "blob" : "\u0001ÿ",
+  "kind" : "ALPHA",
+  "item" : {
+    "bijnagte.recordbuf.fixture.canonicalformat.ItemAvro" : {
+      "id" : 5,
+      "label" : "nested",
+      "unknownFields" : [ ]
+    }
+  },
+  "tags" : [ "a", "b" ],
+  "attrs" : {
+    "a" : 2,
+    "m" : 3,
+    "z" : 1
+  },
+  "unknownFields" : [ ]
+}

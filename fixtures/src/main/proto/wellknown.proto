@@ -46,7 +46,5 @@ message Sample {
   google.protobuf.Empty empty = 11;
 
   // Repeated structured WKT (a List of Instant).
-  // GAP(repeated-wkt-default-element): the generated encoder drops a repeated Timestamp element
-  // equal to the default (Instant.EPOCH), which protobuf-java writes.
   repeated google.protobuf.Timestamp whens = 12;
 }

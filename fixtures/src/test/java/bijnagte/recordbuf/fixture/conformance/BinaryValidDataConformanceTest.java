@@ -923,53 +923,8 @@ class BinaryValidDataConformanceTest {
 
   private static Map<String, String> knownGaps() {
     Map<String, String> gaps = new LinkedHashMap<>();
-    for (ScalarType type : SCALAR_TYPES) {
-      if (!type.packable()) {
-        continue;
-      }
-      String prefix = "ValidDataRepeated." + type.name();
-      if (type.name().equals("ENUM")) {
-        // Repeated enums are written unpacked and read unpacked only: every scenario whose input
-        // is packed fails to decode, and every one that must write packed fails on bytes.
-        for (String suffix :
-            List.of(
-                ".PackedInput",
-                ".PackedInput.DefaultOutput",
-                ".PackedInput.PackedOutput",
-                ".PackedInput.UnpackedOutput",
-                ".UnpackedInput.DefaultOutput",
-                ".UnpackedInput.PackedOutput")) {
-          gaps.put(prefix + suffix, "repeated-enum-unpacked-only");
-        }
-        continue;
-      }
-      // The decoder of a repeated scalar only reads the packed form.
-      for (String suffix :
-          List.of(
-              ".UnpackedInput", ".UnpackedInput.DefaultOutput", ".UnpackedInput.PackedOutput")) {
-        gaps.put(prefix + suffix, "packed-decode-unpacked-input");
-      }
-      // The generator treats [packed = false] as packed, in both directions.
-      for (String suffix :
-          List.of(".UnpackedInput.UnpackedOutput", ".PackedInput.UnpackedOutput")) {
-        gaps.put(prefix + suffix, "packed-false-ignored");
-      }
-    }
-    // A uint32 above Integer.MAX_VALUE is written as a ten-byte varint, so a scenario that
-    // compares wire bytes fails whenever its table holds one.
-    for (int i : List.of(4, 7, 8)) {
-      gaps.put("ValidDataScalarBinary.UINT32[" + i + "]", "uint32-negative-carrier-wire");
-    }
-    gaps.put("ValidDataRepeated.UINT32.PackedInput.DefaultOutput", "uint32-negative-carrier-wire");
-    gaps.put("ValidDataRepeated.UINT32.PackedInput.PackedOutput", "uint32-negative-carrier-wire");
-    // A decoded singular enum is non-null even at its default, and a non-null enum is written.
-    gaps.put("ValidDataScalarBinary.ENUM[0]", "enum-default-value-written");
     // The second occurrence of NestedMessage.corecursive replaces the first, so the merge fails.
     gaps.put("RepeatedScalarMessageMerge", "message-field-not-merged");
-    // The message values of the two entries carry an unpacked repeated int32 (field 31) inside
-    // NestedMessage.corecursive, which the packed-only decoder cannot read. The overwrite itself
-    // works: a later entry for a key replaces the earlier one.
-    gaps.put("ValidDataMap.STRING.MESSAGE.MergeValue", "packed-decode-unpacked-input");
     return Map.copyOf(gaps);
   }
 

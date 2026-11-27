@@ -32,12 +32,6 @@ public final class JacksonRoundTripCases extends JacksonGoldenCases {
   /** The golden family directory of every case here. */
   public static final String FAMILY = "jackson-roundtrip";
 
-  private static final String EPOCH_ELEMENT_NOT_WRITTEN =
-      "the record holds a repeated Timestamp element equal to the default (Instant.EPOCH), which the"
-          + " generated encoder does not write while protobuf-java does (gap"
-          + " repeated-wkt-default-element), so its protobuf binary golden would not be"
-          + " protobuf-java's bytes";
-
   private static final JsonMapper NODES = new JsonMapper();
 
   /** The timestamp every sample here uses: a whole number of milliseconds. */
@@ -49,9 +43,7 @@ public final class JacksonRoundTripCases extends JacksonGoldenCases {
         build(jacksonLossless(FAMILY, "full", full())),
         fullWithExtrasCase(),
         build(jacksonLossless(FAMILY, "bytes-sample", bytesSample())),
-        build(
-            jacksonLossless(FAMILY, "wellknown-sample", wellKnownSample())
-                .notApplicable(protobufBinary, EPOCH_ELEMENT_NOT_WRITTEN)),
+        build(jacksonLossless(FAMILY, "wellknown-sample", wellKnownSample())),
         build(jacksonLossless(FAMILY, "wellknown-sparse", wellKnownSparse())));
   }
 

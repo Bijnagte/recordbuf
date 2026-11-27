@@ -1,5 +1,7 @@
 {
-  "opt_kind" : "KIND_ZERO",
+  "opt_kind" : {
+    "string" : "KIND_ZERO"
+  },
   "plain_kind" : "BETA",
   "n" : 5,
   "unknownFields" : [ ]

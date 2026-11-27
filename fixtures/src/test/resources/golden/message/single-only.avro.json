@@ -1,0 +1,11 @@
+{
+  "single" : {
+    "bijnagte.recordbuf.fixture.message.ItemAvro" : {
+      "id" : 7,
+      "name" : "seven",
+      "unknownFields" : [ ]
+    }
+  },
+  "items" : [ ],
+  "unknownFields" : [ ]
+}

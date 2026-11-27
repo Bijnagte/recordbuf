@@ -31,8 +31,6 @@ message Sample {
     fixed64 f = 6;
     sfixed32 g = 7;
     sfixed64 h = 8;
-    // GAP(float-negative-zero-skipped): the generated encoder compares with `!= 0.0`, which is
-    // false for -0.0, so it writes nothing for a field protobuf-java writes (it compares bits).
     double  i = 9;
     float   j = 10;
     sint32  k = 11;

@@ -23,8 +23,6 @@ message Item {
 // the length-delimited tag + nested encode/decode (writeMessage/readMessage) is
 // covered end to end: a singular message (present iff set; omitted when null) and
 // a repeated message (zero-or-more nested messages, each length-delimited).
-// GAP(avro-first-message-only): the Avro surface is generated for the first top-level message of a
-// file (Item here) and the messages it references, so Sample has no Avro schema or converter.
 message Sample {
     Item single = 1;
     repeated Item items = 2;

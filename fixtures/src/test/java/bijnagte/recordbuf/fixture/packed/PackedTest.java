@@ -10,7 +10,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
@@ -24,8 +23,7 @@ import org.junit.jupiter.api.TestFactory;
  * <p>One structural test stays outside the matrix: a protobuf parser must accept a packed field
  * written unpacked (one tag per element), and that wire form is decode input only. It cannot be a
  * golden, because the protobuf binary golden is protobuf-java's own canonical (packed) encoding,
- * and the protobuf binary adapter's oracle check would reject it. That test is disabled while gap
- * {@code packed-decode-unpacked-input} is open: the generated decoder reads the packed form only.
+ * and the protobuf binary adapter's oracle check would reject it.
  */
 class PackedTest {
 
@@ -40,7 +38,6 @@ class PackedTest {
    * An {@code int32} list written unpacked, one varint tag per element, decodes to the same record
    * as protobuf-java's parse of the same bytes.
    */
-  @Disabled("gap packed-decode-unpacked-input: the generated decoder reads the packed form only")
   @Test
   void unpackedInput_decodesIntoThePackedField() throws Exception {
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();

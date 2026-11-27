@@ -1,9 +1,13 @@
 {
   "id" : 7,
-  "note" : "hello <tag> & friends",
+  "note" : {
+    "string" : "hello <tag> & friends"
+  },
   "payload" : {
-    "body" : "body",
-    "unknownFields" : [ ]
+    "bijnagte.recordbuf.fixture.annotations.PayloadAvro" : {
+      "body" : "body",
+      "unknownFields" : [ ]
+    }
   },
   "tags" : {
     "j" : -2,

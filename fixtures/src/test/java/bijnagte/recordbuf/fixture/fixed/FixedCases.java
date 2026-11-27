@@ -18,20 +18,13 @@ public final class FixedCases extends JacksonGoldenCases {
   /** The golden family directory of every case here. */
   public static final String FAMILY = "fixed";
 
-  private static final String NEGATIVE_ZERO_NOT_WRITTEN =
-      "the record holds -0.0, which the generated encoder skips as the default (gap"
-          + " float-negative-zero-skipped) while protobuf-java writes it, so its protobuf binary"
-          + " golden would not be protobuf-java's bytes";
-
   @Override
   public List<GoldenCase> cases() {
     return List.of(
         build(jacksonLossless(FAMILY, "mixed-values", mixedValues())),
         build(jacksonLossless(FAMILY, "all-default", Sample.builder().build())),
         build(jacksonLossless(FAMILY, "signed-extremes", signedExtremes())),
-        build(
-            jacksonLossless(FAMILY, "negative-zero", negativeZero())
-                .notApplicable(protobufBinary, NEGATIVE_ZERO_NOT_WRITTEN)));
+        build(jacksonLossless(FAMILY, "negative-zero", negativeZero())));
   }
 
   /** Every field non-default: the value {@code FixedTest} asserted on. */

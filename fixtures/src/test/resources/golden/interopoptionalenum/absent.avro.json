@@ -1,5 +1,5 @@
 {
-  "opt_kind" : "KIND_ZERO",
+  "opt_kind" : null,
   "plain_kind" : "ALPHA",
   "n" : 5,
   "unknownFields" : [ ]

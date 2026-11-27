@@ -8,47 +8,55 @@
           "label" : "leaf",
           "child" : null,
           "a" : {
-            "n" : 3,
-            "b" : null,
-            "unknownFields" : [ ]
+            "bijnagte.recordbuf.fixture.avrorecursive.AAvro" : {
+              "n" : 3,
+              "b" : null,
+              "unknownFields" : [ ]
+            }
           },
           "kids" : [ ],
           "unknownFields" : [ ]
         }
       },
       "a" : {
-        "n" : 2,
-        "b" : null,
-        "unknownFields" : [ ]
+        "bijnagte.recordbuf.fixture.avrorecursive.AAvro" : {
+          "n" : 2,
+          "b" : null,
+          "unknownFields" : [ ]
+        }
       },
       "kids" : [ ],
       "unknownFields" : [ ]
     }
   },
   "a" : {
-    "n" : 1,
-    "b" : {
-      "bijnagte.recordbuf.fixture.avrorecursive.BAvro" : {
-        "s" : "b",
-        "a" : {
-          "bijnagte.recordbuf.fixture.avrorecursive.AAvro" : {
-            "n" : 4,
-            "b" : null,
-            "unknownFields" : [ ]
-          }
-        },
-        "unknownFields" : [ ]
-      }
-    },
-    "unknownFields" : [ ]
+    "bijnagte.recordbuf.fixture.avrorecursive.AAvro" : {
+      "n" : 1,
+      "b" : {
+        "bijnagte.recordbuf.fixture.avrorecursive.BAvro" : {
+          "s" : "b",
+          "a" : {
+            "bijnagte.recordbuf.fixture.avrorecursive.AAvro" : {
+              "n" : 4,
+              "b" : null,
+              "unknownFields" : [ ]
+            }
+          },
+          "unknownFields" : [ ]
+        }
+      },
+      "unknownFields" : [ ]
+    }
   },
   "kids" : [ {
     "label" : "kid",
     "child" : null,
     "a" : {
-      "n" : 5,
-      "b" : null,
-      "unknownFields" : [ ]
+      "bijnagte.recordbuf.fixture.avrorecursive.AAvro" : {
+        "n" : 5,
+        "b" : null,
+        "unknownFields" : [ ]
+      }
     },
     "kids" : [ ],
     "unknownFields" : [ ]

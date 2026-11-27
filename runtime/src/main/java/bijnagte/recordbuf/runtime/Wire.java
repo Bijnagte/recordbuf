@@ -2,6 +2,7 @@ package bijnagte.recordbuf.runtime;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.WireFormat;
 import java.io.IOException;
 
@@ -15,9 +16,23 @@ public final class Wire {
 
   private Wire() {}
 
-  /** Read the next wire tag (0 at end-of-stream — the {@code isAtEnd} break). */
+  /**
+   * Read the next wire tag (0 at end-of-stream — the {@code isAtEnd} break). A tag whose wire type
+   * is 6 or 7 is undefined, so it is rejected here, as protobuf-java does, instead of being read as
+   * whatever type its field number declares.
+   */
   public static int readTag(CodedInputStream in) throws IOException {
-    return in.readTag();
+    int tag = in.readTag();
+    int wireType = WireFormat.getTagWireType(tag);
+    if (wireType > WireFormat.WIRETYPE_FIXED32) {
+      throw new InvalidProtocolBufferException("Protocol message tag had invalid wire type.");
+    }
+    return tag;
+  }
+
+  /** The wire type of a wire tag: 2 is a length-delimited (packed) group. */
+  public static int tagWireType(int tag) {
+    return WireFormat.getTagWireType(tag);
   }
 
   /** The field number encoded in a wire tag. */

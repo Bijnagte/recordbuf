@@ -16,10 +16,9 @@ import java.util.Map;
  * that test asserted on, with the optional string, the nested message and the map all set, and
  * {@code all-default} the one it also asserted on, which encodes to zero bytes.
  *
- * <p>{@code all-default} has no Avro golden: the absent optional string and the absent nested
- * message cannot be written to Avro. The proto has no protobuf-java {@code Interop}, so there is no
- * proto3 JSON golden. The Javadoc and {@code @Deprecated} emission itself is a property of the
- * generated source, not of its data, and no golden can pin it.
+ * <p>The proto has no protobuf-java {@code Interop}, so there is no proto3 JSON golden. The Javadoc
+ * and {@code @Deprecated} emission itself is a property of the generated source, not of its data,
+ * and no golden can pin it.
  */
 // The record's builder methods for the @Deprecated components (note, tags) are themselves
 // deprecated; the cases must call them.
@@ -29,19 +28,11 @@ public final class AnnotationsCases extends JacksonGoldenCases {
   /** The golden family directory of every case here. */
   public static final String FAMILY = "annotations";
 
-  private static final String ABSENT_NOT_IN_AVRO =
-      "note (optional string) and payload (singular message) are absent (null), and the Avro schema"
-          + " declares both non-nullable, so the converter cannot write the record to Avro (gaps"
-          + " optional-avro-presence and avro-absent-singular-message)";
-
   @Override
   public List<GoldenCase> cases() {
     return List.of(
         build(jacksonLossless(FAMILY, "populated", populated())),
-        build(
-            jacksonLossless(FAMILY, "all-default", Sample.builder().build())
-                .notApplicable(avroJson, ABSENT_NOT_IN_AVRO)
-                .notApplicable(avroBinary, ABSENT_NOT_IN_AVRO)));
+        build(jacksonLossless(FAMILY, "all-default", Sample.builder().build())));
   }
 
   /** Every kind of component set: the value {@code AnnotationsTest} asserted on. */
