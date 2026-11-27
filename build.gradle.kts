@@ -24,6 +24,8 @@
 // (libs.plugins.spotless) without applying it to this aggregating root, which has
 // no Java source set of its own.
 plugins {
+    // `base` gives this aggregating root a `check` lifecycle task, which hooks up the sample below.
+    base
     alias(libs.plugins.spotless) apply false
 }
 
@@ -230,4 +232,19 @@ subprojects {
             options.compilerArgs.addAll(listOf("-Xlint:deprecation,unchecked", "-Werror"))
         }
     }
+}
+
+// The pet store sample (samples/petstore) is a standalone build that includes THIS build to pick up
+// the in-repo generator and runtime (its settings.gradle.kts has `includeBuild("../..")`). Gradle
+// does not allow the reverse include as well, so the sample is not part of this build; `check` runs
+// it as a separate Gradle invocation instead. A change here that breaks the sample fails the build.
+val petstoreSample by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Builds and tests samples/petstore against the generator and runtime in this repo."
+    workingDir = layout.projectDirectory.dir("samples/petstore").asFile
+    commandLine("./gradlew", "build", "--console=plain")
+}
+
+tasks.named("check") {
+    dependsOn(petstoreSample)
 }

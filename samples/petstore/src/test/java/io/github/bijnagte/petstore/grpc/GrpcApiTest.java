@@ -202,7 +202,7 @@ class GrpcApiTest {
     withExtra[newer.length + 1] = 0x06;
     withExtra[newer.length + 2] = 0x07;
     Pet fromNewerClient = Pet.fromBytes(withExtra);
-    assertFalse(fromNewerClient.unknownFields().toString().isEmpty());
+    assertFalse(fromNewerClient.unknownFields().isEmpty());
 
     GrpcClients.call(channel, PetStoreMethods.UPDATE_PET, fromNewerClient);
 
