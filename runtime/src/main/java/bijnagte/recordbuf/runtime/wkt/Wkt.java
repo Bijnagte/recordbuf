@@ -3,11 +3,11 @@ package bijnagte.recordbuf.runtime.wkt;
 import bijnagte.recordbuf.runtime.Bytes;
 import bijnagte.recordbuf.runtime.Decoder;
 import bijnagte.recordbuf.runtime.Empty;
-import bijnagte.recordbuf.runtime.Encoder;
 import bijnagte.recordbuf.runtime.FieldMask;
 import bijnagte.recordbuf.runtime.Wire;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
@@ -59,15 +59,15 @@ public final class Wkt {
   /**
    * Encode a {@code google.protobuf.Timestamp} value ({@link Instant}) to its inner-frame content.
    */
-  @SuppressWarnings("deprecation")
   public static byte[] timestamp(Instant v) throws IOException {
-    Encoder e = Encoder.start();
-    CodedOutputStream out = e.out();
+    ByteArrayOutputStream e = new ByteArrayOutputStream();
+    CodedOutputStream out = CodedOutputStream.newInstance(e);
     long seconds = v.getEpochSecond();
     int nanos = v.getNano();
     if (seconds != 0L) out.writeInt64(1, seconds);
     if (nanos != 0) out.writeInt32(2, nanos);
-    return e.finish();
+    out.flush();
+    return e.toByteArray();
   }
 
   /**
@@ -124,14 +124,14 @@ public final class Wkt {
   // ---- FieldMask --------------------------------------------------------------
 
   /** Encode a {@code google.protobuf.FieldMask} ({@link FieldMask}) to its inner-frame content. */
-  @SuppressWarnings("deprecation")
   public static byte[] fieldMask(FieldMask v) throws IOException {
-    Encoder e = Encoder.start();
-    CodedOutputStream out = e.out();
+    ByteArrayOutputStream e = new ByteArrayOutputStream();
+    CodedOutputStream out = CodedOutputStream.newInstance(e);
     for (String path : v.paths()) {
       if (!path.isEmpty()) out.writeString(1, path);
     }
-    return e.finish();
+    out.flush();
+    return e.toByteArray();
   }
 
   /**
@@ -178,10 +178,9 @@ public final class Wkt {
    * equals the proto3 default (so a present-but-default wrapper encodes to an empty frame, as
    * protobuf-java does).
    */
-  @SuppressWarnings("deprecation")
   public static byte[] wrap(Wrap wire, Object value) throws IOException {
-    Encoder e = Encoder.start();
-    CodedOutputStream out = e.out();
+    ByteArrayOutputStream e = new ByteArrayOutputStream();
+    CodedOutputStream out = CodedOutputStream.newInstance(e);
     switch (wire) {
       case INT32, UINT32 -> {
         int v = (int) value;
@@ -228,7 +227,8 @@ public final class Wkt {
         if (!v.isEmpty()) out.writeByteArray(1, v.toByteArray());
       }
     }
-    return e.finish();
+    out.flush();
+    return e.toByteArray();
   }
 
   /**
@@ -277,13 +277,13 @@ public final class Wkt {
 
   // ---- shared seconds/nanos framing ------------------------------------------
 
-  @SuppressWarnings("deprecation")
   private static byte[] secondsNanosFrame(long seconds, int nanos) throws IOException {
-    Encoder e = Encoder.start();
-    CodedOutputStream out = e.out();
+    ByteArrayOutputStream e = new ByteArrayOutputStream();
+    CodedOutputStream out = CodedOutputStream.newInstance(e);
     if (seconds != 0L) out.writeInt64(1, seconds);
     if (nanos != 0) out.writeInt32(2, nanos);
-    return e.finish();
+    out.flush();
+    return e.toByteArray();
   }
 
   private static long[] readSecondsNanos(byte[] content) {

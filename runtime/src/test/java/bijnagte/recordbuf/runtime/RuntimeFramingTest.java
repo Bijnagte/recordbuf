@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.CodedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,15 +21,12 @@ import org.junit.jupiter.api.Test;
 class RuntimeFramingTest {
 
   /**
-   * Encode scaffolding: a field written through {@link Encoder} is read back through {@link
-   * Decoder} byte-for-byte, with the tag/skip primitives intact.
+   * Encode scaffolding: a field written through a {@link CodedOutputStream} is read back through
+   * {@link Decoder} byte-for-byte, with the tag/skip primitives intact.
    */
-  @SuppressWarnings("deprecation")
   @Test
   void encodeDecodeRoundTripsRepresentativeValue() throws Exception {
-    Encoder enc = Encoder.start();
-    enc.out().writeInt32(1, 42);
-    byte[] encoded = enc.finish();
+    byte[] encoded = bytes(o -> o.writeInt32(1, 42));
 
     CodedInputStream in = Decoder.start(encoded).in();
     int tag = Wire.readTag(in);
@@ -40,13 +39,14 @@ class RuntimeFramingTest {
    * Packed buffer/drain: a populated no-tag sequence frames and drains to the exact values; an
    * empty sequence frames a 0-length group that drains nothing.
    */
-  @SuppressWarnings("deprecation")
   @Test
   void packedBufferFrameAndDrainRoundTrips() throws Exception {
-    Encoder body = Encoder.start();
-    var o = body.out();
-    for (int x : new int[] {1, 2, 3}) o.writeInt32NoTag(x);
-    byte[] framed = frame(7, body.finish());
+    byte[] framed =
+        frame(
+            7,
+            bytes(o -> {
+              for (int x : new int[] {1, 2, 3}) o.writeInt32NoTag(x);
+            }));
 
     CodedInputStream in = Decoder.start(framed).in();
     Wire.readTag(in);
@@ -57,7 +57,7 @@ class RuntimeFramingTest {
     assertEquals(List.of(1, 2, 3), got);
 
     // An empty sequence drains to nothing.
-    byte[] emptyFramed = frame(7, Encoder.start().finish());
+    byte[] emptyFramed = frame(7, new byte[0]);
     CodedInputStream e = Decoder.start(emptyFramed).in();
     Wire.readTag(e);
     int elim = e.pushLimit(e.readRawVarint32());
@@ -71,11 +71,20 @@ class RuntimeFramingTest {
   }
 
   /** Frame a tight value body as one length-delimited group (tag + raw bytes). */
-  @SuppressWarnings("deprecation")
   private static byte[] frame(int num, byte[] body) throws IOException {
-    Encoder enc = Encoder.start();
-    enc.out().writeByteArray(num, body);
-    return enc.finish();
+    return bytes(o -> o.writeByteArray(num, body));
+  }
+
+  private interface Body {
+    void write(CodedOutputStream out) throws IOException;
+  }
+
+  private static byte[] bytes(Body body) throws IOException {
+    var bos = new ByteArrayOutputStream();
+    var out = CodedOutputStream.newInstance(bos);
+    body.write(out);
+    out.flush();
+    return bos.toByteArray();
   }
 
   /**

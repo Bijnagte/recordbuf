@@ -414,7 +414,7 @@ repo root. The root `build.gradle.kts` is an aggregator that also applies the sh
 |---|---|---|
 | `generator/` | `:recordbuf-generator` | The plugin (`bijnagte.recordbuf.plugin.Main`). `model/` (proto model records), `types/` (type and WKT mapping), `writer/` (source mappings), `bridge/` (Avro bridge). `com/google/protobuf/compiler/` holds the protoc plugin-protocol shim, which is protocol glue and should not be refactored. |
 | `codegen/` | `:recordbuf-codegen` | Generator-only, dependency-free Java source AST + `SourceRenderer` (import collection, Javadoc, formatting SPI). |
-| `runtime/` | `:recordbuf-runtime` | What generated code calls: `Decoder`/`Wire` framing (`Encoder` is deprecated), `UnknownFields`, `ProtobufMessage`, `ProtobufMarshaller`, `Bytes`, `FieldMask`, `Empty`, `wkt.Wkt`. |
+| `runtime/` | `:recordbuf-runtime` | What generated code calls: `Decoder`/`Wire` framing, `UnknownFields`, `ProtobufMessage`, `ProtobufMarshaller`, `Bytes`, `FieldMask`, `Empty`, `wkt.Wkt`. |
 | `json/` | `:recordbuf-json` | Jackson support: temporal / bytes / `FieldMask` / `Empty` (de)serializers, oneof reading, dynamic WKT bridging, the JSON envelope. |
 | `avro/` | `:recordbuf-avro` | Avro runtime support: WKT ↔ Avro conversions (`WktAvroBridge`). |
 | `options/` | `:recordbuf-options` | `recordbuf_options.proto`, consumed as a protoc `-I` include, not as a Gradle dependency. |
