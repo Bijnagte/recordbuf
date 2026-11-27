@@ -145,7 +145,7 @@ public final class Wkt {
         int tag = Wire.readTag(in);
         if (tag == 0) break;
         switch (Wire.tagFieldNumber(tag)) {
-          case 1 -> paths.add(in.readString());
+          case 1 -> paths.add(in.readStringRequireUtf8());
           default -> Wire.skip(in, tag);
         }
       }
@@ -254,7 +254,7 @@ public final class Wkt {
             case FLOAT -> in.readFloat();
             case DOUBLE -> in.readDouble();
             case BOOL -> in.readBool();
-            case STRING -> in.readString();
+            case STRING -> in.readStringRequireUtf8();
             case BYTES -> Bytes.of(in.readByteArray());
           };
         }

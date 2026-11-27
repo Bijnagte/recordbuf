@@ -442,18 +442,6 @@ class BinaryMalformedConformanceTest {
 
   private static Map<String, String> knownGaps() {
     Map<String, String> gaps = new LinkedHashMap<>();
-    // CodedInputStream.readTag drops the bytes of a tag varint beyond 32 bits.
-    for (String name :
-        List.of(
-            "BadTag_FieldNumberTooHigh",
-            "BadTag_FieldNumberSlightlyTooHigh",
-            "BadTag_OverlongVarint")) {
-      gaps.put(name, "tag-varint-truncated-accepted");
-    }
-    // CodedInputStream.readString replaces invalid UTF-8 instead of rejecting it.
-    for (String suffix : List.of("Singular", "Repeated", "MapKey", "MapValue", "Oneof")) {
-      gaps.put("RejectInvalidUtf8.String." + suffix, "invalid-utf8-accepted");
-    }
     return Map.copyOf(gaps);
   }
 

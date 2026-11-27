@@ -34,8 +34,8 @@
 //      time, each with a `// GAP(<id>): <reason>` line above it and a matching row in
 //      fixtures/src/test/resources/golden/gap-ledger.md. Commenting a field out leaves its field
 //      number free, so a payload that carries it still round-trips as an unknown field.
-//      A gap that does not stop generation (`singular-wkt-default-present`, `invalid-utf8-accepted`,
-//      `tag-varint-truncated-accepted`, `message-field-not-merged`) keeps
+//      A gap that does not stop generation (`singular-wkt-default-present`,
+//      `enum-unknown-number-map-value`, `message-field-not-merged`) keeps
 //      its fields active and carries only the marker comment above one representative field.
 // -----------------------------------------------------------------------------
 
@@ -99,7 +99,6 @@ message TestAllTypesProto3 {
   // Singular
   // test [kotlin] comment
   int32 optional_int32 = 1;
-  // GAP(tag-varint-truncated-accepted): the decoder reads each tag with CodedInputStream.readTag, which drops the bytes of a tag varint beyond 32 bits, so an over-long or out-of-range tag is accepted; the field generates fine and stays active.
   int64 optional_int64 = 2;
   uint32 optional_uint32 = 3;
   uint64 optional_uint64 = 4;
@@ -112,7 +111,6 @@ message TestAllTypesProto3 {
   float optional_float = 11;
   double optional_double = 12;
   bool optional_bool = 13;
-  // GAP(invalid-utf8-accepted): the decoder reads a string with CodedInputStream.readString, which replaces invalid UTF-8 instead of rejecting it; the field generates fine and stays active.
   string optional_string = 14;
   bytes optional_bytes = 15;
 
@@ -120,7 +118,6 @@ message TestAllTypesProto3 {
   NestedMessage optional_nested_message = 18;
   ForeignMessage optional_foreign_message = 19;
 
-  // GAP(enum-unknown-number-default): a number no constant has decodes to the first constant (FOO), so the value is lost; the field generates fine and stays active.
   NestedEnum optional_nested_enum = 21;
   ForeignEnum optional_foreign_enum = 22;
   AliasedEnum optional_aliased_enum = 23;
@@ -206,6 +203,7 @@ message TestAllTypesProto3 {
   map<string, bytes> map_string_bytes = 70;
   map<string, NestedMessage> map_string_nested_message = 71;
   map<string, ForeignMessage> map_string_foreign_message = 72;
+  // GAP(enum-unknown-number-map-value): a map value holding a number no constant has reads as the first constant, so the number is lost; the field generates fine and stays active.
   map<string, NestedEnum> map_string_nested_enum = 73;
   map<string, ForeignEnum> map_string_foreign_enum = 74;
 
@@ -247,7 +245,6 @@ message TestAllTypesProto3 {
   // GAP(singular-wkt-default-present): a present-but-default singular Duration, Timestamp, FieldMask or Empty is the unset value, so the encoder and Interop converter cannot write it; the field generates fine and stays active.
   google.protobuf.Duration optional_duration = 301;
   google.protobuf.Timestamp optional_timestamp = 302;
-  // GAP(field-mask-path-order): the runtime FieldMask keeps its paths sorted and de-duplicated, so the input order of the paths is lost; the field generates fine and stays active.
   google.protobuf.FieldMask optional_field_mask = 303;
   google.protobuf.Struct optional_struct = 304;
   google.protobuf.Any optional_any = 305;

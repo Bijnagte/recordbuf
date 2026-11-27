@@ -103,11 +103,32 @@ public final class InteropSourceMapping {
 
   private static Method emitFrom(Message m, TypeRef ref, TypeRef rec, boolean jackson) {
     var method = Method.named("from").public_().static_().returnType(rec).param(ref, "x");
+    if (hasEnumField(m)) {
+      method.body(Element.expr("var _unknown = @0.builder()", TypeRefs.UNKNOWN_FIELDS));
+    }
     for (Field f : m.fields()) {
       method.body(fromLocal(f));
+      if (f.kind() == FieldKind.ENUM && !f.isRepeated() && nativeWkt(f) == null && !f.isMap()) {
+        // The enum read as absent although the reference holds a number: no constant has it.
+        String cap = JavaNames.protobufJavaAccessor(f.name());
+        String held = f.isNullable() ? "x.has" + cap + "()" : "x.get" + cap + "Value() != 0";
+        method.body(
+            If.condition("_@0 == null && " + held, f.javaName())
+                .body(Element.expr("_unknown.addVarint(@0, x.get@1Value())", f.number(), cap))
+                .build());
+      }
     }
     for (Oneof o : m.oneofs()) {
       method.body(emitOneofFrom(o));
+      for (Field f : o.members()) {
+        if (f.kind() == FieldKind.ENUM && nativeWkt(f) == null) {
+          String cap = JavaNames.protobufJavaAccessor(f.name());
+          method.body(
+              If.condition("_@0 == null && x.has@1()", o.name(), cap)
+                  .body(Element.expr("_unknown.addVarint(@0, x.get@1Value())", f.number(), cap))
+                  .build());
+        }
+      }
     }
 
     List<Object> ctorArgs = new ArrayList<>();
@@ -125,7 +146,15 @@ public final class InteropSourceMapping {
           RawExpr.of(
               "null")); // bare null: the record's nullable jsonExtras component target-types it
     }
-    ctorArgs.add(RawExpr.of("@0.fromProto(x.getUnknownFields())", TypeRefs.UNKNOWN_FIELDS));
+    if (hasEnumField(m)) {
+      // An enum number no constant has rides the carrier as a varint.
+      ctorArgs.add(
+          RawExpr.of(
+              "@0.fromProto(x.getUnknownFields()).plus(_unknown.build())",
+              TypeRefs.UNKNOWN_FIELDS));
+    } else {
+      ctorArgs.add(RawExpr.of("@0.fromProto(x.getUnknownFields())", TypeRefs.UNKNOWN_FIELDS));
+    }
     return method.body(Element.ret("new @0(@1)", rec, CommaList.of(ctorArgs))).build();
   }
 
@@ -173,7 +202,18 @@ public final class InteropSourceMapping {
       return out;
     }
     if (f.kind() == FieldKind.ENUM && f.isRepeated()) {
-      return repeatedFrom(f, "x.get" + cap + "ValueList()");
+      // A number no constant has stays out of the list: it rides the carrier instead.
+      return List.of(
+          LocalVar.builder(f.type(), "_" + f.javaName())
+              .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST)),
+          For.enhanced("var _e", "x.get@0ValueList()", cap)
+              .body(
+                  Element.expr("var _v = @0.forNumberOrNull(_e)", elementType(f)),
+                  If.condition("_v != null")
+                      .body(Element.expr("_@0.add(_v)", f.javaName()))
+                      .else_(Element.expr("_unknown.addVarint(@0, _e)", f.number()))
+                      .build())
+              .build());
     }
     if (f.kind() == FieldKind.ENUM) {
       out.add(Element.expr("var _@0 = @1", f.javaName(), singularEnumFrom(f)));
@@ -293,11 +333,12 @@ public final class InteropSourceMapping {
    */
   private static Formattable singularEnumFrom(Field f) {
     String cap = JavaNames.protobufJavaAccessor(f.name());
+    // forNumberOrNull: a number no constant has reads as absent here and rides the carrier.
+    RawExpr known = RawExpr.of("@0.forNumberOrNull(x.get@1Value())", elementType(f), cap);
     if (f.isNullable()) {
-      return RawExpr.of("x.has@0() ? @1 : null", cap, valueFrom(f, "x.get" + cap + "Value()"));
+      return RawExpr.of("x.has@0() ? @1 : null", cap, known);
     }
-    return RawExpr.of(
-        "x.get@0Value() == 0 ? null : @1", cap, valueFrom(f, "x.get" + cap + "Value()"));
+    return RawExpr.of("x.get@0Value() == 0 ? null : @1", cap, known);
   }
 
   // -- to(record) -> reference --------------------------------------------------
@@ -316,13 +357,41 @@ public final class InteropSourceMapping {
     for (Oneof o : m.oneofs()) {
       method.body(emitOneofTo(o));
     }
+    String carrier = "r.unknownFields()";
+    if (hasEnumField(m)) {
+      // The enum numbers no constant has go back into their protobuf-java fields.
+      method.body(
+          Element.expr(
+              "var _unknown = @0.restore(_b, r.unknownFields())", TypeRefs.PROTOBUF_JAVA_ENUMS));
+      carrier = "_unknown";
+    }
     return method
         .body(
-            If.condition("!r.unknownFields().isEmpty()")
-                .body(Element.expr("_b.setUnknownFields(r.unknownFields().toProto())"))
+            If.condition("!" + carrier + ".isEmpty()")
+                .body(Element.expr("_b.setUnknownFields(" + carrier + ".toProto())"))
                 .build())
         .body(Element.ret("_b.build()"))
         .build();
+  }
+
+  /**
+   * Whether the message has an enum field, a repeated one or a oneof member, whose number can be
+   * unknown.
+   */
+  private static boolean hasEnumField(Message m) {
+    for (Field f : m.fields()) {
+      if (f.kind() == FieldKind.ENUM && nativeWkt(f) == null) {
+        return true;
+      }
+    }
+    for (Oneof o : m.oneofs()) {
+      for (Field f : o.members()) {
+        if (f.kind() == FieldKind.ENUM && nativeWkt(f) == null) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   private static Element toStmt(Field f) {
@@ -496,9 +565,14 @@ public final class InteropSourceMapping {
     for (Field f : o.members()) {
       String cap = JavaNames.protobufJavaAccessor(f.name());
       String read = f.kind() == FieldKind.ENUM ? "x.get" + cap + "Value()" : "x.get" + cap + "()";
-      sw.caseArm(
-          JavaNames.snakeUpper(f.name()),
-          RawExpr.of("new @0.@1(@2)", o.ifaceName(), Oneof.valueRecordName(f), valueFrom(f, read)));
+      RawExpr member =
+          RawExpr.of("new @0.@1(@2)", o.ifaceName(), Oneof.valueRecordName(f), valueFrom(f, read));
+      if (f.kind() == FieldKind.ENUM && nativeWkt(f) == null) {
+        // A number no constant has leaves the oneof unset and rides the carrier.
+        member =
+            RawExpr.of("@0.forNumberOrNull(@1) == null ? null : @2", elementType(f), read, member);
+      }
+      sw.caseArm(JavaNames.snakeUpper(f.name()), member);
     }
     sw.defaultArm(RawExpr.of("null"));
     return LocalVar.builder(TypeRef.of(o.ifaceName()), "_" + o.name())

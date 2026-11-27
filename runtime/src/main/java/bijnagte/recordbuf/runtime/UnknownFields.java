@@ -119,6 +119,24 @@ public final class UnknownFields {
   }
 
   /**
+   * This carrier followed by {@code other}'s fields.
+   *
+   * @param other the fields to append
+   * @return this carrier when {@code other} is empty, else the combined carrier
+   */
+  public UnknownFields plus(UnknownFields other) {
+    if (other.isEmpty()) {
+      return this;
+    }
+    if (isEmpty()) {
+      return other;
+    }
+    List<UnknownField> all = new ArrayList<>(fields);
+    all.addAll(other.fields);
+    return new UnknownFields(List.copyOf(all));
+  }
+
+  /**
    * Whether this carrier holds nothing to re-emit.
    *
    * @return {@code true} when this carrier holds nothing to re-emit.
@@ -286,6 +304,37 @@ public final class UnknownFields {
         fields = new ArrayList<>(2);
       }
       fields.add(new UnknownField(fieldNumber, wireType, value));
+      return this;
+    }
+
+    /**
+     * Append a field that was already captured.
+     *
+     * @param field the field
+     * @return this builder, for chaining
+     */
+    public Builder add(UnknownField field) {
+      if (fields == null) {
+        fields = new ArrayList<>(2);
+      }
+      fields.add(field);
+      return this;
+    }
+
+    /**
+     * Capture a varint field that was already read, as the decode loop does for an enum number no
+     * constant has: the field is kept so it re-emits on encode, as a proto2 parser keeps an unknown
+     * enum value.
+     *
+     * @param fieldNumber the field number
+     * @param value the varint value; a negative {@code int} enum number is passed sign-extended
+     * @return this builder, for chaining
+     */
+    public Builder addVarint(int fieldNumber, long value) {
+      if (fields == null) {
+        fields = new ArrayList<>(2);
+      }
+      fields.add(new UnknownField(fieldNumber, WireType.I32, varint64Bytes(value)));
       return this;
     }
 

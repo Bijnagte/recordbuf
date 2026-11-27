@@ -96,7 +96,7 @@ public final class JacksonRoundTripCases extends JacksonGoldenCases {
     return bijnagte.recordbuf.fixture.wellknown.rec.Sample.builder()
         .at(AT)
         .span(Duration.ofMillis(-1500))
-        .mask(FieldMask.of("user.display_name", "id"))
+        .mask(FieldMask.of("id", "user.display_name"))
         .i32(7)
         .i64(-8L)
         .dbl(1.5)
