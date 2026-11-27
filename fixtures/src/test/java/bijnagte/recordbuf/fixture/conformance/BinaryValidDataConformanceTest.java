@@ -923,8 +923,6 @@ class BinaryValidDataConformanceTest {
 
   private static Map<String, String> knownGaps() {
     Map<String, String> gaps = new LinkedHashMap<>();
-    // The second occurrence of NestedMessage.corecursive replaces the first, so the merge fails.
-    gaps.put("RepeatedScalarMessageMerge", "message-field-not-merged");
     return Map.copyOf(gaps);
   }
 

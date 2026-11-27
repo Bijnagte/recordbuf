@@ -35,7 +35,7 @@
 //      fixtures/src/test/resources/golden/gap-ledger.md. Commenting a field out leaves its field
 //      number free, so a payload that carries it still round-trips as an unknown field.
 //      A gap that does not stop generation (`singular-wkt-default-present`,
-//      `enum-unknown-number-map-value`, `message-field-not-merged`) keeps
+//      `enum-unknown-number-map-value`) keeps
 //      its fields active and carries only the marker comment above one representative field.
 // -----------------------------------------------------------------------------
 
@@ -114,7 +114,6 @@ message TestAllTypesProto3 {
   string optional_string = 14;
   bytes optional_bytes = 15;
 
-  // GAP(message-field-not-merged): the generated decoder replaces a message field that occurs again on the wire, instead of merging the second occurrence into the first (a oneof message arm behaves the same); the field generates fine and stays active.
   NestedMessage optional_nested_message = 18;
   ForeignMessage optional_foreign_message = 19;
 

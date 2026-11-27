@@ -103,6 +103,22 @@ public final class Wire {
     }
   }
 
+  /**
+   * The two byte arrays one after the other. Protobuf defines merging two serialized messages as
+   * parsing their concatenation, which is how a generated codec merges a message field that occurs
+   * again on the wire.
+   *
+   * @param first the bytes read first
+   * @param second the bytes read after them
+   * @return a new array holding both
+   */
+  public static byte[] concat(byte[] first, byte[] second) {
+    byte[] all = new byte[first.length + second.length];
+    System.arraycopy(first, 0, all, 0, first.length);
+    System.arraycopy(second, 0, all, first.length, second.length);
+    return all;
+  }
+
   /** The wire type of a wire tag: 2 is a length-delimited (packed) group. */
   public static int tagWireType(int tag) {
     return WireFormat.getTagWireType(tag);

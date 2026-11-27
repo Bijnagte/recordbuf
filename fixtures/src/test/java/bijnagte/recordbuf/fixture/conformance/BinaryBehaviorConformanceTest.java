@@ -568,14 +568,6 @@ class BinaryBehaviorConformanceTest {
 
   private static Map<String, String> knownGaps() {
     Map<String, String> gaps = new LinkedHashMap<>();
-    // The decoder replaces a message field that occurs again on the wire instead of merging.
-    for (String name :
-        List.of(
-            "ValidDataOneof.MESSAGE.Merge",
-            "ValidDataOneofBinary.MESSAGE.Merge",
-            "MergeSingularMessage")) {
-      gaps.put(name, "message-field-not-merged");
-    }
     return Map.copyOf(gaps);
   }
 
