@@ -75,6 +75,13 @@ subprojects {
             withSourcesJar()
             withJavadocJar()
         }
+        // doclint stays on for everything that breaks a javadoc (bad HTML, broken {@link}/{@code}, wrong tags,
+        // which fail the publish), but not its `missing` group: a missing @param/@return/comment is not a
+        // defect here (record components, accessors and default constructors are self-describing) and
+        // reported hundreds of warnings per build, capped at 100 per module so real ones could hide.
+        tasks.withType<Javadoc>().configureEach {
+            (options as StandardJavadocDocletOptions).addStringOption("Xdoclint:all,-missing", "-quiet")
+        }
         configure<PublishingExtension> {
             publications {
                 create<MavenPublication>("maven") {

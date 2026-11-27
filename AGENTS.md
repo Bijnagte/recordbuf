@@ -361,6 +361,8 @@ details. Rules:
   - CI needs `fetch-depth: 0` (changelog) and `branch = main` (the tag checkout is a detached HEAD).
 - **Javadoc must pass doclint** (the javadoc jar is part of publishing). Write `{@code X}` for classes that are not
   imported into the file. A `{@link}` to a missing class fails the publish.
+  Javadoc runs with `-Xdoclint:all,-missing` (root `build.gradle.kts`): everything that breaks a javadoc is still
+  checked, but a missing `@param`/`@return`/comment is not a warning (hundreds per module, capped at 100).
 - Verify locally with `./gradlew publishToMavenLocal` (every module into `~/.m2`) or
   `./gradlew -PreleaseVersion=0.1.1-test publishAllPublicationsToStagingRepository` (what the upload sends). To exercise the
   JReleaser side without uploading, dry-run it with a throwaway key: `JRELEASER_DRY_RUN=true JRELEASER_GPG_SECRET_KEY=... 
