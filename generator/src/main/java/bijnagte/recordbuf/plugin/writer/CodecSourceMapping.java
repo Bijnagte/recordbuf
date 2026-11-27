@@ -971,46 +971,31 @@ public final class CodecSourceMapping {
   }
 
   /**
-   * Size computation for a packed scalar body: fixed-size types use count * N, varint types sum
-   * per-element sizes.
+   * Size computation for a packed scalar body, as statements that declare {@code int bodySize}:
+   * fixed-size types use count * N, varint types sum per-element sizes.
    */
-  private static Element packedBodySizeExpr(WireScalar wire, String getter) {
+  private static List<Element> packedBodySizeExpr(WireScalar wire, String getter) {
     return switch (wire) {
-      case FIXED32, FLOAT -> Element.expr("int bodySize = @0.size() * 4", getter);
-      case FIXED64, DOUBLE -> Element.expr("int bodySize = @0.size() * 8", getter);
-      case BOOL -> Element.expr("int bodySize = @0.size()", getter);
-      case INT32 ->
-          Element.expr(
-              "int bodySize = 0; for (var _x : @0) bodySize += @1.computeInt32Size(1, _x) - 1;",
-              getter,
-              TypeRefs.CODED_OUTPUT_STREAM);
-      case UINT32 ->
-          Element.expr(
-              "int bodySize = 0; for (var _x : @0) bodySize += @1.computeUInt32SizeNoTag(_x);",
-              getter,
-              TypeRefs.CODED_OUTPUT_STREAM);
-      case SINT_32 ->
-          Element.expr(
-              "int bodySize = 0; for (var _x : @0) bodySize += @1.computeSInt32Size(1, _x) - 1;",
-              getter,
-              TypeRefs.CODED_OUTPUT_STREAM);
-      case INT64 ->
-          Element.expr(
-              "int bodySize = 0; for (var _x : @0) bodySize += @1.computeInt64Size(1, _x) - 1;",
-              getter,
-              TypeRefs.CODED_OUTPUT_STREAM);
-      case UINT64 ->
-          Element.expr(
-              "int bodySize = 0; for (var _x : @0) bodySize += @1.computeUInt64SizeNoTag(_x);",
-              getter,
-              TypeRefs.CODED_OUTPUT_STREAM);
-      case SINT_64 ->
-          Element.expr(
-              "int bodySize = 0; for (var _x : @0) bodySize += @1.computeUInt64SizeNoTag((_x << 1) ^ (_x >> 63));",
-              getter,
-              TypeRefs.CODED_OUTPUT_STREAM);
+      case FIXED32, FLOAT -> List.of(Element.expr("int bodySize = @0.size() * 4", getter));
+      case FIXED64, DOUBLE -> List.of(Element.expr("int bodySize = @0.size() * 8", getter));
+      case BOOL -> List.of(Element.expr("int bodySize = @0.size()", getter));
+      case INT32 -> summedBodySize(getter, "@0.computeInt32Size(1, _x) - 1");
+      case UINT32 -> summedBodySize(getter, "@0.computeUInt32SizeNoTag(_x)");
+      case SINT_32 -> summedBodySize(getter, "@0.computeSInt32Size(1, _x) - 1");
+      case INT64 -> summedBodySize(getter, "@0.computeInt64Size(1, _x) - 1");
+      case UINT64 -> summedBodySize(getter, "@0.computeUInt64SizeNoTag(_x)");
+      case SINT_64 -> summedBodySize(getter, "@0.computeUInt64SizeNoTag((_x << 1) ^ (_x >> 63))");
       default -> throw new IllegalStateException(wire + " is not a packed numeric type");
     };
+  }
+
+  /** {@code int bodySize = 0;} then a loop adding {@code perElement} (using {@code @0} = CIS). */
+  private static List<Element> summedBodySize(String getter, String perElement) {
+    return List.of(
+        Element.expr("int bodySize = 0"),
+        For.enhanced("var _x", getter)
+            .body(Element.expr("bodySize += " + perElement, TypeRefs.CODED_OUTPUT_STREAM))
+            .build());
   }
 
   /** The no-tag write primitive for a packed scalar's element (mirrors{@code CodecGenerator}). */
@@ -1076,16 +1061,13 @@ public final class CodecSourceMapping {
           .build();
     }
     // Packed scalar: emit one length-delimited group when the list is non-empty.
-    return If.condition("!@0.isEmpty()", getter)
-        .body(
-            packedBodySizeExpr(wire, getter),
-            Element.expr("byte[] bodyBuf = new byte[bodySize]"),
-            Element.expr("var _o = @0.newInstance(bodyBuf)", TypeRefs.CODED_OUTPUT_STREAM),
-            For.enhanced("var _x", getter)
-                .body(Element.expr("_o.@0(_x)", packedNoTag(wire)))
-                .build(),
-            Element.expr("out.writeByteArray(@0, bodyBuf)", num))
-        .build();
+    List<Element> body = new ArrayList<>(packedBodySizeExpr(wire, getter));
+    body.add(Element.expr("byte[] bodyBuf = new byte[bodySize]"));
+    body.add(Element.expr("var _o = @0.newInstance(bodyBuf)", TypeRefs.CODED_OUTPUT_STREAM));
+    body.add(
+        For.enhanced("var _x", getter).body(Element.expr("_o.@0(_x)", packedNoTag(wire))).build());
+    body.add(Element.expr("out.writeByteArray(@0, bodyBuf)", num));
+    return If.condition("!@0.isEmpty()", getter).body(body.toArray(new Element[0])).build();
   }
 
   private static Case emitRepeatedScalarDecodeCase(Field f) {
