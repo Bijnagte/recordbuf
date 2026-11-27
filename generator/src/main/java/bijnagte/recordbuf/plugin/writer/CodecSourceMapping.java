@@ -82,6 +82,7 @@ public final class CodecSourceMapping {
         .method(encodeTo(m))
         .method(writeBody(m))
         .method(getSerializedSize(m))
+        .method(chunkParts(m).toArray(new Method[0]))
         .method(scopedDecode(m.type(), codecType))
         .method(decodeBody(m, jackson))
         .build();
@@ -106,6 +107,76 @@ public final class CodecSourceMapping {
             Element.expr("out.checkNoSpaceLeft()"),
             Element.ret("buf"))
         .build();
+  }
+
+  /** Messages with more field/oneof slots than this get their encode/size bodies chunked. */
+  private static final int CHUNK_SLOTS = 16;
+
+  /** Write slots in ascending field-number order. */
+  private static List<EncodeSlot> writeSlots(Message m) {
+    List<EncodeSlot> slots = new ArrayList<>();
+    for (Field f : m.fields()) {
+      slots.add(new EncodeSlot(f.number(), regularFieldEncode(f)));
+    }
+    for (Oneof o : m.oneofs()) {
+      slots.addAll(oneofEncodeSlots(o));
+    }
+    slots.sort(Comparator.comparingInt(EncodeSlot::number));
+    return slots;
+  }
+
+  /** Size slots in ascending field-number order. */
+  private static List<EncodeSlot> sizeSlots(Message m) {
+    List<EncodeSlot> slots = new ArrayList<>();
+    for (Field f : m.fields()) {
+      slots.add(new EncodeSlot(f.number(), sizeFieldEncode(f)));
+    }
+    for (Oneof o : m.oneofs()) {
+      slots.addAll(oneofSizeSlots(o));
+    }
+    slots.sort(Comparator.comparingInt(EncodeSlot::number));
+    return slots;
+  }
+
+  /** The bounded {@code writeBodyPartN} / {@code sizePartN} helpers of a wide message. */
+  private static List<Method> chunkParts(Message m) {
+    List<Method> parts = new ArrayList<>();
+    List<EncodeSlot> w = writeSlots(m);
+    if (w.size() <= CHUNK_SLOTS) {
+      return parts;
+    }
+    for (int i = 0; i * CHUNK_SLOTS < w.size(); i++) {
+      var write =
+          Method.named("writeBodyPart" + i)
+              .private_()
+              .static_()
+              .param(TypeRefs.CODED_OUTPUT_STREAM, "out")
+              .param(m.type(), "v")
+              .thrown(TypeRef.IO_EXCEPTION);
+      for (EncodeSlot slot :
+          w.subList(i * CHUNK_SLOTS, Math.min(w.size(), (i + 1) * CHUNK_SLOTS))) {
+        write.body(slot.element());
+      }
+      parts.add(write.build());
+    }
+    List<EncodeSlot> z = sizeSlots(m);
+    for (int i = 0; i * CHUNK_SLOTS < z.size(); i++) {
+      var size =
+          Method.named("sizePart" + i)
+              .private_()
+              .static_()
+              .returnType(TypeRef.Primitive.INT)
+              .param(m.type(), "v")
+              .thrown(TypeRef.IO_EXCEPTION)
+              .body(Element.expr("int size = 0"));
+      for (EncodeSlot slot :
+          z.subList(i * CHUNK_SLOTS, Math.min(z.size(), (i + 1) * CHUNK_SLOTS))) {
+        size.body(slot.element());
+      }
+      size.body(Element.ret("size"));
+      parts.add(size.build());
+    }
+    return parts;
   }
 
   /**
@@ -143,17 +214,17 @@ public final class CodecSourceMapping {
             .param(m.type(), "v")
             .thrown(TypeRef.IO_EXCEPTION);
 
-    // Write slots in ascending field-number order.
-    List<EncodeSlot> slots = new ArrayList<>();
-    for (Field f : m.fields()) {
-      slots.add(new EncodeSlot(f.number(), regularFieldEncode(f)));
-    }
-    for (Oneof o : m.oneofs()) {
-      slots.addAll(oneofEncodeSlots(o));
-    }
-    slots.sort(Comparator.comparingInt(EncodeSlot::number));
-    for (EncodeSlot slot : slots) {
-      method.body(slot.element());
+    List<EncodeSlot> slots = writeSlots(m);
+    if (slots.size() <= CHUNK_SLOTS) {
+      for (EncodeSlot slot : slots) {
+        method.body(slot.element());
+      }
+    } else {
+      // Wide message: HotSpot never JIT-compiles a method over 8000 bytecodes (HugeMethodLimit),
+      // so split the field writes into bounded private parts that the main method calls in order.
+      for (int i = 0; i * CHUNK_SLOTS < slots.size(); i++) {
+        method.body(Element.expr("writeBodyPart" + i + "(out, v)"));
+      }
     }
 
     // M4-C2b-2b-5: re-emit the unknown-fields carrier, if any, preserving wire-order round-trip.
@@ -176,16 +247,15 @@ public final class CodecSourceMapping {
             .thrown(TypeRef.IO_EXCEPTION)
             .body(Element.expr("int size = 0"));
 
-    List<EncodeSlot> slots = new ArrayList<>();
-    for (Field f : m.fields()) {
-      slots.add(new EncodeSlot(f.number(), sizeFieldEncode(f)));
-    }
-    for (Oneof o : m.oneofs()) {
-      slots.addAll(oneofSizeSlots(o));
-    }
-    slots.sort(Comparator.comparingInt(EncodeSlot::number));
-    for (EncodeSlot slot : slots) {
-      method.body(slot.element());
+    List<EncodeSlot> slots = sizeSlots(m);
+    if (slots.size() <= CHUNK_SLOTS) {
+      for (EncodeSlot slot : slots) {
+        method.body(slot.element());
+      }
+    } else {
+      for (int i = 0; i * CHUNK_SLOTS < slots.size(); i++) {
+        method.body(Element.expr("size += sizePart" + i + "(v)"));
+      }
     }
 
     method.body(Element.expr("size += v.unknownFields().getSerializedSize()"), Element.ret("size"));
