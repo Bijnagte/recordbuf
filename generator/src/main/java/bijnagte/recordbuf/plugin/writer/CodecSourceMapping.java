@@ -893,13 +893,49 @@ String methodName = WktSourceMapping.sizeMethod(f.typeUrl());
     return element.toString();
   }
 
+/** Size computation for a packed scalar body: fixed-size types use count * N, varint types sum per-element sizes. */
+  private static Element packedBodySizeExpr(WireScalar wire, String getter) {
+    return switch (wire) {
+      case FIXED32, FLOAT -> Element.expr("int bodySize = @0.size() * 4", getter);
+      case FIXED64, DOUBLE -> Element.expr("int bodySize = @0.size() * 8", getter);
+      case BOOL -> Element.expr("int bodySize = @0.size()", getter);
+      case INT32 ->
+          Element.expr(
+              "int bodySize = 0; for (var _x : @0) bodySize += @1.computeInt32Size(1, _x) - 1;",
+              getter, TypeRefs.CODED_OUTPUT_STREAM);
+      case UINT32 ->
+          Element.expr(
+              "int bodySize = 0; for (var _x : @0) bodySize += @1.computeUInt32SizeNoTag(_x);",
+              getter, TypeRefs.CODED_OUTPUT_STREAM);
+      case SINT_32 ->
+          Element.expr(
+              "int bodySize = 0; for (var _x : @0) bodySize += @1.computeSInt32Size(1, _x) - 1;",
+              getter, TypeRefs.CODED_OUTPUT_STREAM);
+      case INT64 ->
+          Element.expr(
+              "int bodySize = 0; for (var _x : @0) bodySize += @1.computeInt64Size(1, _x) - 1;",
+              getter, TypeRefs.CODED_OUTPUT_STREAM);
+      case UINT64 ->
+          Element.expr(
+              "int bodySize = 0; for (var _x : @0) bodySize += @1.computeUInt64SizeNoTag(_x);",
+              getter, TypeRefs.CODED_OUTPUT_STREAM);
+      case SINT_64 ->
+          Element.expr(
+              "int bodySize = 0; for (var _x : @0) bodySize += @1.computeUInt64SizeNoTag((_x << 1) ^ (_x >> 63));",
+              getter, TypeRefs.CODED_OUTPUT_STREAM);
+      default -> throw new IllegalStateException(wire + " is not a packed numeric type");
+    };
+  }
+
   /** The no-tag write primitive for a packed scalar's element (mirrors{@code CodecGenerator}). */
   private static String packedNoTag(WireScalar wire) {
     return switch (wire) {
-      case INT32, UINT32 -> "writeInt32NoTag";
+      case INT32 -> "writeInt32NoTag";
+      case UINT32 -> "writeUInt32NoTag";
       case SINT_32 -> "writeSInt32NoTag";
       case FIXED32 -> "writeFixed32NoTag";
-      case INT64, UINT64 -> "writeInt64NoTag";
+      case INT64 -> "writeInt64NoTag";
+      case UINT64 -> "writeUInt64NoTag";
       case SINT_64 -> "writeSInt64NoTag";
       case FIXED64 -> "writeFixed64NoTag";
       case FLOAT -> "writeFloatNoTag";
@@ -953,15 +989,16 @@ String methodName = WktSourceMapping.sizeMethod(f.typeUrl());
           .body(Element.expr("out.@0(@1, " + element + ")", encodeCall(wire), num))
           .build();
     }
-    // Packed scalar: emit one length-delimited group when the list is non-empty.
+// Packed scalar: emit one length-delimited group when the list is non-empty.
     return If.condition("!@0.isEmpty()", getter)
         .body(
-            Element.expr("var body = @0.start()", TypeRefs.ENCODER),
-            Element.expr("var _o = @0.out()", "body"),
+            packedBodySizeExpr(wire, getter),
+            Element.expr("byte[] bodyBuf = new byte[bodySize]"),
+            Element.expr("var _o = @0.newInstance(bodyBuf)", TypeRefs.CODED_OUTPUT_STREAM),
             For.enhanced("var _x", getter)
                 .body(Element.expr("_o.@0(_x)", packedNoTag(wire)))
                 .build(),
-            Element.expr("out.writeByteArray(@0, body.finish())", num))
+            Element.expr("out.writeByteArray(@0, bodyBuf)", num))
         .build();
   }
 
@@ -1030,12 +1067,13 @@ String methodName = WktSourceMapping.sizeMethod(f.typeUrl());
                 .returnType(TypeRef.BYTES)
                 .param(entryRef, "v")
                 .thrown(TypeRef.IO_EXCEPTION)
-                .body(
-                    Element.expr("var enc = @0.start()", TypeRefs.ENCODER),
-                    Element.expr("var out = enc.out()"),
+.body(
+                    Element.expr("int size = getSerializedSize(v)"),
+                    Element.expr("byte[] buf = new byte[size]"),
+                    Element.expr("var out = @0.newInstance(buf)", TypeRefs.CODED_OUTPUT_STREAM),
                     Element.expr("out.@0(1, @1)", encodeCall(keyWire), keyArg),
                     entryValueEncode(f, valueKind),
-                    Element.ret("enc.finish()"))
+                    Element.ret("buf"))
                 .build())
         .method(
             Method.named("getSerializedSize")
