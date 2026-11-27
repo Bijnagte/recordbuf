@@ -1,7 +1,9 @@
 name: release
 
 # Creates the GitHub release for a version tag and attaches the generator's jlink runtime zips
-# (Linux and macOS, x86_64 and arm64), each with a bundled Java runtime so it runs without a JDK:
+# (Linux and macOS, x86_64 and arm64), each with a bundled Java runtime so it runs without a JDK.
+# Each zip is built on a runner of its own platform (a matrix), so its runtime is that platform's own
+# Temurin build, and a final job attaches the four zips to the release:
 #
 #   git tag v0.1.1 && git push origin v0.1.1
 #
@@ -16,15 +18,12 @@ permissions:
   contents: write # JReleaser creates the release and uploads the assets
 
 jobs:
-  release:
+  # Same tag validation as publish.yml: a mistyped tag must never create a release.
+  version:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
-      # JReleaser builds the changelog from the commits since the previous tag, so it needs full history.
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      # Same tag validation as publish.yml: a mistyped tag must never create a release.
       - name: Read version from tag
         id: version
         env:
@@ -36,6 +35,26 @@ jobs:
           fi
           echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
 
+  # One runner per platform. jlink links from the JDK running Gradle, so each zip carries that platform's
+  # own runtime. The platform names are JReleaser's, and appear in the zip names.
+  assemble:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86_64
+            os: ubuntu-latest
+          - platform: linux-aarch_64
+            os: ubuntu-24.04-arm # free for public repositories only
+          - platform: osx-aarch_64
+            os: macos-latest
+          - platform: osx-x86_64
+            os: macos-15-intel
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -43,29 +62,79 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
-      # jlink builds a runtime for another platform from that platform's JDK, so one Linux runner
-      # produces every zip. The script verifies each download against the published SHA-256.
-      - name: Fetch target JDKs
-        run: scripts/fetch-target-jdks.sh 25 generator/build/target-jdks
+      - name: Assemble jlink zip
+        run: ./gradlew -PreleaseVersion=${{ needs.version.outputs.version }} :recordbuf-generator:jreleaserAssemble
 
-      # Assemble first: the release task only uploads zips that already exist for this version, and it
-      # does not build them itself. All four platforms must be present, so fail loudly if one is not.
-      - name: Assemble jlink zips
+      # Exactly one zip, named for this platform: the release job relies on the name.
+      - name: Check the zip
+        id: zip
         run: |
-          ./gradlew -PreleaseVersion=${{ steps.version.outputs.version }} :recordbuf-generator:jreleaserAssemble
-          count="$(find generator/build/jreleaser/assemble -name '*.zip' | wc -l)"
+          zip="generator/build/jreleaser/assemble/protoc-gen-recordbuf/jlink/protoc-gen-recordbuf-${{ needs.version.outputs.version }}-${{ matrix.platform }}.zip"
+          count="$(find generator/build/jreleaser/assemble -name '*.zip' | wc -l | tr -d ' ')"
+          if [ "$count" -ne 1 ] || [ ! -f "$zip" ]; then
+            echo "Expected only $zip, found:" >&2
+            find generator/build/jreleaser/assemble -name '*.zip' >&2
+            exit 1
+          fi
+          echo "path=$zip" >> "$GITHUB_OUTPUT"
+
+      # An empty request is a valid protoc plugin call: the launcher must start its bundled runtime and
+      # answer with a CodeGeneratorResponse, which is never empty (it declares the features it supports).
+      - name: Smoke test the runtime
+        run: |
+          unzip -q "${{ steps.zip.outputs.path }}" -d smoke
+          out="$(: | smoke/protoc-gen-recordbuf-*/bin/protoc-gen-recordbuf | wc -c | tr -d ' ')"
+          if [ "$out" -eq 0 ]; then
+            echo "The launcher produced no response" >&2
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: zip-${{ matrix.platform }}
+          path: ${{ steps.zip.outputs.path }}
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    needs: [version, assemble]
+    runs-on: ubuntu-latest
+    steps:
+      # JReleaser builds the changelog from the commits since the previous tag, so it needs full history.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      # The generator build reads this directory: when it exists, JReleaser attaches (and checksums) the zips
+      # in it instead of assembling any itself.
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: zip-*
+          path: generator/build/release-assets
+          merge-multiple: true
+
+      - name: Check the zips
+        run: |
+          ls -l generator/build/release-assets
+          count="$(find generator/build/release-assets -name '*.zip' | wc -l | tr -d ' ')"
           if [ "$count" -ne 4 ]; then
             echo "Expected 4 platform zips, found $count" >&2
             exit 1
           fi
 
       - name: Create GitHub release
-        run: ./gradlew -PreleaseVersion=${{ steps.version.outputs.version }} :recordbuf-generator:jreleaserFullRelease
+        run: ./gradlew -PreleaseVersion=${{ needs.version.outputs.version }} :recordbuf-generator:jreleaserRelease
         env:
           JRELEASER_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # JReleaser's log (secrets are masked in it) and the changelog, for diagnosing a failed release.
-      # Only the small diagnostic files: the rest of its output directory holds the unpacked runtimes.
       - name: Upload JReleaser output
         if: always()
         uses: actions/upload-artifact@v7
