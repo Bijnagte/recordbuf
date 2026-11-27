@@ -326,6 +326,20 @@ jreleaser {
                     }
                 }
 
+                // JReleaser's default jlink arguments include `--strip-debug`, which on a Linux build host
+                // also runs the host's `objcopy` over every target runtime (`--strip-native-debug-symbols`).
+                // That cannot read the aarch64 or macOS binaries, so the release log filled with errors
+                // (the build still passed, but those runtimes shipped unstripped). Strip only the Java debug
+                // attributes, which needs no native tool. The rest are JReleaser's defaults, restated
+                // because setting `args` replaces them.
+                args.addAll(
+                    "--no-header-files",
+                    "--no-man-pages",
+                    "--strip-java-debug-attributes",
+                    "--compress",
+                    "zip-9",
+                )
+
                 // google-java-format uses jdk.compiler, which jdeps cannot see through the reflective
                 // access, so it is listed explicitly. The fat jar bundles optional dependencies that
                 // are not all on the module path, hence ignoreMissingDeps.

@@ -353,6 +353,11 @@ details. Rules:
     with one change (`{{{value}}}`, unescaped) because the stock one HTML-escapes `=` to `&#61;`. Regenerate it with
     `jreleaserTemplateGenerate` when bumping JReleaser and re-apply that change.
   - `jdeps` needs `multiRelease = base` because the fat jar is multi-release.
+  - Do NOT rely on JReleaser's default jlink `--strip-debug`: on the Linux CI host it runs `objcopy` over every
+    target runtime and logs an error per file for the aarch64 and macOS ones. The config passes explicit `args` with
+    `--strip-java-debug-attributes` instead (setting `args` replaces the defaults). Linux native libraries are
+    therefore not symbol-stripped; adding `--strip-native-debug-symbols=exclude-debuginfo-files:objcopy=<llvm-objcopy>`
+    is the follow-up if the zip size matters.
   - CI needs `fetch-depth: 0` (changelog) and `branch = main` (the tag checkout is a detached HEAD).
 - **Javadoc must pass doclint** (the javadoc jar is part of publishing). Write `{@code X}` for classes that are not
   imported into the file. A `{@link}` to a missing class fails the publish.
