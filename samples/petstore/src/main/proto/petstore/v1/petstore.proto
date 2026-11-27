@@ -2,10 +2,112 @@ syntax = "proto3";
 
 package petstore.v1;
 
+import "google/protobuf/timestamp.proto";
+import "recordbuf_options.proto";
+
 option java_package = "io.github.bijnagte.petstore.model";
 option java_multiple_files = true;
 
+// ---- Domain ---------------------------------------------------------------
+
+enum PetStatus {
+  PET_STATUS_UNSPECIFIED = 0;
+  PET_STATUS_AVAILABLE = 1;
+  PET_STATUS_RESERVED = 2;
+  PET_STATUS_SOLD = 3;
+}
+
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;
+  ORDER_STATUS_PLACED = 1;
+  ORDER_STATUS_PACKED = 2;
+  ORDER_STATUS_SHIPPED = 3;
+  ORDER_STATUS_DELIVERED = 4;
+}
+
+message Dog {
+  string breed = 1;
+  bool good_boy = 2;
+}
+
+message Cat {
+  string breed = 1;
+  bool indoor = 2;
+}
+
+message Bird {
+  string species = 1;
+  bool can_talk = 2;
+}
+
 message Pet {
+  // The record implements this interface; recordbuf only writes the implements clause.
+  option (recordbuf.java_interface) = "io.github.bijnagte.petstore.domain.Priced";
+
   string id = 1;
   string name = 2;
+  // Becomes a sealed interface with one record per case.
+  oneof kind {
+    Dog dog = 3;
+    Cat cat = 4;
+    Bird bird = 5;
+  }
+  PetStatus status = 6;
+  // A Timestamp becomes a java.time.Instant.
+  google.protobuf.Timestamp added_at = 7;
+  repeated string tags = 8;
+  int64 price_cents = 9;
+}
+
+message Order {
+  string id = 1;
+  repeated string pet_ids = 2;
+  OrderStatus status = 3;
+  google.protobuf.Timestamp placed_at = 4;
+  map<string, string> attributes = 5;
+}
+
+// ---- Requests and responses -----------------------------------------------
+
+message GetPetRequest {
+  string id = 1;
+}
+
+message ListPetsRequest {}
+
+message ListPetsResponse {
+  repeated Pet pets = 1;
+}
+
+message DeletePetRequest {
+  string id = 1;
+}
+
+message DeletePetResponse {}
+
+message PlaceOrderRequest {
+  repeated string pet_ids = 1;
+  map<string, string> attributes = 2;
+}
+
+message GetOrderRequest {
+  string id = 1;
+}
+
+message WatchOrderRequest {
+  string order_id = 1;
+}
+
+message OrderStatusUpdate {
+  string order_id = 1;
+  OrderStatus status = 2;
+  google.protobuf.Timestamp at = 3;
+}
+
+// Appended to the event log when an order is placed; stored as Avro.
+message OrderEvent {
+  string order_id = 1;
+  OrderStatus status = 2;
+  google.protobuf.Timestamp occurred_at = 3;
+  Order order = 4;
 }
