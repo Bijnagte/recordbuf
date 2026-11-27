@@ -30,33 +30,15 @@ final class ServiceDefinitions {
   private ServiceDefinitions() {}
 
   /**
-   * A record decoder as the generated {@code fromBytes} declares it: it throws {@link IOException}.
-   * {@link ProtobufMarshaller#of} only takes a plain {@link Function}, so {@link #marshaller} wraps
-   * this one (see docs/known-findings.md).
-   *
-   * @param <T> the record type
-   */
-  @FunctionalInterface
-  interface Decoder<T> {
-    T decode(byte[] bytes) throws IOException;
-  }
-
-  /**
    * Builds a gRPC marshaller for a recordbuf record from the record's generated {@code fromBytes}.
    *
    * @param decode the record's static byte-array decoder
    * @return a marshaller that reads and writes the record on the protobuf wire
    * @param <T> the record type
    */
-  static <T extends ProtobufMessage> MethodDescriptor.Marshaller<T> marshaller(Decoder<T> decode) {
-    ProtobufMarshaller<T> wire =
-        ProtobufMarshaller.of(bytes -> {
-          try {
-            return decode.decode(bytes);
-          } catch (IOException e) {
-            throw new UncheckedIOException(e);
-          }
-        });
+  static <T extends ProtobufMessage> MethodDescriptor.Marshaller<T> marshaller(
+      ProtobufMarshaller.ByteDecoder<T> decode) {
+    ProtobufMarshaller<T> wire = ProtobufMarshaller.of(decode);
     return new MethodDescriptor.Marshaller<>() {
       @Override
       public InputStream stream(T value) {
@@ -98,8 +80,8 @@ final class ServiceDefinitions {
           String service,
           String method,
           MethodType type,
-          Decoder<Req> request,
-          Decoder<Resp> response) {
+          ProtobufMarshaller.ByteDecoder<Req> request,
+          ProtobufMarshaller.ByteDecoder<Resp> response) {
     return MethodDescriptor.<Req, Resp>newBuilder()
         .setType(type)
         .setFullMethodName(MethodDescriptor.generateFullMethodName(service, method))

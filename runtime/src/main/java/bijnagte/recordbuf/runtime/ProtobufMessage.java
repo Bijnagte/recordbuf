@@ -10,7 +10,8 @@ import java.io.IOException;
  * with zero structural conversion: to wire a record out, call {@link #toByteArray()}; to wire bytes
  * in, a caller with the concrete record type calls that type's generated static {@code
  * fromBytes(byte[])} (a static cannot ride a polymorphic interface, so the read half is reached by
- * a {@code Function<byte[], T>} held by {@link ProtobufMarshaller}, never by reflection).
+ * a {@link ProtobufMarshaller.ByteDecoder} held by {@link ProtobufMarshaller}, never by
+ * reflection).
  *
  * <p>Exactly one instance method keeps the hook JIT-clean: a virtual call to a {@code final}
  * implementation that the record's own generated codec satisfies.

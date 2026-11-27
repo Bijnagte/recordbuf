@@ -18,15 +18,6 @@ No test reads an input that carries an ignored property, so no test catches this
 
 The field stays on the wire either way (`JacksonKnobsTest.jsonIgnored_staysOnTheWire`).
 
-## `ProtobufMarshaller.of` does not accept a generated `fromBytes`
-
-`ProtobufMarshaller.of(Function<byte[], T>)` is documented as taking the record's generated
-`fromBytes`. A generated `fromBytes` declares `throws IOException`, so `Pet::fromBytes` does not
-compile as a `Function`. The runtime's own test passes because its `Point` type has a decoder that
-does not throw. The pet store sample wraps the decoder in its own `ServiceDefinitions.Decoder` that
-rethrows as `UncheckedIOException` (`samples/petstore`). A decoder type that may throw `IOException`
-would remove the wrapper.
-
 ## Avro class trust is the consumer's job
 
 Reading an Avro record back through a generated `<Name>Avro.fromByteBuffer` fails with a

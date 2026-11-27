@@ -2,9 +2,11 @@ package bijnagte.recordbuf.runtime;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -72,5 +74,18 @@ class ProtobufMarshallerTest {
 
     Point back = m.read(new ByteArrayInputStream(value.toByteArray()));
     assertEquals(value, back);
+  }
+
+  /** A decoder that declares IOException, as a generated fromBytes does, is accepted. */
+  @Test
+  void decoderMayThrowIoException() {
+    ProtobufMarshaller<Point> m =
+        ProtobufMarshaller.of(bytes -> {
+          throw new IOException("bad bytes");
+        });
+
+    IOException e =
+        assertThrows(IOException.class, () -> m.read(new ByteArrayInputStream(new byte[0])));
+    assertEquals("bad bytes", e.getMessage());
   }
 }
