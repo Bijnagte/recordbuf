@@ -573,7 +573,10 @@ public final class ModelLoader {
         /* deprecated= */ f.getOptions().getDeprecated(),
         /* jacksonFormat= */ jacksonFormat,
         /* jsonName= */ jsonName,
-        /* jsonIgnored= */ jsonIgnored);
+        /* jsonIgnored= */ jsonIgnored,
+        /* unpacked= */ label == FieldLabel.REPEATED
+            && f.getOptions().hasPacked()
+            && !f.getOptions().getPacked());
   }
 
   private static FieldLabel label(FieldDescriptorProto.Label raw) {

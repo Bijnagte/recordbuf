@@ -20,11 +20,6 @@ public final class JacksonFormatCases extends JacksonGoldenCases {
   /** The golden family directory of every case here. */
   public static final String FAMILY = "jacksonformat";
 
-  private static final String EPOCH_ELEMENT_NOT_WRITTEN =
-      "whens holds a Timestamp element equal to the default (Instant.EPOCH), which the generated"
-          + " encoder does not write while protobuf-java does (gap repeated-wkt-default-element),"
-          + " so its protobuf binary golden would not be protobuf-java's bytes";
-
   @Override
   public List<GoldenCase> cases() {
     return List.of(probeCase());
@@ -45,7 +40,6 @@ public final class JacksonFormatCases extends JacksonGoldenCases {
             UnknownFields.empty());
     return build(
         jacksonLossless(FAMILY, "probe", probe)
-            .notApplicable(protobufBinary, EPOCH_ELEMENT_NOT_WRITTEN)
             .expectedAfterTrip(avroJson, atMicros)
             .expectedAfterTrip(avroBinary, atMicros));
   }

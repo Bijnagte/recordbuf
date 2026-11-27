@@ -20,11 +20,6 @@ import java.util.List;
  * {@code Timestamp}, {@code FieldMask}, {@code Empty}, {@code Struct} and {@code Any}. Proto3 JSON
  * is not applicable: the file has no Interop converter.
  *
- * <p>{@code populated} holds no {@code Empty} element: the encoder drops a repeated element equal
- * to its default, and a repeated {@code Empty} is always the default (gap {@code
- * repeated-wkt-default-element}). {@code empty-elements} carries them and has no protobuf binary
- * golden.
- *
  * <p>The timestamps are whole microseconds, Avro's precision, so {@code populated} round-trips in
  * both Avro formats.
  */
@@ -33,16 +28,6 @@ public final class AvroStructuredCases extends JacksonGoldenCases {
   /** The golden family directory of every case here. */
   public static final String FAMILY = "avrostructured";
 
-  private static final String EMPTY_ELEMENT_NOT_WRITTEN =
-      "empties holds Empty elements, which the generated encoder does not write (gap"
-          + " repeated-wkt-default-element: a repeated Empty is always the default, so protobuf-java"
-          + " writes bytes the encoder does not)";
-
-  private static final String EMPTY_MASK_ELEMENT_NOT_WRITTEN =
-      "masks holds an empty FieldMask element, which the generated encoder does not write (gap"
-          + " repeated-wkt-default-element: a repeated FieldMask element equal to the default is"
-          + " dropped, while protobuf-java writes it)";
-
   @Override
   public List<GoldenCase> cases() {
     return List.of(
@@ -50,16 +35,14 @@ public final class AvroStructuredCases extends JacksonGoldenCases {
         build(jacksonLossless(FAMILY, "all-default", Sample.builder().build())),
         build(
             jacksonLossless(
-                    FAMILY,
-                    "empty-elements",
-                    Sample.builder().empties(List.of(Empty.instance(), Empty.instance())).build())
-                .notApplicable(protobufBinary, EMPTY_ELEMENT_NOT_WRITTEN)),
+                FAMILY,
+                "empty-elements",
+                Sample.builder().empties(List.of(Empty.instance(), Empty.instance())).build())),
         build(
             jacksonLossless(
-                    FAMILY,
-                    "empty-mask-element",
-                    Sample.builder().masks(List.of(FieldMask.empty(), FieldMask.of("a"))).build())
-                .notApplicable(protobufBinary, EMPTY_MASK_ELEMENT_NOT_WRITTEN)));
+                FAMILY,
+                "empty-mask-element",
+                Sample.builder().masks(List.of(FieldMask.empty(), FieldMask.of("a"))).build())));
   }
 
   /**

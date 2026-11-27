@@ -34,9 +34,7 @@
 //      time, each with a `// GAP(<id>): <reason>` line above it and a matching row in
 //      fixtures/src/test/resources/golden/gap-ledger.md. Commenting a field out leaves its field
 //      number free, so a payload that carries it still round-trips as an unknown field.
-//      A gap that does not stop generation (`uint32-negative-carrier-wire`,
-//      `repeated-enum-unpacked-only`, `packed-false-ignored`, `repeated-wkt-default-element`,
-//      `enum-default-value-written`, `decode-wire-type-unchecked`, `invalid-utf8-accepted`,
+//      A gap that does not stop generation (`singular-wkt-default-present`, `invalid-utf8-accepted`,
 //      `tag-varint-truncated-accepted`, `message-field-not-merged`) keeps
 //      its fields active and carries only the marker comment above one representative field.
 // -----------------------------------------------------------------------------
@@ -100,11 +98,9 @@ message TestAllTypesProto3 {
 
   // Singular
   // test [kotlin] comment
-  // GAP(decode-wire-type-unchecked): the generated decoder dispatches a known field on its field number alone and never checks the wire type, so a known field arriving with wire type 6 or 7, or a packed enum region that ends early, decodes without an error; the field generates fine and stays active.
   int32 optional_int32 = 1;
   // GAP(tag-varint-truncated-accepted): the decoder reads each tag with CodedInputStream.readTag, which drops the bytes of a tag varint beyond 32 bits, so an over-long or out-of-range tag is accepted; the field generates fine and stays active.
   int64 optional_int64 = 2;
-  // GAP(uint32-negative-carrier-wire): a uint32 above Integer.MAX_VALUE (a negative carrier) is written as a ten-byte sign-extended varint instead of five bytes; the field generates fine and stays active.
   uint32 optional_uint32 = 3;
   uint64 optional_uint64 = 4;
   sint32 optional_sint32 = 5;
@@ -124,7 +120,6 @@ message TestAllTypesProto3 {
   NestedMessage optional_nested_message = 18;
   ForeignMessage optional_foreign_message = 19;
 
-  // GAP(enum-default-value-written): a singular enum field that holds its default (value 0) is written, one tag and one zero byte; protobuf-java writes nothing. The field generates fine and stays active.
   // GAP(enum-unknown-number-default): a number no constant has decodes to the first constant (FOO), so the value is lost; the field generates fine and stays active.
   NestedEnum optional_nested_enum = 21;
   ForeignEnum optional_foreign_enum = 22;
@@ -155,7 +150,6 @@ message TestAllTypesProto3 {
   repeated NestedMessage repeated_nested_message = 48;
   repeated ForeignMessage repeated_foreign_message = 49;
 
-  // GAP(repeated-enum-unpacked-only): repeated enum fields are always written unpacked and cannot be read when packed, whether packed by the proto3 default or by option; the field generates fine and stays active.
   repeated NestedEnum repeated_nested_enum = 51;
   repeated ForeignEnum repeated_foreign_enum = 52;
 
@@ -179,7 +173,6 @@ message TestAllTypesProto3 {
   repeated NestedEnum packed_nested_enum = 88 [packed = true];
 
   // Unpacked
-  // GAP(packed-false-ignored): the packed = false option is ignored on repeated scalars: they are written packed and cannot be read unpacked; the field generates fine and stays active.
   repeated int32 unpacked_int32 = 89 [packed = false];
   repeated int64 unpacked_int64 = 90 [packed = false];
   repeated uint32 unpacked_uint32 = 91 [packed = false];
@@ -251,6 +244,7 @@ message TestAllTypesProto3 {
   repeated google.protobuf.StringValue repeated_string_wrapper = 218;
   repeated google.protobuf.BytesValue repeated_bytes_wrapper = 219;
 
+  // GAP(singular-wkt-default-present): a present-but-default singular Duration, Timestamp, FieldMask or Empty is the unset value, so the encoder and Interop converter cannot write it; the field generates fine and stays active.
   google.protobuf.Duration optional_duration = 301;
   google.protobuf.Timestamp optional_timestamp = 302;
   // GAP(field-mask-path-order): the runtime FieldMask keeps its paths sorted and de-duplicated, so the input order of the paths is lost; the field generates fine and stays active.
@@ -262,7 +256,6 @@ message TestAllTypesProto3 {
   // google.protobuf.NullValue optional_null_value = 307;
   google.protobuf.Empty optional_empty = 308;
 
-  // GAP(repeated-wkt-default-element): the encoder drops a repeated Duration, Timestamp, FieldMask or Empty element equal to the type's default (and cannot write a present-but-default singular one); the field generates fine and stays active.
   repeated google.protobuf.Duration repeated_duration = 311;
   repeated google.protobuf.Timestamp repeated_timestamp = 312;
   repeated google.protobuf.FieldMask repeated_fieldmask = 313;

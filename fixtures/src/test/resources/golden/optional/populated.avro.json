@@ -1,10 +1,18 @@
 {
-  "a" : 42,
-  "b" : "hello",
-  "c" : true,
+  "a" : {
+    "int" : 42
+  },
+  "b" : {
+    "string" : "hello"
+  },
+  "c" : {
+    "boolean" : true
+  },
   "d" : {
-    "value" : 1,
-    "unknownFields" : [ ]
+    "bijnagte.recordbuf.fixture.optional.FixedAvro" : {
+      "value" : 1,
+      "unknownFields" : [ ]
+    }
   },
   "unknownFields" : [ ]
 }

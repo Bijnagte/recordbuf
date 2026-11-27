@@ -1,10 +1,18 @@
 {
-  "a" : 0,
-  "b" : "",
-  "c" : false,
+  "a" : {
+    "int" : 0
+  },
+  "b" : {
+    "string" : ""
+  },
+  "c" : {
+    "boolean" : false
+  },
   "d" : {
-    "value" : 0,
-    "unknownFields" : [ ]
+    "bijnagte.recordbuf.fixture.optional.FixedAvro" : {
+      "value" : 0,
+      "unknownFields" : [ ]
+    }
   },
   "unknownFields" : [ ]
 }

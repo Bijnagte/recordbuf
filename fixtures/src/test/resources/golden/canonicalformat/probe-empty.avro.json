@@ -1,0 +1,17 @@
+{
+  "i32" : 0,
+  "i64" : 0,
+  "u64" : 0,
+  "s32" : 0,
+  "f64" : 0,
+  "flt" : 0.0,
+  "dbl" : 0.0,
+  "flag" : false,
+  "text" : "",
+  "blob" : "",
+  "kind" : "KIND_UNSPECIFIED",
+  "item" : null,
+  "tags" : [ ],
+  "attrs" : { },
+  "unknownFields" : [ ]
+}

@@ -1,8 +1,7 @@
 // Avro probe for repeated scalar wrapper and BytesValue fields. The recordbuf record and its Avro
 // twin are generated from this file. Each repeated wrapper is an Avro array of a nullable element
 // (["null", T]), so the converter maps each element with the wrapper's singular conversion. Avro is
-// on by default for this file. The uint32 wrapper holds values up to Integer.MAX_VALUE, so the
-// pb.hex golden is not hit by gap uint32-negative-carrier-wire.
+// on by default for this file.
 syntax = "proto3";
 
 package bijnagte.recordbuf.fixture.avrowrappers;

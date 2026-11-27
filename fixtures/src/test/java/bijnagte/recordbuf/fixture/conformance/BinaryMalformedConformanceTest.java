@@ -442,19 +442,6 @@ class BinaryMalformedConformanceTest {
 
   private static Map<String, String> knownGaps() {
     Map<String, String> gaps = new LinkedHashMap<>();
-    // A known field is decoded by its field number alone, so fields 1 to 3 accept wire type 6 or 7
-    // (field 0 is an illegal tag and is rejected), and a cut-short packed enum region is read as
-    // one unpacked value.
-    for (int type : new int[] {6, 7}) {
-      for (int field = 1; field < 4; field++) {
-        for (int value = 0; value < 4; value++) {
-          gaps.put(
-              "UnknownWireType" + type + "_Field" + field + "_Version" + value,
-              "decode-wire-type-unchecked");
-        }
-      }
-    }
-    gaps.put("PrematureEofInPackedField.ENUM", "decode-wire-type-unchecked");
     // CodedInputStream.readTag drops the bytes of a tag varint beyond 32 bits.
     for (String name :
         List.of(

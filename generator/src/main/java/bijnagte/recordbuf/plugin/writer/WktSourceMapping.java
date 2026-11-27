@@ -70,13 +70,9 @@ final class WktSourceMapping {
 
     if (f.label() == FieldLabel.REPEATED) {
       if (entry.hasZeroDefault()) {
-        String def = Objects.requireNonNull(entry.zeroDefault());
-        // for (var e : v.field()) { if (!e.equals(def)) Wkt.writeXxx(out, n, e); }
+        // for (var e : v.field()) Wkt.writeXxx(out, n, e); a default element is still written
         return For.enhanced("var e", g)
-            .body(
-                If.condition("!e.equals(@0)", def)
-                    .body(Element.expr("@2.@3(@0, @1, e)", out, num, wktRef, wm))
-                    .build())
+            .body(Element.expr("@2.@3(@0, @1, e)", out, num, wktRef, wm))
             .build();
       } else {
         // for (var e : v.field()) Wkt.writeWrap(out, n, Wkt.Wrap.KIND, e);

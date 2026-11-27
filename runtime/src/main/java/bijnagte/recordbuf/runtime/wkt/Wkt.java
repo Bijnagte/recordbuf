@@ -182,9 +182,13 @@ public final class Wkt {
     ByteArrayOutputStream e = new ByteArrayOutputStream();
     CodedOutputStream out = CodedOutputStream.newInstance(e);
     switch (wire) {
-      case INT32, UINT32 -> {
+      case INT32 -> {
         int v = (int) value;
         if (v != 0) out.writeInt32(1, v);
+      }
+      case UINT32 -> {
+        int v = (int) value;
+        if (v != 0) out.writeUInt32(1, v);
       }
       case SINT_32 -> {
         int v = (int) value;
@@ -348,9 +352,13 @@ public final class Wkt {
   /** Compute the serialized inner-frame size of a scalar wrapper without encoding. */
   public static int wrapSize(Wrap wire, Object value) {
     return switch (wire) {
-      case INT32, UINT32 -> {
+      case INT32 -> {
         int v = (int) value;
         yield v != 0 ? CodedOutputStream.computeInt32Size(1, v) : 0;
+      }
+      case UINT32 -> {
+        int v = (int) value;
+        yield v != 0 ? CodedOutputStream.computeUInt32Size(1, v) : 0;
       }
       case SINT_32 -> {
         int v = (int) value;
@@ -477,9 +485,13 @@ public final class Wkt {
     out.writeTag(fieldNum, 2);
     out.writeUInt32NoTag(innerSize);
     switch (wire) {
-      case INT32, UINT32 -> {
+      case INT32 -> {
         int v = (int) value;
         if (v != 0) out.writeInt32(1, v);
+      }
+      case UINT32 -> {
+        int v = (int) value;
+        if (v != 0) out.writeUInt32(1, v);
       }
       case SINT_32 -> {
         int v = (int) value;

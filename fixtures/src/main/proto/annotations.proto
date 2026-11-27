@@ -34,16 +34,10 @@ message Sample {
     // A documented, non-deprecated scalar.
     int32 id = 1;
 
-    // GAP(optional-avro-presence): the Avro schema declares `note` non-nullable, so an absent
-    // (null) optional string cannot be written to Avro (the converter sets null on it).
-
     // A documented, deprecated, OPTIONAL string component.
     // HTML in the comment (the <, > and & below) must escape in the
     // emitted Javadoc: & -> &amp;, < -> &lt;, > -> &gt;, but a bare @ stays.
     optional string note = 2 [deprecated = true];
-
-    // GAP(avro-absent-singular-message): the Avro schema declares `payload` non-nullable, so an
-    // absent (null) message cannot be written to Avro (the converter sets null on it).
 
     // A documented singular nested message that is itself @Deprecated.
     //

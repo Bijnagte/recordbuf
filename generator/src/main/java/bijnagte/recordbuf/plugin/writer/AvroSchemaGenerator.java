@@ -571,25 +571,31 @@ public final class AvroSchemaGenerator {
     JsonNode wkt = wktFqn == null ? null : WKT_SCHEMA.get(wktFqn);
     if (wkt != null) return wkt;
     return switch (f.kind()) {
-      case SCALAR -> text(scalarAvro(f.typeUrl()));
-      case ENUM -> text("string");
-      case MESSAGE ->
-          registry != null && registry.isCycleClosing(f)
-              ? cycleClosingNode(f, registry)
-              : namedMessageNode(f, registry);
+      case SCALAR -> presenceTracked(f, text(scalarAvro(f.typeUrl())));
+      case ENUM -> presenceTracked(f, text("string"));
+      case MESSAGE -> nullFirst(namedMessageNode(f, registry));
       case MAP -> mapTypeNode(f, registry);
     };
   }
 
   /**
-   * A singular message reference that closes a cycle: a {@code null}-first union of its record, so
-   * an absent value is a finite choice. Every other singular message reference stays non-nullable.
+   * A singular message reference: a {@code null}-first union of its record, so an absent message is
+   * the null branch rather than an empty record.
    */
-  static JsonNode cycleClosingNode(Field f, AvroRegistry registry) {
+  static JsonNode nullFirst(JsonNode type) {
     ArrayNode union = MAPPER.createArrayNode();
     union.add(text("null"));
-    union.add(namedMessageNode(f, registry));
+    union.add(type);
     return union;
+  }
+
+  /**
+   * A scalar or enum field's type: a {@code null}-first union when the field tracks presence (the
+   * proto3 {@code optional} keyword), so an absent value is the null branch rather than the type's
+   * default.
+   */
+  private static JsonNode presenceTracked(Field f, JsonNode type) {
+    return f.isNullable() ? nullFirst(type) : type;
   }
 
   /**

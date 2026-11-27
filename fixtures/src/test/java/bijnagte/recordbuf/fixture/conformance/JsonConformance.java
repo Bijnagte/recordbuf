@@ -82,10 +82,10 @@ final class JsonConformance {
       Map.of(
           "EnumFieldUnknownValue", "enum-unknown-number-default",
           "FieldMask", "field-mask-path-order",
-          "EmptyFieldMask", "repeated-wkt-default-element",
-          "TimestampEpochValue", "repeated-wkt-default-element",
-          "TimestampZeroNormalized", "repeated-wkt-default-element",
-          "TimestampHasZeroFractionalDigit", "repeated-wkt-default-element");
+          "EmptyFieldMask", "singular-wkt-default-present",
+          "TimestampEpochValue", "singular-wkt-default-present",
+          "TimestampZeroNormalized", "singular-wkt-default-present",
+          "TimestampHasZeroFractionalDigit", "singular-wkt-default-present");
 
   static final Descriptor REFERENCE =
       com.google.protobuf_test_messages.proto3.TestAllTypesProto3.getDescriptor();

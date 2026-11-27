@@ -31,6 +31,9 @@ import org.jspecify.annotations.Nullable;
  * @param comment the field's own leading doc comment, if captured
  * @param deprecated {@code option deprecated = true} on the field (rendered as a bare
  *     {@code @Deprecated} on the record component)
+ * @param unpacked {@code [packed = false]} on a repeated numeric scalar or enum field: the encoder
+ *     writes one tagged element each instead of the packed group (the default). The decoder reads
+ *     both forms whatever this says
  * @param jacksonFormat the resolved {@code recordbuf.jackson_format} option (temporal rendering on
  *     a {\code recordbuf.jackson}-enabled file), or {@code null} when absent; the loader fails loud
  *     when set on a file without the toggle
@@ -53,7 +56,49 @@ public record Field(
     boolean deprecated,
     @Nullable JacksonTemporalFormat jacksonFormat,
     String jsonName,
-    boolean jsonIgnored) {
+    boolean jsonIgnored,
+    boolean unpacked) {
+
+  /** A field written packed (the default): the pre-{@code unpacked} component list. */
+  public Field(
+      String name,
+      String javaName,
+      int number,
+      FieldLabel label,
+      FieldKind kind,
+      String typeUrl,
+      TypeRef type,
+      @Nullable String mapKey,
+      @Nullable String mapValue,
+      @Nullable FieldKind mapValueKind,
+      boolean proto3Optional,
+      @Nullable Object defaultValue,
+      @Nullable String comment,
+      boolean deprecated,
+      @Nullable JacksonTemporalFormat jacksonFormat,
+      String jsonName,
+      boolean jsonIgnored) {
+    this(
+        name,
+        javaName,
+        number,
+        label,
+        kind,
+        typeUrl,
+        type,
+        mapKey,
+        mapValue,
+        mapValueKind,
+        proto3Optional,
+        defaultValue,
+        comment,
+        deprecated,
+        jacksonFormat,
+        jsonName,
+        jsonIgnored,
+        false);
+  }
+
   /** For a MAP field, the Java type of its keys: the first generic argument of {@link #type()}. */
   public TypeRef mapKeyType() {
     return mapTypeArgument(0);

@@ -4,10 +4,14 @@
   "flag" : true,
   "ratio" : 0.25,
   "blob" : "\u0001\u0002\u0003ÿ",
-  "nickname" : "nick",
+  "nickname" : {
+    "string" : "nick"
+  },
   "inner" : {
-    "label" : "in",
-    "unknownFields" : [ ]
+    "bijnagte.recordbuf.fixture.jackson.full.InnerAvro" : {
+      "label" : "in",
+      "unknownFields" : [ ]
+    }
   },
   "value" : {
     "bijnagte.recordbuf.fixture.jackson.full.RecordbufDynamicWkt" : {

@@ -665,7 +665,7 @@ class AvroSchemaGeneratorTest {
   void mutualCycleReferencesAreNullableAndTheDocumentParsesInTheBridgeOrder() throws Exception {
     Message a = message("A", "p", field("n", 1, "int32"), field("b", 2, "p.B"));
     Message b = message("B", "p", field("s", 1, "string"), field("a", 2, "p.A"));
-    // The root reaches the cycle but is not on it, so its reference stays a plain named record.
+    // The root reaches the cycle but is not on it; every singular reference is null-first anyway.
     Message root = message("Node", "p", field("a", 1, "p.A"));
 
     JsonNode doc = tree(file("a.proto", "p", root, a, b), root, null);
@@ -673,12 +673,13 @@ class AvroSchemaGeneratorTest {
     JsonNode types = doc.get("types");
     assertEquals("[\"null\",\"BAvro\"]", typeField(types, "AAvro", "b").toString());
     assertEquals("[\"null\",\"AAvro\"]", typeField(types, "BAvro", "a").toString());
-    assertEquals("AAvro", rootField(doc, "a").get("type").asString());
+    assertEquals("[\"null\",\"AAvro\"]", rootField(doc, "a").get("type").toString());
     // A and B are defined in list order, each referencing the other: the bridge's parse resolves
     // it.
     Schema parsed = AvroBridge.parseDocument(doc);
-    assertEquals(Schema.Type.RECORD, parsed.getField("a").schema().getType());
-    assertEquals(Schema.Type.UNION, parsed.getField("a").schema().getField("b").schema().getType());
+    assertEquals(Schema.Type.UNION, parsed.getField("a").schema().getType());
+    Schema aRecord = parsed.getField("a").schema().getTypes().get(1);
+    assertEquals(Schema.Type.UNION, aRecord.getField("b").schema().getType());
   }
 
   @Test
@@ -702,12 +703,12 @@ class AvroSchemaGeneratorTest {
   }
 
   @Test
-  void nonRecursiveSingularReferenceStaysAPlainNamedRecord() throws Exception {
+  void nonRecursiveSingularReferenceIsANullFirstUnion() throws Exception {
     Message card = message("Card", "p", field("number", 1, "string"));
     Message root = message("Sample", "p", field("card", 1, "p.Card"));
 
     JsonNode doc = tree(file("a.proto", "p", root, card), root, null);
 
-    assertEquals("CardAvro", rootField(doc, "card").get("type").asString());
+    assertEquals("[\"null\",\"CardAvro\"]", rootField(doc, "card").get("type").toString());
   }
 }

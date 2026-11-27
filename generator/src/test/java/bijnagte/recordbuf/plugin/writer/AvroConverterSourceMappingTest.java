@@ -146,16 +146,19 @@ class AvroConverterSourceMappingTest {
         out.contains("import bijnagte.recordbuf.fixture.rec.SampleAvro;"),
         "specific record imported from the Avro package");
     assertTrue(
-        out.contains("import bijnagte.recordbuf.runtime.UnknownFields;"), "UnknownFields imported");
+        out.contains("import bijnagte.recordbuf.avro.UnknownFieldsAvro;"),
+        "UnknownFieldsAvro imported");
 
-    // toRecord: builder pattern + getters + UnknownFields.empty()
+    // toRecord: builder pattern + getters + the unknown-field carrier
     assertTrue(out.contains("public static Sample toRecord"), "toRecord direction emitted");
     assertTrue(out.contains("Sample.Builder b = Sample.builder()"), "builder used for toRecord");
     assertTrue(out.contains("s.getA("), "Avro getter used for scalar");
     assertTrue(
         out.contains("b.ts(s.getTs())"),
         "WKT field read directly from the Avro value (Timestamp resolves to Instant on both sides)");
-    assertTrue(out.contains("UnknownFields.empty()"), "UnknownFields defaulted in toRecord");
+    assertTrue(
+        out.contains("b.unknownFields(UnknownFieldsAvro.fromAvro(s.getUnknownFields()))"),
+        "carrier rebuilt from the entry records in toRecord");
     assertTrue(out.contains("return b.build()"), "build() called in toRecord");
 
     // fromRecord: no-arg ctor + setters
@@ -166,8 +169,9 @@ class AvroConverterSourceMappingTest {
         out.contains("s.setTs(r.ts())"),
         "WKT field set directly on the Avro record (Timestamp resolves to Instant on both sides)");
     assertTrue(
-        out.contains("s.setUnknownFields(List.of())"),
-        "the non-nullable carrier array is set so the specific record can be Avro-encoded");
+        out.contains(
+            "s.setUnknownFields(UnknownFieldsAvro.toAvro(r.unknownFields(), RecordbufUnknownField::new))"),
+        "the non-nullable carrier array is set from the captured fields");
   }
 
   @Test

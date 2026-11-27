@@ -31,7 +31,18 @@ public final class CanonicalFormatCases extends JacksonGoldenCases {
   public List<GoldenCase> cases() {
     return List.of(
         build(jacksonLossless(FAMILY, "probe", probe())),
-        build(jacksonLossless(FAMILY, "probe-empty", Sample.builder().build())));
+        build(
+            jacksonLossless(FAMILY, "probe-empty", Sample.builder().build())
+                .expectedAfterTrip(avroJson, emptyAfterAvro())
+                .expectedAfterTrip(avroBinary, emptyAfterAvro())));
+  }
+
+  /**
+   * The empty record as Avro reads it back: {@code kind} is a plain enum, so unset is written as
+   * its first constant.
+   */
+  private static Sample emptyAfterAvro() {
+    return Sample.builder().kind(Kind.KIND_UNSPECIFIED).build();
   }
 
   /** One field per canonical-rendering aspect; see {@code canonical_format.proto}. */

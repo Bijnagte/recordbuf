@@ -1,0 +1,192 @@
+{
+  "optional_int32" : 0,
+  "optional_int64" : 0,
+  "optional_uint32" : -1,
+  "optional_uint64" : 0,
+  "optional_sint32" : 0,
+  "optional_sint64" : 0,
+  "optional_fixed32" : 0,
+  "optional_fixed64" : 0,
+  "optional_sfixed32" : 0,
+  "optional_sfixed64" : 0,
+  "optional_float" : 0.0,
+  "optional_double" : 0.0,
+  "optional_bool" : false,
+  "optional_string" : "",
+  "optional_bytes" : "",
+  "optional_nested_message" : null,
+  "optional_foreign_message" : null,
+  "optional_nested_enum" : "FOO",
+  "optional_foreign_enum" : "FOREIGN_FOO",
+  "optional_aliased_enum" : "ALIAS_FOO",
+  "optional_string_piece" : "",
+  "optional_cord" : "",
+  "recursive_message" : null,
+  "repeated_int32" : [ ],
+  "repeated_int64" : [ ],
+  "repeated_uint32" : [ 0, 1, -1 ],
+  "repeated_uint64" : [ ],
+  "repeated_sint32" : [ ],
+  "repeated_sint64" : [ ],
+  "repeated_fixed32" : [ ],
+  "repeated_fixed64" : [ ],
+  "repeated_sfixed32" : [ ],
+  "repeated_sfixed64" : [ ],
+  "repeated_float" : [ ],
+  "repeated_double" : [ ],
+  "repeated_bool" : [ ],
+  "repeated_string" : [ ],
+  "repeated_bytes" : [ ],
+  "repeated_nested_message" : [ ],
+  "repeated_foreign_message" : [ ],
+  "repeated_nested_enum" : [ "FOO", "NEG", "BAZ" ],
+  "repeated_foreign_enum" : [ "FOREIGN_BAR", "FOREIGN_FOO" ],
+  "repeated_string_piece" : [ ],
+  "repeated_cord" : [ ],
+  "packed_int32" : [ ],
+  "packed_int64" : [ ],
+  "packed_uint32" : [ 0, 1, -1 ],
+  "packed_uint64" : [ ],
+  "packed_sint32" : [ ],
+  "packed_sint64" : [ ],
+  "packed_fixed32" : [ ],
+  "packed_fixed64" : [ ],
+  "packed_sfixed32" : [ ],
+  "packed_sfixed64" : [ ],
+  "packed_float" : [ ],
+  "packed_double" : [ ],
+  "packed_bool" : [ ],
+  "packed_nested_enum" : [ "NEG", "FOO", "BAR" ],
+  "unpacked_int32" : [ -2147483648, -1, 0, 2147483647 ],
+  "unpacked_int64" : [ -9223372036854775808, -1, 0, 9223372036854775807 ],
+  "unpacked_uint32" : [ 0, 1, -1 ],
+  "unpacked_uint64" : [ 0, 1, -1 ],
+  "unpacked_sint32" : [ -2147483648, -1, 0, 2147483647 ],
+  "unpacked_sint64" : [ -9223372036854775808, -1, 0, 9223372036854775807 ],
+  "unpacked_fixed32" : [ 0, -1, 7 ],
+  "unpacked_fixed64" : [ 0, -1, 7 ],
+  "unpacked_sfixed32" : [ -2147483648, 0, 2147483647 ],
+  "unpacked_sfixed64" : [ -9223372036854775808, 0, 9223372036854775807 ],
+  "unpacked_float" : [ -3.4028235E38, 1.4E-45, 0.5 ],
+  "unpacked_double" : [ -1.7976931348623157E308, 4.9E-324, 0.25 ],
+  "unpacked_bool" : [ true, false, true ],
+  "unpacked_nested_enum" : [ ],
+  "map_int32_int32" : [ ],
+  "map_int64_int64" : [ ],
+  "map_uint32_uint32" : [ {
+    "key" : -1,
+    "value" : -1
+  }, {
+    "key" : 0,
+    "value" : 1
+  }, {
+    "key" : 5,
+    "value" : 6
+  } ],
+  "map_uint64_uint64" : [ ],
+  "map_sint32_sint32" : [ ],
+  "map_sint64_sint64" : [ ],
+  "map_fixed32_fixed32" : [ ],
+  "map_fixed64_fixed64" : [ ],
+  "map_sfixed32_sfixed32" : [ ],
+  "map_sfixed64_sfixed64" : [ ],
+  "map_int32_float" : [ ],
+  "map_int32_double" : [ ],
+  "map_bool_bool" : [ ],
+  "map_string_string" : { },
+  "map_string_bytes" : { },
+  "map_string_nested_message" : { },
+  "map_string_foreign_message" : { },
+  "map_string_nested_enum" : { },
+  "map_string_foreign_enum" : { },
+  "optional_bool_wrapper" : null,
+  "optional_int32_wrapper" : null,
+  "optional_int64_wrapper" : null,
+  "optional_uint32_wrapper" : {
+    "int" : -1
+  },
+  "optional_uint64_wrapper" : null,
+  "optional_float_wrapper" : null,
+  "optional_double_wrapper" : null,
+  "optional_string_wrapper" : null,
+  "optional_bytes_wrapper" : null,
+  "repeated_bool_wrapper" : [ ],
+  "repeated_int32_wrapper" : [ ],
+  "repeated_int64_wrapper" : [ ],
+  "repeated_uint32_wrapper" : [ {
+    "int" : -1
+  }, {
+    "int" : 0
+  }, {
+    "int" : 1
+  } ],
+  "repeated_uint64_wrapper" : [ ],
+  "repeated_float_wrapper" : [ ],
+  "repeated_double_wrapper" : [ ],
+  "repeated_string_wrapper" : [ ],
+  "repeated_bytes_wrapper" : [ ],
+  "optional_duration" : {
+    "bijnagte.recordbuf.avro.wkt.Duration" : {
+      "seconds" : 0,
+      "nanos" : 0
+    }
+  },
+  "optional_timestamp" : {
+    "long" : 0
+  },
+  "optional_field_mask" : null,
+  "optional_struct" : null,
+  "optional_any" : null,
+  "optional_value" : null,
+  "optional_empty" : {
+    "bijnagte.recordbuf.avro.wkt.Empty" : { }
+  },
+  "repeated_duration" : [ {
+    "bijnagte.recordbuf.avro.wkt.Duration" : {
+      "seconds" : 0,
+      "nanos" : 0
+    }
+  }, {
+    "bijnagte.recordbuf.avro.wkt.Duration" : {
+      "seconds" : 1,
+      "nanos" : 0
+    }
+  } ],
+  "repeated_timestamp" : [ {
+    "long" : 0
+  }, {
+    "long" : 1000000
+  } ],
+  "repeated_fieldmask" : [ null, {
+    "string" : "a"
+  } ],
+  "repeated_struct" : [ ],
+  "repeated_any" : [ ],
+  "repeated_value" : [ ],
+  "repeated_list_value" : [ ],
+  "repeated_empty" : [ {
+    "bijnagte.recordbuf.avro.wkt.Empty" : { }
+  }, {
+    "bijnagte.recordbuf.avro.wkt.Empty" : { }
+  } ],
+  "fieldname1" : 0,
+  "field_name2" : 0,
+  "_field_name3" : 0,
+  "field__name4_" : 0,
+  "field0name5" : 0,
+  "field_0_name6" : 0,
+  "fieldName7" : 0,
+  "FieldName8" : 0,
+  "field_Name9" : 0,
+  "Field_Name10" : 0,
+  "FIELD_NAME11" : 0,
+  "FIELD_name12" : 0,
+  "__field_name13" : 0,
+  "__Field_name14" : 0,
+  "field__name15" : 0,
+  "field__Name16" : 0,
+  "field_name17__" : 0,
+  "Field_name18__" : 0,
+  "oneof_field" : null,
+  "unknownFields" : [ ]
+}

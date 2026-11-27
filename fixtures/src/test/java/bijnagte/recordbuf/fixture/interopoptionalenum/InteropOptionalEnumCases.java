@@ -14,8 +14,8 @@ import java.util.List;
  * <p>{@code present-zero} sets the optional enum to its zero constant, which proto3 presence keeps:
  * it must read back present, not absent. {@code absent} leaves it unset.
  *
- * <p>Avro writes an unset enum as the first constant, so an absent optional enum reads back as
- * {@code KIND_ZERO} (gap {@code optional-avro-presence}).
+ * <p>Avro keeps the presence: {@code opt_kind} is a null-first union, so an absent optional enum
+ * reads back absent.
  */
 public final class InteropOptionalEnumCases extends JacksonGoldenCases {
 
@@ -28,10 +28,7 @@ public final class InteropOptionalEnumCases extends JacksonGoldenCases {
     InteropOptionalEnum absentRecord = absent();
     return List.of(
         build(jacksonLossless(FAMILY, "present-zero", presentZeroRecord)),
-        build(
-            jacksonLossless(FAMILY, "absent", absentRecord)
-                .expectedAfterTrip(avroJson, absentAfterAvro(absentRecord))
-                .expectedAfterTrip(avroBinary, absentAfterAvro(absentRecord))));
+        build(jacksonLossless(FAMILY, "absent", absentRecord)));
   }
 
   /** The optional enum set to its zero constant, which must stay present. */
@@ -46,14 +43,5 @@ public final class InteropOptionalEnumCases extends JacksonGoldenCases {
   /** The optional enum unset; the plain enum is set so the record is not all default. */
   public static InteropOptionalEnum absent() {
     return InteropOptionalEnum.builder().plainKind(InteropOptionalEnum.Kind.ALPHA).n(5).build();
-  }
-
-  /**
-   * The absent record as Avro reads it back. The Avro schema declares {@code opt_kind}
-   * non-nullable, so an unset optional enum is written as the first constant and reads back as
-   * {@code KIND_ZERO} (gap {@code optional-avro-presence}).
-   */
-  private static InteropOptionalEnum absentAfterAvro(InteropOptionalEnum record) {
-    return record.toBuilder().optKind(InteropOptionalEnum.Kind.KIND_ZERO).build();
   }
 }

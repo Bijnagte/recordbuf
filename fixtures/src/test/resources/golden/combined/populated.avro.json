@@ -5,9 +5,11 @@
   "b" : "ÿ",
   "packed" : [ 1, -2, 0, 100 ],
   "nested" : {
-    "id" : 7,
-    "label" : "seven",
-    "unknownFields" : [ ]
+    "bijnagte.recordbuf.fixture.combined.SubAvro" : {
+      "id" : 7,
+      "label" : "seven",
+      "unknownFields" : [ ]
+    }
   },
   "subs" : [ {
     "id" : 1,
@@ -22,6 +24,8 @@
     "x" : 1,
     "z" : -2
   },
-  "presence" : 7,
+  "presence" : {
+    "int" : 7
+  },
   "unknownFields" : [ ]
 }

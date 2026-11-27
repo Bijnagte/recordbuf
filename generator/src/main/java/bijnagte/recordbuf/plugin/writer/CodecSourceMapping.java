@@ -439,7 +439,7 @@ public final class CodecSourceMapping {
                         .assigned("@0.readTag(in)", TypeRefs.WIRE),
                     If.condition("tag == 0").body(Element.of("break;")).build(),
                     If.condition(
-                            "!decodeField(in, @0.tagFieldNumber(tag), decodeCarrier)",
+                            "!decodeField(in, @0.tagFieldNumber(tag), tag, decodeCarrier)",
                             TypeRefs.WIRE)
                         .body(Element.expr("unknown.add(in, tag)"))
                         .build())
@@ -479,6 +479,7 @@ public final class CodecSourceMapping {
             .returnType(TypeRef.Primitive.BOOLEAN)
             .param(TypeRefs.CODED_INPUT_STREAM, "in")
             .param(TypeRef.Primitive.INT, "decodeFieldNo")
+            .param(TypeRef.Primitive.INT, "tag")
             .param(builder, "decodeCarrier")
             .thrown(TypeRef.IO_EXCEPTION);
     for (int i = 0; i < chunks.size(); i++) {
@@ -486,10 +487,10 @@ public final class CodecSourceMapping {
       if (i < chunks.size() - 1) {
         route.body(
             If.condition("decodeFieldNo <= @0", chunk.get(chunk.size() - 1).number())
-                .body(Element.ret("decodePart" + i + "(in, decodeFieldNo, decodeCarrier)"))
+                .body(Element.ret("decodePart" + i + "(in, decodeFieldNo, tag, decodeCarrier)"))
                 .build());
       } else {
-        route.body(Element.ret("decodePart" + i + "(in, decodeFieldNo, decodeCarrier)"));
+        route.body(Element.ret("decodePart" + i + "(in, decodeFieldNo, tag, decodeCarrier)"));
       }
 
       Switch.Builder sw = Switch.on("decodeFieldNo");
@@ -510,6 +511,7 @@ public final class CodecSourceMapping {
               .returnType(TypeRef.Primitive.BOOLEAN)
               .param(TypeRefs.CODED_INPUT_STREAM, "in")
               .param(TypeRef.Primitive.INT, "decodeFieldNo")
+              .param(TypeRef.Primitive.INT, "tag")
               .param(builder, "decodeCarrier")
               .thrown(TypeRef.IO_EXCEPTION)
               .body(sw.build(), Element.ret("false"))
@@ -659,9 +661,7 @@ public final class CodecSourceMapping {
                   .body(Element.expr("out.@0(@1, @2.toByteArray())", call, num, getter))
                   .build();
           default ->
-              If.condition("@0 != CodecDefaults.@1()", getter, defaultMethod(f))
-                  .body(Element.expr("out.@0(@1, @2)", call, num, getter))
-                  .build();
+              nonDefault(f, getter).body(Element.expr("out.@0(@1, @2)", call, num, getter)).build();
         };
     return encoded;
   }
@@ -685,11 +685,22 @@ public final class CodecSourceMapping {
 
   // --- Per-field ENUM encode/decode (M4-C2b-2b-9) ---
 
+  /**
+   * The guard for a singular enum: an {@code optional} (presence-tracking) field is written
+   * whenever it is set, and a plain proto3 field only when it is not its default, as protobuf-java
+   * does.
+   */
+  private static If.Builder enumPresent(Field f, String getter) {
+    return f.isNullable()
+        ? If.condition("@0 != null", getter)
+        : If.condition("@0 != null && @0.getNumber() != 0", getter);
+  }
+
   /** M4-C2b-2b-9: singular ENUM encode — skip null, else writeEnum with getNumber(). */
   private static Element emitEnumEncode(Field f) {
     String getter = "v." + f.javaName() + "()";
     int num = f.number();
-    return If.condition("@0 != null", getter)
+    return enumPresent(f, getter)
         .body(Element.expr("out.writeEnum(@0, @1.getNumber())", num, getter))
         .build();
   }
@@ -698,9 +709,22 @@ public final class CodecSourceMapping {
   private static Element emitRepeatedEnumEncode(Field f) {
     String getter = "v." + f.javaName() + "()";
     int num = f.number();
-    return For.enhanced("var _e", getter)
-        .body(Element.expr("out.writeEnum(@0, _e.getNumber())", num))
-        .build();
+    if (f.unpacked()) {
+      return For.enhanced("var _e", getter)
+          .body(Element.expr("out.writeEnum(@0, _e.getNumber())", num))
+          .build();
+    }
+    // Packed (the proto3 default): one length-delimited group of the enum numbers.
+    List<Element> body =
+        new ArrayList<>(summedBodySize(getter, "@0.computeEnumSizeNoTag(_x.getNumber())"));
+    body.add(Element.expr("byte[] bodyBuf = new byte[bodySize]"));
+    body.add(Element.expr("var _o = @0.newInstance(bodyBuf)", TypeRefs.CODED_OUTPUT_STREAM));
+    body.add(
+        For.enhanced("var _x", getter)
+            .body(Element.expr("_o.writeEnumNoTag(_x.getNumber())"))
+            .build());
+    body.add(Element.expr("out.writeByteArray(@0, bodyBuf)", num));
+    return If.condition("!@0.isEmpty()", getter).body(body.toArray(new Element[0])).build();
   }
 
   /** M4-C2b-2b-9: singular ENUM decode — assign EnumName.forNumber(in.readEnum()). */
@@ -717,9 +741,26 @@ public final class CodecSourceMapping {
   private static Case emitRepeatedEnumDecodeCase(Field f) {
     int num = f.number();
     String local = f.javaName();
+    // A packed group (wire type 2) or one tagged element, whichever the writer chose.
     return Case.of(
         String.valueOf(num),
-        Element.expr("@0.add(@1.forNumber(in.readEnum()))", local, codecRef(f)));
+        packedOrSingle(Element.expr("@0.add(@1.forNumber(in.readEnum()))", local, codecRef(f))));
+  }
+
+  /**
+   * A repeated numeric field's decode arm body: a packed group (wire type 2, read element by
+   * element up to its limit) or one tagged element, whichever the writer chose. {@code add} appends
+   * one element read from {@code in}.
+   */
+  private static Element packedOrSingle(Element add) {
+    return If.condition("@0.tagWireType(tag) == 2", TypeRefs.WIRE)
+        .body(
+            LocalVar.builder(TypeRef.Primitive.INT, "_lim")
+                .assigned("in.pushLimit(in.readRawVarint32())"),
+            While.condition("in.getBytesUntilLimit() > 0").body(add).build(),
+            Element.expr("in.popLimit(_lim)"))
+        .else_(add)
+        .build();
   }
 
   // --- Per-field MESSAGE decode case (M4-C2d-5) ---
@@ -822,7 +863,8 @@ public final class CodecSourceMapping {
   /** The wire scalar type of a proto scalar field, by its typeUrl. */
   private static WireScalar wireScalar(Field f) {
     return switch (f.typeUrl()) {
-      case "int32", "uint32" -> WireScalar.INT32;
+      case "int32" -> WireScalar.INT32;
+      case "uint32" -> WireScalar.UINT32;
       case "sint32" -> WireScalar.SINT_32;
       case "fixed32", "sfixed32" -> WireScalar.FIXED32;
       case "int64", "uint64" -> WireScalar.INT64;
@@ -840,7 +882,8 @@ public final class CodecSourceMapping {
   /** The {@code CodedOutputStream.*} write primitive for a wire scalar. */
   private static String encodeCall(WireScalar wire) {
     return switch (wire) {
-      case INT32, UINT32 -> "writeInt32";
+      case INT32 -> "writeInt32";
+      case UINT32 -> "writeUInt32";
       case SINT_32 -> "writeSInt32";
       case FIXED32 -> "writeFixed32";
       case INT64, UINT64 -> "writeInt64";
@@ -857,7 +900,8 @@ public final class CodecSourceMapping {
   /** The {@code CodedOutputStream.computeXxxSize} static method name for a wire scalar. */
   private static String sizeCall(WireScalar wire) {
     return switch (wire) {
-      case INT32, UINT32 -> "computeInt32Size";
+      case INT32 -> "computeInt32Size";
+      case UINT32 -> "computeUInt32Size";
       case SINT_32 -> "computeSInt32Size";
       case FIXED32 -> "computeFixed32Size";
       case INT64, UINT64 -> "computeInt64Size";
@@ -919,17 +963,10 @@ public final class CodecSourceMapping {
     String methodName = WktSourceMapping.sizeMethod(f.typeUrl());
     if (f.label() == FieldLabel.REPEATED) {
       if (entry.hasZeroDefault()) {
-        String def = Objects.requireNonNull(entry.zeroDefault());
         return For.enhanced("var e", getter)
             .body(
-                If.condition("!e.equals(@0)", def)
-                    .body(
-                        Element.expr(
-                            "size += Wire.lenDelimSize(@0, @1.@2(e))",
-                            num,
-                            TypeRefs.WKT,
-                            methodName))
-                    .build())
+                Element.expr(
+                    "size += Wire.lenDelimSize(@0, @1.@2(e))", num, TypeRefs.WKT, methodName))
             .build();
       }
       String kind = WktSourceMapping.wrapKind(f.typeUrl());
@@ -994,7 +1031,7 @@ public final class CodecSourceMapping {
               .body(Element.expr("size += Wire.lenDelimSize(@0, @1.size())", num, getter))
               .build();
       default ->
-          If.condition("@0 != CodecDefaults.@1()", getter, defaultMethod(f))
+          nonDefault(f, getter)
               .body(
                   Element.expr(
                       "size += @0.@1(@2, @3)", TypeRefs.CODED_OUTPUT_STREAM, call, num, getter))
@@ -1025,7 +1062,7 @@ public final class CodecSourceMapping {
 
   private static Element sizeEnumEncode(Field f) {
     String getter = "v." + f.javaName() + "()";
-    return If.condition("@0 != null", getter)
+    return enumPresent(f, getter)
         .body(
             Element.expr(
                 "size += @0.computeInt32Size(@1, @2.getNumber())",
@@ -1037,6 +1074,12 @@ public final class CodecSourceMapping {
 
   private static Element sizeRepeatedEnumEncode(Field f) {
     String getter = "v." + f.javaName() + "()";
+    if (!f.unpacked()) {
+      List<Element> body =
+          new ArrayList<>(summedBodySize(getter, "@0.computeEnumSizeNoTag(_x.getNumber())"));
+      body.add(Element.expr("size += Wire.lenDelimSize(@0, bodySize)", f.number()));
+      return If.condition("!@0.isEmpty()", getter).body(body.toArray(new Element[0])).build();
+    }
     return For.enhanced("var _e", getter)
         .body(
             Element.expr(
@@ -1062,6 +1105,13 @@ public final class CodecSourceMapping {
           .body(
               Element.expr(
                   "size += @0.computeStringSize(@1, _x)", TypeRefs.CODED_OUTPUT_STREAM, num))
+          .build();
+    }
+    if (f.unpacked()) {
+      return For.enhanced("var _x", getter)
+          .body(
+              Element.expr(
+                  "size += @0.@1(@2, _x)", TypeRefs.CODED_OUTPUT_STREAM, sizeCall(wire), num))
           .build();
     }
     // Packed scalar: one length-delimited group — tag + varint(bodySize) + bodySize.
@@ -1180,6 +1230,19 @@ public final class CodecSourceMapping {
     };
   }
 
+  /**
+   * The "field is not at its default" guard. Floating-point compares raw bits, as protobuf-java
+   * does, so negative zero is written (IEEE {@code !=} treats {@code -0.0} as equal to {@code
+   * 0.0}).
+   */
+  private static If.Builder nonDefault(Field f, String getter) {
+    return switch (wireScalar(f)) {
+      case DOUBLE -> If.condition("Double.doubleToRawLongBits(@0) != 0L", getter);
+      case FLOAT -> If.condition("Float.floatToRawIntBits(@0) != 0", getter);
+      default -> If.condition("@0 != CodecDefaults.@1()", getter, defaultMethod(f));
+    };
+  }
+
   /** The {@code CodecDefaults.*()} method name for a wire scalar's default. */
   private static String defaultMethod(Field f) {
     return switch (wireScalar(f)) {
@@ -1207,6 +1270,11 @@ public final class CodecSourceMapping {
           .body(Element.expr("out.@0(@1, " + element + ")", encodeCall(wire), num))
           .build();
     }
+    if (f.unpacked()) {
+      return For.enhanced("var _x", getter)
+          .body(Element.expr("out.@0(@1, _x)", encodeCall(wire), num))
+          .build();
+    }
     // Packed scalar: emit one length-delimited group when the list is non-empty.
     List<Element> body = new ArrayList<>(packedBodySizeExpr(wire, getter));
     body.add(Element.expr("byte[] bodyBuf = new byte[bodySize]"));
@@ -1231,11 +1299,7 @@ public final class CodecSourceMapping {
           Element.expr("@0.add(@1.of(in.readBytes().toByteArray()))", local, TypeRefs.BYTES));
     }
     return Case.of(
-        String.valueOf(num),
-        LocalVar.builder(TypeRef.Primitive.INT, "_lim")
-            .assigned("in.pushLimit(in.readRawVarint32())"),
-        Element.expr("while (in.getBytesUntilLimit() > 0) @0.add(@1)", local, decodeCall(wire)),
-        Element.expr("in.popLimit(_lim)"));
+        String.valueOf(num), packedOrSingle(Element.expr("@0.add(@1)", local, decodeCall(wire))));
   }
 
   private static Element emitRepeatedLocalInit(Field f) {
@@ -1458,7 +1522,8 @@ public final class CodecSourceMapping {
   /** M4-C2d-12: resolve a {@link WireScalar} from a proto scalar type URL string. */
   private static WireScalar wireScalarForTypeUrl(String typeUrl) {
     return switch (typeUrl) {
-      case "int32", "uint32" -> WireScalar.INT32;
+      case "int32" -> WireScalar.INT32;
+      case "uint32" -> WireScalar.UINT32;
       case "sint32" -> WireScalar.SINT_32;
       case "fixed32", "sfixed32" -> WireScalar.FIXED32;
       case "int64", "uint64" -> WireScalar.INT64;

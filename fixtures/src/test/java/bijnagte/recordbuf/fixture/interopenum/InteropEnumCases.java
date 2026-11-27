@@ -20,14 +20,6 @@ public final class InteropEnumCases extends JacksonGoldenCases {
   /** The golden family directory of every case here. */
   public static final String FAMILY = "interopenum";
 
-  private static final String REPEATED_NOT_UNPACKED =
-      "the record writes a repeated enum unpacked, and protobuf-java writes the packed form that"
-          + " the record cannot read, so the bytes differ (gap repeated-enum-unpacked-only)";
-
-  private static final String ZERO_ENUM_WRITTEN =
-      "the record writes the explicit zero of a singular enum, which protobuf-java omits for a"
-          + " proto3 default, so the bytes differ (gap enum-default-value-written)";
-
   @Override
   public List<GoldenCase> cases() {
     InteropEnum allDefaultRecord = InteropEnum.builder().build();
@@ -40,9 +32,8 @@ public final class InteropEnumCases extends JacksonGoldenCases {
         build(zeroEnum()),
         build(
             withAvroAfterTrip(
-                    jacksonLossless(FAMILY, "repeated-packed", repeatedPackedRecord),
-                    repeatedPackedRecord)
-                .notApplicable(protobufBinary, REPEATED_NOT_UNPACKED)));
+                jacksonLossless(FAMILY, "repeated-packed", repeatedPackedRecord),
+                repeatedPackedRecord)));
   }
 
   /**
@@ -70,16 +61,16 @@ public final class InteropEnumCases extends JacksonGoldenCases {
 
   /**
    * A singular nested enum holding its zero constant. protobuf-java writes nothing for it, so after
-   * the proto3 JSON trip the field is absent again (the expected record).
+   * the protobuf binary and proto3 JSON trips the field is absent again (the expected record).
    */
   private GoldenCase.Builder zeroEnum() {
     InteropEnum record = InteropEnum.builder().singularKind(InteropEnum.Kind.KIND_ZERO).build();
     return withAvroAfterTrip(
-            GoldenCase.builder(FAMILY, "zero-enum", record)
-                .lossless(jackson)
-                .expectedAfterTrip(proto3Json, InteropEnum.builder().build()),
-            record)
-        .notApplicable(protobufBinary, ZERO_ENUM_WRITTEN);
+        GoldenCase.builder(FAMILY, "zero-enum", record)
+            .expectedAfterTrip(protobufBinary, InteropEnum.builder().build())
+            .lossless(jackson)
+            .expectedAfterTrip(proto3Json, InteropEnum.builder().build()),
+        record);
   }
 
   /**
