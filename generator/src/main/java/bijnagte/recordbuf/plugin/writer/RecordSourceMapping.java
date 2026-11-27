@@ -296,6 +296,11 @@ public final class RecordSourceMapping {
                 .build())
         .method(
             Method.named("fromBytes")
+                .javadoc(
+                    Javadoc.builder()
+                        .text(
+"This decode path is unfunded. For new code, prefer native protobuf decode + Interop.from().")
+                        .build())
                 .public_()
                 .static_()
                 .returnType(recordRef)

@@ -125,7 +125,7 @@ public final class InteropSourceMapping {
           RawExpr.of(
               "null")); // bare null: the record's nullable jsonExtras component target-types it
     }
-    ctorArgs.add(RawExpr.of("@0.empty()", TypeRefs.UNKNOWN_FIELDS));
+    ctorArgs.add(RawExpr.of("@0.fromProto(x.getUnknownFields())", TypeRefs.UNKNOWN_FIELDS));
     return method.body(Element.ret("new @0(@1)", rec, CommaList.of(ctorArgs))).build();
   }
 

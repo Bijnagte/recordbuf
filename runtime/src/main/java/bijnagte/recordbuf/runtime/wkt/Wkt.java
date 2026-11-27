@@ -59,6 +59,7 @@ public final class Wkt {
   /**
    * Encode a {@code google.protobuf.Timestamp} value ({@link Instant}) to its inner-frame content.
    */
+  @SuppressWarnings("deprecation")
   public static byte[] timestamp(Instant v) throws IOException {
     Encoder e = Encoder.start();
     CodedOutputStream out = e.out();
@@ -123,6 +124,7 @@ public final class Wkt {
   // ---- FieldMask --------------------------------------------------------------
 
   /** Encode a {@code google.protobuf.FieldMask} ({@link FieldMask}) to its inner-frame content. */
+  @SuppressWarnings("deprecation")
   public static byte[] fieldMask(FieldMask v) throws IOException {
     Encoder e = Encoder.start();
     CodedOutputStream out = e.out();
@@ -176,6 +178,7 @@ public final class Wkt {
    * equals the proto3 default (so a present-but-default wrapper encodes to an empty frame, as
    * protobuf-java does).
    */
+  @SuppressWarnings("deprecation")
   public static byte[] wrap(Wrap wire, Object value) throws IOException {
     Encoder e = Encoder.start();
     CodedOutputStream out = e.out();
@@ -274,6 +277,7 @@ public final class Wkt {
 
   // ---- shared seconds/nanos framing ------------------------------------------
 
+  @SuppressWarnings("deprecation")
   private static byte[] secondsNanosFrame(long seconds, int nanos) throws IOException {
     Encoder e = Encoder.start();
     CodedOutputStream out = e.out();

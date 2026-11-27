@@ -9,7 +9,11 @@ import java.io.IOException;
  * CodedOutputStream} over an in-memory buffer and its {@code flush()}/{@code toByteArray()}
  * teardown. Generated codecs call {@link #start()}, write into {@link #out()}, and finish with
  * {@link #finish()} instead of re-declaring the stream lifecycle at every encode site.
+ *
+ * @deprecated Generated codecs no longer use this class. They use {@link CodedOutputStream}
+ *     directly with a pre-allocated {@code byte[]}. Hand-written codecs should do the same.
  */
+@Deprecated
 public final class Encoder {
 
   private final ByteArrayOutputStream buffer;
