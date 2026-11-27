@@ -3,6 +3,7 @@
 > **artifact_contract**: ce-unified-plan/v1
 > **artifact_readiness**: implementation-ready
 > **product_contract_source**: ce-brainstorm
+> **Note (2026-11-27)**: the decode "unfunded" policy below was superseded for wide messages; see `docs/solutions/performance-issues/hotspot-huge-methods-in-generated-codecs.md`.
 
 ## Goal Capsule
 

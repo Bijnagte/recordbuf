@@ -117,18 +117,21 @@ class BuilderEmissionTest {
     // matching the generated record's own components).
     assertTrue(src.contains("private int a = 0;"), src);
     assertTrue(src.contains("private Bytes b = Bytes.empty();"), src);
-    assertTrue(src.contains("private List<Item> items = new ArrayList<>();"), src);
+    // Containers start null: the record's compact constructor turns null into an immutable empty
+    // collection, so the builder allocates nothing for them.
+    assertTrue(src.contains("@Nullable private List<Item> items;"), src);
+    assertTrue(src.contains("items = items == null ? List.of() : items;"), src);
   }
 
   @Test
-  void copyConstructorDefensivelyCopiesContainersAndByteArrays() {
+  void copyConstructorSharesTheRecordsImmutableContainers() {
     String src = generatedSource(file(), FILE);
 
-    // R3: a bytes component is the immutable runtime Bytes, so it copies by value; containers
-    // (List/Map) still copy defensively so toBuilder() never aliases the source's containers.
+    // R3: every component copies by reference. The builder has no way to mutate a container it
+    // holds (only whole-value setters), so no defensive copy is needed.
     assertTrue(src.contains("this.a = x.a();"), src);
     assertTrue(src.contains("this.b = x.b();"), src);
-    assertTrue(src.contains("this.items = new ArrayList<>(x.items());"), src);
+    assertTrue(src.contains("this.items = x.items();"), src);
   }
 
   @Test
