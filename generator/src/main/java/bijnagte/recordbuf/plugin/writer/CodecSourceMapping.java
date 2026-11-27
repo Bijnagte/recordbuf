@@ -103,6 +103,7 @@ public final class CodecSourceMapping {
             Element.expr("byte[] buf = new byte[size]"),
             Element.expr("var out = @0.newInstance(buf)", TypeRefs.CODED_OUTPUT_STREAM),
             Element.expr("writeBody(out, v)"),
+            Element.expr("out.checkNoSpaceLeft()"),
             Element.ret("buf"))
         .build();
   }
@@ -221,11 +222,9 @@ public final class CodecSourceMapping {
             switch (f.kind()) {
               case FieldKind.MESSAGE ->
                   Element.expr(
-                      "size += Wire.lenDelimSize(@0, @1.@1Codec.getSerializedSize("
-                          + bnd
-                          + ".value()))",
+                      "size += Wire.lenDelimSize(@0, @1.getSerializedSize(" + bnd + ".value()))",
                       f.number(),
-                      codecShortName(f));
+                      codecRef(f));
               case FieldKind.ENUM ->
                   Element.expr(
                       "size += @0.computeInt32Size(@1, " + bnd + ".value().getNumber())",
@@ -791,9 +790,9 @@ public final class CodecSourceMapping {
     return If.condition("@0 != null", getter)
         .body(
             Element.expr(
-                "size += Wire.lenDelimSize(@0, @1.@1Codec.getSerializedSize(@2))",
+                "size += Wire.lenDelimSize(@0, @1.getSerializedSize(@2))",
                 f.number(),
-                codecShortName(f),
+                codecRef(f),
                 getter))
         .build();
   }
@@ -803,9 +802,7 @@ public final class CodecSourceMapping {
     return For.enhanced("var _m", getter)
         .body(
             Element.expr(
-                "size += Wire.lenDelimSize(@0, @1.@1Codec.getSerializedSize(_m))",
-                f.number(),
-                codecShortName(f)))
+                "size += Wire.lenDelimSize(@0, @1.getSerializedSize(_m))", f.number(), codecRef(f)))
         .build();
   }
 
@@ -875,15 +872,21 @@ public final class CodecSourceMapping {
     // Varint types: iterate to sum per-element varint sizes.
     Element bodySizeExpr =
         switch (wire) {
-          case INT32, UINT32 ->
+          case INT32 ->
               Element.expr(
                   "_bodySize += @0.computeInt32Size(1, _x) - 1", TypeRefs.CODED_OUTPUT_STREAM);
+          case UINT32 ->
+              Element.expr(
+                  "_bodySize += @0.computeUInt32SizeNoTag(_x)", TypeRefs.CODED_OUTPUT_STREAM);
           case SINT_32 ->
               Element.expr(
                   "_bodySize += @0.computeSInt32Size(1, _x) - 1", TypeRefs.CODED_OUTPUT_STREAM);
-          case INT64, UINT64 ->
+          case INT64 ->
               Element.expr(
                   "_bodySize += @0.computeInt64Size(1, _x) - 1", TypeRefs.CODED_OUTPUT_STREAM);
+          case UINT64 ->
+              Element.expr(
+                  "_bodySize += @0.computeUInt64SizeNoTag(_x)", TypeRefs.CODED_OUTPUT_STREAM);
           case SINT_64 ->
               Element.expr(
                   "_bodySize += @0.computeSInt64Size(1, _x) - 1", TypeRefs.CODED_OUTPUT_STREAM);
@@ -895,18 +898,6 @@ public final class CodecSourceMapping {
             For.enhanced("var _x", getter).body(bodySizeExpr).build(),
             Element.expr("size += Wire.lenDelimSize(@0, _bodySize)", num))
         .build();
-  }
-
-  /** Short name for the codec of a message field's element type. */
-  private static String codecShortName(Field f) {
-    TypeRef element = f.type();
-    if (f.label() == FieldLabel.REPEATED && element instanceof TypeRef.Named n) {
-      element = n.generics().isEmpty() ? element : n.generics().get(0);
-    }
-    if (element instanceof TypeRef.Named n) {
-      return n.shortName();
-    }
-    return element.toString();
   }
 
   /**
