@@ -400,7 +400,6 @@ public final class Wkt {
   /**
    * Write a Timestamp WKT directly to {@code out} at {@code fieldNum} without allocating a frame.
    */
-  @SuppressWarnings("deprecation")
   public static void writeTimestamp(CodedOutputStream out, int fieldNum, Instant v)
       throws IOException {
     long seconds = v.getEpochSecond();
@@ -408,22 +407,21 @@ public final class Wkt {
     int innerSize = 0;
     if (seconds != 0L) innerSize += CodedOutputStream.computeInt64Size(1, seconds);
     if (nanos != 0) innerSize += CodedOutputStream.computeInt64Size(2, nanos);
-    out.writeRawVarint32((fieldNum << 3) | 2);
-    out.writeRawVarint32(innerSize);
+    out.writeTag(fieldNum, 2);
+    out.writeUInt32NoTag(innerSize);
     if (seconds != 0L) {
-      out.writeRawVarint32(8);
-      out.writeRawVarint64(seconds);
+      out.writeUInt32NoTag(8);
+      out.writeUInt64NoTag(seconds);
     }
     if (nanos != 0) {
-      out.writeRawVarint32(16);
-      out.writeRawVarint64(nanos);
+      out.writeUInt32NoTag(16);
+      out.writeUInt64NoTag(nanos);
     }
   }
 
   /**
    * Write a Duration WKT directly to {@code out} at {@code fieldNum} without allocating a frame.
    */
-  @SuppressWarnings("deprecation")
   public static void writeDuration(CodedOutputStream out, int fieldNum, Duration v)
       throws IOException {
     long seconds = v.getSeconds();
@@ -435,52 +433,49 @@ public final class Wkt {
     int innerSize = 0;
     if (seconds != 0L) innerSize += CodedOutputStream.computeInt64Size(1, seconds);
     if (nanos != 0) innerSize += CodedOutputStream.computeInt64Size(2, nanos);
-    out.writeRawVarint32((fieldNum << 3) | 2);
-    out.writeRawVarint32(innerSize);
+    out.writeTag(fieldNum, 2);
+    out.writeUInt32NoTag(innerSize);
     if (seconds != 0L) {
-      out.writeRawVarint32(8);
-      out.writeRawVarint64(seconds);
+      out.writeUInt32NoTag(8);
+      out.writeUInt64NoTag(seconds);
     }
     if (nanos != 0) {
-      out.writeRawVarint32(16);
-      out.writeRawVarint64(nanos);
+      out.writeUInt32NoTag(16);
+      out.writeUInt64NoTag(nanos);
     }
   }
 
   /**
    * Write a FieldMask WKT directly to {@code out} at {@code fieldNum} without allocating a frame.
    */
-  @SuppressWarnings("deprecation")
   public static void writeFieldMask(CodedOutputStream out, int fieldNum, FieldMask v)
       throws IOException {
     int innerSize = 0;
     for (String path : v.paths()) {
       if (!path.isEmpty()) innerSize += CodedOutputStream.computeStringSize(1, path);
     }
-    out.writeRawVarint32((fieldNum << 3) | 2);
-    out.writeRawVarint32(innerSize);
+    out.writeTag(fieldNum, 2);
+    out.writeUInt32NoTag(innerSize);
     for (String path : v.paths()) {
       if (!path.isEmpty()) out.writeString(1, path);
     }
   }
 
   /** Write an Empty WKT directly to {@code out} at {@code fieldNum} — a zero-length frame. */
-  @SuppressWarnings("deprecation")
   public static void writeEmpty(CodedOutputStream out, int fieldNum, Empty v) throws IOException {
-    out.writeRawVarint32((fieldNum << 3) | 2);
-    out.writeRawVarint32(0);
+    out.writeTag(fieldNum, 2);
+    out.writeUInt32NoTag(0);
   }
 
   /**
    * Write a scalar wrapper WKT directly to {@code out} at {@code fieldNum} without allocating a
    * frame.
    */
-  @SuppressWarnings("deprecation")
   public static void writeWrap(CodedOutputStream out, int fieldNum, Wrap wire, Object value)
       throws IOException {
     int innerSize = wrapSize(wire, value);
-    out.writeRawVarint32((fieldNum << 3) | 2);
-    out.writeRawVarint32(innerSize);
+    out.writeTag(fieldNum, 2);
+    out.writeUInt32NoTag(innerSize);
     switch (wire) {
       case INT32, UINT32 -> {
         int v = (int) value;

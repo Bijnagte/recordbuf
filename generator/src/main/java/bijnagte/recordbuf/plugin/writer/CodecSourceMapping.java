@@ -1,6 +1,5 @@
 package bijnagte.recordbuf.plugin.writer;
 
-import bijnagte.recordbuf.codegen.source.Annotation;
 import bijnagte.recordbuf.codegen.source.Case;
 import bijnagte.recordbuf.codegen.source.ClassSpec;
 import bijnagte.recordbuf.codegen.source.CommaList;
@@ -192,11 +191,10 @@ public final class CodecSourceMapping {
         .param(TypeRef.Primitive.INT, "fieldNum")
         .param(m.type(), "v")
         .thrown(TypeRef.IO_EXCEPTION)
-        .annotation(Annotation.suppressWarnings("deprecation"))
         .body(
             Element.expr("int size = getSerializedSize(v)"),
-            Element.expr("out.writeRawVarint32((fieldNum << 3) | 2)"),
-            Element.expr("out.writeRawVarint32(size)"),
+            Element.expr("out.writeTag(fieldNum, 2)"),
+            Element.expr("out.writeUInt32NoTag(size)"),
             Element.expr("writeBody(out, v)"))
         .build();
   }
@@ -1180,11 +1178,10 @@ public final class CodecSourceMapping {
                 .param(TypeRef.Primitive.INT, "fieldNum")
                 .param(entryRef, "v")
                 .thrown(TypeRef.IO_EXCEPTION)
-                .annotation(Annotation.suppressWarnings("deprecation"))
                 .body(
                     Element.expr("int size = getSerializedSize(v)"),
-                    Element.expr("out.writeRawVarint32((fieldNum << 3) | 2)"),
-                    Element.expr("out.writeRawVarint32(size)"),
+                    Element.expr("out.writeTag(fieldNum, 2)"),
+                    Element.expr("out.writeUInt32NoTag(size)"),
                     Element.expr("writeBody(out, v)"))
                 .build())
         .method(
