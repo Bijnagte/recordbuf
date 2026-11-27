@@ -277,15 +277,15 @@ tasks.assemble {
 //  - Maven Central (`signing` and `deploy` below, .github/workflows/publish.yml): signs the modules that
 //    `maven-publish` staged (see the root build) and uploads them as one Portal deployment.
 //  - GitHub release (`assemble` and `release` below, .github/workflows/release.yml): jlink runtime zips
-//    (Linux and macOS). Each zip holds a trimmed Java runtime plus the plugin, so it runs with no JDK
+//    (Linux and macOS, built natively per platform). Each zip holds a trimmed Java runtime plus the plugin, so it runs with no JDK
 //    installed: unzip it and point protoc at `bin/protoc-gen-recordbuf`.
 //
-// jlink builds cross-platform from one machine when it is given a JDK per target platform
-// (`targetJdks`). The release workflow downloads those JDKs into build/target-jdks/<platform>; they must
-// all be the same Java major version as the JDK running Gradle. A platform whose directory is missing is
-// left out, so a local run can build just the platforms you have a JDK for.
-val jlinkPlatforms = listOf("linux-x86_64", "linux-aarch_64", "osx-x86_64", "osx-aarch_64")
-val targetJdkDir = layout.buildDirectory.dir("target-jdks")
+// Each platform's zip is built on a runner of that platform (the `assemble` job of release.yml, a matrix):
+// jlink then links from the JDK running Gradle, with that platform's own native libraries, and the zip name
+// carries the platform (protoc-gen-recordbuf-<version>-<platform>.zip). The release job downloads the four
+// zips into `build/release-assets` and `files` below uploads and checksums them. `files` is off when that
+// directory does not exist, so the assemble jobs and local runs are unaffected.
+val releaseAssetsDir = layout.buildDirectory.dir("release-assets")
 
 jreleaser {
     // The git repository root is the parent of this module.
@@ -305,7 +305,9 @@ jreleaser {
     assemble {
         jlink {
             register("protoc-gen-recordbuf") {
-                active.set(Active.ALWAYS)
+                // Off in the release job: the zips arrive there pre-built (`files`), and the release step
+                // would otherwise demand this host's own zip as well.
+                active.set(if (releaseAssetsDir.get().asFile.isDirectory) Active.NEVER else Active.ALWAYS)
                 executable.set("protoc-gen-recordbuf")
                 imageName.set("protoc-gen-recordbuf-{{projectVersion}}")
 
@@ -336,17 +338,15 @@ jreleaser {
                     ignoreMissingDeps.set(true)
                     multiRelease.set("base")
                 }
-
-                jlinkPlatforms.forEach { platform ->
-                    val dir = targetJdkDir.get().dir(platform).asFile
-                    if (dir.isDirectory) {
-                        targetJdk {
-                            path.set(dir)
-                            this.platform.set(platform)
-                        }
-                    }
-                }
             }
+        }
+    }
+
+    // The zips built on the matrix runners, attached to the GitHub release and included in its checksums.
+    files {
+        active.set(if (releaseAssetsDir.get().asFile.isDirectory) Active.ALWAYS else Active.NEVER)
+        glob {
+            pattern.set("${releaseAssetsDir.get().asFile}/*.zip")
         }
     }
 

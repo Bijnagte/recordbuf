@@ -487,10 +487,10 @@ platform zips described under [Download a release](#download-a-release). The two
 in one does not stop the other. The release workflow needs no secrets beyond the built-in `GITHUB_TOKEN`.
 
 The zips are built by [JReleaser](https://jreleaser.org/guide/latest/reference/assemble/jlink.html) (its jlink
-assembler), configured at the end of `generator/build.gradle.kts`. One Linux runner builds all four platforms: jlink
-takes a JDK per target platform, which `scripts/fetch-target-jdks.sh` downloads (Amazon Corretto, checksum-verified;
-Temurin 25 no longer ships the `jmods` that cross-platform jlink needs). To build zips locally, run that script, then
-`./gradlew :recordbuf-generator:jreleaserAssemble`. Without target JDKs it builds only for your own platform.
+assembler), configured at the end of `generator/build.gradle.kts`. Each platform's zip is built on a runner of that
+platform (a matrix in `release.yml`), so the runtime inside it is that platform's own Temurin build, and each zip is
+smoke-tested there. A final job attaches the four zips to the release. To build the zip for your own platform locally,
+run `./gradlew :recordbuf-generator:jreleaserAssemble`.
 
 Local builds use `0.0.1-SNAPSHOT` unless you pass `-PreleaseVersion=x.y.z`.
 

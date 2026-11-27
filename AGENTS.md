@@ -344,9 +344,14 @@ details. Rules:
   publish): JReleaser (`org.jreleaser`, catalog alias `jreleaser`, configured at the end of `generator/build.gradle.kts`)
   builds jlink runtime zips for linux/osx x86_64+aarch_64 (no Windows) and uploads them with a checksum file.
   Non-obvious points, each learned the hard way:
-  - `jreleaserFullRelease` does NOT assemble; run `jreleaserAssemble` first, in the same job.
-  - Cross-platform jlink needs each target JDK's `jmods`. Temurin 25 ships none (JEP 493), so
-    `scripts/fetch-target-jdks.sh` downloads Corretto, which does. The runtime in the zips is Corretto's.
+  - Each platform's zip is built on its own runner (matrix in `release.yml`: `ubuntu-latest`, `ubuntu-24.04-arm` (public
+    repos only), `macos-latest`, `macos-15-intel`), so jlink links from the runner's Temurin 25 (no `jmods` needed,
+    JEP 493) and the zip is named `protoc-gen-recordbuf-<version>-<platform>.zip`. The release job downloads the four
+    zips into `generator/build/release-assets` and runs `jreleaserRelease` (NOT `FullRelease`, which would assemble
+    again). That directory's existence switches the build: `files` (upload + checksum the zips) goes on and the jlink
+    assembler goes off, because the release step otherwise demands the host's own zip. Local assembles are unaffected.
+  - Do not use JReleaser's default jlink `--strip-debug` with cross-platform images: on a Linux host it runs the host
+    `objcopy` over every target runtime. Native builds do not hit this.
   - Do NOT pass the `--add-exports` flags via JReleaser `jvmOptions`: it forwards them to jlink as one quoted
     `--add-options` string, which jlink bakes in garbled (a JVM "Unknown module" warning on every run). They go through
     `environmentVariables { DEFAULT_JAVA_OPTS }` instead, and `src/jreleaser/.../bin/launcher.tpl` is the stock template
