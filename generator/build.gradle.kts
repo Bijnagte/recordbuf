@@ -255,6 +255,11 @@ tasks.named<Jar>("jar") {
 // `mergeServiceFiles()` keeps the META-INF/services entries of every bundled library (the slf4j binding
 // is found through one), which would otherwise overwrite each other.
 tasks.shadowJar {
+    // The service-file transformer only sees a file if the duplicate is not already excluded, so the default
+    // EXCLUDE would drop the extra copies first (Shadow warns about exactly that): the slf4j, Jackson and
+    // Avro service registrations must all be merged. Scoped to META-INF/services so other duplicates
+    // (LICENSE, DEPENDENCIES) are still excluded rather than repeated in the jar.
+    filesMatching("META-INF/services/**") { duplicatesStrategy = DuplicatesStrategy.INCLUDE }
     mergeServiceFiles()
     manifest {
         attributes(
@@ -357,8 +362,10 @@ jreleaser {
     signing {
         val hasKey = providers.environmentVariable("JRELEASER_GPG_SECRET_KEY").isPresent
         active.set(if (hasKey) Active.ALWAYS else Active.NEVER)
-        armored.set(true)
-        verify.set(false)
+        pgp {
+            armored.set(true)
+            verify.set(false)
+        }
     }
 
     // Maven Central, through the Central Portal publisher API. The modules are staged into one directory
