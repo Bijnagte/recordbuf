@@ -137,5 +137,7 @@ class WktDirectWriteTest {
     uf.writeTo(out);
     out.flush();
     assertEquals(set, UnknownFieldSet.parseFrom(bos.toByteArray()));
+    assertEquals(set, uf.toProto());
+    assertSame(UnknownFieldSet.getDefaultInstance(), UnknownFields.empty().toProto());
   }
 }

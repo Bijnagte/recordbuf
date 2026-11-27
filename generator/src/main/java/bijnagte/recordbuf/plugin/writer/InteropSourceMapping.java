@@ -316,7 +316,10 @@ public final class InteropSourceMapping {
     for (Oneof o : m.oneofs()) {
       method.body(emitOneofTo(o));
     }
-    return method.body(Element.ret("_b.build()")).build();
+    return method
+        .body(Element.expr("_b.setUnknownFields(r.unknownFields().toProto())"))
+        .body(Element.ret("_b.build()"))
+        .build();
   }
 
   private static Element toStmt(Field f) {

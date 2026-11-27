@@ -70,13 +70,13 @@ public final class UnknownFields {
    *
    * <p>Iterates the protobuf-java field map and reconstructs the exact post-tag value bytes for
    * each captured entry. Wire order is not preserved (protobuf-java groups by field number), but
-   * every field's tag and value bytes are exact.
+   * every field's tag and value bytes are exact. Group fields are not captured.
    *
    * @param proto the protobuf-java unknown-field set; may be {@code null} or empty
    * @return a recordbuf carrier holding the same fields (the shared {@link #empty()} for a null or
    *     empty input)
    */
-  public static UnknownFields fromProto(UnknownFieldSet proto) {
+  public static UnknownFields fromProto(@Nullable UnknownFieldSet proto) {
     if (proto == null || proto.isEmpty()) {
       return EMPTY;
     }
@@ -171,6 +171,27 @@ public final class UnknownFields {
     for (UnknownField f : fields) {
       out.writeTag(f.fieldNumber(), f.wireType().code());
       out.writeRawBytes(f.value());
+    }
+  }
+
+  /**
+   * Convert this carrier to a protobuf-java {@link UnknownFieldSet}: the inverse of {@link
+   * #fromProto}. Generated {@code Interop.to} uses it so unknown fields survive the round trip.
+   *
+   * @return the equivalent protobuf-java unknown-field set (the default instance when empty)
+   */
+  public UnknownFieldSet toProto() {
+    if (fields.isEmpty()) {
+      return UnknownFieldSet.getDefaultInstance();
+    }
+    try {
+      byte[] bytes = new byte[getSerializedSize()];
+      CodedOutputStream out = CodedOutputStream.newInstance(bytes);
+      writeTo(out);
+      out.checkNoSpaceLeft();
+      return UnknownFieldSet.parseFrom(bytes);
+    } catch (IOException e) {
+      throw new IllegalStateException("unknown fields are not valid wire data", e);
     }
   }
 
