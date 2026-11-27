@@ -241,6 +241,21 @@ subprojects {
 val petstoreSample by tasks.registering(Exec::class) {
     group = "verification"
     description = "Builds and tests samples/petstore against the generator and runtime in this repo."
+    // The sample's own build compiles these projects too. Build them here first, so the nested
+    // Gradle finds them up to date instead of racing this build for the same output directories.
+    dependsOn(
+        ":recordbuf-generator:installDist",
+        ":recordbuf-runtime:jar",
+        ":recordbuf-json:jar",
+        ":recordbuf-avro:jar",
+    )
+    // The nested build keeps its own task history, so it re-runs those jars and the launcher install
+    // and rewrites them. Run it after every other module finished, so it cannot do that while a
+    // module's protoc is executing the launcher.
+    mustRunAfter(
+        listOf("generator", "runtime", "json", "avro", "codegen", "options", "fixtures", "benchmarks")
+            .map { ":recordbuf-$it:build" }
+    )
     workingDir = layout.projectDirectory.dir("samples/petstore").asFile
     commandLine("./gradlew", "build", "--console=plain")
 }
