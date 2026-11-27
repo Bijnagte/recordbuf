@@ -66,14 +66,23 @@ cannot be asked to pass a JVM flag, so the generator has to stay under the limit
 - Benchmark one wide message, not only small ones. A narrow message cannot show this cliff.
 - When a benchmark is unexpectedly slow, run it with `-XX:+PrintCompilation` and look for
   `COMPILE SKIPPED`, and try `-XX:-DontCompileHugeMethods` to confirm.
-- **Known unfixed limit (decode):** `decodeBody` for the same message is 8,323 bytes and its record
-  constructor takes about 150 arguments. C1 reports "out of virtual registers in linear scan", C2
-  reports "unsupported calling sequence" (also for the record's `<init>`), so wide-message decode
-  stays interpreted even with the flag. Fixing it needs decode through a mutable accumulator rather
-  than one canonical-constructor call; this was judged not worth it for rare messages of this width.
-  Lazy allocation of repeated and map locals did cut that decode from 3,512 to 1,016 B/op
-  (`benchmarks/results/post-lazy-collections.md`), at the cost that an absent collection is now an
-  immutable empty one.
+- **Decode, fixed (wide messages):** `decodeBody` was 8,323 bytes, so HotSpot never compiled it
+  (`PrintCompilation` showed no `decodeBody` line at all). Locals cannot be shared across methods, so
+  the tag switch could not be chunked. Wide messages (more than `CHUNK_SLOTS` slots) now decode into
+  the generated `Builder`: `decodeBody` is a short loop calling `decodeField`, which routes the field
+  number to a `decodePartN` that owns its range. Each arm reads the builder field into a local, runs
+  the ordinary arm and writes it back. Conformance decode went from 643K to 4.65M ops/s and from
+  3,512 to 1,600 B/op (`benchmarks/results/post-decode-builder-carrier.md`), ahead of protobuf-java
+  (2.66M, 1,656 B/op). Small messages keep the local-variable path. The record's `<init>` still
+  fails C2 ("unsupported incoming calling sequence") but C1 compiles it, and it is not on the
+  critical path.
+- **Collections:** repeated and map builder fields start null; the record's compact constructor turns
+  null into an immutable `List.of()`/`Map.of()`. The builder allocates and copies nothing, so
+  `toBuilder()` shares the record's collections, which map iteration order now reflects (the 8
+  `corpus/all-types-*.pb.hex` goldens were re-seeded after review: identical content, map entry
+  order only).
+- Found with `./gradlew :recordbuf-benchmarks:profile` (see
+  `profiling-jmh-benchmarks-with-jfr-and-async-profiler.md`).
 
 ## Related Issues
 - `docs/plans/2026-11-26-003-feat-encode-allocation-decode-policy-plan.md`

@@ -62,7 +62,8 @@ public final class GoogleJavaFormatter implements Formatter {
       // GJF's checked FormatterException (a parse failure on the rendered source we generated) is
       // surfaced as an unchecked failure so the plugin fails loud rather than emitting malformed
       // output.
-      throw new IllegalStateException("Google Java Format could not format rendered source", e);
+      throw new IllegalStateException(
+          "Google Java Format could not format rendered source: " + e.getMessage(), e);
     }
   }
 }

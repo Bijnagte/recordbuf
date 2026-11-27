@@ -273,6 +273,10 @@ details. Rules:
 - Missing golden seeding (writes missing only, never overwrites):
   `./gradlew :recordbuf-fixtures:seedGoldens`
 - Coverage report: `./gradlew :recordbuf-fixtures:jacocoTestReport`
+- Profile a benchmark (JFR; async-profiler too when `ASYNC_PROFILER_LIB` is set):
+  `./gradlew :recordbuf-benchmarks:profile -Pbench=ConformanceBenchmark.decode [-PprofileQuick]` — prints
+  top CPU and allocation frames; artifacts in `benchmarks/build/profiles/`. See
+  `docs/solutions/performance-issues/profiling-jmh-benchmarks-with-jfr-and-async-profiler.md`.
 - Regenerate the plugin launcher for use by `protoc`:
   `./gradlew :recordbuf-generator:installDist`
   → the launched launcher is `generator/build/install/protoc-gen-recordbuf/bin/protoc-gen-recordbuf`

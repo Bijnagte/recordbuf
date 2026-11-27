@@ -1,5 +1,6 @@
 package bijnagte.recordbuf.plugin.writer;
 
+import bijnagte.recordbuf.codegen.source.Annotation;
 import bijnagte.recordbuf.codegen.source.Case;
 import bijnagte.recordbuf.codegen.source.ClassSpec;
 import bijnagte.recordbuf.codegen.source.CommaList;
@@ -83,6 +84,7 @@ public final class CodecSourceMapping {
         .method(getSerializedSize(m))
         .method(chunkParts(m).toArray(new Method[0]))
         .method(scopedDecode(m.type(), codecType))
+        .method(decodeParts(m).toArray(new Method[0]))
         .method(decodeBody(m, jackson))
         .build();
   }
@@ -343,15 +345,14 @@ public final class CodecSourceMapping {
   }
 
   /** A repeated or map field: its decode local is allocated lazily on the first element. */
-  private static boolean isLazyCollection(Field f) {
+  static boolean isLazyCollection(Field f) {
     return f.kind() == FieldKind.MAP || f.label() == FieldLabel.REPEATED;
   }
 
-  /** Add a field's decode arm, first allocating its collection local if it is still null. */
-  private static void fieldArm(Switch.Builder switchB, Field f, Case c) {
+  /** A field's decode arm, first allocating its collection local if it is still null. */
+  private static Case lazyGuarded(Field f, Case c) {
     if (!isLazyCollection(f)) {
-      switchB.caseArm(c);
-      return;
+      return c;
     }
     TypeRef impl = f.kind() == FieldKind.MAP ? TypeRefs.HASH_MAP : TypeRefs.ARRAY_LIST;
     List<Element> body = new ArrayList<>();
@@ -360,7 +361,53 @@ public final class CodecSourceMapping {
             .body(Element.expr(f.javaName() + " = new @0<>()", impl))
             .build());
     body.addAll(c.body());
-    switchB.caseArm(new Case(c.patterns(), body));
+    return new Case(c.patterns(), body);
+  }
+
+  /** One decode arm: the field number it matches, the local it assigns, and the case itself. */
+  private record DecodeArm(int number, String local, Case arm) {}
+
+  /** The decode arms of every field, then every oneof member, in declaration order. */
+  private static List<DecodeArm> decodeArms(Message m) {
+    List<DecodeArm> arms = new ArrayList<>();
+    for (Field f : m.fields()) {
+      Entry wktEntry = WktSourceMapping.resolve(f);
+      Case c;
+      if (wktEntry != null) {
+        c = WktSourceMapping.emitDecodeCase(f, Objects.requireNonNull(wktEntry), "in");
+      } else {
+        c =
+            switch (f.kind()) {
+              case FieldKind.MAP -> emitMapDecodeCase(f);
+              case FieldKind.MESSAGE ->
+                  f.label() == FieldLabel.REPEATED
+                      ? emitRepeatedMessageDecodeCase(f)
+                      : emitMessageDecodeCase(f);
+              case FieldKind.ENUM ->
+                  f.label() == FieldLabel.REPEATED
+                      ? emitRepeatedEnumDecodeCase(f)
+                      : emitEnumDecodeCase(f);
+              case FieldKind.SCALAR ->
+                  f.label() == FieldLabel.REPEATED
+                      ? emitRepeatedScalarDecodeCase(f)
+                      : emitScalarDecodeCase(f);
+            };
+      }
+      if (c != null) {
+        arms.add(new DecodeArm(f.number(), f.javaName(), lazyGuarded(f, c)));
+      }
+    }
+    for (Oneof o : m.oneofs()) {
+      for (Case c : emitOneofDecodeCase(o, m.type())) {
+        arms.add(new DecodeArm(Integer.parseInt(c.patterns().get(0)), o.componentName(), c));
+      }
+    }
+    return arms;
+  }
+
+  /** Wide messages decode through the builder in bounded parts (see {@link #decodeWideBody}). */
+  static boolean isWide(Message m) {
+    return writeSlots(m).size() > CHUNK_SLOTS;
   }
 
   /** The record-constructor argument for a lazy collection: the local, or an immutable empty. */
@@ -369,8 +416,114 @@ public final class CodecSourceMapping {
     return RawExpr.of(f.javaName() + " == null ? @0.of() : " + f.javaName(), empty);
   }
 
+  /**
+   * A wide message's {@code decodeBody}: the tag loop writes into the message's {@code Builder} (a
+   * mutable carrier, unlike the method locals the narrow path uses) so the field arms can be split
+   * across bounded {@code decodePartN} methods that HotSpot can compile.
+   */
+  private static Method decodeWideBody(Message m) {
+    return Method.named("decodeBody")
+        .private_()
+        .static_()
+        .returnType(m.type())
+        .param(TypeRef.BYTES, "inBytes")
+        .thrown(TypeRef.IO_EXCEPTION)
+        .body(
+            Element.expr("var dec = @0.start(inBytes)", TypeRefs.DECODER),
+            Element.expr("var in = dec.in()"),
+            Element.expr("var decodeCarrier = new @0()", m.type().sub("Builder")),
+            Element.expr("var unknown = @0.builder()", TypeRefs.UNKNOWN_FIELDS),
+            While.condition("true")
+                .body(
+                    LocalVar.builder(TypeRef.Primitive.INT, "tag")
+                        .assigned("@0.readTag(in)", TypeRefs.WIRE),
+                    If.condition("tag == 0").body(Element.of("break;")).build(),
+                    If.condition(
+                            "!decodeField(in, @0.tagFieldNumber(tag), decodeCarrier)",
+                            TypeRefs.WIRE)
+                        .body(Element.expr("unknown.add(in, tag)"))
+                        .build())
+                .build(),
+            Element.expr("decodeCarrier.unknownFields = unknown.build()"),
+            Element.ret("decodeCarrier.build()"))
+        .build();
+  }
+
+  /** The decode arms of a wide message, sorted by field number and chunked. */
+  private static List<List<DecodeArm>> decodeChunks(Message m) {
+    List<DecodeArm> arms = new ArrayList<>(decodeArms(m));
+    arms.sort(Comparator.comparingInt(DecodeArm::number));
+    List<List<DecodeArm>> chunks = new ArrayList<>();
+    for (int i = 0; i < arms.size(); i += CHUNK_SLOTS) {
+      chunks.add(arms.subList(i, Math.min(arms.size(), i + CHUNK_SLOTS)));
+    }
+    return chunks;
+  }
+
+  /**
+   * {@code decodeField} (routes a field number to the part that owns its range) and the {@code
+   * decodePartN} methods. Each arm reads its field out of the builder into a local, runs the
+   * ordinary decode arm on it, and writes it back.
+   */
+  private static List<Method> decodeParts(Message m) {
+    List<Method> methods = new ArrayList<>();
+    if (!isWide(m)) {
+      return methods;
+    }
+    TypeRef.Named builder = m.type().sub("Builder");
+    List<List<DecodeArm>> chunks = decodeChunks(m);
+    var route =
+        Method.named("decodeField")
+            .private_()
+            .static_()
+            .returnType(TypeRef.Primitive.BOOLEAN)
+            .param(TypeRefs.CODED_INPUT_STREAM, "in")
+            .param(TypeRef.Primitive.INT, "decodeFieldNo")
+            .param(builder, "decodeCarrier")
+            .thrown(TypeRef.IO_EXCEPTION);
+    for (int i = 0; i < chunks.size(); i++) {
+      List<DecodeArm> chunk = chunks.get(i);
+      if (i < chunks.size() - 1) {
+        route.body(
+            If.condition("decodeFieldNo <= @0", chunk.get(chunk.size() - 1).number())
+                .body(Element.ret("decodePart" + i + "(in, decodeFieldNo, decodeCarrier)"))
+                .build());
+      } else {
+        route.body(Element.ret("decodePart" + i + "(in, decodeFieldNo, decodeCarrier)"));
+      }
+
+      Switch.Builder sw = Switch.on("decodeFieldNo");
+      for (DecodeArm a : chunk) {
+        List<Element> body = new ArrayList<>();
+        body.add(Element.expr("var @0 = decodeCarrier.@0", a.local()));
+        body.addAll(a.arm().body());
+        body.add(Element.expr("decodeCarrier.@0 = @0", a.local()));
+        body.add(Element.ret("true"));
+        sw.caseArm(new Case(a.arm().patterns(), body));
+      }
+      methods.add(
+          Method.named("decodePart" + i)
+              // Each arm reads its field's current value into a local the arm may only overwrite.
+              .annotation(Annotation.suppressWarnings("UnusedVariable"))
+              .private_()
+              .static_()
+              .returnType(TypeRef.Primitive.BOOLEAN)
+              .param(TypeRefs.CODED_INPUT_STREAM, "in")
+              .param(TypeRef.Primitive.INT, "decodeFieldNo")
+              .param(builder, "decodeCarrier")
+              .thrown(TypeRef.IO_EXCEPTION)
+              .body(sw.build(), Element.ret("false"))
+              .build());
+    }
+    methods.add(0, route.build());
+    return methods;
+  }
+
   /** The private {@code decodeBody} the scoped {@code decode} runs: one level's tag loop. */
   private static Method decodeBody(Message m, boolean jackson) {
+    if (isWide(m)) {
+      return decodeWideBody(m);
+    }
     var method =
         Method.named("decodeBody")
             .private_()
@@ -443,7 +596,6 @@ public final class CodecSourceMapping {
 
     // Oneof locals: each defaults to null (the absent case). Proto3 oneof semantics: last
     // same-tag member seen wins, so a repeated same-tag member overwrites the prior value.
-    TypeRef.Named recordRef = m.type();
     for (Oneof o : m.oneofs()) {
       method.body(Element.expr("@0 @1 = null", o.iface(), o.componentName()));
     }
@@ -451,41 +603,8 @@ public final class CodecSourceMapping {
     // Tag loop: a while-loop wrapping a pattern-matching switch of tag-case arms.
 
     Switch.Builder switchB = Switch.on("@0.tagFieldNumber(tag)", TypeRefs.WIRE);
-    for (Field f : m.fields()) {
-      Entry wktEntry = WktSourceMapping.resolve(f);
-      if (wktEntry != null) {
-        var wkt0 = Objects.requireNonNull(wktEntry);
-        fieldArm(switchB, f, WktSourceMapping.emitDecodeCase(f, wkt0, "in"));
-      } else {
-        switch (f.kind()) {
-          case FieldKind.MAP -> fieldArm(switchB, f, emitMapDecodeCase(f));
-          case FieldKind.MESSAGE -> {
-            Case c =
-                f.label() == FieldLabel.REPEATED
-                    ? emitRepeatedMessageDecodeCase(f)
-                    : emitMessageDecodeCase(f);
-            if (c != null) fieldArm(switchB, f, c);
-          }
-          case FieldKind.ENUM -> {
-            Case c =
-                f.label() == FieldLabel.REPEATED
-                    ? emitRepeatedEnumDecodeCase(f)
-                    : emitEnumDecodeCase(f);
-            if (c != null) fieldArm(switchB, f, c);
-          }
-          case FieldKind.SCALAR -> {
-            if (f.label() == FieldLabel.REPEATED) {
-              fieldArm(switchB, f, emitRepeatedScalarDecodeCase(f));
-            } else {
-              fieldArm(switchB, f, emitScalarDecodeCase(f));
-            }
-          }
-        }
-      }
-    }
-    // Oneof decode cases: each member contributes a case that assigns the oneof local.
-    for (Oneof o : m.oneofs()) {
-      switchB.caseArm(emitOneofDecodeCase(o, recordRef));
+    for (DecodeArm a : decodeArms(m)) {
+      switchB.caseArm(a.arm());
     }
     // the default case captures the unknown field into the builder.
     switchB.defaultBody(Element.expr("unknown.add(in, tag)"));

@@ -29,6 +29,8 @@ public final class TypeRefs {
   public static final TypeRef WIRE = TypeRef.of("bijnagte.recordbuf.runtime.Wire");
   public static final TypeRef CODED_OUTPUT_STREAM =
       TypeRef.of("com.google.protobuf.CodedOutputStream");
+  public static final TypeRef CODED_INPUT_STREAM =
+      TypeRef.of("com.google.protobuf.CodedInputStream");
   public static final TypeRef BYTES = TypeRef.of("bijnagte.recordbuf.runtime.Bytes");
   public static final TypeRef PROTOBUF_MESSAGE =
       TypeRef.of("bijnagte.recordbuf.runtime.ProtobufMessage");

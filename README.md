@@ -418,12 +418,27 @@ repo root. The root `build.gradle.kts` is an aggregator that also applies the sh
 | `json/` | `:recordbuf-json` | Jackson support: temporal / bytes / `FieldMask` / `Empty` (de)serializers, oneof reading, dynamic WKT bridging, the JSON envelope. |
 | `avro/` | `:recordbuf-avro` | Avro runtime support: WKT ↔ Avro conversions (`WktAvroBridge`). |
 | `options/` | `:recordbuf-options` | `recordbuf_options.proto`, consumed as a protoc `-I` include, not as a Gradle dependency. |
-| `benchmarks/` | `:recordbuf-benchmarks` | JMH throughput and allocation benchmarks comparing recordbuf codecs and interop against protobuf-java (`./gradlew :recordbuf-benchmarks:jmh`). Not published; baselines are kept in `benchmarks/results/`. |
+| `benchmarks/` | `:recordbuf-benchmarks` | JMH throughput and allocation benchmarks comparing recordbuf codecs and interop against protobuf-java (`./gradlew :recordbuf-benchmarks:jmh`), plus a one-command profiler (`./gradlew :recordbuf-benchmarks:profile -Pbench=<regex>`, see [Profiling](#profiling)). Not published; baselines are kept in `benchmarks/results/`. |
 | `fixtures/` | `:recordbuf-fixtures` | Per-feature `.proto` fixtures generated through the real launcher, and the [compatibility suite](#compatibility-suite): a golden matrix over five formats, checked against protobuf-java 4.36.2 and Avro, plus a protobuf conformance mirror. Its Gradle script is Groovy because of the protobuf-gradle-plugin's DSL. |
 
 Other files: `gradle/libs.versions.toml` (the version catalog, where versions are bumped),
 `config/checkstyle/checkstyle.xml` (shared Checkstyle config), `docs/plans/` (implementation plans),
 and `docs/solutions/` (documented learnings; see [docs/README.md](./docs/README.md)).
+
+
+## Profiling
+
+`:recordbuf-benchmarks:profile` runs one JMH benchmark under JFR and prints the top CPU and allocation frames as text, so it needs no GUI.
+
+```bash
+./gradlew :recordbuf-benchmarks:profile -Pbench=ConformanceBenchmark.decode          # full run
+./gradlew :recordbuf-benchmarks:profile -Pbench=ConformanceBenchmark.decode -PprofileQuick   # shorter
+```
+
+- `-Pbench` is a JMH include regex (a class, or `Class.method`). `-PprofileQuick` shortens warmup and measurement.
+- The task prints `jfr view hot-methods` and `jfr view allocation-by-site`, and lists the artifacts under `benchmarks/build/profiles/<bench>/` (`profile.jfr`, never committed). Open the `.jfr` in JDK Mission Control if you want a GUI.
+- To add an async-profiler CPU flame graph, download a release from <https://github.com/async-profiler/async-profiler/releases> and set `ASYNC_PROFILER_LIB` to its `libasyncProfiler.dylib` (macOS) or `libasyncProfiler.so` (Linux). The task uses it when the file exists and says which profilers ran. On macOS it samples with itimer, since there is no perf_events.
+- `./gradlew :recordbuf-benchmarks:jmh` is unchanged and keeps its `-prof gc` allocation numbers.
 
 ## Development
 

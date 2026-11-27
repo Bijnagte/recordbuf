@@ -221,7 +221,8 @@ public final class RecordSourceMapping {
     Component carrierComp = carrier.build();
     result.component(carrierComp);
 
-    if (jackson) {
+    boolean hasCollections = m.fields().stream().anyMatch(CodecSourceMapping::isLazyCollection);
+    if (jackson || hasCollections) {
       // The record-compact constructor (no parameter list, no parens) is the normalization point:
       // the components are its implicit parameters, bound to the backing fields, so the body can
       // re-assign them in place. It runs after the (synthesized, all-args) canonical constructor
@@ -248,10 +249,15 @@ public final class RecordSourceMapping {
                       .text(
                           GeneratedDocs.MARKER
                               + " Normalizes the components on every construction path: "
-                              + "null singular scalars become their proto3 defaults, the "
-                              + "carrier becomes empty(), and the retained-JSON-properties map "
-                              + "becomes a fresh mutable map. Jackson's implicit creator, a "
-                              + "direct `new`, and the builder all pass through it.\n")
+                              + "null repeated and map components become immutable empty "
+                              + "collections"
+                              + (jackson
+                                  ? ", null singular scalars become their proto3 defaults, the "
+                                      + "carrier becomes empty(), and the retained-JSON-properties "
+                                      + "map becomes a fresh mutable map"
+                                  : "")
+                              + ". Every construction path (a direct `new`, the builder, and "
+                              + "decode) passes through it.\n")
                       .build());
       // Per-field null normalization: an explicit JSON null (or a missing property) reaches the
       // component as null, and proto3 says a missing singular scalar is its default — so null is
@@ -259,6 +265,14 @@ public final class RecordSourceMapping {
       // message/enum, explicit `optional`, oneof) are skipped: there null means "absent", which
       // the codec already encodes correctly.
       for (Field f : m.fields()) {
+        if (CodecSourceMapping.isLazyCollection(f)) {
+          // Null means "no elements": an immutable empty collection, with no allocation.
+          String n = f.javaName();
+          TypeRef empty = f.kind() == FieldKind.MAP ? TypeRefs.MAP : TypeRefs.LIST;
+          cc.body(Element.expr(RawExpr.of(n + " = " + n + " == null ? @0.of() : " + n, empty)));
+          continue;
+        }
+        if (!jackson) continue;
         // Skip: a null-default field (presence-tracked — null means "absent") or a Java
         // primitive component (never null — Jackson maps missing/explicit-null onto the
         // primitive itself, e.g. 0/false).
@@ -266,15 +280,18 @@ public final class RecordSourceMapping {
         String n = f.javaName();
         cc.body(Element.expr(RawExpr.of(n + " = " + n + " == null ? @0 : " + n, defaultFor(f))));
       }
-      cc.body(
-          If.condition("unknownFields == null")
-              .body(Element.expr(RawExpr.of("unknownFields = @0.empty()", TypeRefs.UNKNOWN_FIELDS)))
-              .build());
-      cc.body(
-          Element.expr(
-              RawExpr.of(
-                  "jsonExtras = new @0<>(jsonExtras == null ? new @0<>() : jsonExtras)",
-                  TypeRefs.LINKED_HASH_MAP)));
+      if (jackson) {
+        cc.body(
+            If.condition("unknownFields == null")
+                .body(
+                    Element.expr(RawExpr.of("unknownFields = @0.empty()", TypeRefs.UNKNOWN_FIELDS)))
+                .build());
+        cc.body(
+            Element.expr(
+                RawExpr.of(
+                    "jsonExtras = new @0<>(jsonExtras == null ? new @0<>() : jsonExtras)",
+                    TypeRefs.LINKED_HASH_MAP)));
+      }
       result.constructor(cc.build());
     }
 
@@ -878,12 +895,14 @@ public final class RecordSourceMapping {
     TypeRef builderType = recordRef.sub("Builder");
 
     // Storage fields with codec defaults for each component field.
+    // Repeated and map components start null and stay null until set (or until a wide message's
+    // decode adds the first element): the record's compact constructor turns null into an
+    // immutable empty collection, so the builder neither allocates nor copies them.
     for (Field f : m.fields()) {
-      var comp =
-          Component.type(scalarComponentType(f), f.javaName())
-              .initializer(defaultFor(f))
-              .private_();
-      if (isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
+      boolean lazy = CodecSourceMapping.isLazyCollection(f);
+      var comp = Component.type(scalarComponentType(f), f.javaName()).private_();
+      if (!lazy) comp.initializer(defaultFor(f));
+      if (lazy || isComponentNullable(f)) comp.annotation(Annotation.NULLABLE);
       builderClz.field(comp.build());
     }
     // M4-C2b-2b-12: oneof component storage fields. Each defaults to null.
@@ -924,13 +943,7 @@ public final class RecordSourceMapping {
     var copyCtor = Constructor.builder().private_().param(recordRef, "x");
     for (Field f : m.fields()) {
       String fn = f.javaName();
-      if (f.label() == FieldLabel.REPEATED) {
-        copyCtor.body(Element.expr("this.@0 = new @2<>(x.@1())", fn, fn, TypeRefs.ARRAY_LIST));
-      } else if (f.kind() == FieldKind.MAP) {
-        copyCtor.body(Element.expr("this.@0 = new @2<>(x.@1())", fn, fn, TypeRefs.HASH_MAP));
-      } else {
-        copyCtor.body(Element.expr("this.@0 = x.@1()", fn, fn));
-      }
+      copyCtor.body(Element.expr("this.@0 = x.@1()", fn, fn));
     }
     // M4-C2b-2b-12: oneof component copy.
     for (var oneof : m.oneofs()) {
@@ -1022,6 +1035,9 @@ public final class RecordSourceMapping {
     builderClz.method(
         Method.named("build")
             .javadoc(GeneratedDocs.type(null, "Builds a " + m.name() + " record."))
+            // Null repeated/map storage reaches the constructor on purpose: its compact form
+            // normalizes it to an immutable empty collection.
+            .annotation(Annotation.suppressWarnings("NullAway"))
             .public_()
             .returnType(recordRef)
             .body(Element.ret("new @0(@1)", recName, CommaList.of(ctorArgs)))
