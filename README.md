@@ -173,6 +173,7 @@ Inside a `recordbuf.*` package, reference them with a leading dot, e.g. `(.recor
 | `json_oneof = "<name>"` | oneof | Renames the oneof discriminator property (default `<oneofName>`) |
 | `json_name = "<name>"` | field | Renames the field's JSON property on a jackson-enabled file; the previous proto3 camelCase name stays readable as a `@JsonAlias` |
 | `json_ignored = true` | field | Keeps the field out of the JSON output on a jackson-enabled file; it stays on the wire. Not enforced on read: see [known findings](docs/known-findings.md) |
+| `java_type = "<FQCN>"` | field | The record component becomes that Java type instead of `String` (a `string` field only). Wire, JSON and Avro stay string; conversion resolves through the format registry. See [Format fields](#format-fields) |
 
 `json_oneof_values` is reserved: it is declared but not yet read.
 
@@ -194,6 +195,54 @@ declaration order. It never loads or checks your interface, so `javac` decides w
 satisfies it, just as if you had written the clause by hand. Marker interfaces need nothing else.
 Types without the option generate unchanged. [docs/protobuf.dev-index.md](./docs/protobuf.dev-index.md)
 explains why these options live outside protobuf's namespace.
+
+#### Format fields
+
+A `string` field tagged with `recordbuf.java_type` keeps its string wire/JSON/Avro shape while its
+record component becomes the Java type the option names — `java.util.UUID`, `java.net.URI`, or
+any type a format provider on the runtime classpath can parse:
+
+```proto
+message Pet {
+  optional string id = 1 [(recordbuf.java_type) = "java.util.UUID"];
+}
+```
+
+```
+Pet.builder().id(UUID.randomUUID()).build();   // the component is a UUID
+```
+
+- **Every surface carries the string.** The binary wire, proto3 JSON, Jackson and Avro all encode
+  the field's string form; only the record's component is typed. An absent field is `null`;
+  a present-but-unparseable string fails loud on the way in (the format's `parse` throws).
+- **The conversion resolves through** `bijnagte.recordbuf.runtime.format.FormatRegistry` — the
+  generated code references the format's class directly and asks the registry for its `Format<T>`.
+  `recordbuf-runtime` ships `UUID` and `URI` formats and seeds the registry from
+  `java.util.ServiceLoader`.
+
+A custom format is one class implementing `Format<T>` — `type()`, `format(T)`, `parse(String)`
+(plus an optional constant `wireBytes` override for fixed-size forms):
+
+```java
+public final class UlidFormat implements Format<Ulid> {
+  @Override public Class<Ulid> type() { return Ulid.class; }
+  @Override public String format(Ulid value) { return value.toString(); }
+  @Override public Ulid parse(String text) { return Ulid.parse(text); }
+  @Override public int wireBytes(Ulid value) { return 26; }   // fixed-size text form
+}
+```
+
+Provide it either way:
+
+- **Explicit:** `FormatRegistry.register(Ulid.class, new UlidFormat());` before the generated code
+  runs.
+- **Discovery:** put the implementation on the classpath as a `ServiceLoader` provider —
+  `META-INF/services/bijnagte.recordbuf.runtime.format.Format` listing the class (or
+  `provides`/`uses` in a `module-info` for modular deployments). The registry picks it up at
+  startup and keys it by `type()`, so no registration call is needed.
+
+A type with no resolvable format fails loud when the generated code first asks the registry —
+generation itself succeeds, so a forgotten provider is a runtime error, not a codegen error.
 
 ### Bindings
 

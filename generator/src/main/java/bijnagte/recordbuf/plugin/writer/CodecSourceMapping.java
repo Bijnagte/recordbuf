@@ -312,6 +312,12 @@ public final class CodecSourceMapping {
                       f.number(),
                       memberValue(o, f, bnd));
                 }
+                if (isFormatField(f)) {
+                  yield Element.expr(
+                      "size += Wire.lenDelimSize(@0, @1)",
+                      f.number(),
+                      formatWireBytes(f, memberValue(o, f, bnd)));
+                }
                 String call = sizeCall(wire);
                 yield Element.expr(
                     "size += @0.@1(@2, @3)",
@@ -600,7 +606,7 @@ public final class CodecSourceMapping {
               method.body(emitRepeatedLocalInit(f));
             } else if (f.isNullable()) {
               // M4-C2d-1: optional scalar → starts at null, set on tag.
-              TypeRef localType = TypeRef.boxedFor(f.typeUrl());
+              TypeRef localType = isFormatField(f) ? f.type() : TypeRef.boxedFor(f.typeUrl());
               method.body(Element.expr("@0 @1 = null", localType, f.javaName()));
             } else {
               TypeRef localTypeRef = decodeLocalType(f);
@@ -668,7 +674,9 @@ public final class CodecSourceMapping {
     if (f.isNullable()) {
       // M4-C2d-1: optional scalar / optional string → @Nullable wrapper → skip if null.
       return If.condition("@0 != null", getter)
-          .body(Element.expr("out.@0(@1, @2)", call, num, getter))
+          .body(
+              Element.expr(
+                  "out.@0(@1, @2)", call, num, isFormatField(f) ? formatWrite(f, getter) : getter))
           .build();
     }
     Element encoded =
@@ -844,7 +852,13 @@ public final class CodecSourceMapping {
     String local = f.javaName();
     String pattern = String.valueOf(num);
     return switch (wireScalar(f)) {
-      case STRING -> Case.of(pattern, Element.expr("@0 = in.readStringRequireUtf8()", local));
+      case STRING ->
+          isFormatField(f)
+              ? Case.of(
+                  pattern,
+                  Element.expr(
+                      "@0 = @1", local, formatParse(f, RawExpr.of("in.readStringRequireUtf8()"))))
+              : Case.of(pattern, Element.expr("@0 = in.readStringRequireUtf8()", local));
       case BYTES ->
           Case.of(
               pattern,
@@ -929,6 +943,43 @@ public final class CodecSourceMapping {
       case STRING -> "writeString";
       case BYTES -> "writeByteArray";
     };
+  }
+
+  /**
+   * Whether the field is a format field: a singular {@code string} scalar carrying the {@code
+   * java_type} option (R3 rejects repeated/map members for such a field). The wire stays STRING end
+   * to end; only the record component changes shape.
+   */
+  private static boolean isFormatField(Field f) {
+    return f.javaType() != null;
+  }
+
+  /**
+   * The decode expression for a format field: parse the raw wire string into the named type through
+   * the runtime format registry.
+   */
+  private static RawExpr formatParse(Field f, RawExpr rawValue) {
+    return RawExpr.of(
+        "@0.format(@1.class).parse(@2)", TypeRefs.FORMAT_REGISTRY, f.type(), rawValue);
+  }
+
+  /**
+   * The encode/size expression for a format field: format the named value into its canonical wire
+   * string through the runtime format registry.
+   */
+  private static RawExpr formatWrite(Field f, String valueExpr) {
+    return RawExpr.of(
+        "@0.format(@1.class).format(@2)", TypeRefs.FORMAT_REGISTRY, f.type(), valueExpr);
+  }
+
+  /**
+   * The size expression for a format field: asks the format for the rendered string's byte count
+   * without rendering it — a fixed-size format (UUID, ULID) answers with a constant, so the sizing
+   * pass never formats the value.
+   */
+  private static RawExpr formatWireBytes(Field f, String valueExpr) {
+    return RawExpr.of(
+        "@0.format(@1.class).wireBytes(@2)", TypeRefs.FORMAT_REGISTRY, f.type(), valueExpr);
   }
 
   /** The {@code CodedOutputStream.computeXxxSize} static method name for a wire scalar. */
@@ -1047,6 +1098,12 @@ public final class CodecSourceMapping {
     WireScalar wire = wireScalar(f);
     String call = sizeCall(wire);
     if (f.isNullable()) {
+      if (isFormatField(f)) {
+        return If.condition("@0 != null", getter)
+            .body(
+                Element.expr("size += Wire.lenDelimSize(@0, @1)", num, formatWireBytes(f, getter)))
+            .build();
+      }
       return If.condition("@0 != null", getter)
           .body(
               Element.expr(
@@ -1704,6 +1761,14 @@ public final class CodecSourceMapping {
       } else if (f.kind() == FieldKind.ENUM) {
         write =
             Element.expr("out.writeEnum(@0, @1.getNumber())", f.number(), memberValue(o, f, bnd));
+      } else if (isFormatField(f)) {
+        // A format member writes the registry-formatted string: the wire stays STRING.
+        write =
+            Element.expr(
+                "out.@0(@1, @2)",
+                encodeCall(wireScalar(f)),
+                f.number(),
+                formatWrite(f, memberValue(o, f, bnd)));
       } else {
         WireScalar wire = wireScalar(f);
         write =
@@ -1815,7 +1880,11 @@ public final class CodecSourceMapping {
     WireScalar wire = wireScalar(f);
     String readCall = decodeCall(wire);
     return switch (wire) {
-      case STRING -> RawExpr.of("new @0(in.readStringRequireUtf8())", wrapper);
+      case STRING ->
+          isFormatField(f)
+              ? RawExpr.of(
+                  "new @0(@1)", wrapper, formatParse(f, RawExpr.of("in.readStringRequireUtf8()")))
+              : RawExpr.of("new @0(in.readStringRequireUtf8())", wrapper);
       case BYTES ->
           RawExpr.of("new @0(@1.of(in.readBytes().toByteArray()))", wrapper, TypeRefs.BYTES);
       default -> RawExpr.of("new @0(@1)", wrapper, readCall);

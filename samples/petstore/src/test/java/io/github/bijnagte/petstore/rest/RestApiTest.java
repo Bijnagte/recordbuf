@@ -114,7 +114,7 @@ class RestApiTest {
             .post()
             .uri("/orders")
             .contentType(MediaType.APPLICATION_JSON)
-            .body(PlaceOrderRequest.builder().petIds(List.of(pet.id())).build())
+            .body(PlaceOrderRequest.builder().petIds(List.of(pet.id().toString())).build())
             .retrieve()
             .body(Order.class);
 

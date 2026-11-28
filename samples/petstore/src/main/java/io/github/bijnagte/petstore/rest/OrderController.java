@@ -3,6 +3,7 @@ package io.github.bijnagte.petstore.rest;
 import io.github.bijnagte.petstore.domain.OrderService;
 import io.github.bijnagte.petstore.model.Order;
 import io.github.bijnagte.petstore.model.PlaceOrderRequest;
+import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,6 +32,6 @@ public class OrderController {
 
   @GetMapping("/{id}")
   Order get(@PathVariable String id) {
-    return orders.get(id);
+    return orders.get(UUID.fromString(id));
   }
 }

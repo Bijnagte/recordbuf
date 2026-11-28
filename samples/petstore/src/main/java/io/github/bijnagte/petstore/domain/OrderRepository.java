@@ -2,6 +2,7 @@ package io.github.bijnagte.petstore.domain;
 
 import io.github.bijnagte.petstore.model.Order;
 import java.util.Optional;
+import java.util.UUID;
 
 /** Storage for orders; the in-memory implementation marks where a database would plug in. */
 public interface OrderRepository {
@@ -20,5 +21,5 @@ public interface OrderRepository {
    * @param id the order id
    * @return the order, or empty when there is none
    */
-  Optional<Order> findById(String id);
+  Optional<Order> findById(UUID id);
 }

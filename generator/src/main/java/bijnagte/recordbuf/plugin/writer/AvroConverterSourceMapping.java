@@ -214,6 +214,17 @@ public final class AvroConverterSourceMapping {
           TypeRefs.BYTES,
           TypeRefs.ARRAYS);
     }
+    if (f.javaType() != null) {
+      // A format field: the avsc string is parsed into the named type through the runtime
+      // registry; a null Avro value maps to the null component (format fields are presentable).
+      return Element.expr(
+          "@0(@1() == null ? null : @2.format(@3.class).parse(@1().toString()))",
+          var,
+          getter,
+          TypeRefs.FORMAT_REGISTRY,
+          f.type());
+    }
+
     if (f.kind() == FieldKind.SCALAR && "string".equals(f.typeUrl())) {
       if (f.isNullable()) {
         return Element.expr("@0(@1() == null ? null : @1().toString())", var, getter);
@@ -541,6 +552,15 @@ public final class AvroConverterSourceMapping {
       // The wrapper stores the enum number (an int); recover the enum via forNumber.
       return RawExpr.of("@0.forNumber((Integer) " + value + ")", enumType(member));
     }
+    if (member.javaType() != null) {
+      // A format member: the wrapper value is the avsc string; parse it into the named type.
+      return RawExpr.of(
+          "@0.format(@1.class).parse(@2.toString())",
+          TypeRefs.FORMAT_REGISTRY,
+          member.type(),
+          value);
+    }
+
     if (registry.isEnvelopeField(member)) {
       TypeRef envelope =
           TypeRef.named(registry.documentNamespace(), registry.dynamicWktEntryName());
@@ -605,6 +625,12 @@ public final class AvroConverterSourceMapping {
     if (member.kind() == FieldKind.ENUM) {
       return RawExpr.of(value + ".getNumber()");
     }
+    if (member.javaType() != null) {
+      // A format member: the record's named value formats to the avsc string.
+      return RawExpr.of(
+          "@0.format(@1.class).format(@2)", TypeRefs.FORMAT_REGISTRY, member.type(), value);
+    }
+
     if (registry.isEnvelopeField(member)) {
       return RawExpr.of(
           "new @0(\"json\", @1.contentType(\""
@@ -772,6 +798,16 @@ public final class AvroConverterSourceMapping {
       }
       return Element.expr("@0(@1.wrap(@2.toByteArray()))", setter, TypeRefs.BYTE_BUFFER, accessor);
     }
+    if (f.javaType() != null) {
+      // A format field: the record's named value formats to the avsc string; null stays null.
+      return Element.expr(
+          "@0(@1 == null ? null : @2.format(@3.class).format(@1))",
+          setter,
+          accessor,
+          TypeRefs.FORMAT_REGISTRY,
+          f.type());
+    }
+
     if (f.kind() == FieldKind.SCALAR && "string".equals(f.typeUrl())) {
       return Element.expr("@0(@1)", setter, accessor);
     }
@@ -963,8 +999,11 @@ public final class AvroConverterSourceMapping {
         String tag = String.valueOf(member.number());
         String bound = oneof.isIdentity(member) ? "w" : "w.value()";
         RawExpr wrapperValue = toWrapperValue(member, bound, registry);
-        // A member whose Avro form ignores the value (Empty) binds no pattern variable.
-        String binding = wrapperValue.template().contains(bound) ? " w" : "";
+        // A member whose Avro form ignores the value (Empty) binds no pattern variable. A format
+        // member defeats the template check: its bound rides a placeholder ARG, not the literal
+        // template text, so the pattern variable is required whether or not the template shows it.
+        String binding =
+            wrapperValue.template().contains(bound) || member.javaType() != null ? " w" : "";
         b.elseIf(
             RawExpr.of(accessor + " instanceof @0" + binding, valueRec),
             Element.expr(

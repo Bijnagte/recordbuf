@@ -1,0 +1,42 @@
+// Format-field (recordbuf.java_type) fixture: singular string fields whose generated record
+// holds a NAMED Java type (uuid / uri / a custom Ulid discovered from the test classpath's
+// services file), the wire bytes unchanged plain strings. Absent maps to null on decode; a
+// present but unparseable value fails the decode (FormatFieldTest). `dur` names a type with NO
+// registered format: the golden keeps it absent, and FormatFieldTest exercises the registry-miss
+// failure directly. The format fields are declared `optional`: the message opts into the
+// protobuf-java reference (recordbuf.protobuf_java), where a bare proto3 string would have no
+// presence getter for the Interop converter to read presence from.
+// The `contact` oneof carries a format member next to a plain-string member.
+// Avro and Jackson are on by default (as in the avro fixtures); the per-message
+// recordbuf.protobuf_java option brings the proto3 JSON surface through the generated Interop,
+// with the protobuf-java reference in this file's natural package.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.javatype;
+
+option java_package = "bijnagte.recordbuf.fixture.javatype";
+option java_multiple_files = true;
+
+import "recordbuf_options.proto";
+
+message FormatFields {
+  option (.recordbuf.protobuf_java) = "bijnagte.recordbuf.fixture.javatype";
+
+  // Built-in uuid format (discovered via ServiceLoader from the runtime jar).
+  optional string uid = 1 [(.recordbuf.java_type) = "java.util.UUID"];
+  // Built-in uri format.
+  optional string ref = 2 [(.recordbuf.java_type) = "java.net.URI"];
+  // Custom format: Ulid via the test-classpath UlidFormat (ServiceLoader discovery).
+  optional string token = 3 [(.recordbuf.java_type) = "com.github.f4b6a3.ulid.Ulid"];
+  // A named type with no registered format: always absent in the golden cases.
+  optional string dur = 4 [(.recordbuf.java_type) = "java.time.Duration"];
+  // A plain-string control: no option, never converted.
+  string label = 5;
+
+  // A format member next to a plain-string member: the wrapper holds the named type, the
+  // member's Avro arm stays a plain string.
+  oneof contact {
+    string homepage = 6 [(.recordbuf.java_type) = "java.net.URI"];
+    string phone = 7;
+  }
+}

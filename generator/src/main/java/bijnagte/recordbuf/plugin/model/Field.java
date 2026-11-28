@@ -37,6 +37,11 @@ import org.jspecify.annotations.Nullable;
  * @param jacksonFormat the resolved {@code recordbuf.jackson_format} option (temporal rendering on
  *     a {\code recordbuf.jackson}-enabled file), or {@code null} when absent; the loader fails loud
  *     when set on a file without the toggle
+ * @param javaType the resolved {@code recordbuf.java_type} option — the fully-qualified Java type
+ *     the generated record holds for this field instead of {@code String} — or {@code null} when
+ *     absent. A format field is always a singular {@code string} field (the loader fails loud
+ *     otherwise) and is always presentable: {@link #isNullable()} is true for it whether or not the
+ *     {@code optional} keyword is used
  */
 @RecordBuilder
 public record Field(
@@ -57,7 +62,8 @@ public record Field(
     @Nullable JacksonTemporalFormat jacksonFormat,
     String jsonName,
     boolean jsonIgnored,
-    boolean unpacked) {
+    boolean unpacked,
+    @Nullable String javaType) {
 
   /** A field written packed (the default): the pre-{@code unpacked} component list. */
   public Field(
@@ -96,7 +102,8 @@ public record Field(
         jacksonFormat,
         jsonName,
         jsonIgnored,
-        false);
+        false,
+        null);
   }
 
   /** For a MAP field, the Java type of its keys: the first generic argument of {@link #type()}. */
@@ -149,7 +156,8 @@ public record Field(
   public boolean isNullable() {
     return switch (kind) {
       case MESSAGE -> label != FieldLabel.REPEATED; // singular message: present
-      case SCALAR, ENUM -> proto3Optional; // present only via `optional`
+      case SCALAR, ENUM ->
+          proto3Optional || javaType != null; // present via `optional` or java_type
       default -> false; // MAP and any other singular kind
     };
   }

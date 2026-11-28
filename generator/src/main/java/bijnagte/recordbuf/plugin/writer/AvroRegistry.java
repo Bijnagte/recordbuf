@@ -44,9 +44,11 @@ import org.jspecify.annotations.Nullable;
  * name, or the package's last segment for a top-level message); a collision that survives that
  * prefix fails loud.
  *
- * <p><b>WKTs:</b> a {@code google.protobuf.*} reference that the Avro mapping covers contributes no
- * named definition (its fragment is inlined at field level); a well-known type with no static
- * schema (a dynamic WKT such as {@code Struct}/{@code Any}) fails loud — it cannot be bridged.
+ * <p><b>WKTs:</b> a static-schema {@code google.protobuf.*} reference that the Avro mapping covers
+ * contributes no named definition (its fragment is inlined at field level). A well-known type with
+ * no static schema (a dynamic WKT such as {@code Struct}/{@code Any}) rides the shared dynamic-WKT
+ * envelope on a {@code recordbuf.jackson}-enabled file (see {@link #DYNAMIC_WKT_ENTRY}); on a
+ * jackson-disabled file it fails loud, because the envelope is the only Avro home such a value has.
  *
  * <p><b>Unknown fields:</b> every bridged record carries a trailing {@code unknownFields} field (a
  * structural twin of the recordbuf carrier); the single entry record it references has the fixed
@@ -415,9 +417,12 @@ public final class AvroRegistry {
       return; // an enum map value maps to string — the enum is already indexed for its file
     }
     if (WellKnownTypes.resolve(ref) != null) {
+      // Defensive: a jackson-enabled file envelopes a dynamic WKT before the bridge sees it and a
+      // jackson-disabled file fails loud in the loader, so reaching this means something is off.
       throw new AvroUnsupportedException(
           ref,
-          "well-known type with no static Avro schema (dynamic WKTs are not generatable); the "
+          "a dynamic well-known type has no static Avro schema; jackson-enabled files envelope it "
+              + "before the bridge and jackson-disabled files are rejected by the loader; the "
               + "Avro bridge fails loud");
     }
     String fqn = ref;

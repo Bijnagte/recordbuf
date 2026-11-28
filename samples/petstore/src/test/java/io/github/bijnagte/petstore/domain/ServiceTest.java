@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -52,9 +53,10 @@ class ServiceTest {
 
   @Test
   void missingPetsAreReportedAsNotFound() {
-    assertThrows(NotFoundException.class, () -> petService.get("nope"));
-    assertThrows(NotFoundException.class, () -> petService.update("nope", Pet.builder().build()));
-    assertThrows(NotFoundException.class, () -> petService.delete("nope"));
+    assertThrows(NotFoundException.class, () -> petService.get(UUID.randomUUID()));
+    assertThrows(
+        NotFoundException.class, () -> petService.update(UUID.randomUUID(), Pet.builder().build()));
+    assertThrows(NotFoundException.class, () -> petService.delete(UUID.randomUUID()));
   }
 
   /** Covers AE2 at the service level: the stored Avro bytes decode to the placed order. */
@@ -62,11 +64,13 @@ class ServiceTest {
   void placingAnOrderAppendsOneDecodableAvroEvent() {
     Pet pet = petService.create(Pet.builder().name("Rex").build());
 
-    Order order = orderService.place(PlaceOrderRequest.builder().petIds(List.of(pet.id())).build());
+    Order order =
+        orderService.place(
+            PlaceOrderRequest.builder().petIds(List.of(pet.id().toString())).build());
 
     List<OrderEvent> events = orderService.events();
     assertEquals(1, events.size());
-    assertEquals(order.id(), events.get(0).orderId());
+    assertEquals(order.id().toString(), events.get(0).orderId());
     assertEquals(order, events.get(0).order());
   }
 
@@ -74,7 +78,9 @@ class ServiceTest {
   void orderForAnUnknownPetStoresAndLogsNothing() {
     assertThrows(
         NotFoundException.class,
-        () -> orderService.place(PlaceOrderRequest.builder().petIds(List.of("nope")).build()));
+        () ->
+            orderService.place(
+                PlaceOrderRequest.builder().petIds(List.of(UUID.randomUUID().toString())).build()));
 
     assertTrue(orderService.events().isEmpty());
   }
@@ -82,7 +88,9 @@ class ServiceTest {
   @Test
   void watchersSeeStatusChangesUntilTheyStop() {
     Pet pet = petService.create(Pet.builder().name("Rex").build());
-    Order order = orderService.place(PlaceOrderRequest.builder().petIds(List.of(pet.id())).build());
+    Order order =
+        orderService.place(
+            PlaceOrderRequest.builder().petIds(List.of(pet.id().toString())).build());
     List<OrderStatusUpdate> seen = new ArrayList<>();
 
     Runnable stop = orderService.watch(order.id(), seen::add);
@@ -97,7 +105,8 @@ class ServiceTest {
   @Test
   void concurrentOrdersAreAllLogged() throws InterruptedException {
     Pet pet = petService.create(Pet.builder().name("Rex").build());
-    PlaceOrderRequest request = PlaceOrderRequest.builder().petIds(List.of(pet.id())).build();
+    PlaceOrderRequest request =
+        PlaceOrderRequest.builder().petIds(List.of(pet.id().toString())).build();
     int orders = 50;
 
     try (ExecutorService pool = Executors.newFixedThreadPool(8)) {

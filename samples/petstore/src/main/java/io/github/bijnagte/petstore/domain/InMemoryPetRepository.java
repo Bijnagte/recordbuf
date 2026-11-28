@@ -3,6 +3,7 @@ package io.github.bijnagte.petstore.domain;
 import io.github.bijnagte.petstore.model.Pet;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentSkipListMap;
 import org.springframework.stereotype.Repository;
 
@@ -10,7 +11,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class InMemoryPetRepository implements PetRepository {
 
-  private final ConcurrentSkipListMap<String, Pet> pets = new ConcurrentSkipListMap<>();
+  private final ConcurrentSkipListMap<UUID, Pet> pets = new ConcurrentSkipListMap<>();
 
   @Override
   public Pet save(Pet pet) {
@@ -19,7 +20,7 @@ public class InMemoryPetRepository implements PetRepository {
   }
 
   @Override
-  public Optional<Pet> findById(String id) {
+  public Optional<Pet> findById(UUID id) {
     return Optional.ofNullable(pets.get(id));
   }
 
@@ -29,7 +30,7 @@ public class InMemoryPetRepository implements PetRepository {
   }
 
   @Override
-  public boolean deleteById(String id) {
+  public boolean deleteById(UUID id) {
     return pets.remove(id) != null;
   }
 }

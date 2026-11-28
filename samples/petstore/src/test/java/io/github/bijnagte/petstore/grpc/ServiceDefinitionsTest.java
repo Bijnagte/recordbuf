@@ -8,6 +8,7 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class ServiceDefinitionsTest {
@@ -15,7 +16,7 @@ class ServiceDefinitionsTest {
   @Test
   void marshallerRoundTripsARecord() throws IOException {
     var marshaller = ServiceDefinitions.marshaller(Pet::fromBytes);
-    Pet pet = Pet.builder().id("1").name("Rex").build();
+    Pet pet = Pet.builder().id(UUID.randomUUID()).name("Rex").build();
 
     assertEquals(pet, marshaller.parse(marshaller.stream(pet)));
   }
