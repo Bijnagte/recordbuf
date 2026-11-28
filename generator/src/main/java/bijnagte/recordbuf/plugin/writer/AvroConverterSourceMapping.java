@@ -192,7 +192,10 @@ public final class AvroConverterSourceMapping {
     }
     // Repeated length-delimited scalars convert per element: Avro's array of string is a
     // List<CharSequence>, its array of bytes a List<ByteBuffer>.
-    if (f.kind() == FieldKind.SCALAR && f.isRepeated() && "string".equals(f.typeUrl())) {
+    if (f.kind() == FieldKind.SCALAR
+        && f.isRepeated()
+        && "string".equals(f.typeUrl())
+        && f.javaType() == null) {
       return Element.expr("@0(@1().stream().map(CharSequence::toString).toList())", var, getter);
     }
     if (f.kind() == FieldKind.SCALAR && f.isRepeated() && "bytes".equals(f.typeUrl())) {
@@ -215,6 +218,15 @@ public final class AvroConverterSourceMapping {
           TypeRefs.ARRAYS);
     }
     if (f.javaType() != null) {
+      if (f.isRepeated()) {
+        // A repeated format field: each avsc string element is parsed into the named type.
+        return Element.expr(
+            "@0(@1().stream().map(e -> @2.format(@3.class).parse(e.toString())).toList())",
+            var,
+            getter,
+            TypeRefs.FORMAT_REGISTRY,
+            TypeRef.of(f.javaType()));
+      }
       // A format field: the avsc string is parsed into the named type through the runtime
       // registry; a null Avro value maps to the null component (format fields are presentable).
       return Element.expr(
@@ -778,7 +790,10 @@ public final class AvroConverterSourceMapping {
       return enumFromRecord(f, setter, accessor);
     }
     // Repeated length-delimited scalars convert per element (see the toRecord arms).
-    if (f.kind() == FieldKind.SCALAR && f.isRepeated() && "string".equals(f.typeUrl())) {
+    if (f.kind() == FieldKind.SCALAR
+        && f.isRepeated()
+        && "string".equals(f.typeUrl())
+        && f.javaType() == null) {
       return Element.expr("@0(@1.copyOf(@2))", setter, TypeRefs.LIST, accessor);
     }
     if (f.kind() == FieldKind.SCALAR && f.isRepeated() && "bytes".equals(f.typeUrl())) {
@@ -799,6 +814,15 @@ public final class AvroConverterSourceMapping {
       return Element.expr("@0(@1.wrap(@2.toByteArray()))", setter, TypeRefs.BYTE_BUFFER, accessor);
     }
     if (f.javaType() != null) {
+      if (f.isRepeated()) {
+        // A repeated format field: each element formats to an avsc string.
+        return Element.expr(
+            "@0(@1.stream().map(e -> (CharSequence) @2.format(@3.class).format(e)).toList())",
+            setter,
+            accessor,
+            TypeRefs.FORMAT_REGISTRY,
+            TypeRef.of(f.javaType()));
+      }
       // A format field: the record's named value formats to the avsc string; null stays null.
       return Element.expr(
           "@0(@1 == null ? null : @2.format(@3.class).format(@1))",

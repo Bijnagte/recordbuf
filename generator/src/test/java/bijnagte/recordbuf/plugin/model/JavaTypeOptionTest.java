@@ -22,10 +22,11 @@ import org.junit.jupiter.api.Test;
 
 /**
  * U1 of the java_type format-field plan: the generator reads the per-field {@code
- * recordbuf.java_type} option (tag 50010) off a singular {@code string} field, puts the FQCN
- * verbatim on the model ({@link Field#javaType()}), and makes the field presentable ({@link
- * Field#isNullable()}). Non-string, repeated, map and empty-value settings fail loud (R3); oneof
- * members ride the same path (KTD2).
+ * recordbuf.java_type} option (tag 50010) off a singular or repeated {@code string} field, puts the
+ * FQCN verbatim on the model ({@link Field#javaType()}), and makes the field presentable ({@link
+ * Field#isNullable()}). Non-string, map and empty-value settings fail loud (R3); oneof members take
+ * the option too, and a singular string field on a message with the protobuf-java reference must be
+ * declared `optional` (repeated fields are exempt).
  */
 @SuppressWarnings("BadImport")
 class JavaTypeOptionTest {
@@ -141,16 +142,21 @@ class JavaTypeOptionTest {
   }
 
   @Test
-  void javaTypeOnRepeatedStringFailsLoud() {
+  void repeatedStringWithJavaTypeCarriesElementType() {
     FieldDescriptorProto field =
         stringField("tags", 1).toBuilder()
             .setLabel(Label.LABEL_REPEATED)
             .setOptions(javaTypeOption("java.util.UUID"))
             .build();
     DescriptorProto doc = DescriptorProto.newBuilder().setName("Doc").addField(field).build();
+    Field f = load(fileWith("doc.proto", doc)).messages().get(0).fields().get(0);
 
-    assertJavaTypeError(
-        assertThrows(IllegalStateException.class, () -> load(fileWith("doc.proto", doc))));
+    assertEquals("java.util.UUID", f.javaType());
+    assertTrue(f.isRepeated());
+    assertTrue(
+        f.type().fqn().contains("List"),
+        "the component type is a List of the named type: " + f.type().fqn());
+    assertFalse(f.isNullable(), "a repeated format field's list is always present");
   }
 
   @Test

@@ -221,7 +221,7 @@ public final class InteropSourceMapping {
       return out;
     }
     if (f.isRepeated()) {
-      if ("bytes".equals(f.typeUrl())) {
+      if ("bytes".equals(f.typeUrl()) || f.javaType() != null) {
         return repeatedFrom(f, "x.get" + cap + "List()");
       } else {
         // For non-bytes repeated fields, use the protobuf-java list directly;
@@ -284,7 +284,8 @@ public final class InteropSourceMapping {
       // Presence is the caller's job (the singular arm guards on {@code has}; a set oneof case is
       // present by construction), so a present empty string fails the parse, as it does on the
       // wire.
-      return RawExpr.of("@0.format(@1.class).parse(@2)", TypeRefs.FORMAT_REGISTRY, f.type(), src);
+      return RawExpr.of(
+          "@0.format(@1.class).parse(@2)", TypeRefs.FORMAT_REGISTRY, TypeRef.of(f.javaType()), src);
     }
     return convertFrom(f.kind(), "bytes".equals(f.typeUrl()), elementType(f), src);
   }
@@ -431,7 +432,10 @@ public final class InteropSourceMapping {
           .build();
     }
     if (f.isRepeated()) {
-      if (f.isMessage() || f.kind() == FieldKind.ENUM || "bytes".equals(f.typeUrl())) {
+      if (f.isMessage()
+          || f.kind() == FieldKind.ENUM
+          || "bytes".equals(f.typeUrl())
+          || f.javaType() != null) {
         return For.enhanced("var _e", src)
             .body(Element.expr("_b.add@0(@1)", setterStem(f), valueTo(f, "_e")))
             .build();
@@ -476,7 +480,11 @@ public final class InteropSourceMapping {
     }
     if (f.javaType() != null) {
       // A format field: the named value formats to its wire string through the runtime registry.
-      return RawExpr.of("@0.format(@1.class).format(@2)", TypeRefs.FORMAT_REGISTRY, f.type(), src);
+      return RawExpr.of(
+          "@0.format(@1.class).format(@2)",
+          TypeRefs.FORMAT_REGISTRY,
+          TypeRef.of(f.javaType()),
+          src);
     }
     return convertTo(f.kind(), "bytes".equals(f.typeUrl()), elementType(f), src);
   }

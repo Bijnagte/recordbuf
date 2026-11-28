@@ -39,9 +39,10 @@ import org.jspecify.annotations.Nullable;
  *     when set on a file without the toggle
  * @param javaType the resolved {@code recordbuf.java_type} option — the fully-qualified Java type
  *     the generated record holds for this field instead of {@code String} — or {@code null} when
- *     absent. A format field is always a singular {@code string} field (the loader fails loud
- *     otherwise) and is always presentable: {@link #isNullable()} is true for it whether or not the
- *     {@code optional} keyword is used
+ *     absent. A format field is a singular or repeated {@code string} scalar that is not a map
+ *     value (the loader fails loud otherwise). It is presentable exactly when singular — {@link
+ *     #isNullable()} is true for a singular format field whatever the {@code optional} keyword
+ *     says, and false for a repeated one (the list is always present)
  */
 @RecordBuilder
 public record Field(
@@ -150,14 +151,18 @@ public record Field(
    *
    * <p>Proto3 presence rules (proto3-only, per the plan): a singular <em>message</em> always
    * carries presence; a singular <em>scalar</em>/<em>enum</em> carries presence only when the
-   * {@code optional} keyword is used. Repeated fields and maps default to empty containers and
-   * never carry presence.
+   * {@code optional} keyword is used — or a singular {@code java_type} format field (absent decodes
+   * to null). Repeated fields (including a repeated format field, whose list is always present) and
+   * maps default to empty containers and never carry presence.
    */
   public boolean isNullable() {
     return switch (kind) {
       case MESSAGE -> label != FieldLabel.REPEATED; // singular message: present
       case SCALAR, ENUM ->
-          proto3Optional || javaType != null; // present via `optional` or java_type
+          label != FieldLabel.REPEATED
+              && (proto3Optional
+                  || javaType
+                      != null); // repeated fields never; `optional`, or a singular java_type
       default -> false; // MAP and any other singular kind
     };
   }

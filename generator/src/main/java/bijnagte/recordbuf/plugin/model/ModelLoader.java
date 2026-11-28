@@ -220,16 +220,17 @@ public final class ModelLoader {
     }
     fields = maybeExpandMaps(fields, m, protoScope);
 
-    // A java_type field on a message that opts into the protobuf-java reference must be
+    // A SINGULAR java_type field on a message that opts into the protobuf-java reference must be
     // `optional`: a bare proto3 string's reference getter returns "" for both "absent" and
     // "explicitly empty", so the Interop converter could not map absent to null without also
-    // swallowing an explicit empty string, which a format field must fail loud on (R3).
+    // swallowing an explicit empty string, which a format field must fail loud on (R3). A repeated
+    // format field needs no `optional`: the reference's repeated getter is always present.
     String refPkg =
         protobufJavaFor(
             m.getOptions().getUnknownFields(), m.getOptions().getUninterpretedOptionList());
     if (refPkg != null && !refPkg.isEmpty()) {
       for (Field f : fields) {
-        if (f.javaType() != null && !f.proto3Optional()) {
+        if (f.javaType() != null && f.label() != FieldLabel.REPEATED && !f.proto3Optional()) {
           throw new IllegalStateException(
               "recordbuf.java_type is set on field \""
                   + f.name()
@@ -598,10 +599,10 @@ public final class ModelLoader {
               + f.getName()
               + "\" but the file opts out of the Jackson surface (recordbuf.jackson = false)");
     }
-    // The per-field format option (recordbuf.java_type, 50010): a singular `string` field opts
-    // into holding the named Java type (R1/R3). Oneof members ride the same path — they are
-    // singular by definition and their options are read exactly like a top-level field's; the
-    // oneof's own presence stays on the oneof component (KTD2).
+    // The per-field format option (recordbuf.java_type, 50010): a `string` field (singular or
+    // repeated) opts into holding the named Java type (R1/R3). Oneof members ride the same path —
+    // they are singular by definition and their options are read exactly like a top-level field's;
+    // the oneof's own presence stays on the oneof component (KTD2).
     String javaType =
         javaTypeFor(f.getOptions().getUnknownFields(), f.getOptions().getUninterpretedOptionList());
     if (javaType != null && javaType.isEmpty()) {
@@ -610,17 +611,13 @@ public final class ModelLoader {
               + f.getName()
               + "\" with an empty value; it must name a fully-qualified Java type");
     }
-    if (javaType != null
-        && (label == FieldLabel.REPEATED
-            || kind != FieldKind.SCALAR
-            || !"string".equals(typeUrl))) {
+    if (javaType != null && (kind != FieldKind.SCALAR || !"string".equals(typeUrl))) {
       String shape =
-          (label == FieldLabel.REPEATED ? "repeated " : "")
-              + (kind == FieldKind.SCALAR ? typeUrl : kind == FieldKind.ENUM ? "enum" : "message");
+          kind == FieldKind.SCALAR ? typeUrl : kind == FieldKind.ENUM ? "enum" : "message";
       throw new IllegalStateException(
           "recordbuf.java_type is set on field \""
               + f.getName()
-              + "\" but the option applies only to singular `string` fields (the field is "
+              + "\" but the option applies only to `string` fields (the field is "
               + shape
               + ")");
     }
@@ -717,10 +714,10 @@ public final class ModelLoader {
    * The field's Java type as a {@link TypeRef}: a scalar token maps to its primitive form (or its
    * boxed/reference form when the field carries presence); a message/enum to the referenced type's
    * fully-typed {@link TypeRef.Named}; a well-known type to its native Java type; a repeated field
-   * to {@code List<T>}; a format field ({@code javaType} present) to the verbatim named type — the
-   * wire stays the {@code string} token ({@code typeUrl} is unchanged). A map field's {@code Map<K,
-   * V>} is built in {@link #buildMapField}. This is the value of {@link Field#type()} — the writers
-   * read it instead of re-deriving Java types from the {@code typeUrl} token.
+   * to a list of its element type. A format field ({@code javaType} present) holds the verbatim
+   * named type — or a list of it when repeated — with the wire staying the {@code string} token
+   * ({@code typeUrl} is unchanged); a map field is a record component, so its value stays a string
+   * — read it from the typeUrl token.
    */
   private TypeRef fieldType(
       FieldKind kind,
@@ -729,7 +726,9 @@ public final class ModelLoader {
       boolean proto3Optional,
       @Nullable String javaType) {
     if (javaType != null) {
-      return TypeRef.of(javaType);
+      return label == FieldLabel.REPEATED
+          ? TypeRefs.LIST.withGenerics(TypeRef.of(javaType))
+          : TypeRef.of(javaType);
     }
     boolean presence = label != FieldLabel.REPEATED && proto3Optional;
     TypeRef element =

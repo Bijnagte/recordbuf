@@ -7,6 +7,8 @@
 // protobuf-java reference (recordbuf.protobuf_java), where a bare proto3 string would have no
 // presence getter for the Interop converter to read presence from.
 // The `contact` oneof carries a format member next to a plain-string member.
+// `RepeatedFormatFields` is the repeated twin: its components are Lists of the named types,
+// the wire bytes unchanged plain strings (one tagged element each).
 // Avro and Jackson are on by default (as in the avro fixtures); the per-message
 // recordbuf.protobuf_java option brings the proto3 JSON surface through the generated Interop,
 // with the protobuf-java reference in this file's natural package.
@@ -39,4 +41,16 @@ message FormatFields {
     string homepage = 6 [(.recordbuf.java_type) = "java.net.URI"];
     string phone = 7;
   }
+}
+
+// The repeated twin of FormatFields: repeated string format fields, whose record components are
+// Lists of the option's named types. No `optional` keyword is needed: a repeated field's list
+// always exists (the protobuf-java reference's repeated getter likewise never needs presence).
+message RepeatedFormatFields {
+  option (.recordbuf.protobuf_java) = "bijnagte.recordbuf.fixture.javatype";
+
+  // Built-in uri format, repeated.
+  repeated string links = 1 [(.recordbuf.java_type) = "java.net.URI"];
+  // Custom format, repeated.
+  repeated string tokens = 2 [(.recordbuf.java_type) = "com.github.f4b6a3.ulid.Ulid"];
 }

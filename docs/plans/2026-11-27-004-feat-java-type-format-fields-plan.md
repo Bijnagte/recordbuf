@@ -64,9 +64,9 @@ Identifier-shaped data — pet ids, order ids, endpoint URIs — moves through s
 
 **Option and generated record**
 
-- R1. A new `recordbuf.java_type` field option (FieldOptions extension in `options/src/main/proto/recordbuf_options.proto`) carries a fully-qualified Java type name and applies to singular `string` fields. The plugin reads it the way it reads its other options — by tag from the descriptor's unknown fields, without linking the options proto.
-- R2. For an opted-in field, the generated record's component is the named Java type instead of `String`, and holds `null` when the field is absent. The generator emits the name verbatim, keeping no catalog of built-in types and no package whitelist. For an opted-in **oneof member**, presence rides the oneof: the oneof component is `null` when unset, and the active wrapper record's `value` is the named type, non-null — the wrapper implements `Unwrapable` with the named type (`Unwrapable<UUID>`), never with `String`.
-- R3. The option on a non-`string` field, on a repeated field, or on a map field is a generation error with a clear message. An empty option value is a generation error. A oneof member is eligible — it is singular by definition (R2).
+- R1. A new `recordbuf.java_type` field option (FieldOptions extension in `options/src/main/proto/recordbuf_options.proto`) carries a fully-qualified Java type name and applies to `string` fields. The plugin reads it the way it reads its other options — by tag from the descriptor's unknown fields, without linking the options proto.
+- R2. For an opted-in field, the generated record's component is the named Java type instead of `String`, and holds `null` when the field is absent (a repeated field's component is `List<T>` of the named type, never null). The generator emits the name verbatim, keeping no catalog of built-in types and no package whitelist. For an opted-in **oneof member**, presence rides the oneof: the oneof component is `null` when unset, and the active wrapper record's `value` is the named type, non-null — the wrapper implements `Unwrapable` with the named type (`Unwrapable<UUID>`), never with `String`.
+- R3. The option on a non-`string` field or on a map field is a generation error with a clear message. An empty option value is a generation error. A oneof member is eligible — it is singular by definition (R2). `repeated string` fields are eligible too: each element carries the named type and `optional` is not required (the reference's repeated getter is always present, so R5's absent-vs-empty distinction does not arise there).
 
 **Serialization surfaces**
 
@@ -103,7 +103,7 @@ Identifier-shaped data — pet ids, order ids, endpoint URIs — moves through s
 - AE3. **Covers R5, R6.** Proto3 JSON and Jackson JSON for the record show the field as a JSON string; a `null` value emits no JSON key.
 - AE4. **Covers R7.** The Avro representation of the record carries the field as a plain nullable string; the fixture round-trips through the Avro binary and canonical Avro JSON goldens.
 - AE5. **Covers R10.** A ULID format, declared as a `ServiceLoader` provider on the fixtures' test classpath, lets a fixture record with a ULID-typed component round-trip on wire, JSON, and Avro. The ULID type is the `ulid-creator` library class on the fixtures' test classpath; the `UlidFormat` adapter and its provider declaration live in test code, never in the runtime module.
-- AE6. **Covers R3.** `java_type` on an `int32` field or on a `repeated string` field fails generation with a clear error.
+- AE6. **Covers R3.** `java_type` on an `int32` field or on a `map` field fails generation with a clear error; on a `repeated string` field the record component is `List<T>` and the wire carries each element's string form.
 - AE7. **Covers R2, R4.** A format field as a oneof member: the wrapper record implements `Unwrapable<UUID>`/`Unwrapable<URI>` (never `Unwrapable<String>`) with a non-null `value`; the record round-trips with the format member set, a sibling member set, and the oneof unset, across wire, proto3 JSON, Jackson, and Avro; a malformed value inside the oneof fails the decode.
 
 ### Scope Boundaries
@@ -203,7 +203,7 @@ U1 (option + model) is the foundation; U2 (runtime) is independent of it and par
   - `generator/src/main/java/bijnagte/recordbuf/plugin/model/Field.java` — add the `@Nullable String javaType` component; update `isNullable()` (KTD2); update the convenience constructor.
   - `generator/src/main/java/bijnagte/recordbuf/plugin/model/ModelLoader.java` — tag constant `FIELD_JAVA_TYPE_TAG = 50010` + option name; read via the existing `readStringFrom` helper; R3 validation (kind/label/non-empty — a oneof member passes, it is singular) failing loud with a clear message; store on the constructed `Field`; `fieldType(...)` resolves a format field's `TypeRef` to the verbatim named type.
 - **Approach:** Follow the `jackson_format` handling end-to-end (tag constant → read → validate → model) — it is the closest existing option. Oneof members are descriptor fields with their own options and ride the same field-construction path, so the option is read for them too; routing into `Oneof` is unchanged.
-- **Test scenarios:** `java_type` on `int32` fails; on `repeated string` fails; on a `map<string,string>` field fails; empty value fails; on a oneof member succeeds (the `Field` carries the type; presence stays on the oneof); on a singular `string` (with and without `optional`) succeeds and the `Field` carries the type + presentable nullability.
+- **Test scenarios:** `java_type` on `int32` fails; on a `map<string,string>` field fails; empty value fails; on a oneof member succeeds (the `Field` carries the type; presence stays on the oneof); on a singular `string` (with and without `optional`) succeeds and the `Field` carries the type + presentable nullability; on a `repeated string` succeeds and the `Field` carries the named element type with a `List` component (no `optional` required).
 - **Verification:** `./gradlew :recordbuf-generator:test`.
 
 ### U2. Runtime format registry

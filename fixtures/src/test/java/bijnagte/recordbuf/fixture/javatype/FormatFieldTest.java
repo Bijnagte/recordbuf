@@ -10,10 +10,15 @@ import bijnagte.recordbuf.fixture.golden.GoldenMatrix;
 import bijnagte.recordbuf.fixture.golden.GoldenStore;
 import bijnagte.recordbuf.fixture.javatype.rec.FormatFields;
 import bijnagte.recordbuf.fixture.javatype.rec.FormatFields.FormatFieldsCodec;
+import bijnagte.recordbuf.fixture.javatype.rec.RepeatedFormatFields;
+import bijnagte.recordbuf.fixture.javatype.rec.RepeatedFormatFields.RepeatedFormatFieldsCodec;
+import com.github.f4b6a3.ulid.Ulid;
 import com.google.protobuf.CodedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicNode;
@@ -106,6 +111,45 @@ class FormatFieldTest {
     assertEquals(URI.create("https://example.com"), homepage.value());
   }
 
+  @Test
+  void repeated_fields_round_trip_and_the_wire_carries_the_strings() throws IOException {
+    List<URI> links = List.of(URI.create("https://example.com/pets/42"));
+    List<Ulid> tokens = List.of(Ulid.from("01ARZ3NDEKTSV4RRFFQ69G5FAV"));
+
+    RepeatedFormatFields fields =
+        RepeatedFormatFields.builder().links(links).tokens(tokens).build();
+    byte[] wire = RepeatedFormatFieldsCodec.encode(fields);
+
+    // Compile-time shape: the components are List<URI> and List<Ulid>.
+    assertEquals(links, fields.links());
+    assertEquals(tokens, fields.tokens());
+
+    // The wire carries the format's string form, not the typed values.
+    byte[] linkBytes = "https://example.com/pets/42".getBytes(StandardCharsets.UTF_8);
+    byte[] tokenBytes = "01ARZ3NDEKTSV4RRFFQ69G5FAV".getBytes(StandardCharsets.UTF_8);
+    assertTrue(contains(wire, linkBytes), "wire should carry the URI string");
+    assertTrue(contains(wire, tokenBytes), "wire should carry the ULID string");
+
+    RepeatedFormatFields roundTrip = RepeatedFormatFieldsCodec.decode(wire);
+    assertEquals(fields, roundTrip);
+  }
+
+  @Test
+  void repeated_absent_is_an_empty_list() throws IOException {
+    RepeatedFormatFields fields =
+        RepeatedFormatFieldsCodec.decode(
+            RepeatedFormatFieldsCodec.encode(RepeatedFormatFields.builder().build()));
+    assertTrue(fields.links().isEmpty());
+    assertTrue(fields.tokens().isEmpty());
+  }
+
+  @Test
+  void repeated_unparseable_element_fails_loud() throws IOException {
+    // Field 1 is links (repeated URI): one bad element poisons the decode.
+    byte[] notAUri = stringFieldBytes(1, "ht!tp://nope");
+    assertThrows(IllegalArgumentException.class, () -> RepeatedFormatFieldsCodec.decode(notAUri));
+  }
+
   /** Raw wire bytes: a single string field {@code number} carrying {@code text}. */
   private static byte[] stringFieldBytes(int number, String text) throws IOException {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -113,5 +157,19 @@ class FormatFieldTest {
     stream.writeString(number, text);
     stream.flush();
     return out.toByteArray();
+  }
+
+  /** Whether {@code haystack} contains {@code needle} as a contiguous byte run. */
+  private static boolean contains(byte[] haystack, byte[] needle) {
+    outer:
+    for (int i = 0; i + needle.length <= haystack.length; i++) {
+      for (int j = 0; j < needle.length; j++) {
+        if (haystack[i + j] != needle[j]) {
+          continue outer;
+        }
+      }
+      return true;
+    }
+    return false;
   }
 }

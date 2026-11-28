@@ -946,9 +946,9 @@ public final class CodecSourceMapping {
   }
 
   /**
-   * Whether the field is a format field: a singular {@code string} scalar carrying the {@code
-   * java_type} option (R3 rejects repeated/map members for such a field). The wire stays STRING end
-   * to end; only the record component changes shape.
+   * Whether the field is a format field: a {@code string} scalar (singular or repeated) carrying
+   * the {@code java_type} option (R3 rejects map/enum/message fields for such an option). The wire
+   * stays STRING end to end; only the record component changes shape.
    */
   private static boolean isFormatField(Field f) {
     return f.javaType() != null;
@@ -960,7 +960,10 @@ public final class CodecSourceMapping {
    */
   private static RawExpr formatParse(Field f, RawExpr rawValue) {
     return RawExpr.of(
-        "@0.format(@1.class).parse(@2)", TypeRefs.FORMAT_REGISTRY, f.type(), rawValue);
+        "@0.format(@1.class).parse(@2)",
+        TypeRefs.FORMAT_REGISTRY,
+        TypeRef.of(f.javaType()),
+        rawValue);
   }
 
   /**
@@ -969,7 +972,10 @@ public final class CodecSourceMapping {
    */
   private static RawExpr formatWrite(Field f, String valueExpr) {
     return RawExpr.of(
-        "@0.format(@1.class).format(@2)", TypeRefs.FORMAT_REGISTRY, f.type(), valueExpr);
+        "@0.format(@1.class).format(@2)",
+        TypeRefs.FORMAT_REGISTRY,
+        TypeRef.of(f.javaType()),
+        valueExpr);
   }
 
   /**
@@ -979,7 +985,10 @@ public final class CodecSourceMapping {
    */
   private static RawExpr formatWireBytes(Field f, String valueExpr) {
     return RawExpr.of(
-        "@0.format(@1.class).wireBytes(@2)", TypeRefs.FORMAT_REGISTRY, f.type(), valueExpr);
+        "@0.format(@1.class).wireBytes(@2)",
+        TypeRefs.FORMAT_REGISTRY,
+        TypeRef.of(f.javaType()),
+        valueExpr);
   }
 
   /** The {@code CodedOutputStream.computeXxxSize} static method name for a wire scalar. */
@@ -1192,6 +1201,12 @@ public final class CodecSourceMapping {
     }
     if (wire == WireScalar.STRING) {
       // One tagged field per element (not packed).
+      if (isFormatField(f)) {
+        // A format element sizes from its rendered wire string (UUID/ULID: a fixed constant).
+        return For.enhanced("var _x", getter)
+            .body(Element.expr("size += Wire.lenDelimSize(@0, @1)", num, formatWireBytes(f, "_x")))
+            .build();
+      }
       return For.enhanced("var _x", getter)
           .body(
               Element.expr(
@@ -1358,6 +1373,12 @@ public final class CodecSourceMapping {
     // Length-delimited scalars are never packed: one tagged field per element, the empty string /
     // bytes included (unlike a singular field, a repeated element has no default to elide).
     if (wire == WireScalar.STRING || wire == WireScalar.BYTES) {
+      if (isFormatField(f)) {
+        // A format element encodes through its rendered wire string (the registry formats it).
+        return For.enhanced("var _x", getter)
+            .body(Element.expr("out.@0(@1, @2)", encodeCall(wire), num, formatWrite(f, "_x")))
+            .build();
+      }
       String element = wire == WireScalar.BYTES ? "_x.toByteArray()" : "_x";
       return For.enhanced("var _x", getter)
           .body(Element.expr("out.@0(@1, @2)", encodeCall(wire), num, element))
@@ -1384,6 +1405,12 @@ public final class CodecSourceMapping {
     WireScalar wire = wireScalar(f);
     // Length-delimited scalars: each tag occurrence carries exactly one element.
     if (wire == WireScalar.STRING) {
+      if (isFormatField(f)) {
+        return Case.of(
+            String.valueOf(num),
+            Element.expr(
+                "@0.add(@1)", local, formatParse(f, RawExpr.of("in.readStringRequireUtf8()"))));
+      }
       return Case.of(
           String.valueOf(num), Element.expr("@0.add(in.readStringRequireUtf8())", local));
     }
@@ -1398,7 +1425,9 @@ public final class CodecSourceMapping {
 
   private static Element emitRepeatedLocalInit(Field f) {
     TypeRef element =
-        wireScalar(f) == WireScalar.BYTES ? TypeRefs.BYTES : TypeRef.boxedFor(f.typeUrl());
+        isFormatField(f)
+            ? TypeRef.of(f.javaType())
+            : wireScalar(f) == WireScalar.BYTES ? TypeRefs.BYTES : TypeRef.boxedFor(f.typeUrl());
     return LocalVar.builder(TypeRefs.LIST.withGenerics(element), f.javaName())
         .assigned(RawExpr.of("new @0<>()", TypeRefs.ARRAY_LIST));
   }

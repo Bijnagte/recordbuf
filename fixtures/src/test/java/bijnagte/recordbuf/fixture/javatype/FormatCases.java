@@ -3,6 +3,7 @@ package bijnagte.recordbuf.fixture.javatype;
 import bijnagte.recordbuf.fixture.golden.GoldenCase;
 import bijnagte.recordbuf.fixture.jackson.JacksonGoldenCases;
 import bijnagte.recordbuf.fixture.javatype.rec.FormatFields;
+import bijnagte.recordbuf.fixture.javatype.rec.RepeatedFormatFields;
 import com.github.f4b6a3.ulid.Ulid;
 import java.net.URI;
 import java.util.List;
@@ -23,7 +24,8 @@ public final class FormatCases extends JacksonGoldenCases {
   public List<GoldenCase> cases() {
     return List.of(
         build(jacksonLossless(FAMILY, "populated", populated())),
-        build(jacksonLossless(FAMILY, "absent", FormatFields.builder().build())));
+        build(jacksonLossless(FAMILY, "absent", FormatFields.builder().build())),
+        build(jacksonLossless(FAMILY, "repeated_populated", repeatedPopulated())));
   }
 
   /** Every format field set, plus the plain-string control and the oneof's format member. */
@@ -36,6 +38,19 @@ public final class FormatCases extends JacksonGoldenCases {
         // registry-miss failure is exercised directly by FormatFieldTest.
         .label("plain string control")
         .contact(new FormatFields.Contact.HomepageValue(URI.create("https://example.com/home")))
+        .build();
+  }
+
+  /** Every repeated format field set to more than one element. */
+  private static RepeatedFormatFields repeatedPopulated() {
+    return RepeatedFormatFields.builder()
+        .links(
+            List.of(
+                URI.create("https://example.com/pets/42"),
+                URI.create("https://example.com/pets/43")))
+        .tokens(
+            List.of(
+                Ulid.from("01ARZ3NDEKTSV4RRFFQ69G5FAV"), Ulid.from("01ARZ3NDEKTSV4RRFFQ69G5FBW")))
         .build();
   }
 }
