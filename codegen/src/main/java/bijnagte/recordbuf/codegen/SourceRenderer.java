@@ -102,7 +102,7 @@ public final class SourceRenderer {
     }
 
     /**
-     * The lexical scope chain of enclosing type names, outermost first, for the position currently
+     * The lexical scope chain of enclosing type names, innermost first, for the position currently
      * being rendered. Pushed on entering a type body and popped on leaving; {@link
      * TypeRef.Named#renderedInScope(List)} uses it to drop a redundant enclosing qualifier from a
      * resolved name.
@@ -771,16 +771,20 @@ public final class SourceRenderer {
     }
 
     /**
-     * Join a list of {@link TypeRef}s resolved against the current lexical scope, for a {@code
-     * permits} clause: a member of the enclosing type drops its in-scope qualifier (the baseline's
+     * Join a list of {@link TypeRef}s resolved against the header lexical scope, for a {@code
+     * permits} clause: a member of an enclosing type drops its in-scope qualifier (the baseline's
      * {@code Choice.NameValue} form) and only a collided reference falls back to its FQN — the
-     * nested member itself is never imported (its outer type is the enclosing one, in scope).
+     * nested member itself is never imported (its outer type is the enclosing one, in scope). The
+     * declared interface's own name is excluded from the scope: its members are not in scope in its
+     * own {@code permits} clause, so a {@code permits} entry nested in the interface itself keeps
+     * its {@code Iface.Member} qualifier.
      */
     private String joinFqnsRefs(List<TypeRef> refs) {
       StringBuilder sb = new StringBuilder();
+      List<String> headerScope = scope.isEmpty() ? scope : scope.subList(1, scope.size());
       for (int i = 0; i < refs.size(); i++) {
         if (i > 0) sb.append(", ");
-        sb.append(ci.use(refs.get(i), scope()));
+        sb.append(ci.use(refs.get(i), headerScope));
       }
       return sb.toString();
     }

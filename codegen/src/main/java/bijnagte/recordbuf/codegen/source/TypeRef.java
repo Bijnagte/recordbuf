@@ -326,22 +326,30 @@ public sealed interface TypeRef extends Formattable {
     }
 
     /**
-     * The nesting-chain form of {@link #renderedShort()} with the leading segment dropped when it
-     * is a member of the current lexical scope: the leading segment is in the scope chain ({@code
-     * scope}, outermost first) AND the reference is in the scope's declaring package ({@code
-     * scopePackage}) — a nested member inside its own enclosing type renders bare: {@code
-     * Sample.Fixed} inside {@code Sample}, {@code Compat.Choice} inside {@code Compat}. The package
-     * test keeps the rule sound for a same-NAMED type that is NOT the enclosing one: a top-level
-     * sibling {@code Item} in name scope inside {@code Sample} must stay qualified for its own
-     * nested member — {@code Item.ItemCodec} renders {@code Item.ItemCodec}, never {@code
-     * ItemCodec} (a top-level class's nested members are only reachable via the qualifier, and the
-     * unqualified inner name would be unresolvable).
+     * The nesting-chain form of {@link #renderedShort()} with the longest prefix of the nesting
+     * chain dropped such that the last dropped segment is a member of the current lexical scope:
+     * the reference is in the scope's declaring package ({@code scopePackage}) AND some enclosing
+     * segment occurs in {@code scope} (innermost first) — a nested member renders as unqualified as
+     * its lexical position allows: {@code Sample.Fixed} inside {@code Sample} renders {@code
+     * Fixed}; {@code Holder.Inner.Pick} declared inside {@code Inner} (or a class nested in it)
+     * renders {@code Pick}. A caller rendering a type's own header clause — a {@code permits} list,
+     * where the declared type's members are not yet in scope — passes the scope with the innermost
+     * entry removed. The package test keeps the rule sound for a same-NAMED type that is NOT the
+     * enclosing one: a top-level sibling {@code Item} in name scope inside {@code Sample} must stay
+     * qualified for its own nested member — {@code Item.ItemCodec} renders {@code Item.ItemCodec},
+     * never {@code ItemCodec} (a top-level class's nested members are only reachable via the
+     * qualifier, and the unqualified inner name would be unresolvable).
      */
     public String renderedInScope(List<String> scope, String scopePackage) {
-      int drop =
-          (!enclosing.isEmpty() && scope.contains(enclosing.get(0)) && pkg.equals(scopePackage))
-              ? 1
-              : 0;
+      int drop = 0;
+      if (!enclosing.isEmpty() && pkg.equals(scopePackage)) {
+        for (int i = enclosing.size() - 1; i >= 0; i--) {
+          if (scope.contains(enclosing.get(i))) {
+            drop = i + 1;
+            break;
+          }
+        }
+      }
       return joinWithDot("", enclosing.subList(drop, enclosing.size()), shortName);
     }
 
