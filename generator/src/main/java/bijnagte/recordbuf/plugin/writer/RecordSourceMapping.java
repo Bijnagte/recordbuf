@@ -545,10 +545,11 @@ public final class RecordSourceMapping {
   }
 
   /**
-   * M4-C2b-2b-12 (full): emit a oneof as its {@code @Nullable} record component, a nested {@code
-   * public sealed interface} with {@code extends Unwrapable<Object>}, the {@code permits} clause
+   * public sealed interface} (a bare marker: no supertypes, no methods), the {@code permits} clause
    * (one per-member record per non-message/enum member, plus identity subtypes for message
-   * members), the {@code default Object value()} method, and the nested per-member records.
+   * members), and the nested per-member records. Wrapper records implement {@code Unwrapable} with
+   * the member's concrete value type as the type argument; identity subtypes implement the bare
+   * marker only, so a type that is a case of several oneofs never inherits colliding members.
    *
    * <p>{@code permitsFqns} are <em>pre-resolved relative references</em> — the renderer emits them
    * verbatim (no type-collection call), because nested type qualifiers like {@code
@@ -572,29 +573,40 @@ public final class RecordSourceMapping {
       // @JsonUnwrapped never emits the component's own name, this is purely a model-level
       // disambiguation so the bare name can be the discriminator without a getter-name collision.
       componentBuilder
-          .annotation(Annotation.of(TypeRef.of("com.fasterxml.jackson.annotation.JsonUnwrapped")))
+          // An identity oneof has no wrapper to unwrap: a subtype would flatten its own fields, so
+          // its component is ignored and each member gets its own getter instead.
+          .annotation(
+              oneof.identityMembers().isEmpty()
+                  ? Annotation.of(TypeRef.of("com.fasterxml.jackson.annotation.JsonUnwrapped"))
+                  : Annotation.of(TypeRef.of("com.fasterxml.jackson.annotation.JsonIgnore")))
           .annotation(jsonProperty(componentName + "$"));
     }
     var component = componentBuilder.annotation(Annotation.NULLABLE).build();
 
-    // 2. Build the sealed interface: extends clause + permits + per-member records + default
-    // value().
-    String unwrapFqn = TypeRefs.UNWRAPABLE.fqn();
-    // The extendsFqn carries the full FQN; the collect() phase registers it via
-    // TypeRef.referencedTypes().
+    // 2. Build the sealed interface: a bare sealed marker — no supertypes, no methods. Any
+    // method declared here (or inherited through a supertype) would be a distinct, unrelated
+    // member on each of the oneofs a type is a case of, and a type that is a case of several
+    // oneofs implements several of these interfaces at once — so the marker stays empty. Value
+    // extraction lives on the wrapper records instead, each implementing Unwrapable with the
+    // member's concrete value type as the type argument (consumers discriminate with
+    // instanceof Unwrapable<?>).
     InterfaceSpec.Builder iface =
         InterfaceSpec.named(ifaceRef)
             .javadoc(
                 GeneratedDocs.type(
                     null, "Auto-generated sealed interface for the " + ifaceName + " oneof."))
             .public_()
-            .sealed_()
-            .extendsFqn(unwrapFqn + "<Object>");
+            .sealed_();
 
     // Build permits and nested per-member records simultaneously. For each oneof member
     // (scalar, enum, or message), emit a nested public record <Cap>Value(<Type> value)
     // implementing the interface, and add "<Iface>.<Cap>Value" to the permits.
     for (Field member : oneof.members()) {
+      if (oneof.isIdentity(member)) {
+        // An identity case is the member's own type, permitted directly: no nested record.
+        iface.permitsType(member.type());
+        continue;
+      }
       // Every oneof member (scalar, enum, or message) gets a dedicated nested record
       // <Cap>Value(<valType> value) implementing the interface. Message members cannot be
       // identity subtypes in the source-AST path because each message is its own file.
@@ -614,23 +626,11 @@ public final class RecordSourceMapping {
                       null, "Auto-generated record for the " + valName + " oneof value."))
               .public_()
               .implementsFqn(ifaceName) // in-package member: renders short
+              .impl(TypeRefs.unwrapableOf(valType))
               .component(oneofValueComponent(member, valType, jackson))
               .build();
       iface.nested(wr);
     }
-
-    // The default value() method, which overrides Unwrapable.value(). It is a `default` (not
-    // abstract) interface method so the nested per-member records can implement the interface
-    // without
-    // a separate impl. @Override is correct: the method overrides the Unwrapable.value() supertype.
-    var defaultMethod =
-        Method.named("value")
-            .default_()
-            .returnType(TypeRef.OBJECT)
-            .body(Element.ret("this"))
-            .override(true)
-            .build();
-    iface.method(defaultMethod);
 
     return new OneofEmission(component, iface.build());
   }
@@ -682,6 +682,53 @@ public final class RecordSourceMapping {
         List.of(recordRef.shortName(), oneof.ifaceName()),
         Oneof.valueRecordName(member),
         List.of());
+  }
+
+  /**
+   * The type a member's case is tested and built as: the member's own type for an identity case,
+   * else its wrapper record.
+   */
+  private static TypeRef caseRef(TypeRef.Named recordRef, Oneof oneof, Field member) {
+    return oneof.isIdentity(member) ? member.type() : oneofValueRef(recordRef, oneof, member);
+  }
+
+  /**
+   * The Jackson getter for one member of an oneof with identity cases. It carries the member's JSON
+   * property when that case is set and null otherwise. It replaces the unwrapped component, which
+   * would flatten an identity case's own fields into the parent object.
+   */
+  private static Method memberGetter(TypeRef.Named recordRef, Oneof oneof, Field member) {
+    boolean identity = oneof.isIdentity(member);
+    TypeRef type = identity ? member.type() : TypeRefs.boxed(member.type());
+    Element body =
+        Element.ret(
+            RawExpr.of(
+                identity
+                    ? "@0 instanceof @1 v ? v : null"
+                    : "@0 instanceof @1 v ? v.value() : null",
+                oneof.componentName(),
+                caseRef(recordRef, oneof, member)));
+    Method.Builder getter =
+        Method.named(member.javaName())
+            .public_()
+            .javadoc(
+                Javadoc.builder()
+                    .text(
+                        GeneratedDocs.MARKER
+                            + " The JSON value of the "
+                            + member.name()
+                            + " oneof case, or null when another case is set.\n")
+                    .build())
+            .annotation(jsonProperty(member.jsonName()))
+            .annotation(Annotation.NULLABLE)
+            .returnType(type);
+    for (Annotation a : temporalAnnotations(member, true)) {
+      getter.annotation(a);
+    }
+    for (Annotation a : runtimeValueAnnotations(member, true)) {
+      getter.annotation(a);
+    }
+    return getter.body(body).build();
   }
 
   /** The oneof's discriminator: its JSON property name and the record method that renders it. */
@@ -790,13 +837,18 @@ public final class RecordSourceMapping {
       for (Field member : oneof.members()) {
         disc.body(
             If.condition(
-                    "@0 instanceof @1",
-                    oneof.componentName(),
-                    oneofValueRef(recordRef, oneof, member))
+                    "@0 instanceof @1", oneof.componentName(), caseRef(recordRef, oneof, member))
                 .body(Element.ret("\"" + member.jsonName() + "\""))
                 .build());
       }
       methods.add(disc.body(Element.ret("null")).build());
+      // An identity oneof's members each get their own getter, after the discriminator; its
+      // component is not unwrapped.
+      if (!oneof.identityMembers().isEmpty()) {
+        for (Field member : oneof.members()) {
+          methods.add(memberGetter(recordRef, oneof, member));
+        }
+      }
 
       // The factory's member + discriminator parameters, and the oneof's selection.
       List<String> names = new ArrayList<>();
@@ -807,6 +859,9 @@ public final class RecordSourceMapping {
       List<Object> args =
           new ArrayList<>(
               List.of(oneof.iface(), TypeRefs.JSON_ONEOF, TypeRefs.LIST, TypeRefs.OBJECTS));
+      // The discriminator precedes the members in the creator, so Jackson writes it first: the same
+      // order the unwrapped wrapper produced.
+      factory.param(Param.of(TypeRef.STRING, method, jsonProperty(property), Annotation.NULLABLE));
       for (Field member : oneof.members()) {
         List<Annotation> anns = new ArrayList<>();
         anns.add(jsonProperty(member.jsonName()));
@@ -819,7 +874,6 @@ public final class RecordSourceMapping {
         names.add("\"" + member.jsonName() + "\"");
         values.add(member.javaName());
       }
-      factory.param(Param.of(TypeRef.STRING, method, jsonProperty(property), Annotation.NULLABLE));
 
       select
           .append("@0 ")
@@ -835,6 +889,15 @@ public final class RecordSourceMapping {
           .append(")) {");
       int i = 0;
       for (Field member : oneof.members()) {
+        if (oneof.isIdentity(member)) {
+          select
+              .append(" case ")
+              .append(i++)
+              .append(" -> @3.requireNonNull(")
+              .append(member.javaName())
+              .append(");");
+          continue;
+        }
         args.add(oneofValueRef(recordRef, oneof, member));
         int valueArg = args.size() - 1;
         select

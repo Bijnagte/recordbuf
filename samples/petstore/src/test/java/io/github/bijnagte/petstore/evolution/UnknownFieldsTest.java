@@ -23,7 +23,7 @@ class UnknownFieldsTest {
       Pet.builder()
           .id("42")
           .name("Felix")
-          .kind(new Pet.Kind.CatValue(Cat.builder().breed("Siamese").indoor(true).build()))
+          .kind(Cat.builder().breed("Siamese").indoor(true).build())
           .status(PetStatus.PET_STATUS_RESERVED)
           .addedAt(Instant.parse("2026-11-27T10:15:30.123456789Z"))
           .tags(List.of("calm", "quiet"))

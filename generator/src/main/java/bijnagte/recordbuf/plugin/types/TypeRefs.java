@@ -40,6 +40,15 @@ public final class TypeRefs {
       TypeRef.of("bijnagte.recordbuf.runtime.ProtobufMessage");
   public static final TypeRef UNWRAPABLE = TypeRef.of("bijnagte.recordbuf.runtime.Unwrapable");
 
+  /**
+   * {@code Unwrapable<valueType>} — the {@code implements} clause of a generated oneof wrapper
+   * record: {@link #UNWRAPABLE} with the member's concrete value type as the type argument.
+   */
+  public static TypeRef unwrapableOf(TypeRef valueType) {
+    return new TypeRef.Named(
+        "bijnagte.recordbuf.runtime", List.of(), "Unwrapable", List.of(valueType));
+  }
+
   public static final TypeRef BYTE_ARRAY_OUTPUT_STREAM =
       TypeRef.named("java.io", "ByteArrayOutputStream");
 

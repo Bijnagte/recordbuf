@@ -50,13 +50,35 @@ public record Oneof(
     OneofDescriptorProto descriptor,
     DescriptorProto parentDescriptor,
     List<Field> members,
-    @Nullable String jsonOneof) {
+    @Nullable String jsonOneof,
+    List<String> identityMembers) {
   /**
    * Normalize a {@code null} members list to an empty one and keep the members list immutably owned
    * by this entry, mirroring {@link Message}'s invariant-on-its-owned-list style.
    */
   public Oneof {
     members = (members == null) ? List.of() : List.copyOf(members);
+    identityMembers = (identityMembers == null) ? List.of() : List.copyOf(identityMembers);
+  }
+
+  /** A oneof with no identity cases: every member keeps its {@code <Cap>Value} wrapper. */
+  public Oneof(
+      String name,
+      TypeRef.Named iface,
+      OneofDescriptorProto descriptor,
+      DescriptorProto parentDescriptor,
+      List<Field> members,
+      @Nullable String jsonOneof) {
+    this(name, iface, descriptor, parentDescriptor, members, jsonOneof, List.of());
+  }
+
+  /**
+   * Whether {@code member} is an identity subtype: its generated message or enum is itself the
+   * sealed interface's permitted subtype, with no {@code <Cap>Value} wrapper. Decided by {@link
+   * IdentityCases}; the loader records the decision here so every writer reads the same answer.
+   */
+  public boolean isIdentity(Field member) {
+    return identityMembers.contains(member.name());
   }
 
   /**

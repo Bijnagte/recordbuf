@@ -1,0 +1,61 @@
+// Identity-subtype fixture (oneof-identity plan, U7). A oneof case whose type is a generated
+// message or enum is the sealed interface's subtype itself; a case that cannot be (a scalar, a
+// case from another package) keeps its <Cap>Value wrapper. The file covers both next to each
+// other, plus the shapes that stress the rule:
+//   * Part is a case of three oneofs (Holder.item, Shelter.slot, Holder.Inner.pick) and of
+//     Node.next, so it implements four sealed interfaces.
+//   * Kind (enum) is an identity case.
+//   * Node is a case of its own oneof (self-referential).
+//   * Far lives in another package (identity_far.proto), so Holder.item keeps a FarValue wrapper.
+//   * label and leaf are scalar cases and keep their wrappers.
+syntax = "proto3";
+
+package bijnagte.recordbuf.fixture.identity;
+
+option java_package = "bijnagte.recordbuf.fixture.identity";
+option java_multiple_files = true;
+
+import "identity_far.proto";
+
+enum Kind {
+  KIND_UNSPECIFIED = 0;
+  ALPHA = 1;
+  BETA = 2;
+}
+
+message Part {
+  string name = 1;
+}
+
+message Node {
+  oneof next {
+    Node child = 1;
+    Part part = 2;
+    Kind kind = 3;
+    string leaf = 4;
+  }
+}
+
+message Holder {
+  oneof item {
+    Part part = 1;
+    Kind kind = 2;
+    string label = 3;
+    identityfar.Far far = 4;
+    Node node = 5;
+  }
+
+  message Inner {
+    oneof pick {
+      Part part = 1;
+      int32 count = 2;
+    }
+  }
+}
+
+message Shelter {
+  oneof slot {
+    Part best = 1;
+    string label = 2;
+  }
+}

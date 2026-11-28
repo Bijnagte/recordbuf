@@ -44,7 +44,7 @@ public final class InteropEnumCases extends JacksonGoldenCases {
     return InteropEnum.builder()
         .singularColor(Color.GREEN)
         .singularKind(InteropEnum.Kind.BETA)
-        .choice(new InteropEnum.Choice.PickedValue(InteropEnum.Kind.NEG))
+        .choice(InteropEnum.Kind.NEG)
         .unpackedKinds(
             List.of(InteropEnum.Kind.ALPHA, InteropEnum.Kind.NEG, InteropEnum.Kind.KIND_ZERO))
         .build();

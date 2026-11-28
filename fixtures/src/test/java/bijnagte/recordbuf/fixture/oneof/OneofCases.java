@@ -31,14 +31,8 @@ public final class OneofCases extends JacksonGoldenCases {
         build(jacksonLossless(FAMILY, "name-x", choice(new Compat.Choice.NameValue("x")))),
         build(jacksonLossless(FAMILY, "count-42", choice(new Compat.Choice.CountValue(42)))),
         build(jacksonLossless(FAMILY, "count-999", choice(new Compat.Choice.CountValue(999)))),
-        build(
-            jacksonLossless(
-                FAMILY, "color-green", choice(new Compat.Choice.ColorValue(Color.GREEN)))),
-        build(
-            jacksonLossless(
-                FAMILY,
-                "item-seven",
-                choice(new Compat.Choice.ItemValue(Sub.builder().text("seven").build())))),
+        build(jacksonLossless(FAMILY, "color-green", choice(Color.GREEN))),
+        build(jacksonLossless(FAMILY, "item-seven", choice(Sub.builder().text("seven").build()))),
         build(jacksonLossless(FAMILY, "unset", Compat.builder().build())));
   }
 

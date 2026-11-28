@@ -12,6 +12,7 @@ import bijnagte.recordbuf.plugin.bridge.BridgeContext;
 import bijnagte.recordbuf.plugin.bridge.BridgeRegistry;
 import bijnagte.recordbuf.plugin.model.Enum;
 import bijnagte.recordbuf.plugin.model.FileTable;
+import bijnagte.recordbuf.plugin.model.IdentityCases;
 import bijnagte.recordbuf.plugin.model.JavaNames;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.ModelLoader;
@@ -23,8 +24,10 @@ import com.google.protobuf.compiler.PluginProtos.CodeGeneratorRequest;
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse;
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse.Feature;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -45,6 +48,9 @@ public final class CodeGenerator {
   // per-call generation (Main invokes one CodeGenerator per request) stays
   // stateless. Built fresh each call with the parsed package_suffix.
   private FileTable table = new FileTable();
+  // The identity-subtype decisions for this request, indexed over every file being generated and
+  // applied to each file's model as it loads. Rebuilt per generate() call (stateless per request).
+  private IdentityCases identityCases = IdentityCases.none(table);
 
   // Per-request de-dup for the generated @NullMarked package-info.java: several .proto
   // files can map to ONE java package, so that package-level marker is emitted once per
@@ -86,6 +92,17 @@ public final class CodeGenerator {
     this.bridgeContext = ctx;
     this.bridgeRegistry = BridgeRegistry.defaultRegistry();
 
+    // Index the identity-subtype cases over every file in this run before any file is written: a
+    // case type must implement each oneof it is an identity member of, which can live in another
+    // file. The first load is only for the index; each file is loaded again with the decisions.
+    Map<String, ProtoFile> plainModels = new LinkedHashMap<>();
+    for (String fileName : request.getFileToGenerateList()) {
+      FileDescriptorProto fdp = findByPath(fileName);
+      if (fdp == null) throw new IllegalStateException("file not found: " + fileName);
+      plainModels.put(fileName, new ModelLoader(table, table.javaPackage(fdp)).load(fdp));
+    }
+    this.identityCases = IdentityCases.of(table, plainModels);
+
     List<CodeGeneratorResponse.File> outFiles = new ArrayList<>();
     for (String fileName : request.getFileToGenerateList()) {
       outFiles.addAll(generateForFile(fileName));
@@ -112,7 +129,7 @@ public final class CodeGenerator {
     if (fdp == null) throw new IllegalStateException("file not found: " + fileName);
 
     String javaPkg = table.javaPackage(fdp);
-    ProtoFile pf = new ModelLoader(table, javaPkg).load(fdp);
+    ProtoFile pf = new ModelLoader(table, javaPkg, identityCases).load(fdp);
     String outDir = javaPkg.replace('.', '/') + "/";
     LOG.debug(
         "generating {} -> package {} ({} message(s), {} enum(s))",

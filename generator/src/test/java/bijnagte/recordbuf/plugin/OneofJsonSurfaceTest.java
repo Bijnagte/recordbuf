@@ -165,7 +165,7 @@ class OneofJsonSurfaceTest {
 
     assertTrue(
         src.contains(
-            "@JsonCreator static Event fromJson(@JsonProperty(\"id\") int id, @JsonProperty(\"at\")"
+            "@JsonCreator static Event fromJson(@JsonProperty(\"id\") int id, @JsonProperty(\"when\") @Nullable String whenType, @JsonProperty(\"at\")"
                 + " @JsonSerialize(using = JavaTimeTemporal.InstantIsoSerializer.class"),
         src);
     assertTrue(
@@ -177,7 +177,7 @@ class OneofJsonSurfaceTest {
         src);
     assertTrue(
         src.contains(
-            "@JsonProperty(\"when\") @Nullable String whenType, @JsonAnySetter @Nullable"
+            "@JsonProperty(\"label\") @Nullable String label, @JsonAnySetter @Nullable"
                 + " Map<String, JsonNode> jsonExtras)"),
         src);
     assertTrue(

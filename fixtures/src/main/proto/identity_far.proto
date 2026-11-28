@@ -1,0 +1,14 @@
+// Identity-subtype fixture, part 2 (oneof-identity plan, U7). Far lives in its own package so
+// identity.proto's Holder.item can reference it across packages: a cross-package case cannot be
+// the sealed interface's subtype without the interface naming the other package's type, so it
+// keeps a FarValue wrapper.
+syntax = "proto3";
+
+package identityfar;
+
+option java_package = "bijnagte.recordbuf.fixture.identityfar";
+option java_multiple_files = true;
+
+message Far {
+  string text = 1;
+}

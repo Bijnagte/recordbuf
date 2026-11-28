@@ -26,6 +26,7 @@ import bijnagte.recordbuf.plugin.types.WellKnownTypes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -566,7 +567,10 @@ public final class InteropSourceMapping {
       String cap = JavaNames.protobufJavaAccessor(f.name());
       String read = f.kind() == FieldKind.ENUM ? "x.get" + cap + "Value()" : "x.get" + cap + "()";
       RawExpr member =
-          RawExpr.of("new @0.@1(@2)", o.ifaceName(), Oneof.valueRecordName(f), valueFrom(f, read));
+          o.isIdentity(f)
+              ? RawExpr.of("@0", valueFrom(f, read))
+              : RawExpr.of(
+                  "new @0.@1(@2)", o.ifaceName(), Oneof.valueRecordName(f), valueFrom(f, read));
       if (f.kind() == FieldKind.ENUM && nativeWkt(f) == null) {
         // A number no constant has leaves the oneof unset and rides the carrier.
         member =
@@ -592,8 +596,14 @@ public final class InteropSourceMapping {
     for (Field f : o.members()) {
       // The member value record is named on the record side (Oneof.valueRecordName), not by the
       // protobuf-java accessor rule.
-      String pattern = RawExpr.of("@0.@1 v", iface, Oneof.valueRecordName(f)).render(null);
-      sw.caseArm(pattern, Element.expr("_b.set@0(@1)", setterStem(f), valueTo(f, "v.value()")));
+      boolean identity = o.isIdentity(f);
+      String pattern =
+          identity
+              ? f.type().resolved(o.iface().pkg(), Set.of(), List.of()) + " v"
+              : RawExpr.of("@0.@1 v", iface, Oneof.valueRecordName(f)).render(null);
+      sw.caseArm(
+          pattern,
+          Element.expr("_b.set@0(@1)", setterStem(f), valueTo(f, identity ? "v" : "v.value()")));
     }
     return List.of(sw.build());
   }

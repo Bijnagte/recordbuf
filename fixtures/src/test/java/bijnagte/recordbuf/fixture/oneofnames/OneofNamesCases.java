@@ -29,9 +29,7 @@ public final class OneofNamesCases extends JacksonGoldenCases {
             jacksonLossless(
                 FAMILY,
                 "nested-message",
-                oneofField(
-                    new OneofNames.OneofField.OneofNestedMessageValue(
-                        OneofNames.NestedMessage.builder().a(7).build())))),
+                oneofField(OneofNames.NestedMessage.builder().a(7).build()))),
         build(
             jacksonLossless(
                 FAMILY, "string", oneofField(new OneofNames.OneofField.OneofStringValue("hello")))),
@@ -55,11 +53,7 @@ public final class OneofNamesCases extends JacksonGoldenCases {
         build(
             jacksonLossless(
                 FAMILY, "double", oneofField(new OneofNames.OneofField.OneofDoubleValue(2.25)))),
-        build(
-            jacksonLossless(
-                FAMILY,
-                "enum",
-                oneofField(new OneofNames.OneofField.OneofEnumValue(OneofNames.NestedEnum.BAR)))),
+        build(jacksonLossless(FAMILY, "enum", oneofField(OneofNames.NestedEnum.BAR))),
         build(jacksonLossless(FAMILY, "unset", OneofNames.builder().build())));
   }
 
