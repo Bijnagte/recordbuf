@@ -224,7 +224,7 @@ public final class CodecSourceMapping {
       // Wide message: HotSpot never JIT-compiles a method over 8000 bytecodes (HugeMethodLimit),
       // so split the field writes into bounded private parts that the main method calls in order.
       for (int i = 0; i * CHUNK_SLOTS < slots.size(); i++) {
-        method.body(Element.expr("writeBodyPart" + i + "(out, v)"));
+        method.body(Element.expr("writeBodyPart@0(out, v)", i));
       }
     }
 
@@ -255,7 +255,7 @@ public final class CodecSourceMapping {
       }
     } else {
       for (int i = 0; i * CHUNK_SLOTS < slots.size(); i++) {
-        method.body(Element.expr("size += sizePart" + i + "(v)"));
+        method.body(Element.expr("size += sizePart@0(v)", i));
       }
     }
 
@@ -292,27 +292,25 @@ public final class CodecSourceMapping {
             switch (f.kind()) {
               case FieldKind.MESSAGE ->
                   Element.expr(
-                      "size += Wire.lenDelimSize(@0, @1.getSerializedSize("
-                          + memberValue(o, f, bnd)
-                          + "))",
+                      "size += Wire.lenDelimSize(@0, @1.getSerializedSize(@2))",
                       f.number(),
-                      codecRef(f));
+                      codecRef(f),
+                      memberValue(o, f, bnd));
               case FieldKind.ENUM ->
                   Element.expr(
-                      "size += @0.computeInt32Size(@1, " + memberValue(o, f, bnd) + ".getNumber())",
+                      "size += @0.computeInt32Size(@1, @2.getNumber())",
                       TypeRefs.CODED_OUTPUT_STREAM,
-                      f.number());
+                      f.number(),
+                      memberValue(o, f, bnd));
               case FieldKind.SCALAR -> {
                 WireScalar wire = wireScalar(f);
                 if (wire == WireScalar.BYTES) {
                   yield Element.expr(
-                      "size += @0.computeTagSize(@1) + @0.computeInt32Size(1, "
-                          + memberValue(o, f, bnd)
-                          + ".size()) - 1 + "
-                          + memberValue(o, f, bnd)
-                          + ".size()",
+                      "size += @0.computeTagSize(@1) + @0.computeInt32Size(1, @2.size()) - 1"
+                          + " + @2.size()",
                       TypeRefs.CODED_OUTPUT_STREAM,
-                      f.number());
+                      f.number(),
+                      memberValue(o, f, bnd));
                 }
                 String call = sizeCall(wire);
                 yield Element.expr(
@@ -377,8 +375,8 @@ public final class CodecSourceMapping {
     TypeRef impl = f.kind() == FieldKind.MAP ? TypeRefs.HASH_MAP : TypeRefs.ARRAY_LIST;
     List<Element> body = new ArrayList<>();
     body.add(
-        If.condition(f.javaName() + " == null")
-            .body(Element.expr(f.javaName() + " = new @0<>()", impl))
+        If.condition("@0 == null", f.javaName())
+            .body(Element.expr("@0 = new @1<>()", f.javaName(), impl))
             .build());
     body.addAll(c.body());
     return new Case(c.patterns(), body);
@@ -433,7 +431,7 @@ public final class CodecSourceMapping {
   /** The record-constructor argument for a lazy collection: the local, or an immutable empty. */
   private static Object lazyResult(Field f) {
     TypeRef empty = f.kind() == FieldKind.MAP ? TypeRefs.MAP : TypeRefs.LIST;
-    return RawExpr.of(f.javaName() + " == null ? @0.of() : " + f.javaName(), empty);
+    return RawExpr.of("@0 == null ? @1.of() : @0", f.javaName(), empty);
   }
 
   /**
@@ -509,12 +507,10 @@ public final class CodecSourceMapping {
         route.body(
             If.condition("decodeFieldNo <= @0", chunk.get(chunk.size() - 1).number())
                 .body(
-                    Element.ret(
-                        "decodePart" + i + "(in, decodeFieldNo, tag, unknown, decodeCarrier)"))
+                    Element.ret("decodePart@0(in, decodeFieldNo, tag, unknown, decodeCarrier)", i))
                 .build());
       } else {
-        route.body(
-            Element.ret("decodePart" + i + "(in, decodeFieldNo, tag, unknown, decodeCarrier)"));
+        route.body(Element.ret("decodePart@0(in, decodeFieldNo, tag, unknown, decodeCarrier)", i));
       }
 
       Switch.Builder sw = Switch.on("decodeFieldNo");
@@ -1229,7 +1225,9 @@ public final class CodecSourceMapping {
     return List.of(
         Element.expr("int bodySize = 0"),
         For.enhanced("var _x", getter)
-            .body(Element.expr("bodySize += " + perElement, TypeRefs.CODED_OUTPUT_STREAM))
+            .body(
+                Element.expr(
+                    "bodySize += @0", RawExpr.of(perElement, TypeRefs.CODED_OUTPUT_STREAM)))
             .build());
   }
 
@@ -1305,7 +1303,7 @@ public final class CodecSourceMapping {
     if (wire == WireScalar.STRING || wire == WireScalar.BYTES) {
       String element = wire == WireScalar.BYTES ? "_x.toByteArray()" : "_x";
       return For.enhanced("var _x", getter)
-          .body(Element.expr("out.@0(@1, " + element + ")", encodeCall(wire), num))
+          .body(Element.expr("out.@0(@1, @2)", encodeCall(wire), num, element))
           .build();
     }
     if (f.unpacked()) {
@@ -1462,30 +1460,33 @@ public final class CodecSourceMapping {
   /** Direct size computation for a map entry: key at field 1, value at field 2. */
   private static Element mapEntrySizeBody(
       Field f, WireScalar keyWire, String keyArg, FieldKind valueKind) {
-    String keySize =
+    RawExpr keySize =
         keyWire == WireScalar.BYTES
-            ? "@0.computeByteArraySize(1, " + keyArg + ")"
-            : "@0." + sizeCall(keyWire) + "(1, " + keyArg + ")";
+            ? RawExpr.of("@0.computeByteArraySize(1, @1)", TypeRefs.CODED_OUTPUT_STREAM, keyArg)
+            : RawExpr.of("@0.@1(1, @2)", TypeRefs.CODED_OUTPUT_STREAM, sizeCall(keyWire), keyArg);
     return switch (valueKind) {
       case MESSAGE ->
           Element.expr(
-              "return "
-                  + keySize
-                  + " + @0.computeTagSize(2) + @0.computeInt32Size(1, "
-                  + "@1.getSerializedSize(v.value())) - 1 + @1.getSerializedSize(v.value())",
+              "return @0 + @1.computeTagSize(2) + @1.computeInt32Size(1,"
+                  + " @2.getSerializedSize(v.value())) - 1 + @2.getSerializedSize(v.value())",
+              keySize,
               TypeRefs.CODED_OUTPUT_STREAM,
               entryValueCodec(f));
       case ENUM ->
           Element.expr(
-              "return " + keySize + " + @0.computeInt32Size(2, v.value().getNumber())",
+              "return @0 + @1.computeInt32Size(2, v.value().getNumber())",
+              keySize,
               TypeRefs.CODED_OUTPUT_STREAM);
       default -> {
         WireScalar valueWire = wireScalarForTypeUrl(Objects.requireNonNull(f.mapValue()));
-        String valueSize =
+        RawExpr valueSize =
             valueWire == WireScalar.BYTES
-                ? "@0.computeByteArraySize(2, v.value().toByteArray())"
-                : "@0." + sizeCall(valueWire) + "(2, v.value())";
-        yield Element.expr("return " + keySize + " + " + valueSize, TypeRefs.CODED_OUTPUT_STREAM);
+                ? RawExpr.of(
+                    "@0.computeByteArraySize(2, v.value().toByteArray())",
+                    TypeRefs.CODED_OUTPUT_STREAM)
+                : RawExpr.of(
+                    "@0.@1(2, v.value())", TypeRefs.CODED_OUTPUT_STREAM, sizeCall(valueWire));
+        yield Element.expr("return @0 + @1", keySize, valueSize);
       }
     };
   }
