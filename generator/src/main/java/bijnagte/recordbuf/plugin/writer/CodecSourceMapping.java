@@ -1466,15 +1466,15 @@ public final class CodecSourceMapping {
             : RawExpr.of("@0.@1(1, @2)", TypeRefs.CODED_OUTPUT_STREAM, sizeCall(keyWire), keyArg);
     return switch (valueKind) {
       case MESSAGE ->
-          Element.expr(
-              "return @0 + @1.computeTagSize(2) + @1.computeInt32Size(1,"
+          Element.ret(
+              "@0 + @1.computeTagSize(2) + @1.computeInt32Size(1,"
                   + " @2.getSerializedSize(v.value())) - 1 + @2.getSerializedSize(v.value())",
               keySize,
               TypeRefs.CODED_OUTPUT_STREAM,
               entryValueCodec(f));
       case ENUM ->
-          Element.expr(
-              "return @0 + @1.computeInt32Size(2, v.value().getNumber())",
+          Element.ret(
+              "@0 + @1.computeInt32Size(2, v.value().getNumber())",
               keySize,
               TypeRefs.CODED_OUTPUT_STREAM);
       default -> {
@@ -1486,7 +1486,7 @@ public final class CodecSourceMapping {
                     TypeRefs.CODED_OUTPUT_STREAM)
                 : RawExpr.of(
                     "@0.@1(2, v.value())", TypeRefs.CODED_OUTPUT_STREAM, sizeCall(valueWire));
-        yield Element.expr("return @0 + @1", keySize, valueSize);
+        yield Element.ret("@0 + @1", keySize, valueSize);
       }
     };
   }
