@@ -2,6 +2,9 @@ package bijnagte.recordbuf.fixture.oneof;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import bijnagte.recordbuf.fixture.golden.GoldenCase;
 import bijnagte.recordbuf.fixture.golden.GoldenMatrix;
@@ -9,6 +12,7 @@ import bijnagte.recordbuf.fixture.golden.GoldenStore;
 import bijnagte.recordbuf.fixture.oneof.rec.Compat;
 import bijnagte.recordbuf.fixture.oneof.rec.Compat.Choice.NameValue;
 import bijnagte.recordbuf.fixture.oneof.rec.Sub;
+import bijnagte.recordbuf.runtime.Unwrapable;
 import java.io.IOException;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicNode;
@@ -22,10 +26,11 @@ import org.junit.jupiter.api.TestFactory;
  * of protobuf-java's bytes that this class used to assert by hand, and the proto3 JSON format
  * carries the generated {@code Interop} converter in both directions.
  *
- * <p>Two kinds of check stay structural. The unwrap tests read the member value through the {@code
- * choice()} accessor without naming the member type, which has no golden shape. The converter byte
- * test asserts that {@code Interop.to} serializes to exactly the record codec's bytes: the proto3
- * JSON golden fixes the converter's message by value, not the bytes it serializes to.
+ * <p>Two kinds of check stay structural. The unwrap tests read the member value without naming the
+ * member type — wrapper members through {@code instanceof Unwrapable<?>}, identity members as-is —
+ * which has no golden shape. The converter byte test asserts that {@code Interop.to} serializes to
+ * exactly the record codec's bytes: the proto3 JSON golden fixes the converter's message by value,
+ * not the bytes it serializes to.
  *
  * <p>The record types are imported, so the protobuf-java reference types that share their simple
  * names ({@code Compat}, {@code Sub}) are not used here.
@@ -43,7 +48,8 @@ class OneofRoundTripTest {
   void unwrapableValueForScalar() {
     Compat record = Compat.builder().choice(new NameValue("hello")).build();
 
-    assertEquals("hello", record.choice().value());
+    assertTrue(record.choice() instanceof Unwrapable<?>);
+    assertEquals("hello", ((Unwrapable<?>) record.choice()).value());
   }
 
   @Test
@@ -51,7 +57,9 @@ class OneofRoundTripTest {
     Sub sub = Sub.builder().text("seven").build();
     Compat record = Compat.builder().choice(sub).build();
 
-    assertEquals(sub, record.choice().value());
+    // Sub is an identity subtype of Choice: not Unwrapable, the oneof member IS the value.
+    assertSame(sub, record.choice());
+    assertFalse(record.choice() instanceof Unwrapable<?>);
   }
 
   /**

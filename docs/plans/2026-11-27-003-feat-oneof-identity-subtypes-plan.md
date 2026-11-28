@@ -35,10 +35,11 @@ After this change the case is `Dog` itself: `Dog implements Pet.Kind` and `Kind 
 - R3. **Eligibility is pairwise and symmetric.** A case (oneof `O` declared in file `F`, member type `T` declared in file `G`) is an identity subtype iff all of:
   1. `T` is a message or enum;
   2. both `F` and `G` are in this invocation's `file_to_generate`;
-  3. `T`'s Java package equals the Java package of `O`'s interface.
+  3. `T`'s Java package equals the Java package of `O`'s interface;
+  4. `T` is not the message that declares `O`. The sealed interface is nested in the declaring record, and a class cannot implement its own member type, so a direct self-reference keeps its wrapper.
 
   Every file's output depends only on this predicate, so the record that implements `Iface` and the `permits` clause naming it always agree, even when generation is split across invocations. Otherwise the case falls back to the wrapper on both sides.
-- R4. A message may be a case in several oneofs. Its record then implements several sealed interfaces. A message may also be a case of a oneof declared inside itself. Java accepts both, and both must compile.
+- R4. A message may be a case in several oneofs. Its record then implements several sealed interfaces. A message may also be a case of a oneof declared inside itself; that self-referential case is not identity-eligible (R3.4) and keeps its wrapper, but it must still compile and round-trip.
 - R5. **Wire format is unchanged.** Protobuf binary, proto3 JSON, and Avro binary output are byte-identical for every existing fixture and golden.
 - R6. **Jackson JSON is unchanged** for the existing goldens (`.jackson.json`). The identity case must reproduce the current flattened shape, or the change is a stop condition (see Open Decisions).
 - R7. The generator is deterministic. Output for a file must not depend on the order of `file_to_generate` or `proto_file`.
@@ -57,8 +58,7 @@ After this change the case is `Dog` itself: `Dog implements Pet.Kind` and `Kind 
 **Out of scope**
 - Scalar cases (R2). Revisit only if a scalar-holding wrapper is replaced by a boxed generated type, which is not planned.
 - Changing the Avro schema or the protobuf descriptor.
-- Changing `Unwrapable` or the `value()` default method semantics beyond what identity requires.
-- Generation across multiple protoc invocations as a supported mode. R3 makes it safe, not identity.
+- Identity subtypes across multiple protoc invocations as a supported mode. R3 makes the fallback safe, not identity.
 
 ### Key Decisions
 
@@ -66,6 +66,8 @@ After this change the case is `Dog` itself: `Dog implements Pet.Kind` and `Kind 
 - **Enums are identity-eligible.** An enum can implement a sealed interface and appear in `permits`. Java treats it as implicitly final, or implicitly sealed when constants have bodies. Both satisfy the permits rule.
 - **Identity is decided from the pair, not a global index.** A pre-pass over `proto_file` is still needed to resolve types, but eligibility is evaluated per (oneof, case) pair against `file_to_generate`.
 - **API break is accepted.** `Pet.Kind.DogValue` disappears for identity cases. The project is pre-1.0 (`0.0.x`), so this ships as a breaking change noted in the release notes. No deprecated alias is generated.
+- **`Unwrapable` lives on the wrapper, not the interface.** The sealed interface is a bare marker. Each wrapper record implements `Unwrapable<T>` with the member's concrete type (`Unwrapable<String>`, `Unwrapable<Far>`); identity subtypes are read as-is, wrappers through `instanceof Unwrapable<?>`. Chosen over `extends Unwrapable<Object>` on the interface (an erased, less discoverable API).
+- **Self-referential cases are not identity.** A record cannot implement its own nested sealed interface type, so R3.4 excludes direct self-references; the wrapper shape (with its `Unwrapable` member) covers them. The earlier spike assumption that Java accepts this was wrong for records.
 
 ### Open Decisions (resolved at U0)
 
@@ -177,7 +179,9 @@ After this change the case is `Dog` itself: `Dog implements Pet.Kind` and `Kind 
 
 **Goal:** Lock the new shape in the fixtures and the sample.
 
-**Files:** `fixtures/src/main/proto/oneof.proto` (new identity-eligible oneof plus a wrapped scalar case and a cross-package wrapped case, if a second package fixture exists), `samples/petstore/src/main/proto/petstore/v1/petstore.proto` (no proto change expected; the `Pet.kind` oneof is the target), `fixtures/src/test/...`, `samples/petstore/src/test/...`.
+**Status: done.** New standalone fixture protos `fixtures/src/main/proto/identity.proto` (Holder/Part/Node/Kind/Shelter incl. a nested-message oneof and a self-referential oneof) and `identity_far.proto` (cross-package `Far`), plus `IdentitySubtypeTest` (identity assertions, wrapper assertions, wire/Jackson round-trips, protobuf-java byte parity). No golden family was registered for the identity fixtures: the structural assertions are the locks, and the existing goldens under the other families are unchanged.
+
+**Files:** `fixtures/src/main/proto/identity.proto` (new identity-eligible oneof plus a wrapped scalar case and a cross-package wrapped case, if a second package fixture exists), `samples/petstore/src/main/proto/petstore/v1/petstore.proto` (no proto change expected; the `Pet.kind` oneof is the target), `fixtures/src/test/...`, `samples/petstore/src/test/...`.
 
 **Approach:** Add new goldens only for new cases (adding a file is allowed; changing an existing golden is a stop condition, per `AGENTS.md`). Run `./gradlew :recordbuf-fixtures:seedGoldens` only for missing files, and review any new Jackson golden by hand. Update structural tests that assert `DogValue`-style names.
 

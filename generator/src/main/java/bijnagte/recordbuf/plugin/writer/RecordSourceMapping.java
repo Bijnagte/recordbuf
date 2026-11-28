@@ -545,10 +545,11 @@ public final class RecordSourceMapping {
   }
 
   /**
-   * M4-C2b-2b-12 (full): emit a oneof as its {@code @Nullable} record component, a nested {@code
-   * public sealed interface} with {@code extends Unwrapable<Object>}, the {@code permits} clause
+   * public sealed interface} (a bare marker: no supertypes, no methods), the {@code permits} clause
    * (one per-member record per non-message/enum member, plus identity subtypes for message
-   * members), the {@code default Object value()} method, and the nested per-member records.
+   * members), and the nested per-member records. Wrapper records implement {@code Unwrapable} with
+   * the member's concrete value type as the type argument; identity subtypes implement the bare
+   * marker only, so a type that is a case of several oneofs never inherits colliding members.
    *
    * <p>{@code permitsFqns} are <em>pre-resolved relative references</em> — the renderer emits them
    * verbatim (no type-collection call), because nested type qualifiers like {@code
@@ -582,19 +583,20 @@ public final class RecordSourceMapping {
     }
     var component = componentBuilder.annotation(Annotation.NULLABLE).build();
 
-    // 2. Build the sealed interface: extends clause + permits + per-member records + default
-    // value().
-    String unwrapFqn = TypeRefs.UNWRAPABLE.fqn();
-    // The extendsFqn carries the full FQN; the collect() phase registers it via
-    // TypeRef.referencedTypes().
+    // 2. Build the sealed interface: a bare sealed marker — no supertypes, no methods. Any
+    // method declared here (or inherited through a supertype) would be a distinct, unrelated
+    // member on each of the oneofs a type is a case of, and a type that is a case of several
+    // oneofs implements several of these interfaces at once — so the marker stays empty. Value
+    // extraction lives on the wrapper records instead, each implementing Unwrapable with the
+    // member's concrete value type as the type argument (consumers discriminate with
+    // instanceof Unwrapable<?>).
     InterfaceSpec.Builder iface =
         InterfaceSpec.named(ifaceRef)
             .javadoc(
                 GeneratedDocs.type(
                     null, "Auto-generated sealed interface for the " + ifaceName + " oneof."))
             .public_()
-            .sealed_()
-            .extendsFqn(unwrapFqn + "<Object>");
+            .sealed_();
 
     // Build permits and nested per-member records simultaneously. For each oneof member
     // (scalar, enum, or message), emit a nested public record <Cap>Value(<Type> value)
@@ -624,23 +626,11 @@ public final class RecordSourceMapping {
                       null, "Auto-generated record for the " + valName + " oneof value."))
               .public_()
               .implementsFqn(ifaceName) // in-package member: renders short
+              .impl(TypeRefs.unwrapableOf(valType))
               .component(oneofValueComponent(member, valType, jackson))
               .build();
       iface.nested(wr);
     }
-
-    // The default value() method, which overrides Unwrapable.value(). It is a `default` (not
-    // abstract) interface method so the nested per-member records can implement the interface
-    // without
-    // a separate impl. @Override is correct: the method overrides the Unwrapable.value() supertype.
-    var defaultMethod =
-        Method.named("value")
-            .default_()
-            .returnType(TypeRef.OBJECT)
-            .body(Element.ret("this"))
-            .override(true)
-            .build();
-    iface.method(defaultMethod);
 
     return new OneofEmission(component, iface.build());
   }
