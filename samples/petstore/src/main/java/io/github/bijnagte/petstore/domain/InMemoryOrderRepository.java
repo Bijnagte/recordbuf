@@ -2,6 +2,7 @@ package io.github.bijnagte.petstore.domain;
 
 import io.github.bijnagte.petstore.model.Order;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Repository;
 
@@ -9,7 +10,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class InMemoryOrderRepository implements OrderRepository {
 
-  private final ConcurrentHashMap<String, Order> orders = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<UUID, Order> orders = new ConcurrentHashMap<>();
 
   @Override
   public Order save(Order order) {
@@ -18,7 +19,7 @@ public class InMemoryOrderRepository implements OrderRepository {
   }
 
   @Override
-  public Optional<Order> findById(String id) {
+  public Optional<Order> findById(UUID id) {
     return Optional.ofNullable(orders.get(id));
   }
 }

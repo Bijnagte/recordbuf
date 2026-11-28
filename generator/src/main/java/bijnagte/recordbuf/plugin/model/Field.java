@@ -37,6 +37,12 @@ import org.jspecify.annotations.Nullable;
  * @param jacksonFormat the resolved {@code recordbuf.jackson_format} option (temporal rendering on
  *     a {\code recordbuf.jackson}-enabled file), or {@code null} when absent; the loader fails loud
  *     when set on a file without the toggle
+ * @param javaType the resolved {@code recordbuf.java_type} option — the fully-qualified Java type
+ *     the generated record holds for this field instead of {@code String} — or {@code null} when
+ *     absent. A format field is a singular or repeated {@code string} scalar that is not a map
+ *     value (the loader fails loud otherwise). It is presentable exactly when singular — {@link
+ *     #isNullable()} is true for a singular format field whatever the {@code optional} keyword
+ *     says, and false for a repeated one (the list is always present)
  */
 @RecordBuilder
 public record Field(
@@ -57,7 +63,8 @@ public record Field(
     @Nullable JacksonTemporalFormat jacksonFormat,
     String jsonName,
     boolean jsonIgnored,
-    boolean unpacked) {
+    boolean unpacked,
+    @Nullable String javaType) {
 
   /** A field written packed (the default): the pre-{@code unpacked} component list. */
   public Field(
@@ -96,7 +103,8 @@ public record Field(
         jacksonFormat,
         jsonName,
         jsonIgnored,
-        false);
+        false,
+        null);
   }
 
   /** For a MAP field, the Java type of its keys: the first generic argument of {@link #type()}. */
@@ -143,13 +151,18 @@ public record Field(
    *
    * <p>Proto3 presence rules (proto3-only, per the plan): a singular <em>message</em> always
    * carries presence; a singular <em>scalar</em>/<em>enum</em> carries presence only when the
-   * {@code optional} keyword is used. Repeated fields and maps default to empty containers and
-   * never carry presence.
+   * {@code optional} keyword is used — or a singular {@code java_type} format field (absent decodes
+   * to null). Repeated fields (including a repeated format field, whose list is always present) and
+   * maps default to empty containers and never carry presence.
    */
   public boolean isNullable() {
     return switch (kind) {
       case MESSAGE -> label != FieldLabel.REPEATED; // singular message: present
-      case SCALAR, ENUM -> proto3Optional; // present only via `optional`
+      case SCALAR, ENUM ->
+          label != FieldLabel.REPEATED
+              && (proto3Optional
+                  || javaType
+                      != null); // repeated fields never; `optional`, or a singular java_type
       default -> false; // MAP and any other singular kind
     };
   }

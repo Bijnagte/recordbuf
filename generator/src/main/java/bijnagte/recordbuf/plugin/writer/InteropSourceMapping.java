@@ -221,7 +221,7 @@ public final class InteropSourceMapping {
       return out;
     }
     if (f.isRepeated()) {
-      if ("bytes".equals(f.typeUrl())) {
+      if ("bytes".equals(f.typeUrl()) || f.javaType() != null) {
         return repeatedFrom(f, "x.get" + cap + "List()");
       } else {
         // For non-bytes repeated fields, use the protobuf-java list directly;
@@ -232,7 +232,18 @@ public final class InteropSourceMapping {
     }
     // Singular scalar / bytes
     if (f.isNullable() && !"bytes".equals(f.typeUrl())) {
-      out.add(Element.expr("var _@0 = x.has@1() ? x.get@1() : null", f.javaName(), cap));
+      if (f.javaType() != null) {
+        // A format field parses the present wire string into its named type through the registry;
+        // an absent one maps to null.
+        out.add(
+            Element.expr(
+                "var _@0 = x.has@1() ? @2 : null",
+                f.javaName(),
+                cap,
+                valueFrom(f, "x.get" + cap + "()")));
+      } else {
+        out.add(Element.expr("var _@0 = x.has@1() ? x.get@1() : null", f.javaName(), cap));
+      }
     } else {
       out.add(Element.expr("var _@0 = @1", f.javaName(), valueFrom(f, "x.get" + cap + "()")));
     }
@@ -267,6 +278,14 @@ public final class InteropSourceMapping {
     DynamicWktMethods dynamic = dynamicWkt(f);
     if (dynamic != null) {
       return RawExpr.of("@0.@1(@2)", TypeRefs.DYNAMIC_WKT, dynamic.fromProtobuf(), src);
+    }
+    if (f.javaType() != null) {
+      // A format field: the wire string parses into the named type through the runtime registry.
+      // Presence is the caller's job (the singular arm guards on {@code has}; a set oneof case is
+      // present by construction), so a present empty string fails the parse, as it does on the
+      // wire.
+      return RawExpr.of(
+          "@0.format(@1.class).parse(@2)", TypeRefs.FORMAT_REGISTRY, TypeRef.of(f.javaType()), src);
     }
     return convertFrom(f.kind(), "bytes".equals(f.typeUrl()), elementType(f), src);
   }
@@ -413,7 +432,10 @@ public final class InteropSourceMapping {
           .build();
     }
     if (f.isRepeated()) {
-      if (f.isMessage() || f.kind() == FieldKind.ENUM || "bytes".equals(f.typeUrl())) {
+      if (f.isMessage()
+          || f.kind() == FieldKind.ENUM
+          || "bytes".equals(f.typeUrl())
+          || f.javaType() != null) {
         return For.enhanced("var _e", src)
             .body(Element.expr("_b.add@0(@1)", setterStem(f), valueTo(f, "_e")))
             .build();
@@ -455,6 +477,14 @@ public final class InteropSourceMapping {
     DynamicWktMethods dynamic = dynamicWkt(f);
     if (dynamic != null) {
       return dynamicToProtobuf(dynamic, src);
+    }
+    if (f.javaType() != null) {
+      // A format field: the named value formats to its wire string through the runtime registry.
+      return RawExpr.of(
+          "@0.format(@1.class).format(@2)",
+          TypeRefs.FORMAT_REGISTRY,
+          TypeRef.of(f.javaType()),
+          src);
     }
     return convertTo(f.kind(), "bytes".equals(f.typeUrl()), elementType(f), src);
   }

@@ -105,6 +105,9 @@ dependencies {
     // Generated records annotate optional/presence fields with @org.jspecify.annotations.Nullable;
     // the annotation is on the compile classpath so the generated code compiles.
     implementation libs.jspecify
+    // The format-field fixture's generated record holds a com.github.f4b6a3.ulid.Ulid component
+    // (the custom-format dogfood); the value type itself lives only here.
+    implementation libs.ulid.creator
     // The 4.36.2 protobuf-java reference (byte-compat oracle, R8). Also the source
     // of the WKT .protos (descriptor.proto) needed to compile recordbuf_options.
     implementation protobufJava

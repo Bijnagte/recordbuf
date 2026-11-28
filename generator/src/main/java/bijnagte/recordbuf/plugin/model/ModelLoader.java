@@ -85,6 +85,11 @@ public final class ModelLoader {
   // file.
   private static final int FIELD_JSON_IGNORED_TAG = 50007;
   private static final String FIELD_JSON_IGNORED_NAME = "recordbuf.json_ignored";
+  // (recordbuf.java_type) -- per-field named Java type on a singular `string` field (a format
+  // field): the record holds the named type, converted through the runtime format registry on
+  // every surface.
+  private static final int FIELD_JAVA_TYPE_TAG = 50010;
+  private static final String FIELD_JAVA_TYPE_NAME = "recordbuf.java_type";
   // (recordbuf.json_oneof) -- per-oneof JSON discriminator name on a jackson-enabled file.
   private static final int ONEOF_JSON_ONEOF_TAG = 50008;
   private static final String ONEOF_JSON_ONEOF_NAME = "recordbuf.json_oneof";
@@ -215,6 +220,26 @@ public final class ModelLoader {
     }
     fields = maybeExpandMaps(fields, m, protoScope);
 
+    // A SINGULAR java_type field on a message that opts into the protobuf-java reference must be
+    // `optional`: a bare proto3 string's reference getter returns "" for both "absent" and
+    // "explicitly empty", so the Interop converter could not map absent to null without also
+    // swallowing an explicit empty string, which a format field must fail loud on (R3). A repeated
+    // format field needs no `optional`: the reference's repeated getter is always present.
+    String refPkg =
+        protobufJavaFor(
+            m.getOptions().getUnknownFields(), m.getOptions().getUninterpretedOptionList());
+    if (refPkg != null && !refPkg.isEmpty()) {
+      for (Field f : fields) {
+        if (f.javaType() != null && f.label() != FieldLabel.REPEATED && !f.proto3Optional()) {
+          throw new IllegalStateException(
+              "recordbuf.java_type is set on field \""
+                  + f.name()
+                  + "\" but the message opts into the protobuf-java reference"
+                  + " (recordbuf.protobuf_java): a format field there must be declared `optional`,"
+                  + " so the reference can tell absent from an explicitly empty string");
+        }
+      }
+    }
     // One entry per REAL oneof_decl, in declaration order. A proto3-optional scalar/
     // enum is a *synthetic* oneof whose sole member carries proto3Optional == true and
     // therefore routed NO member here; its absence of routed members is the gate that
@@ -574,8 +599,29 @@ public final class ModelLoader {
               + f.getName()
               + "\" but the file opts out of the Jackson surface (recordbuf.jackson = false)");
     }
+    // The per-field format option (recordbuf.java_type, 50010): a `string` field (singular or
+    // repeated) opts into holding the named Java type (R1/R3). Oneof members ride the same path —
+    // they are singular by definition and their options are read exactly like a top-level field's;
+    // the oneof's own presence stays on the oneof component (KTD2).
+    String javaType =
+        javaTypeFor(f.getOptions().getUnknownFields(), f.getOptions().getUninterpretedOptionList());
+    if (javaType != null && javaType.isEmpty()) {
+      throw new IllegalStateException(
+          "recordbuf.java_type is set on field \""
+              + f.getName()
+              + "\" with an empty value; it must name a fully-qualified Java type");
+    }
+    if (javaType != null && (kind != FieldKind.SCALAR || !"string".equals(typeUrl))) {
+      String shape =
+          kind == FieldKind.SCALAR ? typeUrl : kind == FieldKind.ENUM ? "enum" : "message";
+      throw new IllegalStateException(
+          "recordbuf.java_type is set on field \""
+              + f.getName()
+              + "\" but the option applies only to `string` fields (the field is "
+              + shape
+              + ")");
+    }
     String jsonName = !jsonNameOpt.isEmpty() ? jsonNameOpt : JavaNames.camel(f.getName());
-
     return new Field(
         f.getName(),
         javaName,
@@ -583,7 +629,7 @@ public final class ModelLoader {
         label,
         kind,
         typeUrl,
-        fieldType(kind, typeUrl, label, proto3Opt),
+        fieldType(kind, typeUrl, label, proto3Opt, javaType),
         mapKey,
         mapValue,
         /* mapValueKind= */ null,
@@ -596,7 +642,8 @@ public final class ModelLoader {
         /* jsonIgnored= */ jsonIgnored,
         /* unpacked= */ label == FieldLabel.REPEATED
             && f.getOptions().hasPacked()
-            && !f.getOptions().getPacked());
+            && !f.getOptions().getPacked(),
+        /* javaType= */ javaType);
   }
 
   private static FieldLabel label(FieldDescriptorProto.Label raw) {
@@ -667,12 +714,22 @@ public final class ModelLoader {
    * The field's Java type as a {@link TypeRef}: a scalar token maps to its primitive form (or its
    * boxed/reference form when the field carries presence); a message/enum to the referenced type's
    * fully-typed {@link TypeRef.Named}; a well-known type to its native Java type; a repeated field
-   * to {@code List<T>}. A map field's {@code Map<K, V>} is built in {@link #buildMapField}. This is
-   * the value of {@link Field#type()} — the writers read it instead of re-deriving Java types from
-   * the {@code typeUrl} token.
+   * to a list of its element type. A format field ({@code javaType} present) holds the verbatim
+   * named type — or a list of it when repeated — with the wire staying the {@code string} token
+   * ({@code typeUrl} is unchanged); a map field is a record component, so its value stays a string
+   * — read it from the typeUrl token.
    */
   private TypeRef fieldType(
-      FieldKind kind, String typeUrl, FieldLabel label, boolean proto3Optional) {
+      FieldKind kind,
+      String typeUrl,
+      FieldLabel label,
+      boolean proto3Optional,
+      @Nullable String javaType) {
+    if (javaType != null) {
+      return label == FieldLabel.REPEATED
+          ? TypeRefs.LIST.withGenerics(TypeRef.of(javaType))
+          : TypeRef.of(javaType);
+    }
     boolean presence = label != FieldLabel.REPEATED && proto3Optional;
     TypeRef element =
         switch (kind) {
@@ -928,6 +985,25 @@ public final class ModelLoader {
       }
     }
     return false;
+  }
+
+  /**
+   * Read the per-field {@code recordbuf.java_type} option, or {@code null} when absent. An
+   * explicitly empty value is NOT normalized to absent — the caller fails loud on it (R3).
+   */
+  @Nullable
+  private static String javaTypeFor(
+      UnknownFieldSet unknownFields, List<UninterpretedOption> uninterpreted) {
+    UnknownFieldSet.Field f = unknownFields.getField(FIELD_JAVA_TYPE_TAG);
+    if (!f.getLengthDelimitedList().isEmpty()) {
+      return f.getLengthDelimitedList().get(0).toStringUtf8();
+    }
+    for (UninterpretedOption opt : uninterpreted) {
+      if (opt.hasStringValue() && optionName(opt).equals(FIELD_JAVA_TYPE_NAME)) {
+        return opt.getStringValue().toStringUtf8();
+      }
+    }
+    return null;
   }
 
   /**

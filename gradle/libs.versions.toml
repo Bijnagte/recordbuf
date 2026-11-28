@@ -50,6 +50,7 @@ jackson           = "3.1.8"
 jackson-annotations = "2.21"
 slf4j             = "2.0.20"   # org.slf4j -- latest GA (2.1.x is still alpha); generator and fixtures-test logging only
 jmh               = "0.7.4"    # me.champeau.jmh -- JMH benchmark plugin
+ulid-creator      = "5.2.4"    # com.github.f4b6a3 -- the format-field fixture's custom-format ULID value type (:recordbuf-fixtures only)
 
 [libraries]
 # io.soabase.record-builder does not publish a Gradle plugin as of v53; wire
@@ -58,6 +59,7 @@ jmh               = "0.7.4"    # me.champeau.jmh -- JMH benchmark plugin
 record-builder-core     = { group = "io.soabase.record-builder", name = "record-builder-core",     version.ref = "record-builder" }
 record-builder-processor = { group = "io.soabase.record-builder", name = "record-builder-processor", version.ref = "record-builder" }
 jspecify       = { group = "org.jspecify", name = "jspecify", version.ref = "jspecify" }
+ulid-creator      = { group = "com.github.f4b6a3", name = "ulid-creator", version.ref = "ulid-creator" }
 # Error Prone is itself an Error Prone checker; NullAway is loaded as an
 # additional annotation processor through net.ltgt.errorprone.
 error-prone-core    = { group = "com.google.errorprone", name = "error_prone_core", version.ref = "error-prone" }

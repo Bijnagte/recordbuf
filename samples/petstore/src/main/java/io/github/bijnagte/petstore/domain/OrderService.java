@@ -23,7 +23,7 @@ public class OrderService {
   private final PetRepository pets;
   private final EventLog eventLog;
   private final Clock clock;
-  private final ConcurrentHashMap<String, CopyOnWriteArrayList<Consumer<OrderStatusUpdate>>>
+  private final ConcurrentHashMap<UUID, CopyOnWriteArrayList<Consumer<OrderStatusUpdate>>>
       listeners = new ConcurrentHashMap<>();
 
   /**
@@ -50,7 +50,9 @@ public class OrderService {
    */
   public Order place(PlaceOrderRequest request) {
     for (String petId : request.petIds()) {
-      if (pets.findById(petId).isEmpty()) {
+      // pet_ids stays plain strings on the wire; the repository keys on UUIDs, so parse here and
+      // let an invalid value fail loud.
+      if (pets.findById(UUID.fromString(petId)).isEmpty()) {
         throw new NotFoundException("pet", petId);
       }
     }
@@ -60,7 +62,7 @@ public class OrderService {
     Order order =
         orders.save(
             Order.builder()
-                .id(UUID.randomUUID().toString())
+                .id(UUID.randomUUID())
                 .petIds(request.petIds())
                 .attributes(request.attributes())
                 .status(OrderStatus.ORDER_STATUS_PLACED)
@@ -68,7 +70,7 @@ public class OrderService {
                 .build());
     eventLog.append(
         OrderEvent.builder()
-            .orderId(order.id())
+            .orderId(order.id().toString())
             .status(order.status())
             .occurredAt(now)
             .order(order)
@@ -83,8 +85,10 @@ public class OrderService {
    * @return the order
    * @throws NotFoundException when there is no such order
    */
-  public Order get(String id) {
-    return orders.findById(id).orElseThrow(() -> new NotFoundException("order", id));
+  public Order get(UUID id) {
+    return orders
+        .findById(id)
+        .orElseThrow(() -> new NotFoundException("order", String.valueOf(id)));
   }
 
   /**
@@ -95,10 +99,14 @@ public class OrderService {
    * @return the updated order
    * @throws NotFoundException when there is no such order
    */
-  public Order advance(String id, OrderStatus status) {
+  public Order advance(UUID id, OrderStatus status) {
     Order updated = orders.save(get(id).toBuilder().status(status).build());
     OrderStatusUpdate update =
-        OrderStatusUpdate.builder().orderId(id).status(status).at(clock.instant()).build();
+        OrderStatusUpdate.builder()
+            .orderId(id.toString())
+            .status(status)
+            .at(clock.instant())
+            .build();
     List.copyOf(listeners.getOrDefault(id, new CopyOnWriteArrayList<>()))
         .forEach(listener -> listener.accept(update));
     return updated;
@@ -112,7 +120,7 @@ public class OrderService {
    * @return a handle that stops the watching
    * @throws NotFoundException when there is no such order
    */
-  public Runnable watch(String id, Consumer<OrderStatusUpdate> listener) {
+  public Runnable watch(UUID id, Consumer<OrderStatusUpdate> listener) {
     get(id);
     CopyOnWriteArrayList<Consumer<OrderStatusUpdate>> forOrder =
         listeners.computeIfAbsent(id, k -> new CopyOnWriteArrayList<>());
@@ -126,7 +134,7 @@ public class OrderService {
    * @param id the order id
    * @return how many listeners are still registered
    */
-  public int watcherCount(String id) {
+  public int watcherCount(UUID id) {
     return listeners.getOrDefault(id, new CopyOnWriteArrayList<>()).size();
   }
 

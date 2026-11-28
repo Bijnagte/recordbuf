@@ -21,6 +21,7 @@ import bijnagte.recordbuf.json.JavaTimeTemporal;
 import bijnagte.recordbuf.json.JsonBytes;
 import bijnagte.recordbuf.json.JsonEmpty;
 import bijnagte.recordbuf.json.JsonFieldMask;
+import bijnagte.recordbuf.json.JsonFormatField;
 import bijnagte.recordbuf.plugin.model.Enum;
 import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
@@ -443,6 +444,14 @@ public final class RecordSourceMapping {
   private static List<Annotation> runtimeValueAnnotations(Field f, boolean jackson) {
     if (!jackson) {
       return List.of();
+    }
+    if (f.javaType() != null) {
+      // A format field: the constant JsonFormatField pair. The contextual pair resolves the
+      // field's declared type at runtime, so the same two classes cover every format field.
+      return serializerPair(
+          false,
+          TypeRef.of(JsonFormatField.FormatSerializer.class.getName()),
+          TypeRef.of(JsonFormatField.FormatDeserializer.class.getName()));
     }
     String token = f.isMap() ? f.mapValue() : f.typeUrl();
     Class<?>[] pair = token == null ? null : runtimeValuePair(token);

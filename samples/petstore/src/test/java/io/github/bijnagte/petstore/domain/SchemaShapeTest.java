@@ -12,6 +12,7 @@ import io.github.bijnagte.petstore.model.PetStatus;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class SchemaShapeTest {
@@ -20,10 +21,18 @@ class SchemaShapeTest {
   void everyOneofArmBuildsAndRoundTrips() throws IOException {
     for (Pet pet :
         List.of(
-            Pet.builder().id("1").name("Rex").kind(Dog.builder().breed("lab").build()).build(),
-            Pet.builder().id("2").name("Tom").kind(Cat.builder().indoor(true).build()).build(),
             Pet.builder()
-                .id("3")
+                .id(UUID.randomUUID())
+                .name("Rex")
+                .kind(Dog.builder().breed("lab").build())
+                .build(),
+            Pet.builder()
+                .id(UUID.randomUUID())
+                .name("Tom")
+                .kind(Cat.builder().indoor(true).build())
+                .build(),
+            Pet.builder()
+                .id(UUID.randomUUID())
                 .name("Tweety")
                 .kind(Bird.builder().canTalk(true).build())
                 .build())) {
@@ -40,7 +49,7 @@ class SchemaShapeTest {
 
   @Test
   void unsetOneofStaysUnsetAcrossTheWire() throws IOException {
-    Pet pet = Pet.builder().id("1").status(PetStatus.PET_STATUS_AVAILABLE).build();
+    Pet pet = Pet.builder().id(UUID.randomUUID()).status(PetStatus.PET_STATUS_AVAILABLE).build();
     Pet back = Pet.fromBytes(pet.toByteArray());
 
     assertNull(back.kind());

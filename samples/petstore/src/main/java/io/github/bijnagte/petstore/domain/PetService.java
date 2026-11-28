@@ -32,7 +32,7 @@ public class PetService {
    * @return the stored pet
    */
   public Pet create(Pet pet) {
-    Pet.Builder stored = pet.toBuilder().id(UUID.randomUUID().toString()).addedAt(clock.instant());
+    Pet.Builder stored = pet.toBuilder().id(UUID.randomUUID()).addedAt(clock.instant());
     if (pet.status() == null || pet.status() == PetStatus.PET_STATUS_UNSPECIFIED) {
       stored.status(PetStatus.PET_STATUS_AVAILABLE);
     }
@@ -46,8 +46,8 @@ public class PetService {
    * @return the pet
    * @throws NotFoundException when there is no such pet
    */
-  public Pet get(String id) {
-    return pets.findById(id).orElseThrow(() -> new NotFoundException("pet", id));
+  public Pet get(UUID id) {
+    return pets.findById(id).orElseThrow(() -> new NotFoundException("pet", String.valueOf(id)));
   }
 
   /**
@@ -67,7 +67,7 @@ public class PetService {
    * @return the stored pet
    * @throws NotFoundException when there is no such pet
    */
-  public Pet update(String id, Pet pet) {
+  public Pet update(UUID id, Pet pet) {
     Pet existing = get(id);
     return pets.save(pet.toBuilder().id(id).addedAt(existing.addedAt()).build());
   }
@@ -78,9 +78,9 @@ public class PetService {
    * @param id the pet id
    * @throws NotFoundException when there is no such pet
    */
-  public void delete(String id) {
+  public void delete(UUID id) {
     if (!pets.deleteById(id)) {
-      throw new NotFoundException("pet", id);
+      throw new NotFoundException("pet", String.valueOf(id));
     }
   }
 }

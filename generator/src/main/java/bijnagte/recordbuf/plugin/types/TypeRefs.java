@@ -31,6 +31,8 @@ public final class TypeRefs {
   public static final TypeRef CODEC_DEFAULTS =
       TypeRef.of("bijnagte.recordbuf.runtime.CodecDefaults");
   public static final TypeRef WIRE = TypeRef.of("bijnagte.recordbuf.runtime.Wire");
+  public static final TypeRef FORMAT_REGISTRY =
+      TypeRef.of("bijnagte.recordbuf.runtime.format.FormatRegistry");
   public static final TypeRef CODED_OUTPUT_STREAM =
       TypeRef.of("com.google.protobuf.CodedOutputStream");
   public static final TypeRef CODED_INPUT_STREAM =

@@ -29,6 +29,7 @@ import bijnagte.recordbuf.fixture.jackson.JacksonKnobsCases;
 import bijnagte.recordbuf.fixture.jackson.JacksonOneofCases;
 import bijnagte.recordbuf.fixture.jackson.JacksonRoundTripCases;
 import bijnagte.recordbuf.fixture.jacksonformat.JacksonFormatCases;
+import bijnagte.recordbuf.fixture.javatype.FormatCases;
 import bijnagte.recordbuf.fixture.map.MapCases;
 import bijnagte.recordbuf.fixture.mapvalues.MapValuesCases;
 import bijnagte.recordbuf.fixture.message.MessageCases;
@@ -97,6 +98,7 @@ public final class GoldenCaseRegistry {
         new AvroWrappersCases(),
         new AvroStructuredCases(),
         new AvroSingularCases(),
-        new AvroRecursiveCases());
+        new AvroRecursiveCases(),
+        new FormatCases());
   }
 }

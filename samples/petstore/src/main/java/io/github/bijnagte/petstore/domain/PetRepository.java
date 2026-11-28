@@ -3,6 +3,7 @@ package io.github.bijnagte.petstore.domain;
 import io.github.bijnagte.petstore.model.Pet;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Storage for pets. The sample ships only an in-memory implementation; this interface is the seam
@@ -24,7 +25,7 @@ public interface PetRepository {
    * @param id the pet id
    * @return the pet, or empty when there is none
    */
-  Optional<Pet> findById(String id);
+  Optional<Pet> findById(UUID id);
 
   /**
    * Lists every pet.
@@ -39,5 +40,5 @@ public interface PetRepository {
    * @param id the pet id
    * @return whether a pet was removed
    */
-  boolean deleteById(String id);
+  boolean deleteById(UUID id);
 }

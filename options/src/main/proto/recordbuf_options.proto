@@ -55,10 +55,21 @@ extend google.protobuf.FileOptions {
 // the generator reads them (ModelLoader). json_ignored is not enforced on read: see
 // docs/known-findings.md. All ride the descriptor's unknown-fields (strings) or uninterpreted
 // options, read without linking this .proto.
+//
+// (recordbuf.java_type) -- per-field named Java type on a singular `string` field: the generated
+// record holds the named type (a fully-qualified Java class name) instead of String for that
+// field, and every serialization surface (wire, proto3 JSON, Jackson, Avro) carries the plain
+// string form, converted through the runtime format registry (bijnagte.recordbuf.runtime.format).
+// The option applies only to singular `string` fields (oneof members included) — an empty value,
+// a repeated field, or a non-string field is a generation error. The generated record component is
+// @Nullable and holds null when the field is absent; a present but unparseable value fails the
+// decode. The plugin reads it by tag without linking this .proto; the type itself is neither
+// linked nor validated by the plugin (the consumer classpath supplies it).
 extend google.protobuf.FieldOptions {
     optional string jackson_format = 50005;
     optional string json_name = 50006;
     optional bool json_ignored = 50007;
+    optional string java_type = 50010;
 };
 // (recordbuf.json_oneof) -- per-oneof override of the discriminator property name on a
 // jackson-enabled file (the default is <oneofName>, e.g. "choice").

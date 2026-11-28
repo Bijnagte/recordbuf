@@ -5,6 +5,7 @@ import io.github.bijnagte.petstore.model.OrderStatus;
 import io.grpc.BindableService;
 import io.grpc.ServerServiceDefinition;
 import io.grpc.stub.ServerCallStreamObserver;
+import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 /**
@@ -26,7 +27,7 @@ public class OrderGrpcService implements BindableService {
                 (request, observer) -> {
                   Runnable stop =
                       orders.watch(
-                          request.orderId(),
+                          UUID.fromString(request.orderId()),
                           update -> {
                             observer.onNext(update);
                             if (update.status() == OrderStatus.ORDER_STATUS_DELIVERED) {

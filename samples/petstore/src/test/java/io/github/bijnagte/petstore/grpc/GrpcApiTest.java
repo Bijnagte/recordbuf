@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -127,7 +128,7 @@ class GrpcApiTest {
                 GrpcClients.call(
                     channel,
                     PetStoreMethods.GET_ORDER,
-                    GetOrderRequest.builder().id("nope").build()));
+                    GetOrderRequest.builder().id(UUID.randomUUID()).build()));
     assertEquals(Status.Code.NOT_FOUND, e.getStatus().getCode());
   }
 
@@ -138,13 +139,13 @@ class GrpcApiTest {
         GrpcClients.call(
             channel,
             PetStoreMethods.PLACE_ORDER,
-            PlaceOrderRequest.builder().petIds(List.of(pet.id())).build());
+            PlaceOrderRequest.builder().petIds(List.of(pet.id().toString())).build());
 
     Iterator<OrderStatusUpdate> updates =
         GrpcClients.stream(
             channel,
             PetStoreMethods.WATCH_ORDER,
-            WatchOrderRequest.builder().orderId(order.id()).build());
+            WatchOrderRequest.builder().orderId(order.id().toString()).build());
     // The watcher registers once the server handles the call; wait for that before advancing.
     awaitWatchers(order.id(), 1);
     orders.advance(order.id(), OrderStatus.ORDER_STATUS_PACKED);
@@ -168,12 +169,12 @@ class GrpcApiTest {
         GrpcClients.call(
             channel,
             PetStoreMethods.PLACE_ORDER,
-            PlaceOrderRequest.builder().petIds(List.of(pet.id())).build());
+            PlaceOrderRequest.builder().petIds(List.of(pet.id().toString())).build());
 
     ClientCall<WatchOrderRequest, OrderStatusUpdate> call =
         channel.newCall(PetStoreMethods.WATCH_ORDER, CallOptions.DEFAULT);
     call.start(new ClientCall.Listener<>() {}, new Metadata());
-    call.sendMessage(WatchOrderRequest.builder().orderId(order.id()).build());
+    call.sendMessage(WatchOrderRequest.builder().orderId(order.id().toString()).build());
     call.halfClose();
     call.request(1);
     awaitWatchers(order.id(), 1);
@@ -183,7 +184,7 @@ class GrpcApiTest {
     awaitWatchers(order.id(), 0);
   }
 
-  private void awaitWatchers(String orderId, int expected) throws InterruptedException {
+  private void awaitWatchers(UUID orderId, int expected) throws InterruptedException {
     long deadline = System.nanoTime() + 5_000_000_000L;
     while (orders.watcherCount(orderId) != expected && System.nanoTime() < deadline) {
       Thread.sleep(10);

@@ -31,9 +31,12 @@ import org.jspecify.annotations.Nullable;
  *   <li>The scalar wrappers ({@code *Value}) → {@code ["null", <primitive>]}.
  * </ul>
  *
- * <p>The dynamic WKTs ({@code Struct}, {@code Value}, {@code ListValue}, {@code Any}) are
- * recognized as <em>not-yet-supported</em> ({@link #isUnrecognizedDynamic(String)}) so the
- * generator fails loud (R11/R17) rather than silently coercing them.
+ * <p>The dynamic WKTs ({@code Struct}, {@code Value}, {@code ListValue}, {@code Any}) have no
+ * static Avro shape. On a {@code recordbuf.jackson}-enabled file the generator routes them to the
+ * shared dynamic-WKT envelope before this bridge ever sees them; this bridge's recognition of them
+ * ({@link #isUnrecognizedDynamic(String)}) is a defensive failure path kept for jackson-disabled
+ * files and for direct misuse, so a dynamic WKT fails loud (R11/R17) rather than being silently
+ * coerced.
  */
 public final class WktAvroBridge {
 
@@ -53,7 +56,9 @@ public final class WktAvroBridge {
   public static final String STRING_VALUE = "google.protobuf.StringValue";
   public static final String BYTES_VALUE = "google.protobuf.BytesValue";
 
-  // The dynamic WKTs out of scope for v1 (R11): a field carrying one is a generation error.
+  // The dynamic WKTs: no static Avro shape. Jackson-enabled files envelope them before the bridge
+  // sees them; reaching this set means jackson is disabled (or the bridge is misused) and
+  // generation fails loud (R11).
   private static final Set<String> DYNAMIC_WKTS =
       Set.of(
           "google.protobuf.Struct",

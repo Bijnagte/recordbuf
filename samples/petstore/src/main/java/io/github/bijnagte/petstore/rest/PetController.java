@@ -3,6 +3,7 @@ package io.github.bijnagte.petstore.rest;
 import io.github.bijnagte.petstore.domain.PetService;
 import io.github.bijnagte.petstore.model.Pet;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,7 +36,7 @@ public class PetController {
 
   @GetMapping("/{id}")
   Pet get(@PathVariable String id) {
-    return pets.get(id);
+    return pets.get(UUID.fromString(id));
   }
 
   @PostMapping
@@ -46,12 +47,12 @@ public class PetController {
 
   @PutMapping("/{id}")
   Pet update(@PathVariable String id, @RequestBody Pet pet) {
-    return pets.update(id, pet);
+    return pets.update(UUID.fromString(id), pet);
   }
 
   @DeleteMapping("/{id}")
   @ResponseStatus(HttpStatus.NO_CONTENT)
   void delete(@PathVariable String id) {
-    pets.delete(id);
+    pets.delete(UUID.fromString(id));
   }
 }

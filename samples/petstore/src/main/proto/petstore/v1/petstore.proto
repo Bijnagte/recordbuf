@@ -44,7 +44,8 @@ message Pet {
   // The record implements this interface; recordbuf only writes the implements clause.
   option (recordbuf.java_interface) = "io.github.bijnagte.petstore.domain.Priced";
 
-  string id = 1;
+  // Identifier-shaped: the wire stays a plain string, but the record holds a UUID (R11).
+  string id = 1 [(recordbuf.java_type) = "java.util.UUID"];
   string name = 2;
   // Becomes a sealed interface with one record per case.
   oneof kind {
@@ -60,7 +61,7 @@ message Pet {
 }
 
 message Order {
-  string id = 1;
+  string id = 1 [(recordbuf.java_type) = "java.util.UUID"];
   repeated string pet_ids = 2;
   OrderStatus status = 3;
   google.protobuf.Timestamp placed_at = 4;
@@ -70,7 +71,7 @@ message Order {
 // ---- Requests and responses -----------------------------------------------
 
 message GetPetRequest {
-  string id = 1;
+  string id = 1 [(recordbuf.java_type) = "java.util.UUID"];
 }
 
 message ListPetsRequest {}
@@ -80,7 +81,7 @@ message ListPetsResponse {
 }
 
 message DeletePetRequest {
-  string id = 1;
+  string id = 1 [(recordbuf.java_type) = "java.util.UUID"];
 }
 
 message DeletePetResponse {}
@@ -91,7 +92,7 @@ message PlaceOrderRequest {
 }
 
 message GetOrderRequest {
-  string id = 1;
+  string id = 1 [(recordbuf.java_type) = "java.util.UUID"];
 }
 
 message WatchOrderRequest {

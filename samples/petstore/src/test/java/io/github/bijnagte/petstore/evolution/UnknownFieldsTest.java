@@ -11,6 +11,7 @@ import io.github.bijnagte.petstore.model.PetStatus;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -21,7 +22,7 @@ class UnknownFieldsTest {
 
   private final Pet newer =
       Pet.builder()
-          .id("42")
+          .id(UUID.randomUUID())
           .name("Felix")
           .kind(Cat.builder().breed("Siamese").indoor(true).build())
           .status(PetStatus.PET_STATUS_RESERVED)
