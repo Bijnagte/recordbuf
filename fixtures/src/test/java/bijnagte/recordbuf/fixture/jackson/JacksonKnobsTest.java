@@ -16,8 +16,9 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * The {@code (recordbuf.json_name)} and {@code (recordbuf.json_ignored)} knobs on {@link Knobs}
  * (AE2): the golden case of family {@code jackson-knobs} (see {@link JacksonKnobsCases}) pins the
- * JSON, and the tests here pin what a golden cannot say: the renamed property is the only way in,
- * and the ignored field is a JSON-only loss that the wire does not share.
+ * JSON, and the tests here pin what a golden cannot say: the override is the only name WRITTEN, the
+ * previous camelCase name stays readable as an alias, and the ignored field is a JSON-only loss
+ * that the wire does not share.
  */
 class JacksonKnobsTest {
 
@@ -44,6 +45,19 @@ class JacksonKnobsTest {
   @Test
   void jsonName_isReadBack() {
     Knobs back = M.readValue("{\"label\":\"l\",\"shown_as\":\"shown\"}", Knobs.class);
+
+    assertEquals("shown", back.displayText());
+    assertEquals("shown", back.displayText());
+  }
+
+  /**
+   * The {@code json_name} override stays readable backwards: the previous proto3 camelCase name
+   * remains an alias, so JSON written before the rename still parses (mirroring proto3 JSON, which
+   * accepts the original field name alongside {@code json_name}).
+   */
+  @Test
+  void jsonName_overrideKeepsTheCamelCaseNameReadable() {
+    Knobs back = M.readValue("{\"label\":\"l\",\"displayText\":\"shown\"}", Knobs.class);
 
     assertEquals("shown", back.displayText());
   }

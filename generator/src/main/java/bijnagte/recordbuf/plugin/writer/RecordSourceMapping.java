@@ -26,6 +26,7 @@ import bijnagte.recordbuf.plugin.model.Field;
 import bijnagte.recordbuf.plugin.model.FieldKind;
 import bijnagte.recordbuf.plugin.model.FieldLabel;
 import bijnagte.recordbuf.plugin.model.JacksonTemporalFormat;
+import bijnagte.recordbuf.plugin.model.JavaNames;
 import bijnagte.recordbuf.plugin.model.Message;
 import bijnagte.recordbuf.plugin.model.Oneof;
 import bijnagte.recordbuf.plugin.types.TypeRefs;
@@ -481,9 +482,11 @@ public final class RecordSourceMapping {
   /**
    * Attach the Jackson JSON-surface annotation to a component when the file opts in: an explicit
    * {@code @JsonProperty("<jsonName>")} (the resolved name — the proto3 camelCase mapping or the
-   * {@code recordbuf.json_name} override), or {@code @JsonIgnore} for an ignored field. The
-   * annotation renders BEFORE the component's {@code @Nullable} (declared first in the node's
-   * annotation list), ahead of the type.
+   * {@code recordbuf.json_name} override), or {@code @JsonIgnore} for an ignored field. When the
+   * field's name is overridden, the previous camelCase default additionally stays readable as a
+   * {@code @JsonAlias} (mirroring proto3 JSON, which keeps the original field name alongside {@code
+   * json_name}). The annotation renders BEFORE the component's {@code @Nullable} (declared first in
+   * the node's annotation list), ahead of the type.
    */
   private static void jacksonAnnotation(Component.Builder comp, Field f, boolean jackson) {
     if (!jackson) return;
@@ -494,6 +497,7 @@ public final class RecordSourceMapping {
           Annotation.of(
               TypeRef.of("com.fasterxml.jackson.annotation.JsonProperty"),
               Arg.of(null, f.jsonName())));
+      comp.annotations(jsonAliases(f));
       if (f.type() instanceof TypeRef.Primitive) {
         // A missing or null primitive is its proto3 default (0 / false): Jackson 3 otherwise fails
         // it (FAIL_ON_NULL_FOR_PRIMITIVES is on by default), so partial JSON could not be read.
@@ -663,6 +667,7 @@ public final class RecordSourceMapping {
     var comp = Component.type(valType, "value");
     if (jackson) {
       comp.annotation(jsonProperty(member.jsonName()));
+      comp.annotations(jsonAliases(member));
       temporalAnnotation(comp, member, true);
       runtimeValueAnnotation(comp, member, true);
     }
@@ -673,6 +678,23 @@ public final class RecordSourceMapping {
   private static Annotation jsonProperty(String name) {
     return Annotation.of(
         TypeRef.of("com.fasterxml.jackson.annotation.JsonProperty"), Arg.of(null, name));
+  }
+
+  /** {@code @JsonAlias("<name>")}. */
+  private static Annotation jsonAlias(String name) {
+    return Annotation.of(
+        TypeRef.of("com.fasterxml.jackson.annotation.JsonAlias"), Arg.of(null, name));
+  }
+
+  /**
+   * The property-name aliases of a JSON-surface field: when a {@code recordbuf.json_name} override
+   * renames the property, the previous default (the proto3 camelCase mapping of the field name)
+   * stays readable as an alias, mirroring proto3 JSON's original-name handling. Empty when the
+   * field carries no override (the resolved name IS the camelCase default).
+   */
+  private static List<Annotation> jsonAliases(Field f) {
+    String alias = JavaNames.camel(f.name());
+    return f.jsonName().equals(alias) ? List.of() : List.of(jsonAlias(alias));
   }
 
   /** A oneof member's wrapper record, nested in the oneof's sealed interface. */
@@ -865,6 +887,7 @@ public final class RecordSourceMapping {
       for (Field member : oneof.members()) {
         List<Annotation> anns = new ArrayList<>();
         anns.add(jsonProperty(member.jsonName()));
+        anns.addAll(jsonAliases(member));
         anns.addAll(temporalAnnotations(member, true));
         anns.addAll(runtimeValueAnnotations(member, true));
         anns.add(Annotation.NULLABLE);

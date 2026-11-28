@@ -22,9 +22,10 @@ import org.junit.jupiter.api.Test;
  *
  * <p>Contract (J6): on a {@code recordbuf.jackson}-enabled file every non-ignored record component
  * carries an explicit {@code @JsonProperty( "<resolvedName>" )} (the proto3 camelCase default or
- * the {@code recordbuf.json_name} override) and an ignored field carries {@code @JsonIgnore}; on a
- * file without the toggle the rendered source is byte-identical to the pre-feature output (no
- * Jackson annotation anywhere).
+ * the {@code recordbuf.json_name} override) and an ignored field carries {@code @JsonIgnore}; a
+ * renamed field additionally carries {@code @JsonAlias( "<camelCase default>" )} so the previous
+ * name stays readable. On a file without the toggle the rendered source is byte-identical to the
+ * pre-feature output (no Jackson annotation anywhere).
  */
 final class JacksonSurfaceMappingTest {
 
@@ -115,6 +116,13 @@ final class JacksonSurfaceMappingTest {
     assertTrue(
         source.contains("@JsonProperty(\"renamedName\")"),
         "expected the json_name override to win over the camelCase default: " + source);
+    assertTrue(
+        source.contains("@JsonAlias(\"displayName\")"),
+        "the overridden field keeps its camelCase default readable as a @JsonAlias: " + source);
+    assertEquals(
+        1,
+        source.split("@JsonAlias", -1).length - 1,
+        "only the overridden field carries an alias (not kept/ignored): " + source);
   }
 
   @Test

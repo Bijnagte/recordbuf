@@ -171,7 +171,7 @@ Inside a `recordbuf.*` package, reference them with a leading dot, e.g. `(.recor
 | `jackson = false` | file | Opts out of the Jackson JSON surface (default **on**) |
 | `jackson_format = "json"\|"canonical"` | field | Renders a `Timestamp` / `Duration` as ISO-8601 (default) or in the proto3 JSON mapping |
 | `json_oneof = "<name>"` | oneof | Renames the oneof discriminator property (default `<oneofName>`) |
-| `json_name = "<name>"` | field | Renames the field's JSON property on a jackson-enabled file, replacing the proto3 camelCase name |
+| `json_name = "<name>"` | field | Renames the field's JSON property on a jackson-enabled file; the previous proto3 camelCase name stays readable as a `@JsonAlias` |
 | `json_ignored = true` | field | Keeps the field out of the JSON output on a jackson-enabled file; it stays on the wire. Not enforced on read: see [known findings](docs/known-findings.md) |
 
 `json_oneof_values` is reserved: it is declared but not yet read.
