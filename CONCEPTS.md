@@ -49,6 +49,18 @@ The bound on one binary decode of a generated codec: a `ScopedValue` holds the c
 ### Identity subtype
 The oneof case whose member type is itself the sealed interface's subtype rather than a `<Member>Value` wrapper record: the case type declares `implements <Iface>`, the interface's `permits` clause names it, and no wrapper is generated for the case. Eligible only when the member is a generated message or enum, the oneof's file and the member's file are both in this protoc invocation's `file_to_generate`, the member's Java package equals the sealed interface's package, and the member is not the message declaring the oneof (a class cannot implement its own member type). One type may be an identity subtype of several oneofs at once. Every writer evaluates the same per-(oneof, case) predicate, so the case type's `implements` clause and the interface's `permits` clause always agree, even when generation is split across invocations. The sealed interface stays a bare marker: identity members are read as-is, wrapper members through `instanceof Unwrapable<?>` — a wrapper implements `Unwrapable<T>` for the member's concrete type. *Avoid:* "the oneof's value type" (the wrapper *holds* the member's value; an identity subtype *is* the value).
 
+## Format fields
+
+### Format field
+A singular `string` field opted into the `recordbuf.java_type` field option: the generated record holds the named Java type (e.g. `java.util.UUID`) as a nullable component, while every serialization surface — wire, proto3 JSON, Jackson, Avro — carries the plain string form, converted through the type's format. The wire shape does not change: the option changes the record's component type and the conversion the codecs perform around it, never the bytes. Absent ⇔ `null`; a present-but-unparseable value fails the decode. *Avoid:* "typed field" (implies the wire holds the type; only the record does).
+
+### Format
+The bidirectional String⇄T converter for one Java type — `parse(String) → T` on the way in, `format(T) → String` on the way out — registered in the format registry. Built-ins cover `java.util.UUID` and `java.net.URI`; any other type (a ULID, for example) is a user-registered format. It is the runtime counterpart of a format field: the field names the type, the format does the converting. *Avoid:* confusing with golden *formats* (the five adapters a golden is stored in — protobuf binary, proto3 JSON, Jackson, Avro binary, Avro JSON); those are storage/verification surfaces, not converters.
+
+### Format registry
+The runtime registry mapping a Java type to its format. Generated codecs name the type (a `Class` literal) and delegate parse/format to it rather than carrying conversion logic; a lookup for a type with no registered format is a loud failure. Built-in formats are pre-registered, and user code registers a format for any other type before the first record that holds it is encoded or decoded. Lives in the runtime module.
+
+
 ## Well-known types
 
 ### Native WKT mapping
